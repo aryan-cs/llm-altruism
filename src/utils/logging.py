@@ -6,7 +6,7 @@ as JSON-formatted logs for later analysis.
 """
 
 import json
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
@@ -133,7 +133,7 @@ class ExperimentLogger:
     @staticmethod
     def _now() -> str:
         """Return an ISO timestamp in UTC."""
-        return datetime.now(UTC).isoformat()
+        return datetime.now(timezone.utc).isoformat()
 
     def _write_line(self, data: dict) -> None:
         """

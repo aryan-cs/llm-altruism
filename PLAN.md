@@ -100,7 +100,7 @@ identical to part 2, but with a public rating mechanism.
 | variable | values |
 |---|---|
 | `model` | gpt-4o, gpt-4o-mini, o1, o3-mini, claude-3.5-sonnet, claude-3.5-haiku, claude-4-sonnet, claude-4-opus, gemini-2.0-flash, gemini-2.5-pro, grok-3, llama-3.3-70b, mistral-large, deepseek-v3, qwen-2.5-72b (via cerebras/openrouter/ollama as needed) |
-| `provider` | openai, anthropic, google, xai, cerebras, openrouter, ollama |
+| `provider` | openai, anthropic, google, xai, cerebras, openrouter, ollama, nvidia |
 | `system_prompt` | minimal, cooperative-framed, competitive-framed, persona-driven |
 | `temperature` | 0.0, 0.3, 0.7, 1.0 |
 | `history_mode` | none, full, summarized, windowed (last n rounds) |
@@ -134,6 +134,88 @@ identical to part 2, but with a public rating mechanism.
 - deception detection (does stated intention match action?)
 - narrative analysis of agent "cultures" that emerge
 
+### 2.4 measurement tracks
+
+the paper-ready experiment suite is organized into five measurement tracks, each targeting a distinct research question cluster.
+
+**track A — baseline default-policy (RQ1, RQ2)**
+establishes each model's intrinsic behavioral profile with minimal prompt influence. one config per game (PD, stag hunt, chicken, ultimatum, dictator, public goods), each with a single neutral prompt variant, temperature 0.0, 10 repetitions, 20 rounds per trial. same-model pairings for each model under test.
+
+**track B — prompt susceptibility (RQ3, RQ4)**
+measures how much behavior shifts under different framings, system prompts, and personas. uses PD as the probe game. sweeps cooperative, competitive, analytical system prompts × neutral, business, adversarial, community, anonymous framing overlays × strategist, community_leader, diplomat personas. temperature [0.0, 0.7].
+
+**track C — cross-model interactions (RQ5, RQ6)**
+tests for in-group bias and cross-family asymmetries. same-model, same-family, and cross-family pairings across all major model families. uses PD with neutral prompt, temperature 0.0.
+
+**track D — stress tests (RQ7)**
+reveals fallback policies under adversarial pressure. applies 7 stress prompts (endgame_aware, private_unobserved, public_observed, high_temptation, punishment_threat, exclusion_risk, scarcity_pressure) to PD self-play. temperature 0.0.
+
+**track E — benchmark-recognition robustness (RQ8, RQ9)**
+the most methodologically novel track. tests whether models behave differently when they recognize a famous game vs. when the identical payoff structure is disguised. for each game (PD, stag hunt, chicken), runs:
+- canonical version (standard labels + description)
+- unlabeled version (option A / option B, no game name)
+- narrative disguise 1 (e.g., irrigation sharing for PD)
+- narrative disguise 2 (e.g., trade route for PD)
+
+the game-theoretic structure is identical across all variants — only framing and labels differ. if a model cooperates more in "Prisoner's Dilemma" than in the isomorphic "irrigation" game, that's evidence of training-data memorization driving behavior.
+
+### 2.5 paper-ready experiment configs
+
+all configs live in `configs/paper/` and are designed to be run directly:
+
+| config file | track | games covered | ~total games |
+|---|---|---|---|
+| `track_a_baseline_pd.yaml` | A | PD | 600 |
+| `track_a_baseline_stag_hunt.yaml` | A | stag hunt | 600 |
+| `track_a_baseline_chicken.yaml` | A | chicken | 600 |
+| `track_a_baseline_ultimatum.yaml` | A | ultimatum | 300 |
+| `track_a_baseline_dictator.yaml` | A | dictator | 300 |
+| `track_a_baseline_public_goods.yaml` | A | public goods | 300 |
+| `track_b_prompt_susceptibility.yaml` | B | PD | 2,700 |
+| `track_c_cross_model.yaml` | C | PD | 4,200 |
+| `track_d_stress_tests.yaml` | D | PD | 2,100 |
+| `track_e_disguised_pd.yaml` | E | PD variants | 2,400 |
+| `track_e_disguised_stag_hunt.yaml` | E | stag hunt variants | 1,800 |
+| `track_e_disguised_chicken.yaml` | E | chicken variants | 1,800 |
+
+total: ~17,700 games across all tracks. estimated budget: ~$80-120.
+
+### 2.6 disguised game variants
+
+to control for benchmark contamination, we created isomorphic game variants with identical payoff structures but different narrative framing:
+
+**prisoner's dilemma variants:**
+- canonical: cooperate/defect
+- unlabeled: option A / option B (no game-theory language)
+- irrigation: maintain shared canal / skip maintenance
+- trade route: share route intel / withhold intel
+
+**stag hunt variants:**
+- canonical: stag/hare
+- unlabeled: option A / option B
+- research collaboration: collaborate / work solo
+
+**chicken variants:**
+- canonical: swerve/straight
+- unlabeled: option A / option B
+- market entry: hold back / enter aggressively
+
+all variant prompts live in `prompts/games_variants/`. the base `Game` class supports these via `prompt_overrides` and `action_aliases` constructor parameters — no code changes needed, just config.
+
+### 2.7 stress test prompts
+
+seven adversarial system prompts designed to reveal model "fallback policies" under pressure:
+
+- `endgame_aware.txt` — tells the model this is the last round, removing shadow of the future
+- `private_unobserved.txt` — tells the model its choice is completely private
+- `public_observed.txt` — tells the model its choice is publicly visible and judged
+- `high_temptation.txt` — emphasizes the large payoff from unilateral defection
+- `punishment_threat.txt` — warns that defection triggers permanent retaliation
+- `exclusion_risk.txt` — warns that defectors are excluded from future interactions
+- `scarcity_pressure.txt` — frames resources as desperately scarce
+
+plus three neutral paraphrase variants (`neutral_v1.txt`, `neutral_v2.txt`, `neutral_v3.txt`) that rephrase the minimal system prompt without changing its meaning — used to measure behavioral variance from irrelevant surface-level prompt differences.
+
 ---
 
 ## 3. architecture & codebase
@@ -162,6 +244,10 @@ llm-altruism/
 │   │   ├── adversarial.txt        # opponent-is-hostile framing
 │   │   ├── community.txt          # community member framing
 │   │   └── anonymous.txt          # one-shot anonymous framing
+│   ├── games_variants/            # disguised isomorphic game prompts
+│   │   ├── prisoners_dilemma/     # unlabeled, irrigation, trade_route
+│   │   ├── stag_hunt/            # unlabeled, research
+│   │   └── chicken/              # unlabeled, market_entry
 │   └── persona/                   # character/personality assignments
 │       ├── strategist.txt         # ruthless optimizer
 │       ├── community_leader.txt   # fairness-oriented leader
@@ -185,7 +271,8 @@ llm-altruism/
 │   │   ├── xai_provider.py        # xai (grok)
 │   │   ├── cerebras_provider.py   # cerebras
 │   │   ├── openrouter_provider.py # openrouter (multi-model gateway)
-│   │   └── ollama_provider.py     # ollama (local models)
+│   │   ├── ollama_provider.py     # ollama (local models)
+│   │   └── nvidia_provider.py     # nvidia nim (nemotron, etc.)
 │   │
 │   ├── games/                     # game definitions & logic
 │   │   ├── __init__.py
@@ -242,8 +329,21 @@ llm-altruism/
 │   │   └── ...
 │   ├── part2/
 │   │   └── society_baseline.yaml
-│   └── part3/
-│       └── society_reputation.yaml
+│   ├── part3/
+│   │   └── society_reputation.yaml
+│   └── paper/                     # paper-ready configs (tracks A-E)
+│       ├── track_a_baseline_pd.yaml
+│       ├── track_a_baseline_stag_hunt.yaml
+│       ├── track_a_baseline_chicken.yaml
+│       ├── track_a_baseline_ultimatum.yaml
+│       ├── track_a_baseline_dictator.yaml
+│       ├── track_a_baseline_public_goods.yaml
+│       ├── track_b_prompt_susceptibility.yaml
+│       ├── track_c_cross_model.yaml
+│       ├── track_d_stress_tests.yaml
+│       ├── track_e_disguised_pd.yaml
+│       ├── track_e_disguised_stag_hunt.yaml
+│       └── track_e_disguised_chicken.yaml
 │
 ├── results/                       # experiment outputs (gitignored, large)
 │   └── .gitkeep
@@ -451,6 +551,9 @@ with 7 providers and potentially hundreds of trials, API costs add up. the frame
 - [ ] run pilot experiments (PD with 2-3 model pairs)
 - [x] implement strategy classifier (tit-for-tat, etc.)
 - [x] implement basic visualization (cooperation rates, payoff curves)
+- [x] create disguised game variant prompts (track E)
+- [x] create stress test and neutral paraphrase prompts (track D)
+- [x] create paper-ready experiment configs (tracks A-E, 12 configs)
 
 ### phase 2 — analysis & refinement (week 4)
 

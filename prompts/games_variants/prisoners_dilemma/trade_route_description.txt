@@ -1,0 +1,9 @@
+You and another merchant operate on a shared trade route. The route passes through territories that require safe passage agreements and reliable coordination. Each merchant can choose to share valuable route information (including timing, safety conditions, and trading opportunities) or withhold this information for competitive advantage.
+
+PAYOFF STRUCTURE (measured in profit):
+If both merchants share route information: Both benefit from coordinated trading, mutual protection, and optimized timing. Both earn strong profits (3 value each).
+If you share information but the other merchant withholds: They use your information to gain exclusive advantages while you operate without theirs. You earn minimal profit (0 value), while the other merchant capitalizes on your openness (5 value).
+If you withhold information but the other merchant shares: They waste resources sharing information you don't reciprocate, while you exploit their openness. They earn minimal profit (0 value), while you capture extra advantage (5 value).
+If both merchants withhold information: Neither can coordinate effectively, both lose opportunities to dishonest competitors, and neither enjoys the mutual protection benefits. Both earn minimal profit (1 value each).
+
+Each round, you and the other merchant simultaneously decide whether to share or withhold information. The other merchant decides independently based on their own reasoning.

@@ -338,6 +338,9 @@ class TestOpenAICompatibleResponseParsing:
         def get_provider_name(self) -> str:
             return "dummy"
 
+    class DummyNoFormatProvider(DummyProvider):
+        SUPPORTS_RESPONSE_FORMAT = False
+
     def test_extract_content_prefers_message_content(self):
         """Standard chat-completion content should be returned unchanged."""
         provider = self.DummyProvider(model="dummy-model", api_key="test-key")
@@ -388,6 +391,19 @@ class TestOpenAICompatibleResponseParsing:
         }
 
         assert provider._extract_content(data) == "hello\nworld"
+        asyncio.run(provider.close())
+
+    def test_build_request_body_omits_response_format_when_provider_disables_it(self):
+        """Providers can opt out of structured-response request fields."""
+        provider = self.DummyNoFormatProvider(model="dummy-model", api_key="test-key")
+        request = provider._build_request_body(
+            messages=[{"role": "user", "content": "hi"}],
+            temperature=0.0,
+            max_tokens=16,
+            response_format={"type": "json_object"},
+        )
+
+        assert "response_format" not in request
         asyncio.run(provider.close())
 
 

@@ -1,0 +1,50 @@
+experiment:
+  name: "track-a-baseline-stag-hunt"
+  part: 1
+  game: "stag_hunt"
+  rounds: 10
+  repetitions: 3
+
+  history:
+    mode: "full"
+    window_size: 10
+
+  pairings:
+    # Self-play pairings
+    - [{model: "llama3.1-8b", provider: "cerebras"}, {model: "llama3.1-8b", provider: "cerebras"}]
+    - [{model: "qwen-3-235b-a22b-instruct-2507", provider: "cerebras"}, {model: "qwen-3-235b-a22b-instruct-2507", provider: "cerebras"}]
+    - [{model: "deepseek-ai/deepseek-v3.2", provider: "nvidia"}, {model: "deepseek-ai/deepseek-v3.2", provider: "nvidia"}]
+    - [{model: "llama3.2:3b", provider: "ollama"}, {model: "llama3.2:3b", provider: "ollama"}]
+    # Cross-model pairings
+    - [{model: "llama3.1-8b", provider: "cerebras"}, {model: "qwen-3-235b-a22b-instruct-2507", provider: "cerebras"}]
+    - [{model: "llama3.1-8b", provider: "cerebras"}, {model: "deepseek-ai/deepseek-v3.2", provider: "nvidia"}]
+    - [{model: "llama3.1-8b", provider: "cerebras"}, {model: "llama3.2:3b", provider: "ollama"}]
+    - [{model: "qwen-3-235b-a22b-instruct-2507", provider: "cerebras"}, {model: "deepseek-ai/deepseek-v3.2", provider: "nvidia"}]
+    - [{model: "qwen-3-235b-a22b-instruct-2507", provider: "cerebras"}, {model: "llama3.2:3b", provider: "ollama"}]
+    - [{model: "deepseek-ai/deepseek-v3.2", provider: "nvidia"}, {model: "llama3.2:3b", provider: "ollama"}]
+
+  prompt_variants:
+    - name: "minimal"
+      system_prompt: "prompts/system/minimal.txt"
+      framing: "prompts/framing/neutral.txt"
+      persona:
+    - name: "neutral_v1"
+      system_prompt: "prompts/system/neutral_v1.txt"
+      framing: "prompts/framing/neutral.txt"
+      persona:
+    - name: "neutral_v2"
+      system_prompt: "prompts/system/neutral_v2.txt"
+      framing: "prompts/framing/neutral.txt"
+      persona:
+
+  parameters:
+    temperature: [0.0, 0.7]
+    payoff_visibility: true
+    max_tokens: 300
+    budget_usd: 5.0
+    retry_on_rate_limit: true
+    max_rate_limit_retries: 3
+    max_transient_retries: 6
+    initial_retry_delay_seconds: 10
+    max_retry_delay_seconds: 300
+    seed: 42
