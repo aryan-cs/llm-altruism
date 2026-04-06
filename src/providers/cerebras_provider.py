@@ -1,8 +1,8 @@
 """
 Cerebras LLM provider implementation.
 
-Supports Llama 3.3 70B model via OpenAI-compatible API.
-Uses httpx for async HTTP requests.
+Supports the current Cerebras free-tier model catalog via the OpenAI-compatible
+API.
 """
 
 import os
@@ -15,7 +15,13 @@ class CerebrasProvider(OpenAICompatibleProvider):
     """Cerebras provider using OpenAI-compatible API."""
 
     BASE_URL = "https://api.cerebras.ai/v1"
-    SUPPORTED_MODELS = {"llama-3.3-70b"}
+    MAX_TOKENS_FIELD = "max_completion_tokens"
+    SUPPORTED_MODELS = {
+        "gpt-oss-120b",
+        "llama3.1-8b",
+        "qwen-3-235b-a22b-instruct-2507",
+        "zai-glm-4.7",
+    }
 
     def __init__(
         self,
@@ -27,7 +33,7 @@ class CerebrasProvider(OpenAICompatibleProvider):
         Initialize Cerebras provider.
 
         Args:
-            model: Model identifier (e.g., 'llama-3.3-70b')
+            model: Model identifier (e.g., 'llama3.1-8b')
             api_key: Cerebras API key (uses CEREBRAS_API_KEY env var if not provided)
 
         Raises:

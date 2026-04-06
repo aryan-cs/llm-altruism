@@ -40,6 +40,20 @@ class ProviderError(Exception):
     pass
 
 
+class TemporaryProviderError(ProviderError):
+    """Retryable provider error such as a transient network or server failure."""
+
+    def __init__(self, message: str, *, retry_after_seconds: float | None = None):
+        super().__init__(message)
+        self.retry_after_seconds = retry_after_seconds
+
+
+class RateLimitProviderError(TemporaryProviderError):
+    """Retryable provider error raised when a provider rate-limits requests."""
+
+    pass
+
+
 class LLMProvider(ABC):
     """Abstract base class for LLM providers."""
 
@@ -127,8 +141,11 @@ MODEL_PRICING = {
     "gemini-2.5-pro": {"input": 0.001, "output": 0.004},
     # xAI
     "grok-3": {"input": 0.002, "output": 0.008},
-    # Cerebras
-    "llama-3.3-70b": {"input": 0.000625, "output": 0.001},
+    # Cerebras free-tier POC defaults
+    "gpt-oss-120b": {"input": 0.0, "output": 0.0},
+    "llama3.1-8b": {"input": 0.0, "output": 0.0},
+    "qwen-3-235b-a22b-instruct-2507": {"input": 0.0, "output": 0.0},
+    "zai-glm-4.7": {"input": 0.0, "output": 0.0},
 }
 
 # Provider registry

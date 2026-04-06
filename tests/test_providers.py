@@ -12,10 +12,13 @@ from src.providers import (
     UsageInfo,
     ProviderError,
     PROVIDER_REGISTRY,
+    RateLimitProviderError,
     get_provider,
     get_provider_for_model,
     MODEL_PRICING,
+    TemporaryProviderError,
 )
+from src.providers.openai_compatible_base import OpenAICompatibleProvider
 
 
 class TestRegistry:
@@ -137,7 +140,7 @@ class TestPricing:
         assert "claude-3-5-sonnet-20241022" in MODEL_PRICING
         assert "gemini-2.0-flash" in MODEL_PRICING
         assert "grok-3" in MODEL_PRICING
-        assert "llama-3.3-70b" in MODEL_PRICING
+        assert "llama3.1-8b" in MODEL_PRICING
 
     def test_pricing_structure(self):
         """Verify pricing entries have correct structure."""
@@ -235,9 +238,18 @@ class TestCerebrasProvider:
 
     def test_cerebras_supported_models(self):
         """Test Cerebras provider initialization."""
-        provider = get_provider("cerebras", "llama-3.3-70b", api_key="test-key")
-        assert provider.model == "llama-3.3-70b"
-        assert provider.get_provider_name() == "cerebras"
+        from src.providers.cerebras_provider import CerebrasProvider
+
+        assert CerebrasProvider.SUPPORTED_MODELS == {
+            "gpt-oss-120b",
+            "llama3.1-8b",
+            "qwen-3-235b-a22b-instruct-2507",
+            "zai-glm-4.7",
+        }
+        for model in CerebrasProvider.SUPPORTED_MODELS:
+            provider = get_provider("cerebras", model, api_key="test-key")
+            assert provider.model == model
+            assert provider.get_provider_name() == "cerebras"
 
     def test_cerebras_unsupported_model(self):
         """Test error handling for unsupported Cerebras model."""
@@ -303,6 +315,80 @@ class TestProviderErrors:
         """Test ProviderError message handling."""
         error = ProviderError("Test error message")
         assert "Test error message" in str(error)
+
+    def test_temporary_provider_error_tracks_retry_after(self):
+        """Retryable errors can carry provider-suggested wait times."""
+        error = TemporaryProviderError("retry later", retry_after_seconds=12.5)
+        assert "retry later" in str(error)
+        assert error.retry_after_seconds == 12.5
+
+    def test_rate_limit_provider_error_inherits_from_temporary_error(self):
+        """Rate-limit errors are a specialized retryable provider error."""
+        error = RateLimitProviderError("too many requests", retry_after_seconds=30)
+        assert isinstance(error, TemporaryProviderError)
+        assert error.retry_after_seconds == 30
+
+
+class TestOpenAICompatibleResponseParsing:
+    """Tests for flexible OpenAI-compatible response parsing."""
+
+    class DummyProvider(OpenAICompatibleProvider):
+        BASE_URL = "https://example.invalid/v1"
+
+        def get_provider_name(self) -> str:
+            return "dummy"
+
+    def test_extract_content_prefers_message_content(self):
+        """Standard chat-completion content should be returned unchanged."""
+        provider = self.DummyProvider(model="dummy-model", api_key="test-key")
+        data = {
+            "choices": [
+                {
+                    "message": {
+                        "content": "hello",
+                    }
+                }
+            ]
+        }
+
+        assert provider._extract_content(data) == "hello"
+        asyncio.run(provider.close())
+
+    def test_extract_content_accepts_reasoning_content_fallback(self):
+        """Reasoning-only NVIDIA-style responses should still surface text."""
+        provider = self.DummyProvider(model="dummy-model", api_key="test-key")
+        data = {
+            "choices": [
+                {
+                    "message": {
+                        "content": None,
+                        "reasoning_content": "thinking output",
+                    }
+                }
+            ]
+        }
+
+        assert provider._extract_content(data) == "thinking output"
+        asyncio.run(provider.close())
+
+    def test_extract_content_joins_text_parts(self):
+        """Content arrays with text parts should be flattened into one string."""
+        provider = self.DummyProvider(model="dummy-model", api_key="test-key")
+        data = {
+            "choices": [
+                {
+                    "message": {
+                        "content": [
+                            {"type": "text", "text": "hello"},
+                            {"type": "text", "text": "world"},
+                        ],
+                    }
+                }
+            ]
+        }
+
+        assert provider._extract_content(data) == "hello\nworld"
+        asyncio.run(provider.close())
 
 
 if __name__ == "__main__":

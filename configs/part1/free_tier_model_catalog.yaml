@@ -1,0 +1,49 @@
+experiment:
+  name: "free-tier-model-catalog"
+  part: 1
+  game: "prisoners_dilemma"
+  rounds: 8
+  repetitions: 1
+
+  history:
+    mode: "windowed"
+    window_size: 4
+
+  pairings:
+    - [{model: "z-ai/glm4.7", provider: "nvidia"}, {model: "z-ai/glm4.7", provider: "nvidia"}]
+    - [{model: "nvidia/nemotron-content-safety-reasoning-4b", provider: "nvidia"}, {model: "nvidia/nemotron-content-safety-reasoning-4b", provider: "nvidia"}]
+    - [{model: "deepseek-ai/deepseek-v3.2", provider: "nvidia"}, {model: "deepseek-ai/deepseek-v3.2", provider: "nvidia"}]
+    - [{model: "moonshotai/kimi-k2-thinking", provider: "nvidia"}, {model: "moonshotai/kimi-k2-thinking", provider: "nvidia"}]
+    - [{model: "nvidia/llama-3.1-nemotron-safety-guard-8b-v3", provider: "nvidia"}, {model: "nvidia/llama-3.1-nemotron-safety-guard-8b-v3", provider: "nvidia"}]
+    - [{model: "gpt-oss-120b", provider: "cerebras"}, {model: "gpt-oss-120b", provider: "cerebras"}]
+    - [{model: "llama3.1-8b", provider: "cerebras"}, {model: "llama3.1-8b", provider: "cerebras"}]
+    - [{model: "qwen-3-235b-a22b-instruct-2507", provider: "cerebras"}, {model: "qwen-3-235b-a22b-instruct-2507", provider: "cerebras"}]
+    - [{model: "zai-glm-4.7", provider: "cerebras"}, {model: "zai-glm-4.7", provider: "cerebras"}]
+    - [{model: "nvidia/nemotron-3-nano-30b-a3b:free", provider: "openrouter"}, {model: "nvidia/nemotron-3-nano-30b-a3b:free", provider: "openrouter"}]
+    - [{model: "openai/gpt-oss-120b:free", provider: "openrouter"}, {model: "openai/gpt-oss-120b:free", provider: "openrouter"}]
+    - [{model: "openai/gpt-oss-20b:free", provider: "openrouter"}, {model: "openai/gpt-oss-20b:free", provider: "openrouter"}]
+    - [{model: "z-ai/glm-4.5-air:free", provider: "openrouter"}, {model: "z-ai/glm-4.5-air:free", provider: "openrouter"}]
+    - [{model: "google/gemma-3-4b-it:free", provider: "openrouter"}, {model: "google/gemma-3-4b-it:free", provider: "openrouter"}]
+    - [{model: "google/gemma-3-12b-it:free", provider: "openrouter"}, {model: "google/gemma-3-12b-it:free", provider: "openrouter"}]
+    - [{model: "google/gemma-3-27b-it:free", provider: "openrouter"}, {model: "google/gemma-3-27b-it:free", provider: "openrouter"}]
+    - [{model: "meta-llama/llama-3.3-70b-instruct:free", provider: "openrouter"}, {model: "meta-llama/llama-3.3-70b-instruct:free", provider: "openrouter"}]
+    - [{model: "meta-llama/llama-3.2-3b-instruct:free", provider: "openrouter"}, {model: "meta-llama/llama-3.2-3b-instruct:free", provider: "openrouter"}]
+    - [{model: "qwen/qwen3.6-plus:free", provider: "openrouter"}, {model: "qwen/qwen3.6-plus:free", provider: "openrouter"}]
+    - [{model: "nvidia/nemotron-3-super-120b-a12b:free", provider: "openrouter"}, {model: "nvidia/nemotron-3-super-120b-a12b:free", provider: "openrouter"}]
+
+  prompt_variants:
+    - name: "neutral"
+      system_prompt: "prompts/system/minimal.txt"
+      framing: "prompts/framing/neutral.txt"
+      persona:
+
+  parameters:
+    temperature: [0.0]
+    payoff_visibility: true
+    max_tokens: 300
+    retry_on_rate_limit: true
+    max_rate_limit_retries:
+    max_transient_retries: 6
+    initial_retry_delay_seconds: 10
+    max_retry_delay_seconds: 300
+    seed: 31

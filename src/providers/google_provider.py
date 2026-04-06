@@ -23,7 +23,16 @@ except ImportError:
     class RetryError(Exception):
         """Fallback retry error type when api-core is unavailable."""
 
-from .base import LLMProvider, LLMResponse, MODEL_PRICING, ProviderError, UsageInfo, register_provider
+from .base import (
+    LLMProvider,
+    LLMResponse,
+    MODEL_PRICING,
+    ProviderError,
+    RateLimitProviderError,
+    TemporaryProviderError,
+    UsageInfo,
+    register_provider,
+)
 
 
 class GoogleProvider(LLMProvider):
@@ -160,8 +169,16 @@ class GoogleProvider(LLMProvider):
                 cost_usd=cost,
             )
 
-        except (GoogleAPIError, RetryError) as e:
-            raise ProviderError(f"Google Generative AI error: {str(e)}") from e
+        except RetryError as e:
+            raise TemporaryProviderError(f"Google Generative AI retryable error: {str(e)}") from e
+        except GoogleAPIError as e:
+            message = str(e)
+            lowered = message.lower()
+            if "429" in lowered or "rate limit" in lowered or "resource_exhausted" in lowered:
+                raise RateLimitProviderError(f"Google rate limit: {message}") from e
+            if any(code in lowered for code in ("408", "500", "502", "503", "504", "unavailable", "timeout")):
+                raise TemporaryProviderError(f"Google Generative AI temporary error: {message}") from e
+            raise ProviderError(f"Google Generative AI error: {message}") from e
         except Exception as e:
             raise ProviderError(f"Unexpected error calling Google API: {str(e)}") from e
 

@@ -10,9 +10,12 @@ experiment:
     window_size: 10
 
   pairings:
-    - [{model: "llama-3.3-70b", provider: "cerebras"}, {model: "meta/llama-3.1-8b-instruct", provider: "nvidia"}]
-    - [{model: "llama-3.3-70b", provider: "cerebras"}, {model: "llama3.2:3b", provider: "ollama"}]
-    - [{model: "meta/llama-3.1-8b-instruct", provider: "nvidia"}, {model: "llama3.2:3b", provider: "ollama"}]
+    - [{model: "llama3.1-8b", provider: "cerebras"}, {model: "deepseek-ai/deepseek-v3.2", provider: "nvidia"}]
+    - [{model: "llama3.1-8b", provider: "cerebras"}, {model: "openai/gpt-oss-20b:free", provider: "openrouter"}]
+    - [{model: "llama3.1-8b", provider: "cerebras"}, {model: "llama3.2:3b", provider: "ollama"}]
+    - [{model: "deepseek-ai/deepseek-v3.2", provider: "nvidia"}, {model: "openai/gpt-oss-20b:free", provider: "openrouter"}]
+    - [{model: "deepseek-ai/deepseek-v3.2", provider: "nvidia"}, {model: "llama3.2:3b", provider: "ollama"}]
+    - [{model: "openai/gpt-oss-20b:free", provider: "openrouter"}, {model: "llama3.2:3b", provider: "ollama"}]
 
   prompt_variants:
     - name: "neutral"
@@ -32,4 +35,9 @@ experiment:
     temperature: [0.0, 0.7]
     payoff_visibility: true
     max_tokens: 300
+    retry_on_rate_limit: true
+    max_rate_limit_retries:
+    max_transient_retries: 6
+    initial_retry_delay_seconds: 10
+    max_retry_delay_seconds: 300
     seed: 7

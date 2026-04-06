@@ -10,7 +10,15 @@ from typing import Any, Optional
 
 import httpx
 
-from .base import LLMProvider, LLMResponse, MODEL_PRICING, ProviderError, UsageInfo
+from .base import (
+    LLMProvider,
+    LLMResponse,
+    MODEL_PRICING,
+    ProviderError,
+    RateLimitProviderError,
+    TemporaryProviderError,
+    UsageInfo,
+)
 
 
 class OpenAICompatibleProvider(LLMProvider):
@@ -18,6 +26,7 @@ class OpenAICompatibleProvider(LLMProvider):
 
     BASE_URL: str = ""  # Override in subclasses
     DEFAULT_TIMEOUT: float = 60.0
+    MAX_TOKENS_FIELD: str = "max_tokens"
 
     def __init__(
         self,
@@ -75,15 +84,12 @@ class OpenAICompatibleProvider(LLMProvider):
         start_time = time.time()
 
         try:
-            request_body = {
-                "model": self.model,
-                "messages": messages,
-                "temperature": temperature,
-                "max_tokens": max_tokens,
-            }
-
-            if response_format:
-                request_body["response_format"] = response_format
+            request_body = self._build_request_body(
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                response_format=response_format,
+            )
 
             response = await self.async_client.post(
                 "chat/completions",
@@ -91,15 +97,13 @@ class OpenAICompatibleProvider(LLMProvider):
             )
 
             if response.status_code != 200:
-                raise ProviderError(
-                    f"API returned status {response.status_code}: {response.text}"
-                )
+                raise self._classify_error(response)
 
             data = response.json()
             latency_ms = (time.time() - start_time) * 1000
 
             # Extract content
-            content = data["choices"][0]["message"]["content"]
+            content = self._extract_content(data)
 
             # Extract usage
             usage = UsageInfo(
@@ -122,14 +126,112 @@ class OpenAICompatibleProvider(LLMProvider):
                 cost_usd=cost,
             )
 
+        except (RateLimitProviderError, TemporaryProviderError, ProviderError):
+            raise
         except httpx.RequestError as e:
-            raise ProviderError(f"Network error calling {self.get_provider_name()}: {str(e)}") from e
+            raise TemporaryProviderError(
+                f"Network error calling {self.get_provider_name()}: {str(e)}"
+            ) from e
         except (KeyError, ValueError) as e:
             raise ProviderError(f"Invalid response from {self.get_provider_name()}: {str(e)}") from e
         except Exception as e:
             raise ProviderError(
                 f"Unexpected error calling {self.get_provider_name()}: {str(e)}"
             ) from e
+
+    def _extract_content(self, data: dict[str, Any]) -> str:
+        """Extract text content from common OpenAI-compatible response shapes."""
+        choices = data["choices"]
+        if not choices:
+            raise KeyError("choices")
+
+        choice = choices[0]
+        message = choice.get("message") or {}
+        content = message.get("content")
+
+        if isinstance(content, str) and content.strip():
+            return content
+
+        if isinstance(content, list):
+            text_parts: list[str] = []
+            for part in content:
+                if isinstance(part, str) and part.strip():
+                    text_parts.append(part)
+                    continue
+                if not isinstance(part, dict):
+                    continue
+                text_value = part.get("text") or part.get("content")
+                if isinstance(text_value, str) and text_value.strip():
+                    text_parts.append(text_value)
+            if text_parts:
+                return "\n".join(text_parts)
+
+        for fallback_key in ("reasoning_content", "reasoning"):
+            fallback_value = message.get(fallback_key)
+            if isinstance(fallback_value, str) and fallback_value.strip():
+                return fallback_value
+
+        text = choice.get("text")
+        if isinstance(text, str) and text.strip():
+            return text
+
+        raise KeyError("content")
+
+    def _build_request_body(
+        self,
+        *,
+        messages: list[dict[str, str]],
+        temperature: float,
+        max_tokens: int,
+        response_format: Optional[dict[str, Any]],
+    ) -> dict[str, Any]:
+        """Build a provider request body, allowing subclasses to tweak fields."""
+        request_body: dict[str, Any] = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": temperature,
+            self.MAX_TOKENS_FIELD: max_tokens,
+        }
+
+        if response_format:
+            request_body["response_format"] = response_format
+
+        return request_body
+
+    def _classify_error(self, response: httpx.Response) -> ProviderError:
+        """Map an HTTP error response to a permanent or retryable provider error."""
+        status_code = response.status_code
+        message = f"API returned status {status_code}: {response.text}"
+        retry_after_seconds = self._parse_retry_after_seconds(response)
+
+        if status_code == 429:
+            return RateLimitProviderError(message, retry_after_seconds=retry_after_seconds)
+
+        if status_code in {408, 409, 423, 425, 500, 502, 503, 504}:
+            return TemporaryProviderError(message, retry_after_seconds=retry_after_seconds)
+
+        return ProviderError(message)
+
+    def _parse_retry_after_seconds(self, response: httpx.Response) -> float | None:
+        """Extract a retry wait time from common rate-limit headers when present."""
+        for header_name in (
+            "retry-after",
+            "x-ratelimit-reset",
+            "x-ratelimit-reset-requests",
+            "x-ratelimit-reset-requests-day",
+            "x-ratelimit-reset-tokens",
+            "x-ratelimit-reset-tokens-minute",
+        ):
+            header_value = response.headers.get(header_name)
+            if not header_value:
+                continue
+            try:
+                wait_seconds = float(header_value)
+            except ValueError:
+                continue
+            if wait_seconds >= 0:
+                return wait_seconds
+        return None
 
     async def __aenter__(self):
         """Async context manager entry."""

@@ -98,6 +98,18 @@ class ExperimentLogger:
         }
         self._write_line(line)
 
+    def log_event(self, event_type: str, data: dict[str, Any]) -> None:
+        """Log a generic experiment event such as retries or availability changes."""
+        if not self.log_file:
+            raise RuntimeError("Experiment not started. Call start_experiment first.")
+
+        line = {
+            "type": event_type,
+            "timestamp": self._now(),
+            "data": data,
+        }
+        self._write_line(line)
+
     def finalize(self, total_cost: float, total_duration: float) -> None:
         """
         Finalize the experiment log with summary information.

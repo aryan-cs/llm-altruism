@@ -14,6 +14,8 @@ from .base import (
     MODEL_PRICING,
     ProviderError,
     PROVIDER_REGISTRY,
+    RateLimitProviderError,
+    TemporaryProviderError,
     UsageInfo,
     get_provider,
     get_provider_for_model,
@@ -35,8 +37,10 @@ __all__ = [
     "LLMResponse",
     "UsageInfo",
     "ProviderError",
+    "RateLimitProviderError",
     # Registry and factory
     "PROVIDER_REGISTRY",
+    "TemporaryProviderError",
     "get_provider",
     "get_provider_for_model",
     # Pricing

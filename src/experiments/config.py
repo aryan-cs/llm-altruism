@@ -77,6 +77,11 @@ class ParameterConfig(BaseModel):
     budget_usd: float | None = None
     seed: int = 42
     concurrency: int = 8
+    retry_on_rate_limit: bool = True
+    max_rate_limit_retries: int | None = None
+    max_transient_retries: int = 6
+    initial_retry_delay_seconds: float = 5.0
+    max_retry_delay_seconds: float = 300.0
 
     @field_validator("temperature", mode="before")
     @classmethod
