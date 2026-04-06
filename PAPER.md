@@ -106,6 +106,46 @@ So the paper should not treat prompt-conditioned behavior as direct evidence of 
 
 That distinction is essential if we want to say something serious about alignment or society-preserving behavior.
 
+### Benchmark contamination guardrail
+
+There is another major concern: many canonical games, especially Prisoner's Dilemma, are famous enough that models may already have learned:
+
+- the name of the game
+- the textbook equilibrium
+- common moral framings around the game
+- stock explanations about cooperation and defection
+
+If so, a canonical prompt may partly measure:
+
+- benchmark familiarity
+- memorized game-theory scripts
+- socially desirable explanations attached to a known task
+
+That does not make the findings worthless, but it changes the interpretation.
+
+So the paper should explicitly separate:
+
+- canonical named games
+- unlabeled payoff-structure equivalents
+- natural-language disguises with the same incentive structure
+- procedurally generated isomorphic variants
+
+If a behavior only appears when the model recognizes the benchmark, that is a very different result from a behavior that survives when the same incentive structure is hidden.
+
+### Clarifying "no prompt"
+
+Strictly speaking, there is no such thing as "no prompt" in these experiments because the model still needs:
+
+- the task description
+- the action space
+- the output format
+
+So the right baseline is not "no prompt" literally. It is:
+
+- minimal, non-attitudinal, task-only prompting
+
+That is the best approximation to an unsteered baseline.
+
 ---
 
 ## What Would Be Novel?
@@ -212,6 +252,7 @@ Principles:
 - no competitive persona
 - no moral coaching
 - no loaded framing unless required by the game itself
+- use task-only instructions wherever possible
 
 This is the primary track for any claim about baseline alignment or society-preserving tendency.
 
@@ -260,6 +301,21 @@ Possible fallback tendencies:
 
 This track is where the game-theoretic approach becomes especially powerful.
 
+### Track E: benchmark-recognition robustness
+
+Goal:
+
+- determine whether the model is reacting to the strategic structure itself or to recognition of a famous benchmark
+
+Examples:
+
+- canonical named Prisoner's Dilemma
+- unnamed payoff-matrix equivalent
+- naturalistic resource-sharing variant with the same incentives
+- procedurally generated isomorphs with altered wording and entities
+
+This track matters because a paper on "inherent" social behavior is much weaker if the model is mostly replaying benchmark lore.
+
 ---
 
 ## Candidate Paper Claims
@@ -288,7 +344,18 @@ Needed evidence:
 - repeated-day stability
 - multiple games
 
-### Claim family C: prompt framing shifts social behavior
+### Claim family C: behavior survives benchmark disguise
+
+"Some strategic behaviors persist even when canonical games are disguised or unlabeled, suggesting the model is responding to incentive structure rather than benchmark recognition alone."
+
+Needed evidence:
+
+- canonical vs. disguised matched tasks
+- multiple isomorphic rewrites per game
+- stability across model families
+- quantitative gap analysis between named and unnamed variants
+
+### Claim family D: prompt framing shifts social behavior
 
 "Prompt framing substantially changes cooperation, reciprocity, and exploitation rates."
 
@@ -299,7 +366,7 @@ Needed evidence:
 - effect sizes larger than within-condition variance
 - robustness across temperatures
 
-### Claim family D: model identity matters
+### Claim family E: model identity matters
 
 "Strategic preferences differ across model families even under shared task structure."
 
@@ -310,7 +377,7 @@ Needed evidence:
 - same game suite
 - repeated runs across days/providers
 
-### Claim family E: pressure reveals different fallback policies
+### Claim family F: pressure reveals different fallback policies
 
 "Under stressors such as observability, punishment risk, scarcity, or social exclusion, models differ in whether they preserve cooperation, defect opportunistically, retaliate, or collapse."
 
@@ -321,7 +388,7 @@ Needed evidence:
 - action-level behavioral traces
 - enough repetitions to estimate stability
 
-### Claim family F: reputation changes behavior, but not always sincerely
+### Claim family G: reputation changes behavior, but not always sincerely
 
 "Public accountability increases cooperative behavior, but part of that increase is performative and observation-dependent."
 
@@ -332,7 +399,7 @@ Needed evidence:
 - public vs. private action asymmetries
 - rating-sensitive strategy shifts
 
-### Claim family G: institutions can dominate base preferences
+### Claim family H: institutions can dominate base preferences
 
 "Environmental institutions such as reputation, observability, and scarcity can reshape LLM social behavior more strongly than base model identity."
 
@@ -357,25 +424,29 @@ Under neutral, minimally directive prompts, how stable are those preferences acr
 
 ### RQ3
 
-How much do prompt framing and persona instructions alter those preferences?
+Do those preferences survive when the same incentive structure is disguised or unlabeled?
 
 ### RQ4
 
-Are there systematic cross-family differences in cooperation, retaliation, fairness, and exploitation?
+How much do prompt framing and persona instructions alter those preferences?
 
 ### RQ5
 
-Do models collapse toward a recurring fallback policy under stressors such as observation, punishment, scarcity, and exclusion?
+Are there systematic cross-family differences in cooperation, retaliation, fairness, and exploitation?
 
 ### RQ6
 
-How well do one-shot or small-game behaviors predict behavior in larger social simulations?
+Do models collapse toward a recurring fallback policy under stressors such as observation, punishment, scarcity, and exclusion?
 
 ### RQ7
 
-Does a public reputation system increase cooperation, and if so, does it create genuine reciprocity or performative compliance?
+How well do one-shot or small-game behaviors predict behavior in larger social simulations?
 
 ### RQ8
+
+Does a public reputation system increase cooperation, and if so, does it create genuine reciprocity or performative compliance?
+
+### RQ9
 
 Under scarcity, what social structures emerge: trade norms, theft equilibria, alliance formation, hoarding, or commons collapse?
 
@@ -392,6 +463,7 @@ We need:
 - at least 6-10 accessible models spanning multiple providers/families
 - at least 4 canonical games, not just Prisoner's Dilemma
 - at least 1 neutral baseline prompt family with multiple paraphrases
+- at least 1 disguised or unlabeled version of the same strategic structure per core game
 - a separate prompt-intervention track
 - at least 2 temperatures
 - repeated runs per condition
@@ -462,15 +534,23 @@ For each:
 - pairwise cross-model matchups
 - neutral minimal prompts only
 - several neutral paraphrases
+- canonical named version
+- unlabeled structural version
+- disguised natural-language equivalent
 - temperature sweep
 - enough repetitions to estimate variance
 
 This is the track for claims about baseline tendency.
 
+Important goal:
+
+- estimate whether the model is reacting to the game structure or merely recognizing the benchmark
+
 ### Part 1B: prompt susceptibility battery
 
 After the baseline battery, run the same games with interventions such as:
 
+- minimal task-only prompt
 - cooperative framing
 - competitive framing
 - persona overlays
@@ -521,6 +601,7 @@ We also need:
 - random
 - trajectory clustering over rounds
 - neutral-paraphrase stability analysis
+- canonical-vs-disguised gap analysis
 - prompt sensitivity ranking by model
 - collapse-profile ranking by model under pressure
 
@@ -528,6 +609,10 @@ We also need:
 
 We should vary:
 
+- prompt condition
+  - minimal task-only baseline
+  - cooperative biasing
+  - competitive biasing
 - scarcity level
 - regeneration rate
 - observability
@@ -540,10 +625,15 @@ We need outcome measures for:
 
 - inequality
 - survival
+- extinction risk
 - trade volume
 - alliance formation
 - commons depletion
 - norm emergence
+
+Key comparison:
+
+- does prompt bias improve or worsen total society survival relative to the minimal task-only baseline?
 
 ### Part 3: reputation experiments
 
@@ -713,6 +803,7 @@ Suggested model structure:
   - model family
   - provider
   - measurement track
+  - benchmark presentation type
   - prompt framing
   - neutral paraphrase family
   - temperature
@@ -750,23 +841,27 @@ We need at least:
 
 1. Baseline cooperation heatmap by model x game under neutral prompts
 2. Neutral-paraphrase stability plot by model
-3. Prompt-susceptibility heatmap by model x framing
-4. Pairwise matchup matrix by model pair
-5. Pressure-response or collapse-profile plot by model x stressor
-6. Strategy-classification distribution per model family
-7. Trajectory plots for repeated PD rounds
-8. Society-level Gini / survival / trade over time
-9. Reputation vs. no-reputation comparison plots
+3. Canonical-vs-disguised benchmark gap plot by model
+4. Prompt-susceptibility heatmap by model x framing
+5. Pairwise matchup matrix by model pair
+6. Pressure-response or collapse-profile plot by model x stressor
+7. Strategy-classification distribution per model family
+8. Trajectory plots for repeated PD rounds
+9. Society-level Gini / survival / trade over time
+10. Society survival and extinction by prompt condition
+11. Reputation vs. no-reputation comparison plots
 
 ### Core tables
 
 1. Model catalog and provider accessibility by date
 2. Experiment matrix
 3. Aggregate baseline results by game and model
-4. Prompt-susceptibility summary by model
-5. Pressure-test summary by model
-6. Mixed-effects regression summary
-7. Ablation summary for framing, temperature, and observability
+4. Canonical-vs-disguised summary by model
+5. Prompt-susceptibility summary by model
+6. Pressure-test summary by model
+7. Society-survival summary by prompt condition
+8. Mixed-effects regression summary
+9. Ablation summary for framing, temperature, and observability
 
 ### Good appendix material
 
@@ -793,6 +888,7 @@ We should plan for these criticisms now.
 ### Construct validity
 
 - "cooperation" in a prompt may partly reflect instruction following
+- canonical game names may trigger benchmark recall rather than fresh strategic reasoning
 - natural-language framing may confound strategic preference with tone imitation
 - neutral prompts are still prompts, not direct access to an internal essence
 - strategy labels are simplifications
@@ -816,7 +912,7 @@ We should plan for these criticisms now.
 The strongest version of this paper would show three things together:
 
 1. LLMs have measurable, non-random baseline strategic preferences under neutral prompts.
-2. Those preferences have measurable stability limits under paraphrase, framing, and pressure.
+2. Those preferences have measurable stability limits under benchmark disguise, paraphrase, framing, and pressure.
 3. The same micro-level tendencies help predict macro-level social outcomes in simulated societies.
 
 If we can connect those three layers, the paper becomes much more than a benchmark report.
@@ -832,6 +928,7 @@ We should avoid these traps:
 - only self-play
 - no robustness analysis
 - no distinction between baseline behavior and prompt steerability
+- no benchmark-disguise controls for famous games
 - treating prompt-sensitive behavior as a stable trait
 - writing qualitative claims from malformed reasoning fields
 - overclaiming from dramatic but isolated society runs
@@ -849,7 +946,7 @@ We should avoid these traps:
 ### Next 3 empirical tasks
 
 1. Run the accessible-model neutral baseline battery beyond Prisoner's Dilemma.
-2. Run true pairwise cross-model matchups for the strongest accessible free models.
+2. Add canonical-vs-disguised versions for the first core games.
 3. Add the first matched pressure tests for observation, endgame exposure, and betrayal temptation.
 
 ### Next 3 writing tasks
@@ -910,4 +1007,4 @@ The first live experiment already suggests a real and potentially interesting ph
 
 To turn that into publishable literature, we now need breadth, repetition, neutral baselines, pressure tests, institutional comparisons, stronger baselines, and careful analysis discipline.
 
-The paper should aim to answer not just whether LLMs cooperate, but **when**, **with whom**, **under what pressures**, and **under what institutions** they do so.
+The paper should aim to answer not just whether LLMs cooperate, but **when**, **with whom**, **under what pressures**, **under what institutions**, and **whether that behavior survives once benchmark recognition is removed**.
