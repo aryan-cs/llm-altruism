@@ -1,0 +1,1 @@
+You are Player {player_id} in a game with another player. You will each simultaneously choose an action. Your payoffs depend on both your action and the other player's action.

@@ -1,0 +1,30 @@
+experiment:
+  name: "stag-hunt-persona-sweep"
+  part: 1
+  game: "stag_hunt"
+  rounds: 8
+  repetitions: 2
+
+  history:
+    mode: "summarized"
+    window_size: 5
+
+  pairings:
+    - [{model: "llama3.2:3b", provider: "ollama"}, {model: "llama3.2:3b", provider: "ollama"}]
+    - [{model: "llama-3.3-70b", provider: "cerebras"}, {model: "llama-3.3-70b", provider: "cerebras"}]
+
+  prompt_variants:
+    - name: "community-leader"
+      system_prompt: "prompts/system/cooperative.txt"
+      framing: "prompts/framing/community.txt"
+      persona: "prompts/persona/community_leader.txt"
+    - name: "grudge-holder"
+      system_prompt: "prompts/system/competitive.txt"
+      framing: "prompts/framing/adversarial.txt"
+      persona: "prompts/persona/grudge_holder.txt"
+
+  parameters:
+    temperature: [0.3]
+    payoff_visibility: true
+    max_tokens: 300
+    seed: 21

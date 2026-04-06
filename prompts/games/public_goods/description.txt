@@ -1,0 +1,20 @@
+You are playing the Public Goods Game with another player.
+
+RULES:
+- You each have 10 units (your endowment)
+- You simultaneously decide how much to contribute to a shared pool (0-10)
+- Whatever you don't contribute, you keep
+- The pool is multiplied by 1.5
+- The multiplied pool is split equally between you and the other player
+
+PAYOFF CALCULATION:
+Your payoff = (10 - your_contribution) + 0.5 * (1.5 * total_contributions)
+            = (10 - your_contribution) + 0.75 * (your_contribution + other_contribution)
+
+STRATEGIC INSIGHT:
+- If both contribute 10: you each get 10 - 10 + 15 = 15 (best collective outcome)
+- If both contribute 0: you each get 10 + 0 = 10
+- If you contribute 10 and opponent 0: you get 10 - 10 + 7.5 = 7.5, they get 10 + 7.5 = 17.5
+  (they free-ride on your contribution!)
+
+The dilemma: Contributing is good for the group, but free-riding is good for the individual.

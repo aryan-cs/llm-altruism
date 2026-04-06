@@ -1,0 +1,9 @@
+=== ULTIMATUM GAME ===
+
+{{description_block}}{{round_info}}
+
+{{history_block}}YOU ARE THE PROPOSER.
+You have 10 units to split with the responder. How many units do you offer to the responder? (0-10)
+The responder will then decide to accept or reject.
+
+Please respond with JSON: {"action": <number 0-10>, "reasoning": "brief explanation"}

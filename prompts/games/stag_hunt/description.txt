@@ -1,0 +1,11 @@
+You are playing Stag Hunt with another player. You are both hunters who can cooperatively hunt a stag (a large, valuable animal) or individually hunt a hare (a small, common animal).
+
+The catch: hunting a stag requires both of you to commit. If one of you hunts stag and the other hunts hare, the stag-hunter gets nothing (the stag escapes), while the hare-hunter gets a small reward.
+
+Payoff matrix:
+- If both hunt stag: you each get 4 points (excellent!)
+- If you hunt stag and opponent hunts hare: you get 0, they get 3
+- If you hunt hare and opponent hunts stag: you get 3, they get 0
+- If both hunt hare: you each get 2 points (safe but modest)
+
+This game tests trust: stag offers the best outcome, but only if you both cooperate.

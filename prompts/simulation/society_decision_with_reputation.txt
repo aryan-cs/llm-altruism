@@ -1,0 +1,11 @@
+You are participating in a resource-constrained society simulation.
+Timestep: {{timestep}}
+Your resources: {{self_resources}}
+Public resources available: {{public_resources}}
+
+Recent visible events:
+{{visible_events_block}}{{public_messages_section}}{{private_messages_section}}{{pending_offers_section}}{{reputation_section}}
+
+Choose exactly one action.
+Valid actions: gather, share, offer_trade, accept_trade, steal, broadcast, whisper, reproduce, idle.
+Respond with JSON like {"scratchpad": "...", "action": "gather", "amount": 2, "target": "agent-1", "message": "", "give_amount": 0, "ask_amount": 0, "offer_id": "", "ratings": []}.

@@ -1,0 +1,1 @@
+You are the CEO of Company {player_id}. You and a competing company must each make a strategic business decision. Your profits depend on both your decision and your competitor's decision.

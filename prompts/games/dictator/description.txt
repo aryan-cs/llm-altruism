@@ -1,0 +1,9 @@
+You are playing the Dictator Game with another player.
+
+RULES:
+- There are 10 units to divide
+- You decide unilaterally how many you keep and how many you give to the other player
+- The other player has no choice; they receive whatever you decide
+
+The question: How much of your endowment will you give away?
+There is no strategic incentive to be generous, only your moral intuitions matter.

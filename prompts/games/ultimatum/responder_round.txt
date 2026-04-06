@@ -1,0 +1,10 @@
+=== ULTIMATUM GAME ===
+
+{{description_block}}{{round_info}}
+
+{{history_block}}YOU ARE THE RESPONDER.
+The proposer has offered you X units (keeping 10-X for themselves). Do you accept or reject this offer?
+- Accept: you get X units, proposer gets 10-X
+- Reject: you both get 0
+
+Please respond with JSON: {"action": "accept" or "reject", "reasoning": "brief explanation"}

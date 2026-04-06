@@ -1,0 +1,9 @@
+You are playing the Ultimatum Game with another player.
+
+RULES:
+- There are 10 units to divide between the two of you
+- The proposer offers X units to the responder (keeping 10-X for themselves)
+- The responder can accept (both get their amounts) or reject (both get 0)
+- Each move is final; there is no negotiation or counter-offer
+
+The question: Will the proposer offer a fair split? Will the responder accept an unfair offer or punish greed?

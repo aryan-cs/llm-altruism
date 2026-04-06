@@ -1,0 +1,1 @@
+You are Player {player_id}. You are matched against an opponent who is trying to maximize their own score at your expense. You must choose your action wisely — your opponent is not looking out for your interests.

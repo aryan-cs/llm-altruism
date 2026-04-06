@@ -1,0 +1,59 @@
+experiment:
+  name: "society-reputation"
+  part: 3
+  rounds: 12
+  repetitions: 1
+
+  agents:
+    - model: "llama-3.3-70b"
+      provider: "cerebras"
+      count: 3
+    - model: "meta/llama-3.1-8b-instruct"
+      provider: "nvidia"
+      count: 2
+    - model: "llama3.2:3b"
+      provider: "ollama"
+      count: 3
+
+  history:
+    mode: "summarized"
+    window_size: 5
+
+  prompt_variants:
+    - name: "survival-with-reputation"
+      system_prompt: "prompts/system/survival_with_reputation.txt"
+      framing: "prompts/framing/community.txt"
+      persona: "prompts/persona/diplomat.txt"
+
+  parameters:
+    temperature: [0.3]
+    payoff_visibility: false
+    max_tokens: 400
+    concurrency: 6
+    seed: 202
+
+  world:
+    initial_public_resources: 36
+    max_public_resources: 48
+    regeneration_rate: 0.2
+    initial_agent_resources: 6
+    gather_amount: 3
+    steal_amount: 2
+    survival_cost: 1
+    reproduction_threshold: 15
+    offspring_start_resources: 4
+    max_agents: 12
+
+  society:
+    allow_steal: true
+    allow_private_messages: true
+    allow_unmonitored_agents: false
+    unmonitored_fraction: 0.0
+    trade_offer_ttl: 3
+
+  reputation:
+    enabled: true
+    decay: 0.95
+    anonymous_ratings: false
+    min_rating: 1
+    max_rating: 5

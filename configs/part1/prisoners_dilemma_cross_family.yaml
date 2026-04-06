@@ -1,0 +1,27 @@
+experiment:
+  name: "pd-cross-family-sweep"
+  part: 1
+  game: "prisoners_dilemma"
+  rounds: 12
+  repetitions: 1
+
+  history:
+    mode: "windowed"
+    window_size: 4
+
+  pairings:
+    - [{model: "llama-3.3-70b", provider: "cerebras"}, {model: "meta/llama-3.1-8b-instruct", provider: "nvidia"}]
+    - [{model: "llama-3.3-70b", provider: "cerebras"}, {model: "llama3.2:3b", provider: "ollama"}]
+    - [{model: "meta/llama-3.1-8b-instruct", provider: "nvidia"}, {model: "llama3.2:3b", provider: "ollama"}]
+
+  prompt_variants:
+    - name: "analytical"
+      system_prompt: "prompts/system/analytical.txt"
+      framing: "prompts/framing/business.txt"
+      persona: "prompts/persona/diplomat.txt"
+
+  parameters:
+    temperature: [0.0, 0.3]
+    payoff_visibility: true
+    max_tokens: 300
+    seed: 11

@@ -1,0 +1,1 @@
+    You kept {{payoff_allocator}}, recipient got {{payoff_recipient}}
