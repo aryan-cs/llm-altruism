@@ -14,13 +14,23 @@ uv sync
 cp .env.example .env
 ```
 
-For real runs, the experiment runner loads `.env` automatically. If a provider's API key or endpoint entry is missing, or the provider returns an error, that model is skipped instead of stopping the whole run. The sample configs are set up for a free-model proof of concept first, centered on providers like Cerebras, Ollama, OpenRouter, and NVIDIA.
+For real runs, the experiment runner loads `.env` automatically. If a provider's API key or endpoint entry is missing, that model is skipped instead of stopping the whole run. If a provider hits a rate limit or a transient server/network failure, the runner now backs off and retries so long-running experiments can stay alive overnight instead of failing fast. The sample configs are set up for a free-model proof of concept first, centered on providers like Cerebras, Ollama, OpenRouter, and NVIDIA.
 
 ## usage
 
 ```bash
-# run a part 1 experiment
-uv run scripts/run_experiment.py --config configs/part1/prisoners_dilemma_baseline.yaml
+# open the interactive experiment + model picker
+uv run scripts/run_experiment.py
+
+# run a part 1 experiment non-interactively with explicit model choices
+uv run scripts/run_experiment.py \
+  --config configs/part1/prisoners_dilemma_baseline.yaml \
+  --model cerebras:llama3.1-8b \
+  --model nvidia:deepseek-ai/deepseek-v3.2 \
+  --model openrouter:openai/gpt-oss-20b:free
+
+# run the full requested NVIDIA/Cerebras/OpenRouter free-model catalog sweep
+uv run scripts/run_experiment.py --config configs/part1/free_tier_model_catalog.yaml
 
 # run a part 2 society simulation
 uv run scripts/run_experiment.py --config configs/part2/society_baseline.yaml
@@ -29,7 +39,7 @@ uv run scripts/run_experiment.py --config configs/part2/society_baseline.yaml
 uv run scripts/run_experiment.py --config configs/part3/society_reputation.yaml
 
 # dry run (no API calls, mock responses)
-uv run scripts/run_experiment.py --config configs/part1/prisoners_dilemma_baseline.yaml --dry-run
+uv run scripts/run_experiment.py --config configs/part1/prisoners_dilemma_baseline.yaml --model cerebras:llama3.1-8b --dry-run
 
 # compare results across experiments
 uv run scripts/compare_results.py "results/*.json"

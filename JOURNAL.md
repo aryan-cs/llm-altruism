@@ -11,7 +11,7 @@ avoid duplicated effort, and keep the experiment process reproducible.
 - Date: 2026-04-06
 - Working directory: `/Users/aryan/Desktop/llm-altruism`
 - Package/runtime workflow: use `uv` for installs, scripts, and tests
-- Git status: this directory is currently **not** a git repository, so GitHub pushes are not yet possible from this workspace
+- Git status: repository initialized; continue making small `uv`-verified commits and push frequently
 
 ## What Has Been Done
 
@@ -41,6 +41,12 @@ avoid duplicated effort, and keep the experiment process reproducible.
 - Added NVIDIA provider support via the NVIDIA integrate API
 - Added environment-driven endpoint support so each provider can be configured from `.env`
 - Added skip behavior so that if a provider is missing required env configuration or returns an error, the affected model is skipped instead of crashing the full experiment run
+- Added retry-aware provider error handling so 429s and transient provider/network failures back off and retry instead of immediately failing long runs
+- Updated the Cerebras provider to the current documented free-tier catalog:
+  - `gpt-oss-120b`
+  - `llama3.1-8b`
+  - `qwen-3-235b-a22b-instruct-2507`
+  - `zai-glm-4.7`
 
 ### Experiment framework
 
@@ -106,7 +112,7 @@ avoid duplicated effort, and keep the experiment process reproducible.
 ### Verification / engineering results
 
 - `uv run pytest -q` passed
-  - most recent result: `56 passed`
+  - previous fully recorded result before the latest model-catalog update: `62 passed`
 - Dry-run CLI execution succeeded:
   - `uv run scripts/run_experiment.py --config configs/part1/prisoners_dilemma_baseline.yaml --dry-run`
 - Comparison CLI execution succeeded:
@@ -148,9 +154,14 @@ Current sample configs prioritize:
 
 - Cerebras
 - NVIDIA
+- OpenRouter
 - Ollama
 
-OpenRouter is still supported, but sample configs do not yet lock in a specific free model slug because those can change over time.
+Current config direction:
+
+- representative baseline configs use one free/current model from each major provider
+- `configs/part1/free_tier_model_catalog.yaml` is the dedicated self-play sweep for the requested NVIDIA, Cerebras, and OpenRouter free-model sets
+- part 2 and part 3 keep a smaller representative provider mix so society experiments stay tractable
 
 ## Operational Rules For Future Sessions
 
@@ -186,11 +197,11 @@ Once git is initialized and a remote is connected:
 
 ### Immediate next steps
 
-1. Initialize git in this workspace and connect the GitHub remote
-2. Make the first commit checkpoint and push it
-3. Populate `.env` with whichever free-provider credentials/endpoints are actually available
-4. Run the part 1 baseline config with live providers, not dry-run
-5. Inspect `skipped_models` and `skipped_trials` in the output to verify that unavailable providers are being skipped as intended
+1. Run `uv run pytest -q` after the latest free-model catalog and retry changes
+2. Populate `.env` with whichever free-provider credentials/endpoints are actually available, especially OpenRouter if we want the full catalog sweep live
+3. Run the representative part 1 baseline live
+4. Run `configs/part1/free_tier_model_catalog.yaml` as the overnight catalog sweep
+5. Inspect `provider_retry`, `skipped_models`, and `skipped_trials` in the JSONL/JSON outputs to confirm the backoff logic behaves well under rate limits
 
 ### Research next steps
 
@@ -211,17 +222,18 @@ Once git is initialized and a remote is connected:
 ### Engineering next steps
 
 1. Add a provider availability probe / preflight command
-2. Add a config option for "only run available models"
-3. Add a curated OpenRouter free-model sample config once we confirm currently available free slugs
-4. Add richer result summaries in `compare_results.py`
-5. Consider writing a separate `LIVE_RUN_CHECKLIST.md` for controlled empirical runs
+2. Add a config option for resumable long-running sweeps
+3. Add richer result summaries in `compare_results.py`
+4. Consider writing a separate `LIVE_RUN_CHECKLIST.md` for controlled empirical runs
+5. Record the first live-rate-limit observations and empirical behavior results back into this journal
 
 ## Important Caveats
 
 - Dry-run outputs validate the pipeline but do not validate scientific conclusions
 - Provider/model availability can change over time
-- OpenRouter free model identifiers may change and should be checked before hardcoding them
-- NVIDIA support was added against the official NVIDIA LLM API docs and should be re-verified if their model catalog or endpoint behavior changes
+- OpenRouter free model identifiers can still change over time and should be re-checked before large reruns
+- Some requested NVIDIA models are safety/reasoning guards rather than general conversational agents, so their behavior in game-theoretic prompts should be interpreted carefully
+- NVIDIA support and the current NVIDIA/Cerebras model lists were aligned against official docs on 2026-04-06 and should be re-verified if those catalogs change
 
 ## Resume Point
 

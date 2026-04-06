@@ -9,9 +9,30 @@ import time
 import os
 from typing import Any, Optional
 
-from openai import AsyncOpenAI, BadRequestError, RateLimitError
+from openai import (
+    APIConnectionError,
+    APIStatusError,
+    APITimeoutError,
+    AsyncOpenAI,
+    AuthenticationError,
+    BadRequestError,
+    InternalServerError,
+    NotFoundError,
+    PermissionDeniedError,
+    RateLimitError,
+    UnprocessableEntityError,
+)
 
-from .base import LLMProvider, LLMResponse, MODEL_PRICING, ProviderError, UsageInfo, register_provider
+from .base import (
+    LLMProvider,
+    LLMResponse,
+    MODEL_PRICING,
+    ProviderError,
+    RateLimitProviderError,
+    TemporaryProviderError,
+    UsageInfo,
+    register_provider,
+)
 
 
 class OpenAIProvider(LLMProvider):
@@ -119,7 +140,31 @@ class OpenAIProvider(LLMProvider):
                 cost_usd=cost,
             )
 
-        except (RateLimitError, BadRequestError) as e:
+        except RateLimitError as e:
+            retry_after = getattr(e, "retry_after", None)
+            retry_after_seconds = None
+            if retry_after is not None:
+                try:
+                    retry_after_seconds = float(retry_after)
+                except (TypeError, ValueError):
+                    retry_after_seconds = None
+            raise RateLimitProviderError(
+                f"OpenAI rate limit: {str(e)}",
+                retry_after_seconds=retry_after_seconds,
+            ) from e
+        except (APIConnectionError, APITimeoutError, InternalServerError) as e:
+            raise TemporaryProviderError(f"OpenAI temporary error: {str(e)}") from e
+        except APIStatusError as e:
+            if getattr(e, "status_code", None) in {408, 409, 423, 425, 500, 502, 503, 504}:
+                raise TemporaryProviderError(f"OpenAI temporary error: {str(e)}") from e
+            raise ProviderError(f"OpenAI API error: {str(e)}") from e
+        except (
+            AuthenticationError,
+            PermissionDeniedError,
+            NotFoundError,
+            BadRequestError,
+            UnprocessableEntityError,
+        ) as e:
             raise ProviderError(f"OpenAI API error: {str(e)}") from e
         except Exception as e:
             raise ProviderError(f"Unexpected error calling OpenAI API: {str(e)}") from e

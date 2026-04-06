@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
+import random
+import time
 from abc import ABC, abstractmethod
 from datetime import datetime, timezone
 from hashlib import sha256
@@ -15,7 +18,14 @@ from dotenv import load_dotenv
 from src.agents.base import Agent
 from src.agents.memory import Memory
 from src.agents.prompts import load_prompt
-from src.providers import LLMResponse, ProviderError, UsageInfo, get_provider
+from src.providers import (
+    LLMResponse,
+    ProviderError,
+    RateLimitProviderError,
+    TemporaryProviderError,
+    UsageInfo,
+    get_provider,
+)
 from src.utils.cost_tracker import CostTracker
 from src.utils.logging import ExperimentLogger
 
@@ -121,19 +131,28 @@ class BaseExperimentRunner(ABC):
         *,
         results_dir: str = "results",
         dry_run: bool = False,
+        run_metadata: dict[str, Any] | None = None,
     ):
         load_dotenv()
         self.config = config
         self.results_dir = Path(results_dir)
         self.results_dir.mkdir(parents=True, exist_ok=True)
         self.dry_run = dry_run
+        self.run_metadata = run_metadata or {}
         self.cost_tracker = CostTracker()
         self.logger = ExperimentLogger(results_dir=str(self.results_dir))
         self.cache = ResponseCache(self.results_dir.parent / ".cache" / "responses")
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         self.experiment_id = f"{self.config.name}-{timestamp}"
-        self.logger.start_experiment(self.experiment_id, {"experiment": self.config.model_dump(mode="json")})
+        self.logger.start_experiment(
+            self.experiment_id,
+            {
+                "experiment": self.config.model_dump(mode="json"),
+                "run_metadata": self.run_metadata,
+            },
+        )
         self._providers: dict[tuple[str, str], Any] = {}
+        self._provider_backoff_until: dict[str, float] = {}
         self.skipped_models: dict[str, str] = {}
         self.skipped_trials: list[dict[str, Any]] = []
 
@@ -145,6 +164,10 @@ class BaseExperimentRunner(ABC):
     def mark_model_unavailable(self, spec: ModelSpec, reason: str) -> None:
         """Record that a model should be skipped for the rest of the run."""
         self.skipped_models[self.spec_key(spec)] = reason
+
+    def provider_backoff_key(self, spec: ModelSpec) -> str:
+        """Return the shared retry bucket for a provider."""
+        return spec.provider or infer_provider_name(spec.model)
 
     def get_skip_reason(self, spec: ModelSpec) -> str | None:
         """Return the reason a model should be skipped, if any."""
@@ -184,6 +207,43 @@ class BaseExperimentRunner(ABC):
         if not isinstance(self.skipped_trials, list):
             self.skipped_trials = []
         self.skipped_trials.append(data)
+
+    async def wait_for_provider_backoff(self, provider_key: str) -> None:
+        """Sleep until a provider's retry window has elapsed."""
+        while True:
+            resume_at = self._provider_backoff_until.get(provider_key)
+            if resume_at is None:
+                return
+            delay = resume_at - time.monotonic()
+            if delay <= 0:
+                self._provider_backoff_until.pop(provider_key, None)
+                return
+            await asyncio.sleep(delay)
+
+    def set_provider_backoff(self, provider_key: str, delay_seconds: float) -> None:
+        """Extend a provider-wide retry window."""
+        if delay_seconds <= 0:
+            return
+        resume_at = time.monotonic() + delay_seconds
+        self._provider_backoff_until[provider_key] = max(
+            self._provider_backoff_until.get(provider_key, 0.0),
+            resume_at,
+        )
+
+    def compute_retry_delay(self, *, attempt: int, suggested_delay: float | None) -> float:
+        """Compute the next retry delay, respecting provider hints when available."""
+        if suggested_delay is not None and suggested_delay > 0:
+            return max(1.0, suggested_delay)
+
+        base_delay = min(
+            self.config.parameters.initial_retry_delay_seconds * (2**attempt),
+            self.config.parameters.max_retry_delay_seconds,
+        )
+        jitter = min(5.0, max(0.25, base_delay * 0.1))
+        return min(
+            self.config.parameters.max_retry_delay_seconds,
+            base_delay + random.uniform(0.0, jitter),
+        )
 
     def build_agent(
         self,
@@ -269,16 +329,78 @@ class BaseExperimentRunner(ABC):
                 raise ModelUnavailableError(f"{self.spec_key(spec)} skipped: {exc}") from exc
             self._providers[(provider_name, spec.model)] = provider
 
-        try:
-            response = await provider.complete(
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                response_format=response_format,
-            )
-        except ProviderError as exc:
-            self.mark_model_unavailable(spec, str(exc))
-            raise ModelUnavailableError(f"{self.spec_key(spec)} skipped: {exc}") from exc
+        provider_key = self.provider_backoff_key(spec)
+        rate_limit_attempt = 0
+        transient_attempt = 0
+
+        while True:
+            await self.wait_for_provider_backoff(provider_key)
+
+            try:
+                response = await provider.complete(
+                    messages=messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    response_format=response_format,
+                )
+                break
+            except RateLimitProviderError as exc:
+                if not self.config.parameters.retry_on_rate_limit:
+                    self.mark_model_unavailable(spec, str(exc))
+                    raise ModelUnavailableError(f"{self.spec_key(spec)} skipped: {exc}") from exc
+
+                max_rate_limit_retries = self.config.parameters.max_rate_limit_retries
+                if (
+                    max_rate_limit_retries is not None
+                    and rate_limit_attempt >= max_rate_limit_retries
+                ):
+                    self.mark_model_unavailable(spec, str(exc))
+                    raise ModelUnavailableError(f"{self.spec_key(spec)} skipped: {exc}") from exc
+
+                delay_seconds = self.compute_retry_delay(
+                    attempt=rate_limit_attempt,
+                    suggested_delay=exc.retry_after_seconds,
+                )
+                self.set_provider_backoff(provider_key, delay_seconds)
+                self.logger.log_event(
+                    "provider_retry",
+                    {
+                        "provider": provider_name,
+                        "model": spec.model,
+                        "retry_kind": "rate_limit",
+                        "attempt": rate_limit_attempt + 1,
+                        "wait_seconds": delay_seconds,
+                        "reason": str(exc),
+                    },
+                )
+                rate_limit_attempt += 1
+                continue
+            except TemporaryProviderError as exc:
+                if transient_attempt >= self.config.parameters.max_transient_retries:
+                    self.mark_model_unavailable(spec, str(exc))
+                    raise ModelUnavailableError(f"{self.spec_key(spec)} skipped: {exc}") from exc
+
+                delay_seconds = self.compute_retry_delay(
+                    attempt=transient_attempt,
+                    suggested_delay=exc.retry_after_seconds,
+                )
+                self.set_provider_backoff(provider_key, delay_seconds)
+                self.logger.log_event(
+                    "provider_retry",
+                    {
+                        "provider": provider_name,
+                        "model": spec.model,
+                        "retry_kind": "temporary_error",
+                        "attempt": transient_attempt + 1,
+                        "wait_seconds": delay_seconds,
+                        "reason": str(exc),
+                    },
+                )
+                transient_attempt += 1
+                continue
+            except ProviderError as exc:
+                self.mark_model_unavailable(spec, str(exc))
+                raise ModelUnavailableError(f"{self.spec_key(spec)} skipped: {exc}") from exc
 
         self.cache.save(response, **cache_kwargs)
         try:
@@ -309,6 +431,7 @@ class BaseExperimentRunner(ABC):
         """Write final outputs for an experiment run."""
         payload["experiment_id"] = self.experiment_id
         payload["config"] = {"experiment": self.config.model_dump(mode="json")}
+        payload["run_metadata"] = self.run_metadata
         payload["total_cost_usd"] = self.cost_tracker.total()
         payload["total_duration_seconds"] = duration_seconds
         payload["skipped_models"] = [
@@ -332,17 +455,40 @@ async def run_experiment_from_path(
     *,
     dry_run: bool = False,
     results_dir: str = "results",
+    run_metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Load an experiment config and dispatch to the right runner."""
+    """Load an experiment config from disk and dispatch to the right runner."""
     from .config import load_experiment_config
+
+    config = load_experiment_config(config_path)
+    return await run_experiment_config(
+        config,
+        dry_run=dry_run,
+        results_dir=results_dir,
+        run_metadata=run_metadata,
+    )
+
+
+async def run_experiment_config(
+    config: ExperimentSettings,
+    *,
+    dry_run: bool = False,
+    results_dir: str = "results",
+    run_metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Dispatch an already-loaded experiment config to the correct runner."""
     from .part1_runner import Part1Runner
     from .part2_runner import Part2Runner
     from .part3_runner import Part3Runner
 
-    config = load_experiment_config(config_path)
     runner_map = {1: Part1Runner, 2: Part2Runner, 3: Part3Runner}
     runner_cls = runner_map[config.part]
-    runner = runner_cls(config, results_dir=results_dir, dry_run=dry_run)
+    runner = runner_cls(
+        config,
+        results_dir=results_dir,
+        dry_run=dry_run,
+        run_metadata=run_metadata,
+    )
 
     try:
         return await runner.run()

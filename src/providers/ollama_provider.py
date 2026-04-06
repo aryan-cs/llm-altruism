@@ -11,7 +11,14 @@ from typing import Any, Optional
 
 import httpx
 
-from .base import LLMProvider, LLMResponse, ProviderError, UsageInfo, register_provider
+from .base import (
+    LLMProvider,
+    LLMResponse,
+    ProviderError,
+    TemporaryProviderError,
+    UsageInfo,
+    register_provider,
+)
 
 
 class OllamaProvider(LLMProvider):
@@ -95,9 +102,11 @@ class OllamaProvider(LLMProvider):
             )
 
             if response.status_code != 200:
-                raise ProviderError(
-                    f"Ollama returned status {response.status_code}: {response.text}"
-                )
+                if response.status_code in {408, 409, 423, 425, 500, 502, 503, 504}:
+                    raise TemporaryProviderError(
+                        f"Ollama returned status {response.status_code}: {response.text}"
+                    )
+                raise ProviderError(f"Ollama returned status {response.status_code}: {response.text}")
 
             data = response.json()
             latency_ms = (time.time() - start_time) * 1000
@@ -128,8 +137,10 @@ class OllamaProvider(LLMProvider):
                 cost_usd=cost,
             )
 
+        except (TemporaryProviderError, ProviderError):
+            raise
         except httpx.RequestError as e:
-            raise ProviderError(
+            raise TemporaryProviderError(
                 f"Failed to connect to Ollama at {self.base_url}. "
                 f"Ensure Ollama is running: {str(e)}"
             ) from e

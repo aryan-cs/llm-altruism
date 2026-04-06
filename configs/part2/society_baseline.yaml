@@ -5,15 +5,18 @@ experiment:
   repetitions: 1
 
   agents:
-    - model: "llama-3.3-70b"
+    - model: "llama3.1-8b"
       provider: "cerebras"
-      count: 3
-    - model: "meta/llama-3.1-8b-instruct"
+      count: 2
+    - model: "deepseek-ai/deepseek-v3.2"
       provider: "nvidia"
+      count: 2
+    - model: "openai/gpt-oss-20b:free"
+      provider: "openrouter"
       count: 2
     - model: "llama3.2:3b"
       provider: "ollama"
-      count: 3
+      count: 2
 
   history:
     mode: "summarized"
@@ -30,6 +33,11 @@ experiment:
     payoff_visibility: false
     max_tokens: 400
     concurrency: 6
+    retry_on_rate_limit: true
+    max_rate_limit_retries:
+    max_transient_retries: 6
+    initial_retry_delay_seconds: 10
+    max_retry_delay_seconds: 300
     seed: 101
 
   world:
