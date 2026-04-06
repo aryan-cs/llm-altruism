@@ -103,7 +103,7 @@ class OpenAICompatibleProvider(LLMProvider):
             latency_ms = (time.time() - start_time) * 1000
 
             # Extract content
-            content = data["choices"][0]["message"]["content"]
+            content = self._extract_content(data)
 
             # Extract usage
             usage = UsageInfo(
@@ -138,6 +138,44 @@ class OpenAICompatibleProvider(LLMProvider):
             raise ProviderError(
                 f"Unexpected error calling {self.get_provider_name()}: {str(e)}"
             ) from e
+
+    def _extract_content(self, data: dict[str, Any]) -> str:
+        """Extract text content from common OpenAI-compatible response shapes."""
+        choices = data["choices"]
+        if not choices:
+            raise KeyError("choices")
+
+        choice = choices[0]
+        message = choice.get("message") or {}
+        content = message.get("content")
+
+        if isinstance(content, str) and content.strip():
+            return content
+
+        if isinstance(content, list):
+            text_parts: list[str] = []
+            for part in content:
+                if isinstance(part, str) and part.strip():
+                    text_parts.append(part)
+                    continue
+                if not isinstance(part, dict):
+                    continue
+                text_value = part.get("text") or part.get("content")
+                if isinstance(text_value, str) and text_value.strip():
+                    text_parts.append(text_value)
+            if text_parts:
+                return "\n".join(text_parts)
+
+        for fallback_key in ("reasoning_content", "reasoning"):
+            fallback_value = message.get(fallback_key)
+            if isinstance(fallback_value, str) and fallback_value.strip():
+                return fallback_value
+
+        text = choice.get("text")
+        if isinstance(text, str) and text.strip():
+            return text
+
+        raise KeyError("content")
 
     def _build_request_body(
         self,

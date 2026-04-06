@@ -67,7 +67,7 @@ KNOWN_MODELS_BY_PROVIDER: dict[str, tuple[str, ...]] = {
         "nvidia/nemotron-content-safety-reasoning-4b",
         "deepseek-ai/deepseek-v3.2",
         "moonshotai/kimi-k2-thinking",
-        "nvidia/llama-3_1-nemotron-safety-guard-8b-v3",
+        "nvidia/llama-3.1-nemotron-safety-guard-8b-v3",
     ),
     "openrouter": (
         "nvidia/nemotron-3-nano-30b-a3b:free",

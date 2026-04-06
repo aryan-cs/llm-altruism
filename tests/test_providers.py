@@ -18,6 +18,7 @@ from src.providers import (
     MODEL_PRICING,
     TemporaryProviderError,
 )
+from src.providers.openai_compatible_base import OpenAICompatibleProvider
 
 
 class TestRegistry:
@@ -326,6 +327,68 @@ class TestProviderErrors:
         error = RateLimitProviderError("too many requests", retry_after_seconds=30)
         assert isinstance(error, TemporaryProviderError)
         assert error.retry_after_seconds == 30
+
+
+class TestOpenAICompatibleResponseParsing:
+    """Tests for flexible OpenAI-compatible response parsing."""
+
+    class DummyProvider(OpenAICompatibleProvider):
+        BASE_URL = "https://example.invalid/v1"
+
+        def get_provider_name(self) -> str:
+            return "dummy"
+
+    def test_extract_content_prefers_message_content(self):
+        """Standard chat-completion content should be returned unchanged."""
+        provider = self.DummyProvider(model="dummy-model", api_key="test-key")
+        data = {
+            "choices": [
+                {
+                    "message": {
+                        "content": "hello",
+                    }
+                }
+            ]
+        }
+
+        assert provider._extract_content(data) == "hello"
+        asyncio.run(provider.close())
+
+    def test_extract_content_accepts_reasoning_content_fallback(self):
+        """Reasoning-only NVIDIA-style responses should still surface text."""
+        provider = self.DummyProvider(model="dummy-model", api_key="test-key")
+        data = {
+            "choices": [
+                {
+                    "message": {
+                        "content": None,
+                        "reasoning_content": "thinking output",
+                    }
+                }
+            ]
+        }
+
+        assert provider._extract_content(data) == "thinking output"
+        asyncio.run(provider.close())
+
+    def test_extract_content_joins_text_parts(self):
+        """Content arrays with text parts should be flattened into one string."""
+        provider = self.DummyProvider(model="dummy-model", api_key="test-key")
+        data = {
+            "choices": [
+                {
+                    "message": {
+                        "content": [
+                            {"type": "text", "text": "hello"},
+                            {"type": "text", "text": "world"},
+                        ],
+                    }
+                }
+            ]
+        }
+
+        assert provider._extract_content(data) == "hello\nworld"
+        asyncio.run(provider.close())
 
 
 if __name__ == "__main__":
