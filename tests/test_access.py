@@ -117,27 +117,26 @@ def test_probe_accessible_model_catalog_filters_out_inaccessible_models(monkeypa
 
 
 def test_verify_selected_models_access_fails_fast_for_inaccessible_model(monkeypatch):
-    """CLI preflight should reject bad live selections before the run starts."""
+    """CLI preflight should reject models that failed the startup access tests."""
     module = _load_run_experiment_module()
     bad_selector = "cerebras:gpt-oss-120b"
-
-    async def fake_probe(_specs):
-        spec = ModelSpec(model="gpt-oss-120b", provider="cerebras")
-        return {
-            bad_selector: ModelAccessResult(
-                spec=spec,
-                accessible=False,
-                status="API returned status 404: model_not_found",
-            )
-        }
-
-    monkeypatch.setattr(module, "probe_model_access_results", fake_probe)
+    access_results = {
+        bad_selector: ModelAccessResult(
+            spec=ModelSpec(model="gpt-oss-120b", provider="cerebras"),
+            accessible=False,
+            status="API returned status 404: model_not_found",
+        )
+    }
 
     try:
-        module.verify_selected_models_access([bad_selector], dry_run=False)
+        module.verify_selected_models_access(
+            [bad_selector],
+            dry_run=False,
+            access_results=access_results,
+        )
     except ValueError as exc:
         assert bad_selector in str(exc)
-        assert "before the run started" in str(exc)
+        assert "startup access tests" in str(exc)
     else:
         raise AssertionError("Expected live preflight to fail for an inaccessible model")
 
@@ -145,4 +144,11 @@ def test_verify_selected_models_access_fails_fast_for_inaccessible_model(monkeyp
 def test_verify_selected_models_access_skips_preflight_for_dry_runs():
     """Dry runs should not perform live access validation."""
     module = _load_run_experiment_module()
-    assert module.verify_selected_models_access(["cerebras:gpt-oss-120b"], dry_run=True) is None
+    assert (
+        module.verify_selected_models_access(
+            ["cerebras:gpt-oss-120b"],
+            dry_run=True,
+            access_results={},
+        )
+        is None
+    )

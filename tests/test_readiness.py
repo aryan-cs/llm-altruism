@@ -15,29 +15,15 @@ import httpx
 import pytest
 from dotenv import dotenv_values, load_dotenv
 
-from src.experiments import load_experiment_config
+from src.experiments import ModelSpec, load_experiment_config, probe_model_access
 from src.experiments.runner import API_KEY_ENV, ENDPOINT_ENV, infer_provider_name, run_experiment_from_path
-from src.providers import ProviderError, RateLimitProviderError, TemporaryProviderError, get_provider
+from src.providers import get_provider
 
 
 ROOT = Path(__file__).resolve().parents[1]
 ENV_PATH = ROOT / ".env"
 CONFIG_PATHS = sorted((ROOT / "configs").glob("*/*.yaml"))
 FREE_TIER_CATALOG_PATH = ROOT / "configs" / "part1" / "free_tier_model_catalog.yaml"
-LIVE_SMOKE_MESSAGES = [
-    {
-        "role": "system",
-        "content": "You are running a connectivity smoke test. Reply with only SAFE or UNSAFE.",
-    },
-    {
-        "role": "user",
-        "content": "Classify this harmless message: hello there",
-    },
-]
-LIVE_SMOKE_MAX_ATTEMPTS = 3
-LIVE_SMOKE_MAX_WAIT_SECONDS = 20.0
-
-
 def _load_env_file() -> dict[str, str | None]:
     """Load the repository `.env` file and current process environment."""
     load_dotenv(ENV_PATH, override=True)
@@ -86,41 +72,6 @@ def _live_smoke_cases() -> list[object]:
     for provider, model in _iter_model_specs():
         cases.append(pytest.param(provider, model, id=f"{provider}:{model}"))
     return cases
-
-
-async def _call_provider_with_retries(provider_name: str, model: str):
-    """Call a provider with short bounded retries for retryable failures."""
-    env_values = _load_env_file()
-    api_key = env_values.get(API_KEY_ENV.get(provider_name, "")) or None
-    base_url = env_values.get(ENDPOINT_ENV.get(provider_name, "")) or None
-    client = get_provider(provider_name, model=model, api_key=api_key, base_url=base_url)
-    retryable_error: Exception | None = None
-
-    try:
-        for attempt in range(LIVE_SMOKE_MAX_ATTEMPTS):
-            try:
-                return await client.complete(
-                    messages=LIVE_SMOKE_MESSAGES,
-                    temperature=0.0,
-                    max_tokens=64,
-                )
-            except (RateLimitProviderError, TemporaryProviderError) as exc:
-                retryable_error = exc
-                if attempt == LIVE_SMOKE_MAX_ATTEMPTS - 1:
-                    break
-                suggested_wait = getattr(exc, "retry_after_seconds", None)
-                wait_seconds = max(1.0, suggested_wait or (2**attempt))
-                await asyncio.sleep(min(LIVE_SMOKE_MAX_WAIT_SECONDS, wait_seconds))
-            except ProviderError:
-                raise
-    finally:
-        close = getattr(client, "close", None)
-        if close is not None:
-            await close()
-
-    if retryable_error is not None:
-        raise retryable_error
-    raise AssertionError(f"{provider_name}:{model} smoke call ended without a response")
 
 
 def test_env_file_exists_and_has_all_supported_provider_entries():
@@ -247,8 +198,8 @@ async def test_locally_configured_models_return_live_smoke_responses(
     if not _is_locally_configured(provider_name, env_values):
         pytest.skip(f"{provider_name}:{model} is not fully configured in .env")
 
-    response = await _call_provider_with_retries(provider_name, model)
+    result = await probe_model_access(ModelSpec(model=model, provider=provider_name))
 
-    assert response.provider == provider_name
-    assert response.model == model
-    assert response.content.strip(), f"{provider_name}:{model} returned empty content"
+    assert result.spec.provider == provider_name
+    assert result.spec.model == model
+    assert result.accessible, f"{provider_name}:{model} failed startup access test: {result.status}"

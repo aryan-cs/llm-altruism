@@ -33,7 +33,6 @@ from src.experiments import (  # noqa: E402
     estimate_trial_conditions,
     known_model_specs,
     list_experiment_templates,
-    probe_accessible_model_catalog,
     probe_model_access_results,
     load_experiment_config,
     models_from_config,
@@ -156,12 +155,42 @@ def provider_status(provider: str) -> str:
 
 
 def load_accessible_catalog() -> tuple[list[ModelSpec], dict[str, ModelAccessResult]]:
-    """Probe the known model catalog and keep only currently reachable models."""
+    """Run the model-access test sweep for this invocation."""
     with console.status(
-        "[bold cyan]Checking which models your current credentials can actually access...[/bold cyan]",
+        "[bold cyan]Running model access tests for this session...[/bold cyan]",
         spinner="dots",
     ):
-        return asyncio.run(probe_accessible_model_catalog(known_model_specs()))
+        access_results = asyncio.run(probe_model_access_results(known_model_specs()))
+
+    accessible_specs = [
+        access_results[spec_selector(spec)].spec
+        for spec in known_model_specs()
+        if spec_selector(spec) in access_results and access_results[spec_selector(spec)].accessible
+    ]
+    return accessible_specs, access_results
+
+
+def render_access_test_summary(
+    accessible_specs: list[ModelSpec],
+    access_results: dict[str, ModelAccessResult],
+) -> None:
+    """Show a compact summary of the startup access-test sweep."""
+    passed_count = len(accessible_specs)
+    failed_count = sum(1 for result in access_results.values() if not result.accessible)
+
+    details = Table(box=box.SIMPLE_HEAVY, show_header=False, pad_edge=False)
+    details.add_column("Label", style="bold cyan", no_wrap=True)
+    details.add_column("Value", style="white")
+    details.add_row("Checked models", str(len(access_results)))
+    details.add_row("Passed", str(passed_count))
+    details.add_row("Hidden", str(failed_count))
+    details.add_row(
+        "Rule",
+        "Only models that passed this startup access test are shown as options in this run.",
+    )
+
+    console.print(Panel(details, title="Startup Access Tests", border_style="cyan", box=box.ROUNDED))
+    console.print()
 
 
 def display_path(path: Path) -> str:
@@ -216,34 +245,41 @@ def verify_selected_models_access(
     selected_model_values: list[str],
     *,
     dry_run: bool,
+    access_results: dict[str, ModelAccessResult],
 ) -> dict[str, ModelAccessResult] | None:
-    """Verify that live-run selected models are currently accessible."""
+    """Verify that live-run selected models passed the startup access tests."""
     if dry_run:
         return None
 
-    selected_specs = parse_model_selectors(selected_model_values)
-    with console.status(
-        "[bold cyan]Verifying the selected models before the run starts...[/bold cyan]",
-        spinner="dots",
-    ):
-        access_results = asyncio.run(probe_model_access_results(selected_specs))
-
-    inaccessible = [
-        result
-        for selector, result in access_results.items()
-        if selector in selected_model_values and not result.accessible
-    ]
+    parsed_specs = {
+        spec_selector(spec): spec
+        for spec in parse_model_selectors(selected_model_values)
+    }
+    inaccessible = []
+    for selector in selected_model_values:
+        result = access_results.get(selector)
+        if result is None:
+            inaccessible.append(
+                ModelAccessResult(
+                    spec=parsed_specs[selector],
+                    accessible=False,
+                    status="not present in this run's startup access-test results",
+                )
+            )
+            continue
+        if not result.accessible:
+            inaccessible.append(result)
     if inaccessible:
         lines = [
             f"- {spec_selector(result.spec)}: {result.status}"
             for result in inaccessible
         ]
         raise ValueError(
-            "These selected models failed live access verification before the run started:\n"
+            "These selected models did not pass the startup access tests for this run:\n"
             + "\n".join(lines)
         )
 
-    return access_results
+    return {selector: access_results[selector] for selector in selected_model_values}
 
 
 def run_summary_sentence(config, selected_models: list[str], dry_run: bool) -> str:
@@ -336,13 +372,15 @@ def list_experiments() -> None:
     console.print(table)
 
 
-def list_models() -> None:
+def list_models(
+    accessible_specs: list[ModelSpec],
+    results: dict[str, ModelAccessResult],
+) -> None:
     """Print only the models that are currently reachable."""
-    accessible_specs, results = load_accessible_catalog()
     if not accessible_specs:
         console.print(
             Panel(
-                "No models passed the live access check. Verify your `.env` and run "
+                "No models passed the startup access tests. Verify your `.env` and run "
                 "`uv run pytest -q tests/test_readiness.py -k live_smoke` for details.",
                 title="No Accessible Models",
                 border_style="red",
@@ -395,12 +433,16 @@ def choose_template_interactively() -> Path:
     return Path(answer)
 
 
-def choose_models_interactively(config_path: Path) -> list[str]:
+def choose_models_interactively(
+    config_path: Path,
+    *,
+    accessible_specs: list[ModelSpec],
+    access_results: dict[str, ModelAccessResult],
+) -> list[str]:
     """Prompt the user to choose the models to test with arrow-key checkboxes."""
-    accessible_specs, access_results = load_accessible_catalog()
     if not accessible_specs:
         raise ValueError(
-            "No models passed the live access check. Verify your credentials and try "
+            "No models passed the startup access tests. Verify your credentials and try "
             "`uv run pytest -q tests/test_readiness.py -k live_smoke`."
         )
 
@@ -408,7 +450,7 @@ def choose_models_interactively(config_path: Path) -> list[str]:
         2,
         "Choose the models",
         "Now pick which models should participate in the run. "
-        "This list has already been filtered to models that answered a live access check with your current credentials.",
+        "This list has already been filtered to models that passed the startup access tests for this run.",
         tip="Use Space to toggle a model on or off, and Enter when the list looks right.",
     )
     render_experiment_overview(config_path)
@@ -424,9 +466,9 @@ def choose_models_interactively(config_path: Path) -> list[str]:
 
     hidden_count = len(known_model_specs()) - len(accessible_specs)
     verification_note = (
-        f"We hid {hidden_count} model(s) that are missing credentials or failed the live probe."
+        f"We hid {hidden_count} model(s) that are missing credentials or failed the startup access tests."
         if hidden_count
-        else "Every known model in the catalog passed the live access probe."
+        else "Every known model in the catalog passed the startup access tests."
     )
 
     render_prompt_help(
@@ -501,12 +543,12 @@ def choose_models_interactively(config_path: Path) -> list[str]:
             Choice(
                 title="Use this template's accessible defaults",
                 value="template",
-                description="Preselects the template's default models, but only if they passed the live access check.",
+                description="Preselects the template's default models, but only if they passed the startup access tests.",
             ),
             Choice(
                 title="Select all accessible models",
                 value="accessible",
-                description="Preselects every model that passed the live access check with your current credentials.",
+                description="Preselects every model that passed the startup access tests for this run.",
             ),
         ],
         default=default_strategy,
@@ -525,7 +567,7 @@ def choose_models_interactively(config_path: Path) -> list[str]:
     render_prompt_help(
         "Pick the models",
         "Now edit the actual model list. Use Space to toggle entries on or off. "
-        "Every item below already passed the live access check.",
+        "Every item below already passed the startup access tests.",
     )
 
     choices = []
@@ -795,12 +837,22 @@ def resolve_config_path(args: argparse.Namespace) -> Path:
     raise SystemExit("Non-interactive mode requires --config.")
 
 
-def resolve_selected_models(args: argparse.Namespace, config_path: Path) -> list[str]:
+def resolve_selected_models(
+    args: argparse.Namespace,
+    config_path: Path,
+    *,
+    accessible_specs: list[ModelSpec],
+    access_results: dict[str, ModelAccessResult],
+) -> list[str]:
     """Resolve model selectors from CLI args or interactive selection."""
     if args.model:
         return args.model
     if args.interactive or is_interactive_terminal():
-        return choose_models_interactively(config_path)
+        return choose_models_interactively(
+            config_path,
+            accessible_specs=accessible_specs,
+            access_results=access_results,
+        )
     raise SystemExit(
         "Non-interactive mode requires at least one --model provider:model-id selector."
     )
@@ -836,11 +888,20 @@ def build_run_metadata(
     }
 
 
-def prepare_run_via_wizard(args: argparse.Namespace) -> PreparedRun:
+def prepare_run_via_wizard(
+    args: argparse.Namespace,
+    *,
+    accessible_specs: list[ModelSpec],
+    access_results: dict[str, ModelAccessResult],
+) -> PreparedRun:
     """Walk the user through the full interactive wizard."""
     config_path = choose_template_interactively()
     template_config = load_experiment_config(config_path)
-    selected_model_values = choose_models_interactively(config_path)
+    selected_model_values = choose_models_interactively(
+        config_path,
+        accessible_specs=accessible_specs,
+        access_results=access_results,
+    )
     selected_models = parse_model_selectors(selected_model_values)
     runtime_config = apply_model_selection(template_config, selected_models)
     runtime_config, dry_run, results_dir = choose_run_settings_interactively(
@@ -848,14 +909,18 @@ def prepare_run_via_wizard(args: argparse.Namespace) -> PreparedRun:
         initial_dry_run=args.dry_run,
         initial_results_dir=args.results_dir,
     )
-    access_results = verify_selected_models_access(selected_model_values, dry_run=dry_run)
+    selected_access_results = verify_selected_models_access(
+        selected_model_values,
+        dry_run=dry_run,
+        access_results=access_results,
+    )
     confirm_run(
         config_path,
         runtime_config,
         selected_model_values,
         dry_run,
         results_dir,
-        access_results=access_results,
+        access_results=selected_access_results,
     )
     run_metadata = build_run_metadata(
         config_path=config_path,
@@ -872,15 +937,25 @@ def prepare_run_via_wizard(args: argparse.Namespace) -> PreparedRun:
         run_metadata=run_metadata,
         dry_run=dry_run,
         results_dir=results_dir,
-        access_results=access_results,
+        access_results=selected_access_results,
     )
 
 
-def prepare_run_non_interactive(args: argparse.Namespace) -> PreparedRun:
+def prepare_run_non_interactive(
+    args: argparse.Namespace,
+    *,
+    accessible_specs: list[ModelSpec],
+    access_results: dict[str, ModelAccessResult],
+) -> PreparedRun:
     """Resolve the run using CLI flags and targeted prompts for missing pieces."""
     config_path = resolve_config_path(args)
     template_config = load_experiment_config(config_path)
-    selected_model_values = resolve_selected_models(args, config_path)
+    selected_model_values = resolve_selected_models(
+        args,
+        config_path,
+        accessible_specs=accessible_specs,
+        access_results=access_results,
+    )
     selected_models = parse_model_selectors(selected_model_values)
     runtime_config = apply_model_selection(template_config, selected_models)
     runtime_config = apply_runtime_overrides(
@@ -890,7 +965,11 @@ def prepare_run_non_interactive(args: argparse.Namespace) -> PreparedRun:
         temperatures=parse_temperature_values(args.temperature),
         concurrency=args.concurrency,
     )
-    access_results = verify_selected_models_access(selected_model_values, dry_run=args.dry_run)
+    selected_access_results = verify_selected_models_access(
+        selected_model_values,
+        dry_run=args.dry_run,
+        access_results=access_results,
+    )
     run_metadata = build_run_metadata(
         config_path=config_path,
         selected_models=selected_model_values,
@@ -906,15 +985,28 @@ def prepare_run_non_interactive(args: argparse.Namespace) -> PreparedRun:
         run_metadata=run_metadata,
         dry_run=args.dry_run,
         results_dir=args.results_dir,
-        access_results=access_results,
+        access_results=selected_access_results,
     )
 
 
-def prepare_run(args: argparse.Namespace) -> PreparedRun:
+def prepare_run(
+    args: argparse.Namespace,
+    *,
+    accessible_specs: list[ModelSpec],
+    access_results: dict[str, ModelAccessResult],
+) -> PreparedRun:
     """Resolve template, models, and settings before entering asyncio."""
     if should_use_full_wizard(args):
-        return prepare_run_via_wizard(args)
-    return prepare_run_non_interactive(args)
+        return prepare_run_via_wizard(
+            args,
+            accessible_specs=accessible_specs,
+            access_results=access_results,
+        )
+    return prepare_run_non_interactive(
+        args,
+        accessible_specs=accessible_specs,
+        access_results=access_results,
+    )
 
 
 async def _run(prepared: PreparedRun) -> int:
@@ -994,11 +1086,18 @@ def main() -> int:
         if args.list_experiments:
             list_experiments()
             return 0
+        accessible_specs, access_results = load_accessible_catalog()
         if args.list_models:
-            list_models()
+            render_access_test_summary(accessible_specs, access_results)
+            list_models(accessible_specs, access_results)
             return 0
 
-        prepared = prepare_run(args)
+        render_access_test_summary(accessible_specs, access_results)
+        prepared = prepare_run(
+            args,
+            accessible_specs=accessible_specs,
+            access_results=access_results,
+        )
         return asyncio.run(_run(prepared))
     except KeyboardInterrupt:
         console.clear()
