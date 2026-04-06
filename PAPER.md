@@ -87,6 +87,25 @@ We do **not** yet know:
 
 This is a promising pilot, not a conclusion.
 
+### Interpretive guardrail
+
+If we substantially change the prompt, we are often measuring a combination of:
+
+- baseline social tendency
+- instruction-following strength
+- prompt susceptibility
+
+Those are not the same thing.
+
+So the paper should not treat prompt-conditioned behavior as direct evidence of a model's deepest "nature." Instead, we should separate:
+
+- what the model does under minimal, neutral instructions
+- how stable that behavior is under paraphrase
+- how easily that behavior is steered by value-laden wording
+- how it changes when the environment, incentives, or observability change
+
+That distinction is essential if we want to say something serious about alignment or society-preserving behavior.
+
 ---
 
 ## What Would Be Novel?
@@ -95,7 +114,16 @@ For this project to become a strong paper, novelty should come from more than "L
 
 The most promising novel contributions are:
 
-### 1. Prompt-conditioned social preference mapping
+### 1. Default-policy social preference mapping
+
+A systematic measurement of how models behave under minimal, neutral, low-directiveness prompts.
+
+Why it matters:
+
+- This is the closest thing we have to a baseline revealed social policy.
+- It helps distinguish default behavior from prompt-induced role-play.
+
+### 2. Prompt susceptibility mapping
 
 A systematic measurement of how prompt framing changes strategic behavior across many model families, not just one model or one provider.
 
@@ -104,7 +132,7 @@ Why it matters:
 - It turns "alignment behavior" into an externally measurable, comparative object.
 - It may show that model behavior is institutionally contingent rather than stable.
 
-### 2. Cross-family interaction asymmetries
+### 3. Cross-family interaction asymmetries
 
 A paper becomes more interesting if models behave differently:
 
@@ -116,7 +144,26 @@ Potentially novel question:
 
 - Do some model families cooperate preferentially with in-family partners but defect more against out-family partners?
 
-### 3. Institutions vs. intentions
+### 4. Pressure-induced collapse or resilience
+
+One especially interesting contribution would be to identify whether models collapse toward selfishness, retaliation, or norm-preserving behavior when put under pressure.
+
+Possible stressors:
+
+- public observation
+- threat of punishment
+- scarcity
+- partner exclusion
+- high temptation to defect
+- fear of future retaliation
+- social collapse risk
+
+Why it matters:
+
+- It gets closer to "what happens when values are stressed" than prompt wording alone.
+- It may reveal whether some apparent cooperative behavior is fragile, performative, or genuinely robust.
+
+### 5. Institutions vs. intentions
 
 Parts 2 and 3 can make the paper much stronger if we show:
 
@@ -126,7 +173,7 @@ Parts 2 and 3 can make the paper much stronger if we show:
 
 This "institutional alignment" angle is a good path to novelty.
 
-### 4. A bridge between classical game theory and agentic LLM societies
+### 6. A bridge between classical game theory and agentic LLM societies
 
 A strong paper can connect:
 
@@ -135,7 +182,7 @@ A strong paper can connect:
 
 That progression is a stronger contribution than either part alone.
 
-### 5. Open benchmark / artifact contribution
+### 7. Open benchmark / artifact contribution
 
 Even if the empirical claims end up modest, the project can still contribute:
 
@@ -146,6 +193,72 @@ Even if the empirical claims end up modest, the project can still contribute:
 - model-access and reproducibility tooling
 
 The paper is stronger if the benchmark itself is publishable.
+
+---
+
+## Measurement Tracks
+
+To keep the paper conceptually clean, the project should be split into distinct measurement tracks.
+
+### Track A: baseline default-policy measurement
+
+Goal:
+
+- estimate what models do under neutral, minimally directive instructions
+
+Principles:
+
+- no cooperative persona
+- no competitive persona
+- no moral coaching
+- no loaded framing unless required by the game itself
+
+This is the primary track for any claim about baseline alignment or society-preserving tendency.
+
+### Track B: prompt susceptibility measurement
+
+Goal:
+
+- measure how easily social behavior can be steered by framing, tone, or persona
+
+Interpretation:
+
+- this is not "nature"
+- this is a measure of behavioral elasticity under instruction
+
+This track is still valuable, but it should be presented as steerability or susceptibility, not essence.
+
+### Track C: institutional pressure measurement
+
+Goal:
+
+- test how models behave when incentives and constraints change, even if wording does not
+
+Examples:
+
+- observed vs. unobserved interactions
+- punishment vs. no punishment
+- scarce vs. abundant resources
+- public reputation vs. no reputation
+- exclusion risk vs. guaranteed future trade
+
+This is the most important track if we want to study whether cooperative behavior survives pressure.
+
+### Track D: stress and collapse measurement
+
+Goal:
+
+- identify whether there is a stable "fallback policy" that appears when the model is pressured
+
+Possible fallback tendencies:
+
+- selfish defection
+- retaliatory punishment
+- reciprocal cooperation
+- norm enforcement
+- panic / incoherence
+
+This track is where the game-theoretic approach becomes especially powerful.
 
 ---
 
@@ -164,7 +277,18 @@ Needed evidence:
 - comparison to random baseline
 - comparison to classical hand-coded strategies
 
-### Claim family B: prompt framing shifts social behavior
+### Claim family B: baseline behavior is partly stable under neutral paraphrase
+
+"Under minimally directive prompts, some models show stable social tendencies across paraphrases and runs."
+
+Needed evidence:
+
+- neutral prompt family, not just one wording
+- paraphrase robustness tests
+- repeated-day stability
+- multiple games
+
+### Claim family C: prompt framing shifts social behavior
 
 "Prompt framing substantially changes cooperation, reciprocity, and exploitation rates."
 
@@ -175,7 +299,7 @@ Needed evidence:
 - effect sizes larger than within-condition variance
 - robustness across temperatures
 
-### Claim family C: model identity matters
+### Claim family D: model identity matters
 
 "Strategic preferences differ across model families even under shared task structure."
 
@@ -186,7 +310,18 @@ Needed evidence:
 - same game suite
 - repeated runs across days/providers
 
-### Claim family D: reputation changes behavior, but not always sincerely
+### Claim family E: pressure reveals different fallback policies
+
+"Under stressors such as observability, punishment risk, scarcity, or social exclusion, models differ in whether they preserve cooperation, defect opportunistically, retaliate, or collapse."
+
+Needed evidence:
+
+- matched stress vs. non-stress conditions
+- multiple pressure types
+- action-level behavioral traces
+- enough repetitions to estimate stability
+
+### Claim family F: reputation changes behavior, but not always sincerely
 
 "Public accountability increases cooperative behavior, but part of that increase is performative and observation-dependent."
 
@@ -197,7 +332,7 @@ Needed evidence:
 - public vs. private action asymmetries
 - rating-sensitive strategy shifts
 
-### Claim family E: institutions can dominate base preferences
+### Claim family G: institutions can dominate base preferences
 
 "Environmental institutions such as reputation, observability, and scarcity can reshape LLM social behavior more strongly than base model identity."
 
@@ -218,21 +353,29 @@ Do LLMs show stable strategic preferences across repeated classical games?
 
 ### RQ2
 
-How much do prompt framing and persona instructions alter those preferences?
+Under neutral, minimally directive prompts, how stable are those preferences across paraphrases, runs, and days?
 
 ### RQ3
 
-Are there systematic cross-family differences in cooperation, retaliation, fairness, and exploitation?
+How much do prompt framing and persona instructions alter those preferences?
 
 ### RQ4
 
-How well do one-shot game behaviors predict behavior in larger social simulations?
+Are there systematic cross-family differences in cooperation, retaliation, fairness, and exploitation?
 
 ### RQ5
 
-Does a public reputation system increase cooperation, and if so, does it create genuine reciprocity or performative compliance?
+Do models collapse toward a recurring fallback policy under stressors such as observation, punishment, scarcity, and exclusion?
 
 ### RQ6
+
+How well do one-shot or small-game behaviors predict behavior in larger social simulations?
+
+### RQ7
+
+Does a public reputation system increase cooperation, and if so, does it create genuine reciprocity or performative compliance?
+
+### RQ8
 
 Under scarcity, what social structures emerge: trade norms, theft equilibria, alliance formation, hoarding, or commons collapse?
 
@@ -248,7 +391,8 @@ We need:
 
 - at least 6-10 accessible models spanning multiple providers/families
 - at least 4 canonical games, not just Prisoner's Dilemma
-- at least 3 prompt framings
+- at least 1 neutral baseline prompt family with multiple paraphrases
+- a separate prompt-intervention track
 - at least 2 temperatures
 - repeated runs per condition
 - both self-play and cross-model pairings
@@ -266,7 +410,7 @@ We need at least one stable society experiment that runs to completion across:
 
 - multiple model populations
 - multiple scarcity settings
-- multiple prompt framings or role prompts
+- multiple observation or institution settings
 
 We should not rely on a single dramatic run.
 
@@ -299,7 +443,7 @@ Before submission, we should have:
 
 ## Experiments We Still Need To Run
 
-### Part 1: classical game battery
+### Part 1A: baseline classical game battery
 
 This is the highest priority.
 
@@ -316,15 +460,52 @@ For each:
 
 - self-play
 - pairwise cross-model matchups
-- neutral / cooperative / competitive prompts
+- neutral minimal prompts only
+- several neutral paraphrases
 - temperature sweep
 - enough repetitions to estimate variance
 
-Add at least one adversarial or contextual framing:
+This is the track for claims about baseline tendency.
+
+### Part 1B: prompt susceptibility battery
+
+After the baseline battery, run the same games with interventions such as:
+
+- cooperative framing
+- competitive framing
+- persona overlays
+- adversarial or contextual framing
 
 - business
 - community
 - hostile opponent
+
+This is the track for claims about steerability, not essence.
+
+### Part 1C: pressure and collapse stress tests
+
+We should design matched variants where the wording stays as neutral as possible while the strategic pressure changes.
+
+Candidate stress tests:
+
+- observation
+  - public actions vs. private actions
+- punishment
+  - explicit retaliation opportunity vs. none
+- exclusion
+  - agents can blacklist defectors vs. cannot
+- temptation
+  - high one-shot payoff for betrayal vs. low payoff
+- endgame stress
+  - known final round vs. indefinite horizon
+- scarcity
+  - abundance vs. resource pressure
+- systemic fragility
+  - individual gain causes group collapse risk
+
+Key question:
+
+- when pressured, does the model preserve cooperation, retaliate, opportunistically defect, or become unstable?
 
 ### Part 1 analysis additions
 
@@ -335,11 +516,13 @@ We also need:
   - always cooperate
   - always defect
   - tit-for-tat
-  - grim trigger
-  - pavlov
-  - random
+- grim trigger
+- pavlov
+- random
 - trajectory clustering over rounds
+- neutral-paraphrase stability analysis
 - prompt sensitivity ranking by model
+- collapse-profile ranking by model under pressure
 
 ### Part 2: society experiments
 
@@ -348,6 +531,7 @@ We should vary:
 - scarcity level
 - regeneration rate
 - observability
+- punishment and exclusion rules
 - private vs. public communication
 - permission to steal
 - reproduction enabled vs. disabled
@@ -376,6 +560,8 @@ Key measurement target:
 - whether behavior changes more in public than in private
 
 That is likely the cleanest operationalization of performative cooperation.
+
+We should also test whether some models only become pro-social under public scrutiny, then defect once the same opportunities become private again.
 
 ---
 
@@ -526,9 +712,12 @@ Suggested model structure:
 - fixed effects:
   - model family
   - provider
+  - measurement track
   - prompt framing
+  - neutral paraphrase family
   - temperature
   - game type
+  - stress condition
   - reputation condition
 - random effects:
   - run ID
@@ -542,6 +731,7 @@ We should re-run a subset:
 - on different days
 - with different access catalogs
 - with alternative prompt wording
+- with neutral paraphrases only
 - with and without chain-of-thought-like justification requests
 
 ### Baselines
@@ -558,20 +748,25 @@ We need at least:
 
 ### Core figures
 
-1. Cooperation heatmap by model x prompt framing
-2. Pairwise matchup matrix by model pair
-3. Strategy-classification distribution per model family
-4. Trajectory plots for repeated PD rounds
-5. Society-level Gini / survival / trade over time
-6. Reputation vs. no-reputation comparison plots
+1. Baseline cooperation heatmap by model x game under neutral prompts
+2. Neutral-paraphrase stability plot by model
+3. Prompt-susceptibility heatmap by model x framing
+4. Pairwise matchup matrix by model pair
+5. Pressure-response or collapse-profile plot by model x stressor
+6. Strategy-classification distribution per model family
+7. Trajectory plots for repeated PD rounds
+8. Society-level Gini / survival / trade over time
+9. Reputation vs. no-reputation comparison plots
 
 ### Core tables
 
 1. Model catalog and provider accessibility by date
 2. Experiment matrix
-3. Aggregate results by game and model
-4. Mixed-effects regression summary
-5. Ablation summary for framing, temperature, and observability
+3. Aggregate baseline results by game and model
+4. Prompt-susceptibility summary by model
+5. Pressure-test summary by model
+6. Mixed-effects regression summary
+7. Ablation summary for framing, temperature, and observability
 
 ### Good appendix material
 
@@ -599,6 +794,7 @@ We should plan for these criticisms now.
 
 - "cooperation" in a prompt may partly reflect instruction following
 - natural-language framing may confound strategic preference with tone imitation
+- neutral prompts are still prompts, not direct access to an internal essence
 - strategy labels are simplifications
 
 ### Internal validity
@@ -619,8 +815,8 @@ We should plan for these criticisms now.
 
 The strongest version of this paper would show three things together:
 
-1. LLMs have measurable, non-random strategic preferences.
-2. Those preferences shift under prompt framing and institutional conditions.
+1. LLMs have measurable, non-random baseline strategic preferences under neutral prompts.
+2. Those preferences have measurable stability limits under paraphrase, framing, and pressure.
 3. The same micro-level tendencies help predict macro-level social outcomes in simulated societies.
 
 If we can connect those three layers, the paper becomes much more than a benchmark report.
@@ -635,6 +831,7 @@ We should avoid these traps:
 - only one model
 - only self-play
 - no robustness analysis
+- no distinction between baseline behavior and prompt steerability
 - treating prompt-sensitive behavior as a stable trait
 - writing qualitative claims from malformed reasoning fields
 - overclaiming from dramatic but isolated society runs
@@ -651,9 +848,9 @@ We should avoid these traps:
 
 ### Next 3 empirical tasks
 
-1. Run the accessible-model Part 1 battery beyond Prisoner's Dilemma.
+1. Run the accessible-model neutral baseline battery beyond Prisoner's Dilemma.
 2. Run true pairwise cross-model matchups for the strongest accessible free models.
-3. Repeat a subset on different days to measure stability of the observed effects.
+3. Add the first matched pressure tests for observation, endgame exposure, and betrayal temptation.
 
 ### Next 3 writing tasks
 
@@ -711,6 +908,6 @@ Right now, the project has a credible pilot result and a strong engineering base
 
 The first live experiment already suggests a real and potentially interesting phenomenon: LLM strategic behavior may be highly contingent on framing, with cooperative and competitive prompts pushing the same model into very different equilibria.
 
-To turn that into publishable literature, we now need breadth, repetition, institutional comparisons, stronger baselines, and careful analysis discipline.
+To turn that into publishable literature, we now need breadth, repetition, neutral baselines, pressure tests, institutional comparisons, stronger baselines, and careful analysis discipline.
 
-The paper should aim to answer not just whether LLMs cooperate, but **when**, **with whom**, and **under what institutions** they do so.
+The paper should aim to answer not just whether LLMs cooperate, but **when**, **with whom**, **under what pressures**, and **under what institutions** they do so.
