@@ -239,6 +239,22 @@ def render_section_intro(step: int, title: str, body: str, *, tip: str | None = 
     console.print()
 
 
+def render_prompt_help(title: str, body: str, *, border_style: str = "blue") -> None:
+    """Render a small helper panel before an individual question."""
+    content = Text()
+    content.append(f"{title}\n", style="bold white")
+    content.append(body, style="white")
+    console.print(
+        Panel(
+            content,
+            border_style=border_style,
+            box=box.ROUNDED,
+            padding=(0, 1),
+        )
+    )
+    console.print()
+
+
 def render_experiment_overview(path: Path) -> None:
     """Render a compact experiment overview panel inside the wizard."""
     config = load_experiment_config(path)
@@ -330,11 +346,110 @@ def choose_models_interactively(config_path: Path) -> list[str]:
     render_experiment_overview(config_path)
 
     template_config = load_experiment_config(config_path)
-    default_selected = {
+    template_defaults = {
         f"{spec.provider}:{spec.model}"
         for spec in models_from_config(template_config)
         if spec.provider
     }
+    ready_defaults = {
+        f"{spec.provider}:{spec.model}"
+        for spec in known_model_specs()
+        if provider_status(spec.provider or "") == "ready"
+    }
+
+    render_prompt_help(
+        "Model selection style",
+        "Choose whether you want a single-model run or a multi-model comparison. "
+        "Single-model runs are useful for self-play or one-model society simulations.",
+    )
+    selection_mode = questionary.select(
+        "How would you like to choose models?",
+        choices=[
+            Choice(
+                title="One model",
+                value="single",
+                description="Pick exactly one model. Part 1 will use self-play; Parts 2 and 3 will build the population from that model.",
+            ),
+            Choice(
+                title="Multiple models",
+                value="multiple",
+                description="Pick any number of models and compare them in the same experiment.",
+            ),
+        ],
+        default="multiple",
+        instruction="(Use the arrow keys, then press Enter)",
+    ).ask()
+    if selection_mode is None:
+        raise KeyboardInterrupt
+
+    if selection_mode == "single":
+        render_prompt_help(
+            "Pick one model",
+            "Only one model will be selected for this run. You can still change rounds, temperatures, and other settings in the next step.",
+        )
+        terminal_width = shutil.get_terminal_size(fallback=(100, 20)).columns
+        answer = questionary.select(
+            "Which model would you like to use?",
+            choices=[
+                Choice(
+                    title=f"{spec.provider:<11} {spec.model}",
+                    value=f"{spec.provider}:{spec.model}",
+                    description=wrap_picker_description(
+                        f"Status: {provider_status(spec.provider or '')}. "
+                        f"Part 1 uses self-play with this model; Parts 2 and 3 build the society from it.",
+                        columns=terminal_width,
+                    ),
+                )
+                for spec in known_model_specs()
+            ],
+            instruction="(Use the arrow keys, then press Enter)",
+        ).ask()
+        if answer is None:
+            raise KeyboardInterrupt
+        return [answer]
+
+    default_strategy = "template" if len(template_defaults) <= 4 else "empty"
+    render_prompt_help(
+        "Choose how to start the model list",
+        "This controls which boxes are already checked before you edit the model list.",
+    )
+    preselection_strategy = questionary.select(
+        "How should the multi-model list start?",
+        choices=[
+            Choice(
+                title="Start empty (Recommended for large templates)",
+                value="empty",
+                description="Nothing is preselected. Best if you want to build a small custom set by hand.",
+            ),
+            Choice(
+                title="Use this template's default models",
+                value="template",
+                description="Preselects the models that come with the chosen experiment template.",
+            ),
+            Choice(
+                title="Select only locally ready models",
+                value="ready",
+                description="Preselects models whose provider configuration looks ready in your current environment.",
+            ),
+        ],
+        default=default_strategy,
+        instruction="(Use the arrow keys, then press Enter)",
+    ).ask()
+    if preselection_strategy is None:
+        raise KeyboardInterrupt
+
+    if preselection_strategy == "template":
+        preselected = template_defaults
+    elif preselection_strategy == "ready":
+        preselected = ready_defaults
+    else:
+        preselected = set()
+
+    render_prompt_help(
+        "Pick the models",
+        "Now edit the actual model list. Use Space to toggle entries on or off. "
+        "The status label tells you whether a model's provider looks configured for live runs.",
+    )
 
     choices = []
     for spec in known_model_specs():
@@ -345,7 +460,7 @@ def choose_models_interactively(config_path: Path) -> list[str]:
             Choice(
                 title=title,
                 value=key,
-                checked=key in default_selected,
+                checked=key in preselected,
             )
         )
 
@@ -424,20 +539,44 @@ def choose_run_settings_interactively(
         if config.part == 1
         else "How many timesteps should each society simulation run for?"
     )
+    render_prompt_help(
+        "Rounds / timesteps",
+        "This controls how long each trial runs. More rounds give models more chances to adapt, cooperate, defect, or recover from earlier moves.",
+    )
     rounds = prompt_positive_int(rounds_label, default=config.rounds)
+
+    render_prompt_help(
+        "Repetitions",
+        "Repetitions rerun the same condition multiple times. This helps smooth out randomness from sampling and gives you more stable averages.",
+    )
     repetitions = prompt_positive_int(
         "How many repetitions should we run for each condition?",
         default=config.repetitions,
+    )
+
+    render_prompt_help(
+        "Temperatures",
+        "Temperature controls how deterministic or creative the model outputs are. "
+        "Lower values are steadier; higher values can reveal more varied behavior.",
     )
     temperatures = prompt_temperature_list(config.parameters.temperature)
 
     concurrency = None
     if config.part in {2, 3}:
+        render_prompt_help(
+            "Concurrency",
+            "Concurrency sets how many model calls can happen at the same time. "
+            "Higher values can speed things up, but they can also increase rate-limit pressure.",
+        )
         concurrency = prompt_positive_int(
             "How many model calls should run in parallel?",
             default=config.parameters.concurrency,
         )
 
+    render_prompt_help(
+        "Run mode",
+        "Choose whether to execute a real run or a dry run. Dry runs are great for testing the setup before spending time or API quota.",
+    )
     run_mode = questionary.select(
         "How should this run execute?",
         choices=[
@@ -458,6 +597,11 @@ def choose_run_settings_interactively(
     if run_mode is None:
         raise KeyboardInterrupt
 
+    render_prompt_help(
+        "Results directory",
+        "This is where the JSON and JSONL artifacts will be written. "
+        "Keeping separate directories can help organize trial runs and overnight batches.",
+    )
     results_dir = questionary.text(
         "Where should the result files be written?",
         default=initial_results_dir,
