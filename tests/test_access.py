@@ -9,6 +9,8 @@ import sys
 
 from src.experiments.access import (
     ModelAccessResult,
+    ModelExperimentReadinessResult,
+    probe_model_experiment_readiness,
     probe_accessible_model_catalog,
     probe_model_access,
     spec_selector,
@@ -93,6 +95,71 @@ def test_probe_model_access_treats_rate_limit_as_accessible(monkeypatch):
 
     assert result.accessible
     assert result.status == "rate limited"
+
+
+def test_probe_model_experiment_readiness_accepts_explicit_json_action(monkeypatch):
+    """Experiment readiness should require an explicit action, not fuzzy inference."""
+    monkeypatch.setattr("src.experiments.access.load_dotenv", lambda *args, **kwargs: None)
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://example.com/v1")
+
+    class DummyProvider:
+        async def complete(self, **_kwargs):
+            return LLMResponse(
+                content='{"action":"cooperate","reasoning":"Testing explicit action output."}',
+                model="gpt-4o",
+                provider="openai",
+                usage=UsageInfo(),
+                latency_ms=1.0,
+                cost_usd=0.0,
+            )
+
+        async def close(self):
+            return None
+
+    monkeypatch.setattr("src.experiments.access.get_provider", lambda *args, **kwargs: DummyProvider())
+
+    result = asyncio.run(
+        probe_model_experiment_readiness(ModelSpec(model="gpt-4o", provider="openai"))
+    )
+
+    assert result.ready
+    assert result.parsed_action == "cooperate"
+    assert "verified" in result.status
+
+
+def test_probe_model_experiment_readiness_rejects_ambiguous_action_output(monkeypatch):
+    """Long reasoning that only mentions actions should not count as experiment-ready."""
+    monkeypatch.setattr("src.experiments.access.load_dotenv", lambda *args, **kwargs: None)
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://example.com/v1")
+
+    class DummyProvider:
+        async def complete(self, **_kwargs):
+            return LLMResponse(
+                content=(
+                    "In a Prisoner's Dilemma, cooperation can build trust, but defection is "
+                    "often individually dominant in the final round."
+                ),
+                model="gpt-4o",
+                provider="openai",
+                usage=UsageInfo(),
+                latency_ms=1.0,
+                cost_usd=0.0,
+            )
+
+        async def close(self):
+            return None
+
+    monkeypatch.setattr("src.experiments.access.get_provider", lambda *args, **kwargs: DummyProvider())
+
+    result = asyncio.run(
+        probe_model_experiment_readiness(ModelSpec(model="gpt-4o", provider="openai"))
+    )
+
+    assert not result.ready
+    assert result.parsed_action is None
+    assert result.status == "ambiguous action output"
 
 
 def test_probe_accessible_model_catalog_filters_out_inaccessible_models(monkeypatch):

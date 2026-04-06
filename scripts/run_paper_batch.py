@@ -22,6 +22,8 @@ if str(ROOT) not in sys.path:
 from src.experiments import (  # noqa: E402
     ExperimentSettings,
     HistoryConfig,
+    ModelAccessResult,
+    ModelExperimentReadinessResult,
     ModelSpec,
     ParameterConfig,
     PopulationSpec,
@@ -31,6 +33,7 @@ from src.experiments import (  # noqa: E402
     WorldConfigModel,
     known_model_specs,
     parse_model_selectors,
+    probe_model_experiment_readiness_results,
     probe_model_access_results,
     run_experiment_config,
     spec_selector,
@@ -42,9 +45,9 @@ DEFAULT_MAIN_COHORT_SELECTORS = [
     "cerebras:llama3.1-8b",
     "cerebras:qwen-3-235b-a22b-instruct-2507",
     "nvidia:deepseek-ai/deepseek-v3.2",
-    "nvidia:moonshotai/kimi-k2-thinking",
-    "nvidia:z-ai/glm4.7",
     "ollama:llama3.2:3b",
+    "nvidia:z-ai/glm4.7",
+    "nvidia:moonshotai/kimi-k2-thinking",
 ]
 
 SAFETY_CONTROL_SELECTORS = [
@@ -110,8 +113,10 @@ def resolve_tracks(raw_tracks: list[str] | None) -> list[str]:
     return list(dict.fromkeys(raw_tracks))
 
 
-async def resolve_accessible_cohort(args: argparse.Namespace) -> tuple[list[ModelSpec], dict[str, object]]:
-    """Select the accessible cohort for this batch."""
+async def resolve_accessible_cohort(
+    args: argparse.Namespace,
+) -> tuple[list[ModelSpec], dict[str, object], dict[str, ModelExperimentReadinessResult]]:
+    """Select the accessible and experiment-ready cohort for this batch."""
     if args.model:
         candidate_specs = parse_model_selectors(args.model)
     else:
@@ -120,38 +125,103 @@ async def resolve_accessible_cohort(args: argparse.Namespace) -> tuple[list[Mode
             selectors.extend(SAFETY_CONTROL_SELECTORS)
         candidate_specs = parse_model_selectors(selectors)
 
+    if args.dry_run:
+        selected_specs = list(candidate_specs)
+        if not args.model and args.max_models > 0:
+            main_cohort = [
+                spec
+                for spec in selected_specs
+                if spec_selector(spec) not in SAFETY_CONTROL_SELECTORS
+            ]
+            safety_controls = [
+                spec
+                for spec in selected_specs
+                if spec_selector(spec) in SAFETY_CONTROL_SELECTORS
+            ]
+            selected_specs = main_cohort[: args.max_models] + safety_controls
+        access_results = {
+            spec_selector(spec): ModelAccessResult(spec=spec, accessible=True, status="dry run")
+            for spec in selected_specs
+        }
+        readiness_results = {
+            spec_selector(spec): ModelExperimentReadinessResult(
+                spec=spec,
+                ready=True,
+                status="dry run",
+            )
+            for spec in selected_specs
+        }
+        return selected_specs, access_results, readiness_results
+
     access_results = await probe_model_access_results(candidate_specs)
     accessible_specs = [
         access_results[selector].spec
         for selector in [spec_selector(spec) for spec in candidate_specs]
         if selector in access_results and access_results[selector].accessible
     ]
+    readiness_results = await probe_model_experiment_readiness_results(accessible_specs)
+    experiment_ready_specs = [
+        readiness_results[selector].spec
+        for selector in [spec_selector(spec) for spec in accessible_specs]
+        if selector in readiness_results and readiness_results[selector].ready
+    ]
 
     if not args.model and args.max_models > 0:
         main_cohort = [
-            spec for spec in accessible_specs if spec_selector(spec) not in SAFETY_CONTROL_SELECTORS
+            spec
+            for spec in experiment_ready_specs
+            if spec_selector(spec) not in SAFETY_CONTROL_SELECTORS
         ]
         safety_controls = [
-            spec for spec in accessible_specs if spec_selector(spec) in SAFETY_CONTROL_SELECTORS
+            spec
+            for spec in experiment_ready_specs
+            if spec_selector(spec) in SAFETY_CONTROL_SELECTORS
         ]
-        accessible_specs = main_cohort[: args.max_models] + safety_controls
+        experiment_ready_specs = main_cohort[: args.max_models] + safety_controls
 
-    return accessible_specs, access_results
+    return experiment_ready_specs, access_results, readiness_results
 
 
-def render_cohort_summary(accessible_specs: list[ModelSpec], access_results: dict[str, object]) -> None:
-    """Show the accessible cohort for this batch."""
+def render_cohort_summary(
+    selected_specs: list[ModelSpec],
+    access_results: dict[str, object],
+    readiness_results: dict[str, ModelExperimentReadinessResult],
+) -> None:
+    """Show the experiment-ready cohort for this batch."""
     table = Table(title="Paper Batch Cohort", box=box.ROUNDED, header_style="bold cyan")
     table.add_column("Provider", style="bold cyan", no_wrap=True)
     table.add_column("Model", style="white")
-    table.add_column("Status", style="green")
+    table.add_column("Access", style="green")
+    table.add_column("Experiment Probe", style="magenta")
 
-    for spec in accessible_specs:
+    for spec in selected_specs:
         selector = spec_selector(spec)
-        result = access_results[selector]
-        table.add_row(spec.provider or "unknown", spec.model, getattr(result, "status", "verified"))
+        access = access_results[selector]
+        readiness = readiness_results[selector]
+        table.add_row(
+            spec.provider or "unknown",
+            spec.model,
+            getattr(access, "status", "verified"),
+            readiness.status,
+        )
 
     console.print(table)
+    hidden = []
+    for selector, result in readiness_results.items():
+        if result.ready:
+            continue
+        hidden.append((selector, result.status))
+    if hidden:
+        hidden_table = Table(
+            title="Excluded From Main Paper Cohort",
+            box=box.SIMPLE_HEAVY,
+            header_style="bold yellow",
+        )
+        hidden_table.add_column("Model", style="yellow")
+        hidden_table.add_column("Reason", style="white")
+        for selector, reason in hidden:
+            hidden_table.add_row(selector, reason)
+        console.print(hidden_table)
     console.print()
 
 
@@ -519,12 +589,17 @@ def filter_plan_by_tracks(
 async def run_batch(args: argparse.Namespace) -> int:
     """Run the selected experiment batch."""
     tracks = resolve_tracks(args.track)
-    models, access_results = await resolve_accessible_cohort(args)
+    models, access_results, readiness_results = await resolve_accessible_cohort(args)
     if not models:
-        console.print(Panel("No accessible models matched the requested cohort.", border_style="red"))
+        console.print(
+            Panel(
+                "No models passed both the access test and the experiment-action preflight.",
+                border_style="red",
+            )
+        )
         return 1
 
-    render_cohort_summary(models, access_results)
+    render_cohort_summary(models, access_results, readiness_results)
     plan = filter_plan_by_tracks(build_experiment_plan(models, fast=args.fast), tracks)
     if not plan:
         console.print(Panel("No experiments matched the requested tracks.", border_style="red"))
@@ -536,6 +611,21 @@ async def run_batch(args: argparse.Namespace) -> int:
         "tracks": tracks,
         "dry_run": args.dry_run,
         "selected_models": [spec_selector(spec) for spec in models],
+        "access_results": {
+            selector: {
+                "accessible": result.accessible,
+                "status": result.status,
+            }
+            for selector, result in access_results.items()
+        },
+        "experiment_readiness_results": {
+            selector: {
+                "ready": result.ready,
+                "status": result.status,
+                "parsed_action": result.parsed_action,
+            }
+            for selector, result in readiness_results.items()
+        },
         "experiments": [],
     }
 
