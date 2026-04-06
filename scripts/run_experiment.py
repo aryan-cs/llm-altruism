@@ -26,15 +26,19 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from src.experiments import (  # noqa: E402
+    ModelAccessResult,
+    ModelSpec,
     apply_model_selection,
     apply_runtime_overrides,
     estimate_trial_conditions,
     known_model_specs,
     list_experiment_templates,
+    probe_accessible_model_catalog,
     load_experiment_config,
     models_from_config,
     parse_model_selectors,
     run_experiment_config,
+    spec_selector,
     template_description,
     template_label,
     wrap_picker_description,
@@ -91,7 +95,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--list-models",
         action="store_true",
-        help="List known catalog models and exit.",
+        help="List currently accessible catalog models and exit.",
     )
     parser.add_argument(
         "--rounds",
@@ -147,6 +151,15 @@ def provider_status(provider: str) -> str:
     if not missing:
         return "ready"
     return "missing " + ", ".join(missing)
+
+
+def load_accessible_catalog() -> tuple[list[ModelSpec], dict[str, ModelAccessResult]]:
+    """Probe the known model catalog and keep only currently reachable models."""
+    with console.status(
+        "[bold cyan]Checking which models your current credentials can actually access...[/bold cyan]",
+        spinner="dots",
+    ):
+        return asyncio.run(probe_accessible_model_catalog(known_model_specs()))
 
 
 def display_path(path: Path) -> str:
@@ -288,16 +301,29 @@ def list_experiments() -> None:
 
 
 def list_models() -> None:
-    """Print the interactive model catalog with env readiness."""
-    table = Table(title="Known Model Catalog", box=box.ROUNDED, header_style="bold cyan")
+    """Print only the models that are currently reachable."""
+    accessible_specs, results = load_accessible_catalog()
+    if not accessible_specs:
+        console.print(
+            Panel(
+                "No models passed the live access check. Verify your `.env` and run "
+                "`uv run pytest -q tests/test_readiness.py -k live_smoke` for details.",
+                title="No Accessible Models",
+                border_style="red",
+                box=box.ROUNDED,
+            )
+        )
+        return
+
+    table = Table(title="Accessible Model Catalog", box=box.ROUNDED, header_style="bold cyan")
     table.add_column("Provider", style="bold white")
     table.add_column("Model", style="green")
-    table.add_column("Status", style="yellow")
+    table.add_column("Access", style="yellow")
 
-    for spec in known_model_specs():
-        status = provider_status(spec.provider or "")
-        style = "green" if status == "ready" else "yellow"
-        table.add_row(spec.provider or "unknown", spec.model, f"[{style}]{status}[/{style}]")
+    for spec in accessible_specs:
+        result = results[spec_selector(spec)]
+        style = "green" if result.status == "verified" else "yellow"
+        table.add_row(spec.provider or "unknown", spec.model, f"[{style}]{result.status}[/{style}]")
 
     console.print(table)
 
@@ -335,28 +361,43 @@ def choose_template_interactively() -> Path:
 
 def choose_models_interactively(config_path: Path) -> list[str]:
     """Prompt the user to choose the models to test with arrow-key checkboxes."""
+    accessible_specs, access_results = load_accessible_catalog()
+    if not accessible_specs:
+        raise ValueError(
+            "No models passed the live access check. Verify your credentials and try "
+            "`uv run pytest -q tests/test_readiness.py -k live_smoke`."
+        )
+
     render_section_intro(
         2,
         "Choose the models",
         "Now pick which models should participate in the run. "
-        "Models marked as missing configuration can still be selected, but they will be skipped in live runs "
-        "until the needed API key or endpoint is configured.",
+        "This list has already been filtered to models that answered a live access check with your current credentials.",
         tip="Use Space to toggle a model on or off, and Enter when the list looks right.",
     )
     render_experiment_overview(config_path)
 
     template_config = load_experiment_config(config_path)
+    accessible_selectors = {spec_selector(spec) for spec in accessible_specs}
     template_defaults = {
-        f"{spec.provider}:{spec.model}"
+        spec_selector(spec)
         for spec in models_from_config(template_config)
-        if spec.provider
+        if spec_selector(spec) in accessible_selectors
     }
-    ready_defaults = {
-        f"{spec.provider}:{spec.model}"
-        for spec in known_model_specs()
-        if provider_status(spec.provider or "") == "ready"
-    }
+    all_accessible_defaults = {spec_selector(spec) for spec in accessible_specs}
 
+    hidden_count = len(known_model_specs()) - len(accessible_specs)
+    verification_note = (
+        f"We hid {hidden_count} model(s) that are missing credentials or failed the live probe."
+        if hidden_count
+        else "Every known model in the catalog passed the live access probe."
+    )
+
+    render_prompt_help(
+        "Access filter",
+        verification_note,
+        border_style="green",
+    )
     render_prompt_help(
         "Model selection style",
         "Choose whether you want a single-model run or a multi-model comparison. "
@@ -393,14 +434,14 @@ def choose_models_interactively(config_path: Path) -> list[str]:
             choices=[
                 Choice(
                     title=f"{spec.provider:<11} {spec.model}",
-                    value=f"{spec.provider}:{spec.model}",
+                    value=spec_selector(spec),
                     description=wrap_picker_description(
-                        f"Status: {provider_status(spec.provider or '')}. "
+                        f"Access: {access_results[spec_selector(spec)].status}. "
                         f"Part 1 uses self-play with this model; Parts 2 and 3 build the society from it.",
                         columns=terminal_width,
                     ),
                 )
-                for spec in known_model_specs()
+                for spec in accessible_specs
             ],
             instruction="(Use the arrow keys, then press Enter)",
         ).ask()
@@ -422,14 +463,14 @@ def choose_models_interactively(config_path: Path) -> list[str]:
                 description="Nothing is preselected. Best if you want to build a small custom set by hand.",
             ),
             Choice(
-                title="Use this template's default models",
+                title="Use this template's accessible defaults",
                 value="template",
-                description="Preselects the models that come with the chosen experiment template.",
+                description="Preselects the template's default models, but only if they passed the live access check.",
             ),
             Choice(
-                title="Select only locally ready models",
-                value="ready",
-                description="Preselects models whose provider configuration looks ready in your current environment.",
+                title="Select all accessible models",
+                value="accessible",
+                description="Preselects every model that passed the live access check with your current credentials.",
             ),
         ],
         default=default_strategy,
@@ -440,22 +481,22 @@ def choose_models_interactively(config_path: Path) -> list[str]:
 
     if preselection_strategy == "template":
         preselected = template_defaults
-    elif preselection_strategy == "ready":
-        preselected = ready_defaults
+    elif preselection_strategy == "accessible":
+        preselected = all_accessible_defaults
     else:
         preselected = set()
 
     render_prompt_help(
         "Pick the models",
         "Now edit the actual model list. Use Space to toggle entries on or off. "
-        "The status label tells you whether a model's provider looks configured for live runs.",
+        "Every item below already passed the live access check.",
     )
 
     choices = []
-    for spec in known_model_specs():
-        key = f"{spec.provider}:{spec.model}"
-        status = provider_status(spec.provider or "")
-        title = f"{spec.provider:<11} {spec.model}  [{status}]"
+    for spec in accessible_specs:
+        key = spec_selector(spec)
+        access_status = access_results[key].status
+        title = f"{spec.provider:<11} {spec.model}  [{access_status}]"
         choices.append(
             Choice(
                 title=title,

@@ -13,6 +13,7 @@ from .config import (
     WorldConfigModel,
     load_experiment_config,
 )
+from .access import ModelAccessResult, probe_accessible_model_catalog, probe_model_access, spec_selector
 from .part1_runner import Part1Runner
 from .part2_runner import Part2Runner
 from .part3_runner import Part3Runner
@@ -54,17 +55,21 @@ __all__ = [
     "SocietyConfig",
     "WorldConfigModel",
     "KNOWN_MODELS_BY_PROVIDER",
+    "ModelAccessResult",
     "apply_runtime_overrides",
     "apply_model_selection",
     "estimate_trial_conditions",
     "infer_provider_name",
     "known_model_specs",
+    "probe_accessible_model_catalog",
+    "probe_model_access",
     "list_experiment_templates",
     "load_experiment_config",
     "models_from_config",
     "parse_model_selectors",
     "run_experiment_config",
     "run_experiment_from_path",
+    "spec_selector",
     "template_description",
     "template_label",
     "wrap_picker_description",
