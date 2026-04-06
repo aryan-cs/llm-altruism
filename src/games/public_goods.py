@@ -30,7 +30,7 @@ class PublicGoodsGame(Game):
 
     def get_description(self) -> str:
         """Return a natural language description of Public Goods Game."""
-        return load_prompt("games/public_goods/description.txt")
+        return load_prompt(self.prompt_path("description", "games/public_goods/description.txt"))
 
     def format_prompt(
         self,
@@ -43,7 +43,7 @@ class PublicGoodsGame(Game):
     ) -> str:
         """Build the prompt for this round of Public Goods Game."""
         return render_prompt_template(
-            "games/public_goods/round.txt",
+            self.prompt_path("round", "games/public_goods/round.txt"),
             description_block=f"{self.get_description()}\n\n" if round_num == 1 else "",
             round_info=self._format_round_info(round_num, total_rounds),
             history_block=f"{self._format_history_block(history, payoff_visible)}\n\n" if history else "",
@@ -59,14 +59,14 @@ class PublicGoodsGame(Game):
             payoff_line = ""
             if payoff_visible:
                 payoff_line = render_prompt_template(
-                    "games/public_goods/history_payoff.txt",
+                    self.prompt_path("history_payoff", "games/public_goods/history_payoff.txt"),
                     payoff_a=round_data["payoff_a"],
                     payoff_b=round_data["payoff_b"],
                 )
 
             lines.append(
                 render_prompt_template(
-                    "games/public_goods/history_entry.txt",
+                    self.prompt_path("history_entry", "games/public_goods/history_entry.txt"),
                     round_num=round_data["round"],
                     action_a=action_a,
                     action_b=action_b,

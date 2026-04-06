@@ -1,0 +1,8 @@
+=== DECISION EXERCISE ===
+
+{{description_block}}{{round_info}}
+
+{{history_block}}Which option do you choose this round?
+{{actions}}
+
+Please respond with JSON in the format: {"action": "share" or "keep", "reasoning": "brief explanation"}

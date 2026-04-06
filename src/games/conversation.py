@@ -28,14 +28,19 @@ class Conversation(Game):
 
     payoff_matrix = None
 
-    def __init__(self, resource_owner: str = "player_a", resource_name: str = "money"):
+    def __init__(
+        self,
+        resource_owner: str = "player_a",
+        resource_name: str = "money",
+        prompt_overrides: dict[str, str] | None = None,
+    ):
         """Initialize the Conversation game.
 
         Args:
             resource_owner: Which player owns the resource ('player_a' or 'player_b')
             resource_name: Name of the resource (e.g., 'money', 'information', 'favor')
         """
-        super().__init__()
+        super().__init__(prompt_overrides=prompt_overrides)
         self.resource_owner = resource_owner
         self.resource_name = resource_name
 
@@ -84,19 +89,19 @@ class Conversation(Game):
         if history:
             entries = [
                 render_prompt_template(
-                    "games/conversation/history_entry.txt",
+                    self.prompt_path("history_entry", "games/conversation/history_entry.txt"),
                     speaker=turn_data.get("speaker", "Unknown"),
                     message=turn_data.get("message", ""),
                 )
                 for turn_data in history
             ]
             history_block = render_prompt_template(
-                "games/conversation/history_block.txt",
+                self.prompt_path("history_block", "games/conversation/history_block.txt"),
                 history_entries="\n\n".join(entries),
             ) + "\n\n"
 
         return render_prompt_template(
-            "games/conversation/round.txt",
+            self.prompt_path("round", "games/conversation/round.txt"),
             setup_block=setup_block,
             turn_info=turn_info,
             history_block=history_block,
@@ -137,7 +142,7 @@ class Conversation(Game):
         other = "Player B" if self.resource_owner.lower() == "player_a" else "Player A"
         owner = "Player A" if self.resource_owner.lower() == "player_a" else "Player B"
         return render_prompt_template(
-            "games/conversation/description.txt",
+            self.prompt_path("description", "games/conversation/description.txt"),
             owner=owner,
             other=other,
             resource_name=self.resource_name,

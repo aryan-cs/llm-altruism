@@ -2,7 +2,14 @@
 
 from __future__ import annotations
 
-from src.games import GAME_REGISTRY, Conversation, DictatorGame, PublicGoodsGame, UltimatumGame, get_game
+from src.games import (
+    GAME_REGISTRY,
+    Conversation,
+    DictatorGame,
+    PublicGoodsGame,
+    UltimatumGame,
+    get_game,
+)
 
 
 def test_all_planned_games_are_registered():
@@ -47,3 +54,27 @@ def test_get_game_accepts_constructor_kwargs():
     game = get_game("conversation", resource_name="information")
     assert isinstance(game, Conversation)
     assert "information" in game.get_description()
+
+
+def test_get_game_accepts_prompt_overrides():
+    game = get_game(
+        "prisoners_dilemma",
+        prompt_overrides={
+            "description": "games_variants/prisoners_dilemma/unnamed_description.txt",
+            "round": "games_variants/prisoners_dilemma/unnamed_round.txt",
+        },
+    )
+    prompt = game.format_prompt("A", 1, 5, [], True)
+    assert "PRISONER'S DILEMMA" not in prompt
+    assert "decision exercise" in prompt
+
+
+def test_get_game_accepts_action_aliases():
+    game = get_game(
+        "prisoners_dilemma",
+        action_aliases={"cooperate": "share", "defect": "keep"},
+    )
+    assert game.parse_action('{"action":"share"}') == "cooperate"
+    prompt = game.format_prompt("A", 1, 5, [], True)
+    assert '"share"' in prompt
+    assert '"keep"' in prompt

@@ -31,7 +31,7 @@ class DictatorGame(Game):
 
     def get_description(self) -> str:
         """Return a natural language description of Dictator Game."""
-        return load_prompt("games/dictator/description.txt")
+        return load_prompt(self.prompt_path("description", "games/dictator/description.txt"))
 
     def format_prompt(
         self,
@@ -62,7 +62,7 @@ class DictatorGame(Game):
             return ""
 
         return render_prompt_template(
-            "games/dictator/allocator_round.txt",
+            self.prompt_path("allocator_round", "games/dictator/allocator_round.txt"),
             description_block=f"{self.get_description()}\n\n" if round_num == 1 else "",
             round_info=self._format_round_info(round_num, total_rounds),
             history_block=f"{self._format_history_block(history, payoff_visible)}\n\n" if history else "",
@@ -75,13 +75,13 @@ class DictatorGame(Game):
             payoff_block = ""
             if payoff_visible:
                 payoff_block = render_prompt_template(
-                    "games/dictator/history_payoff.txt",
+                    self.prompt_path("history_payoff", "games/dictator/history_payoff.txt"),
                     payoff_allocator=round_data.get("payoff_allocator"),
                     payoff_recipient=round_data.get("payoff_recipient"),
                 )
             lines.append(
                 render_prompt_template(
-                    "games/dictator/history_entry.txt",
+                    self.prompt_path("history_entry", "games/dictator/history_entry.txt"),
                     round_num=round_data["round"],
                     allocator_action=round_data.get("allocator_action"),
                     payoff_block=f"\n{payoff_block}" if payoff_block else "",

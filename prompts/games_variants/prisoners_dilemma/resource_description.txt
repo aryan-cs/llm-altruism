@@ -1,0 +1,9 @@
+You and another agent each control a small resource cache. In each round, you must decide whether to "pool" your cache with the other agent or "lock" it for yourself.
+
+Outcome structure:
+- If both pool: you each get 3 units of value
+- If you pool and the other agent locks: you get 0 and they get 5
+- If you lock and the other agent pools: you get 5 and they get 0
+- If both lock: you each get 1 unit of value
+
+Pooling creates the best total outcome, but locking protects you if the other side refuses to cooperate.

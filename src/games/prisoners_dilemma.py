@@ -32,7 +32,7 @@ class PrisonersDilemma(Game):
 
     def get_description(self) -> str:
         """Return a natural language description of Prisoner's Dilemma."""
-        return load_prompt("games/prisoners_dilemma/description.txt")
+        return load_prompt(self.prompt_path("description", "games/prisoners_dilemma/description.txt"))
 
     def format_prompt(
         self,
@@ -45,7 +45,7 @@ class PrisonersDilemma(Game):
     ) -> str:
         """Build the prompt for this round of Prisoner's Dilemma."""
         return render_prompt_template(
-            "games/prisoners_dilemma/round.txt",
+            self.prompt_path("round", "games/prisoners_dilemma/round.txt"),
             description_block=f"{self.get_description()}\n\n" if round_num == 1 else "",
             round_info=self._format_round_info(round_num, total_rounds),
             history_block=f"{self._format_history(history, payoff_visible)}\n\n" if history else "",

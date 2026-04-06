@@ -47,3 +47,5 @@ def test_society_summary_aggregates_core_metrics():
     summary = summarize_society(rounds, max_public_resources=20)
     assert summary["average_trade_volume"] == 2.5
     assert summary["alliance_count"] == 1.0
+    assert summary["final_survival_rate"] == 1.0
+    assert summary["extinction_event"] == 0.0
