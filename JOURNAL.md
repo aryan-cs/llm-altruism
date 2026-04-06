@@ -13,6 +13,205 @@ avoid duplicated effort, and keep the experiment process reproducible.
 - Package/runtime workflow: use `uv` for installs, scripts, and tests
 - Git status: repository initialized; continue making small `uv`-verified commits and push frequently
 
+## Latest Session Update
+
+### Paper-batch setup changes
+
+- Added paper-focused batch tooling:
+  - `scripts/run_paper_batch.py`
+  - `scripts/paper_summary.py`
+- Added benchmark-disguise prompt variants for:
+  - prisoner's dilemma
+  - chicken
+  - stag hunt
+- Added neutral baseline paraphrases so we can distinguish:
+  - minimal baseline behavior
+  - paraphrase robustness
+  - attitude-bias prompt susceptibility
+- Added task-only, cooperative, and competitive society prompt families for parts 2 and 3
+
+### Methodology correction: access is not enough
+
+We discovered that a model passing a simple API/connectivity check is **not**
+the same as that model being usable in paper-grade experiments.
+
+Observed failure mode:
+
+- some models were reachable but did not emit a clean, explicit game action
+- this made action parsing unreliable
+- the clearest examples were `nvidia:z-ai/glm4.7` and `nvidia:moonshotai/kimi-k2-thinking`
+  under the current structured game prompt setup
+
+Correction implemented:
+
+- added an **experiment-grade action preflight** in `src/experiments/access.py`
+- paper batches now require a model to pass:
+  1. provider access verification
+  2. explicit-action verification on a representative Prisoner's Dilemma prompt
+- `scripts/run_paper_batch.py` now filters the main cohort using both checks
+
+This matters scientifically because paper claims depend on the reliability of
+the recorded actions, not just whether a model returned some text.
+
+### Stable paper cohort selected
+
+Current main paper cohort for live runs:
+
+- `cerebras:llama3.1-8b`
+- `cerebras:qwen-3-235b-a22b-instruct-2507`
+- `nvidia:deepseek-ai/deepseek-v3.2`
+- `ollama:llama3.2:3b`
+
+These models passed both:
+
+- live access verification
+- explicit-action experiment readiness verification
+
+### Validation completed this session
+
+- `uv run pytest -q tests/test_access.py tests/test_providers.py tests/test_games.py tests/test_parsing.py`
+  - `61 passed`
+- `uv run pytest -q tests/test_paper_batch.py tests/test_access.py`
+  - `10 passed`
+- dry-run paper batch sanity check succeeded:
+  - `uv run python scripts/run_paper_batch.py --track baseline --fast --dry-run --max-models 4 --results-dir results/paper_dryrun_preflight_check`
+- dry-run paper batch resume check succeeded:
+  - re-running `results/paper_dryrun_resume_check` skipped the already completed experiments instead of rerunning them
+
+### Resumability added
+
+- `scripts/run_paper_batch.py` now writes `paper_batch_manifest.json` incrementally
+- if a result JSON for an experiment name already exists in the target results directory, the batch now reuses it and moves on
+- this makes long paper runs restartable after interruption without wasting rate-limit budget or time
+
+### Live empirical results collected so far
+
+Completed:
+
+- `results/paper_live_clean/paper-baseline-prisoners_dilemma-20260406T233523Z.json`
+- `results/paper_live_clean/paper-baseline-chicken-20260406T233917Z.json`
+- `results/paper_live_clean/paper-baseline-stag_hunt-20260406T234330Z.json`
+- `results/paper_live_clean/paper-benchmark-prisoners_dilemma-canonical-20260406T234609Z.json`
+
+Key observations from this completed baseline run:
+
+- Models selected:
+  - `cerebras:llama3.1-8b`
+  - `cerebras:qwen-3-235b-a22b-instruct-2507`
+  - `nvidia:deepseek-ai/deepseek-v3.2`
+  - `ollama:llama3.2:3b`
+- Trial count: `30`
+- Skipped models: `0`
+- Skipped trials: `0`
+
+Aggregate summary:
+
+- average payoff A: `2.775`
+- average payoff B: `1.8167`
+- cooperation rate A: `0.4583`
+- cooperation rate B: `0.6500`
+
+Important early finding:
+
+- even within the **neutral / task-only family**, wording changes mattered a lot
+- `minimal-neutral` produced the lowest cooperation
+- `minimal-neutral-compact` and `minimal-neutral-institutional` both increased cooperation relative to the base neutral wording
+
+Variant-level cooperation means:
+
+- `minimal-neutral`
+  - coop A: `0.325`
+  - coop B: `0.500`
+- `minimal-neutral-compact`
+  - coop A: `0.525`
+  - coop B: `0.750`
+- `minimal-neutral-institutional`
+  - coop A: `0.525`
+  - coop B: `0.700`
+
+Interpretation:
+
+- this supports the idea that “default model behavior” is not captured by a single wording
+- even non-moral, non-persona paraphrases can move cooperation materially
+- the paper therefore needs:
+  - a baseline prompt family, not one baseline prompt
+  - explicit reporting of paraphrase sensitivity
+
+Baseline stage completed across the three core games:
+
+- Prisoner's Dilemma:
+  - aggregate cooperation rates:
+    - A: `0.4583`
+    - B: `0.6500`
+  - most exploitation-prone of the three baseline games
+- Chicken:
+  - aggregate cooperation/yield rates:
+    - A: `0.6583`
+    - B: `0.5583`
+  - strategic aggression mattered, but the game still produced more cooperative/yielding behavior than Prisoner's Dilemma
+- Stag Hunt:
+  - aggregate cooperation rates:
+    - A: `0.8250`
+    - B: `0.7000`
+  - strongest coordination/cooperation signal of the three baseline games
+
+Cross-game takeaway:
+
+- game structure matters a great deal
+- with the same model cohort and the same neutral baseline family:
+  - Stag Hunt strongly supports coordination
+  - Chicken produces mixed boldness/yield behavior
+  - Prisoner's Dilemma most strongly exposes opportunism and asymmetric exploitation
+
+Notable model behavior examples from the completed baseline PD run:
+
+- `deepseek-ai/deepseek-v3.2` self-play:
+  - `minimal-neutral`: mutual defection
+  - `minimal-neutral-compact`: mutual cooperation
+  - `minimal-neutral-institutional`: mostly cooperative
+- `deepseek-ai/deepseek-v3.2` vs `llama3.2:3b`:
+  - DeepSeek was highly exploitative while Ollama stayed relatively cooperative
+- `qwen-3-235b-a22b-instruct-2507` vs `llama3.2:3b`:
+  - Qwen also showed strong exploitative behavior against the more cooperative Ollama model
+
+Notable baseline examples from the completed Chicken run:
+
+- `qwen-3-235b-a22b-instruct-2507` was the clearest aggressive outlier
+- against both `llama3.2:3b` and `deepseek-ai/deepseek-v3.2`, Qwen repeatedly played `straight` while the other model often continued to `swerve`
+- this yielded repeated high-payoff exploitative outcomes such as:
+  - average payoff `3.75` vs `0.75`
+
+### Benchmark-disguise work now underway
+
+Completed so far:
+
+- `results/paper_live_clean/paper-benchmark-prisoners_dilemma-canonical-20260406T234609Z.json`
+
+Canonical PD benchmark result:
+
+- cooperation rate A: `0.325`
+- cooperation rate B: `0.500`
+
+This is useful because it gives a direct benchmark-reference condition that can be compared against the unnamed and disguised variants now being run. If the unnamed/disguised variants shift behavior materially, that will support the benchmark-contamination concern.
+
+### Live batch currently in progress
+
+Currently running:
+
+- `uv run python scripts/run_paper_batch.py --fast --results-dir results/paper_live_clean --model cerebras:llama3.1-8b --model cerebras:qwen-3-235b-a22b-instruct-2507 --model nvidia:deepseek-ai/deepseek-v3.2 --model ollama:llama3.2:3b`
+
+Goal of this batch:
+
+- baseline game battery
+- benchmark-disguise comparisons
+- prompt-susceptibility comparisons
+- society prompt-condition comparison
+- reputation prompt-condition comparison
+
+Checkpoint branch:
+
+- `codex/interactive-experiment-wizard`
+
 ## What Has Been Done
 
 ### Core project scaffolding

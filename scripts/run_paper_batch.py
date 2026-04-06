@@ -586,6 +586,35 @@ def filter_plan_by_tracks(
     return [item for item in plan if item[0] in allowed]
 
 
+def find_existing_result(results_dir: Path, experiment_name: str) -> Path | None:
+    """Return the most recent completed JSON result for an experiment name, if any."""
+    matches = sorted(results_dir.glob(f"{experiment_name}-*.json"))
+    if not matches:
+        return None
+    return matches[-1]
+
+
+def manifest_entry_from_result(
+    *,
+    result_path: Path,
+    config: ExperimentSettings,
+    track: str,
+) -> dict[str, object]:
+    """Build a manifest entry from an existing or newly created result JSON."""
+    result = json.loads(result_path.read_text(encoding="utf-8"))
+    return {
+        "experiment_id": result["experiment_id"],
+        "name": config.name,
+        "track": track,
+        "game": config.game,
+        "part": config.part,
+        "path": str(result_path),
+        "aggregate_summary": result.get("aggregate_summary", {}),
+        "skipped_models": result.get("skipped_models", []),
+        "skipped_trials": result.get("skipped_trials", []),
+    }
+
+
 async def run_batch(args: argparse.Namespace) -> int:
     """Run the selected experiment batch."""
     tracks = resolve_tracks(args.track)
@@ -607,6 +636,7 @@ async def run_batch(args: argparse.Namespace) -> int:
 
     results_dir = Path(args.results_dir)
     results_dir.mkdir(parents=True, exist_ok=True)
+    manifest_path = results_dir / "paper_batch_manifest.json"
     manifest: dict[str, object] = {
         "tracks": tracks,
         "dry_run": args.dry_run,
@@ -630,6 +660,27 @@ async def run_batch(args: argparse.Namespace) -> int:
     }
 
     for index, (track, config, extra_metadata) in enumerate(plan, start=1):
+        existing_result = find_existing_result(results_dir, config.name)
+        if existing_result is not None:
+            console.print(
+                Panel(
+                    f"Skipping {index}/{len(plan)}: {config.name}\n"
+                    f"Reusing existing result: {existing_result.name}",
+                    title="Paper Batch Resume",
+                    border_style="yellow",
+                    box=box.ROUNDED,
+                )
+            )
+            manifest["experiments"].append(
+                manifest_entry_from_result(
+                    result_path=existing_result,
+                    config=config,
+                    track=track,
+                )
+            )
+            manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+            continue
+
         console.print(
             Panel(
                 f"Running {index}/{len(plan)}: {config.name}\nTrack: {track}\n"
@@ -651,22 +702,15 @@ async def run_batch(args: argparse.Namespace) -> int:
             results_dir=str(results_dir),
             run_metadata=run_metadata,
         )
-        experiment_id = result["experiment_id"]
         manifest["experiments"].append(
-            {
-                "experiment_id": experiment_id,
-                "name": config.name,
-                "track": track,
-                "game": config.game,
-                "part": config.part,
-                "path": str(results_dir / f"{experiment_id}.json"),
-                "aggregate_summary": result.get("aggregate_summary", {}),
-                "skipped_models": result.get("skipped_models", []),
-                "skipped_trials": result.get("skipped_trials", []),
-            }
+            manifest_entry_from_result(
+                result_path=results_dir / f"{result['experiment_id']}.json",
+                config=config,
+                track=track,
+            )
         )
+        manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
 
-    manifest_path = results_dir / "paper_batch_manifest.json"
     manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     console.print(
         Panel(
