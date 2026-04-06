@@ -34,6 +34,7 @@ from src.experiments import (  # noqa: E402
     known_model_specs,
     list_experiment_templates,
     probe_accessible_model_catalog,
+    probe_model_access_results,
     load_experiment_config,
     models_from_config,
     parse_model_selectors,
@@ -61,6 +62,7 @@ class PreparedRun:
     run_metadata: dict[str, object]
     dry_run: bool
     results_dir: str
+    access_results: dict[str, ModelAccessResult] | None = None
 
 
 def parse_args() -> argparse.Namespace:
@@ -208,6 +210,40 @@ def summarize_models(selected_models: list[str]) -> tuple[int, int]:
         else:
             missing += 1
     return ready, missing
+
+
+def verify_selected_models_access(
+    selected_model_values: list[str],
+    *,
+    dry_run: bool,
+) -> dict[str, ModelAccessResult] | None:
+    """Verify that live-run selected models are currently accessible."""
+    if dry_run:
+        return None
+
+    selected_specs = parse_model_selectors(selected_model_values)
+    with console.status(
+        "[bold cyan]Verifying the selected models before the run starts...[/bold cyan]",
+        spinner="dots",
+    ):
+        access_results = asyncio.run(probe_model_access_results(selected_specs))
+
+    inaccessible = [
+        result
+        for selector, result in access_results.items()
+        if selector in selected_model_values and not result.accessible
+    ]
+    if inaccessible:
+        lines = [
+            f"- {spec_selector(result.spec)}: {result.status}"
+            for result in inaccessible
+        ]
+        raise ValueError(
+            "These selected models failed live access verification before the run started:\n"
+            + "\n".join(lines)
+        )
+
+    return access_results
 
 
 def run_summary_sentence(config, selected_models: list[str], dry_run: bool) -> str:
@@ -661,7 +697,15 @@ def choose_run_settings_interactively(
     return updated, run_mode == "dry", results_dir.strip()
 
 
-def render_run_plan(config_path: Path, config, selected_models: list[str], dry_run: bool, results_dir: str) -> None:
+def render_run_plan(
+    config_path: Path,
+    config,
+    selected_models: list[str],
+    dry_run: bool,
+    results_dir: str,
+    *,
+    access_results: dict[str, ModelAccessResult] | None = None,
+) -> None:
     """Render a colored summary of the planned run."""
     ready_count, missing_count = summarize_models(selected_models)
 
@@ -702,15 +746,23 @@ def render_run_plan(config_path: Path, config, selected_models: list[str], dry_r
 
     for selector in selected_models:
         provider, model = selector.split(":", 1)
-        status = provider_status(provider)
-        status_style = "green" if status == "ready" else "yellow"
+        status = access_results[selector].status if access_results and selector in access_results else provider_status(provider)
+        status_style = "green" if status in {"ready", "verified"} else "yellow"
         model_table.add_row(provider, model, f"[{status_style}]{status}[/{status_style}]")
 
     console.print(model_table)
     console.print()
 
 
-def confirm_run(config_path: Path, config, selected_models: list[str], dry_run: bool, results_dir: str) -> None:
+def confirm_run(
+    config_path: Path,
+    config,
+    selected_models: list[str],
+    dry_run: bool,
+    results_dir: str,
+    *,
+    access_results: dict[str, ModelAccessResult] | None = None,
+) -> None:
     """Show a review screen and ask the user to confirm the run."""
     render_section_intro(
         4,
@@ -718,7 +770,14 @@ def confirm_run(config_path: Path, config, selected_models: list[str], dry_run: 
         "Here is the final plan. Take a quick look to make sure the experiment, models, and settings match what you intended.",
         tip="If this looks good, choose Start. If not, cancel and rerun the wizard.",
     )
-    render_run_plan(config_path, config, selected_models, dry_run, results_dir)
+    render_run_plan(
+        config_path,
+        config,
+        selected_models,
+        dry_run,
+        results_dir,
+        access_results=access_results,
+    )
     start = questionary.confirm(
         "Start this experiment now?",
         default=True,
@@ -789,7 +848,15 @@ def prepare_run_via_wizard(args: argparse.Namespace) -> PreparedRun:
         initial_dry_run=args.dry_run,
         initial_results_dir=args.results_dir,
     )
-    confirm_run(config_path, runtime_config, selected_model_values, dry_run, results_dir)
+    access_results = verify_selected_models_access(selected_model_values, dry_run=dry_run)
+    confirm_run(
+        config_path,
+        runtime_config,
+        selected_model_values,
+        dry_run,
+        results_dir,
+        access_results=access_results,
+    )
     run_metadata = build_run_metadata(
         config_path=config_path,
         selected_models=selected_model_values,
@@ -805,6 +872,7 @@ def prepare_run_via_wizard(args: argparse.Namespace) -> PreparedRun:
         run_metadata=run_metadata,
         dry_run=dry_run,
         results_dir=results_dir,
+        access_results=access_results,
     )
 
 
@@ -822,6 +890,7 @@ def prepare_run_non_interactive(args: argparse.Namespace) -> PreparedRun:
         temperatures=parse_temperature_values(args.temperature),
         concurrency=args.concurrency,
     )
+    access_results = verify_selected_models_access(selected_model_values, dry_run=args.dry_run)
     run_metadata = build_run_metadata(
         config_path=config_path,
         selected_models=selected_model_values,
@@ -837,6 +906,7 @@ def prepare_run_non_interactive(args: argparse.Namespace) -> PreparedRun:
         run_metadata=run_metadata,
         dry_run=args.dry_run,
         results_dir=args.results_dir,
+        access_results=access_results,
     )
 
 
@@ -857,6 +927,7 @@ async def _run(prepared: PreparedRun) -> int:
         selected_models=prepared.selected_model_values,
         dry_run=prepared.dry_run,
         results_dir=prepared.results_dir,
+        access_results=prepared.access_results,
     )
 
     with console.status("[bold cyan]Running experiment...[/bold cyan]", spinner="dots"):

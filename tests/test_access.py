@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import importlib.util
+from pathlib import Path
+import sys
 
 from src.experiments.access import (
     ModelAccessResult,
@@ -12,6 +15,19 @@ from src.experiments.access import (
 )
 from src.experiments.config import ModelSpec
 from src.providers import LLMResponse, RateLimitProviderError, UsageInfo
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def _load_run_experiment_module():
+    """Import the CLI module for direct helper testing."""
+    module_path = ROOT / "scripts" / "run_experiment.py"
+    spec = importlib.util.spec_from_file_location("run_experiment_module", module_path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
 
 
 def test_probe_model_access_reports_missing_credentials_without_creating_client(monkeypatch):
@@ -98,3 +114,35 @@ def test_probe_accessible_model_catalog_filters_out_inaccessible_models(monkeypa
     assert accessible == [good]
     assert results[spec_selector(good)].accessible
     assert not results[spec_selector(bad)].accessible
+
+
+def test_verify_selected_models_access_fails_fast_for_inaccessible_model(monkeypatch):
+    """CLI preflight should reject bad live selections before the run starts."""
+    module = _load_run_experiment_module()
+    bad_selector = "cerebras:gpt-oss-120b"
+
+    async def fake_probe(_specs):
+        spec = ModelSpec(model="gpt-oss-120b", provider="cerebras")
+        return {
+            bad_selector: ModelAccessResult(
+                spec=spec,
+                accessible=False,
+                status="API returned status 404: model_not_found",
+            )
+        }
+
+    monkeypatch.setattr(module, "probe_model_access_results", fake_probe)
+
+    try:
+        module.verify_selected_models_access([bad_selector], dry_run=False)
+    except ValueError as exc:
+        assert bad_selector in str(exc)
+        assert "before the run started" in str(exc)
+    else:
+        raise AssertionError("Expected live preflight to fail for an inaccessible model")
+
+
+def test_verify_selected_models_access_skips_preflight_for_dry_runs():
+    """Dry runs should not perform live access validation."""
+    module = _load_run_experiment_module()
+    assert module.verify_selected_models_access(["cerebras:gpt-oss-120b"], dry_run=True) is None

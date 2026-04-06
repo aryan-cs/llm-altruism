@@ -134,13 +134,18 @@ async def probe_accessible_model_catalog(
     specs: list[ModelSpec],
 ) -> tuple[list[ModelSpec], dict[str, ModelAccessResult]]:
     """Return the subset of models that are currently reachable."""
+    results = await probe_model_access_results(specs)
+    accessible_specs = [result.spec for result in results.values() if result.accessible]
+    return accessible_specs, results
+
+
+async def probe_model_access_results(
+    specs: list[ModelSpec],
+) -> dict[str, ModelAccessResult]:
+    """Probe a set of model specs and return selector-keyed access results."""
     results: dict[str, ModelAccessResult] = {}
-    accessible_specs: list[ModelSpec] = []
 
     for spec in _unique_specs(specs):
         result = await probe_model_access(spec)
         results[spec_selector(spec)] = result
-        if result.accessible:
-            accessible_specs.append(spec)
-
-    return accessible_specs, results
+    return results
