@@ -44,6 +44,7 @@ def test_apply_model_selection_builds_pairwise_part1_matchups():
     assert updated.pairings[0][1].model == "deepseek-ai/deepseek-v3.2"
     assert updated.pairings[2][0].model == "deepseek-ai/deepseek-v3.2"
     assert updated.pairings[2][1].model == "openai/gpt-oss-20b:free"
+    assert all(left.model != right.model for left, right in updated.pairings)
 
 
 def test_apply_model_selection_uses_self_play_for_single_part1_model():
@@ -56,6 +57,23 @@ def test_apply_model_selection_uses_self_play_for_single_part1_model():
     left, right = updated.pairings[0]
     assert left.model == "llama3.1-8b"
     assert right.model == "llama3.1-8b"
+
+
+def test_apply_model_selection_uses_only_pairwise_matchups_for_two_part1_models():
+    config = load_experiment_config("configs/part1/prisoners_dilemma_baseline.yaml")
+    selected = parse_model_selectors(
+        [
+            "cerebras:llama3.1-8b",
+            "nvidia:deepseek-ai/deepseek-v3.2",
+        ]
+    )
+
+    updated = apply_model_selection(config, selected)
+
+    assert len(updated.pairings) == 1
+    left, right = updated.pairings[0]
+    assert left.model == "llama3.1-8b"
+    assert right.model == "deepseek-ai/deepseek-v3.2"
 
 
 def test_apply_model_selection_rebuilds_part2_population_evenly():

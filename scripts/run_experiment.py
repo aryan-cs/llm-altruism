@@ -288,11 +288,15 @@ def run_summary_sentence(config, selected_models: list[str], dry_run: bool) -> s
     run_mode = "dry run with mock responses" if dry_run else "live run against configured providers"
 
     if config.part == 1:
+        matchup_rule = (
+            "With one selected model, Part 1 uses self-play. "
+            "With multiple selected models, it runs pairwise matchups only."
+        )
         return (
             f"This will run {config.game} using {len(selected_models)} selected model(s). "
             f"That expands to {len(config.pairings)} matchup(s) and about {trial_conditions} "
             f"top-level trial condition(s) once prompt variants, temperatures, and repetitions are included. "
-            f"It will execute as a {run_mode}."
+            f"{matchup_rule} It will execute as a {run_mode}."
         )
 
     total_agents = sum(agent.count for agent in config.agents)
@@ -487,12 +491,12 @@ def choose_models_interactively(
             Choice(
                 title="One model",
                 value="single",
-                description="Pick exactly one model. Part 1 will use self-play; Parts 2 and 3 will build the population from that model.",
+                description="Pick exactly one model. Part 1 will run self-play only; Parts 2 and 3 will build the population from that model.",
             ),
             Choice(
                 title="Multiple models",
                 value="multiple",
-                description="Pick any number of models and compare them in the same experiment.",
+                description="Pick any number of models. Part 1 will run pairwise matchups only; Parts 2 and 3 will distribute the population across them.",
             ),
         ],
         default="multiple",
@@ -504,7 +508,7 @@ def choose_models_interactively(
     if selection_mode == "single":
         render_prompt_help(
             "Pick one model",
-            "Only one model will be selected for this run. You can still change rounds, temperatures, and other settings in the next step.",
+            "Only one model will be selected for this run. In Part 1, that means self-play only. You can still change rounds, temperatures, and other settings in the next step.",
         )
         terminal_width = shutil.get_terminal_size(fallback=(100, 20)).columns
         answer = questionary.select(
@@ -567,7 +571,8 @@ def choose_models_interactively(
     render_prompt_help(
         "Pick the models",
         "Now edit the actual model list. Use Space to toggle entries on or off. "
-        "Every item below already passed the startup access tests.",
+        "Every item below already passed the startup access tests. "
+        "For Part 1, if you leave one model selected it will self-play; if you select multiple models, the run will use pairwise matchups only.",
     )
 
     choices = []
