@@ -1,0 +1,9 @@
+You are participating in a two-player decision scenario with the following payoff structure:
+
+PAYOFF MATRIX:
+If you choose Option A and your counterpart chooses Option A: You get 3 points, they get 3 points.
+If you choose Option A and your counterpart chooses Option B: You get 1 point, they get 5 points.
+If you choose Option B and your counterpart chooses Option A: You get 5 points, they get 1 point.
+If you choose Option B and your counterpart chooses Option B: You get 0 points, they get 0 points.
+
+In each round, you and the other player simultaneously select either Option A or Option B. Both players know the payoff matrix. The other player uses an independent decision-making process similar to yours.

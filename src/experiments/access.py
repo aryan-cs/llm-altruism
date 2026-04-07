@@ -4,12 +4,16 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
 from dotenv import load_dotenv
 
+from src.agents.prompts import load_prompt
+from src.games import get_game
 from src.providers import ProviderError, RateLimitProviderError, TemporaryProviderError, get_provider
+from src.utils.parsing import parse_json_response
 
 from .config import ModelSpec
 from .runner import API_KEY_ENV, ENDPOINT_ENV, infer_provider_name
@@ -28,6 +32,11 @@ PROBE_MESSAGES = [
 PROBE_MAX_TOKENS = 64
 PROBE_MAX_ATTEMPTS = 3
 PROBE_MAX_WAIT_SECONDS = 20.0
+ACTION_PROBE_GAME = "prisoners_dilemma"
+ACTION_PROBE_ROUNDS = 2
+ACTION_PROBE_MAX_TOKENS = 256
+ACTION_PROBE_SYSTEM_PROMPT = "prompts/system/minimal.txt"
+ACTION_PROBE_FRAMING_PROMPT = "prompts/framing/neutral.txt"
 
 
 @dataclass(frozen=True)
@@ -37,6 +46,16 @@ class ModelAccessResult:
     spec: ModelSpec
     accessible: bool
     status: str
+
+
+@dataclass(frozen=True)
+class ModelExperimentReadinessResult:
+    """Outcome of probing whether a model produces a usable experimental action."""
+
+    spec: ModelSpec
+    ready: bool
+    status: str
+    parsed_action: str | None = None
 
 
 def spec_selector(spec: ModelSpec) -> str:
@@ -130,6 +149,137 @@ async def probe_model_access(spec: ModelSpec) -> ModelAccessResult:
     return ModelAccessResult(spec=spec, accessible=False, status="probe failed")
 
 
+def _build_action_probe_messages() -> tuple[object, list[dict[str, str]]]:
+    """Construct a representative Part 1 prompt for experiment-readiness checks."""
+    game = get_game(ACTION_PROBE_GAME)
+    framing = load_prompt(ACTION_PROBE_FRAMING_PROMPT).replace("{player_id}", "A")
+    prompt = game.format_prompt(
+        "A",
+        1,
+        ACTION_PROBE_ROUNDS,
+        [],
+        True,
+        action_order_seed=11,
+    )
+    return game, [
+        {
+            "role": "system",
+            "content": "\n\n".join(
+                [
+                    load_prompt(ACTION_PROBE_SYSTEM_PROMPT),
+                    framing,
+                ]
+            ),
+        },
+        {
+            "role": "user",
+            "content": prompt,
+        },
+    ]
+
+
+def _extract_explicit_probe_action(game: object, response_text: str) -> tuple[str | None, str]:
+    """Require an explicit final action instead of fuzzy inference from reasoning text."""
+    parsed = parse_json_response(response_text)
+    if isinstance(parsed, dict):
+        for key in ("action", "choice", "final_action"):
+            value = parsed.get(key)
+            if isinstance(value, str):
+                canonical = game.canonicalize_action(value)
+                if canonical is not None:
+                    return canonical, "verified via json action"
+
+    stripped = response_text.strip().strip('"').strip("'")
+    canonical = game.canonicalize_action(stripped)
+    if canonical is not None:
+        return canonical, "verified via exact action token"
+
+    match = re.search(
+        r"(?im)^(?:final\s+)?(?:my\s+)?action\s*[:=-]\s*\"?([A-Za-z0-9_ -]+)\"?\s*$",
+        response_text,
+    )
+    if match:
+        canonical = game.canonicalize_action(match.group(1))
+        if canonical is not None:
+            return canonical, "verified via explicit action line"
+
+    return None, "ambiguous action output"
+
+
+async def probe_model_experiment_readiness(spec: ModelSpec) -> ModelExperimentReadinessResult:
+    """Probe whether a model can complete a representative experimental action cleanly."""
+    load_dotenv(ROOT / ".env", override=False)
+
+    provider_name = spec.provider or infer_provider_name(spec.model)
+    missing_requirements = _missing_provider_requirements(provider_name)
+    if missing_requirements:
+        return ModelExperimentReadinessResult(spec=spec, ready=False, status=missing_requirements)
+
+    api_key = os.getenv(API_KEY_ENV.get(provider_name, "")) or None
+    base_url = os.getenv(ENDPOINT_ENV.get(provider_name, "")) or None
+
+    try:
+        client = get_provider(
+            provider_name,
+            model=spec.model,
+            api_key=api_key,
+            base_url=base_url,
+        )
+    except ProviderError as exc:
+        return ModelExperimentReadinessResult(spec=spec, ready=False, status=str(exc))
+
+    game, messages = _build_action_probe_messages()
+    last_retryable_error: TemporaryProviderError | None = None
+
+    try:
+        for attempt in range(PROBE_MAX_ATTEMPTS):
+            try:
+                response = await client.complete(
+                    messages=messages,
+                    temperature=0.0,
+                    max_tokens=ACTION_PROBE_MAX_TOKENS,
+                    response_format={"type": "json_object"},
+                )
+                if not response.content.strip():
+                    return ModelExperimentReadinessResult(
+                        spec=spec,
+                        ready=False,
+                        status="empty response",
+                    )
+
+                action, status = _extract_explicit_probe_action(game, response.content)
+                return ModelExperimentReadinessResult(
+                    spec=spec,
+                    ready=action is not None,
+                    status=status,
+                    parsed_action=action,
+                )
+            except RateLimitProviderError as exc:
+                last_retryable_error = exc
+                if attempt == PROBE_MAX_ATTEMPTS - 1:
+                    break
+                suggested_wait = getattr(exc, "retry_after_seconds", None)
+                wait_seconds = max(1.0, suggested_wait or (2**attempt))
+                await asyncio.sleep(min(PROBE_MAX_WAIT_SECONDS, wait_seconds))
+            except TemporaryProviderError as exc:
+                last_retryable_error = exc
+                if attempt == PROBE_MAX_ATTEMPTS - 1:
+                    break
+                suggested_wait = getattr(exc, "retry_after_seconds", None)
+                wait_seconds = max(1.0, suggested_wait or (2**attempt))
+                await asyncio.sleep(min(PROBE_MAX_WAIT_SECONDS, wait_seconds))
+            except ProviderError as exc:
+                return ModelExperimentReadinessResult(spec=spec, ready=False, status=str(exc))
+    finally:
+        close = getattr(client, "close", None)
+        if close is not None:
+            await close()
+
+    if last_retryable_error is not None:
+        return ModelExperimentReadinessResult(spec=spec, ready=False, status=str(last_retryable_error))
+    return ModelExperimentReadinessResult(spec=spec, ready=False, status="experiment probe failed")
+
+
 async def probe_accessible_model_catalog(
     specs: list[ModelSpec],
 ) -> tuple[list[ModelSpec], dict[str, ModelAccessResult]]:
@@ -147,5 +297,17 @@ async def probe_model_access_results(
 
     for spec in _unique_specs(specs):
         result = await probe_model_access(spec)
+        results[spec_selector(spec)] = result
+    return results
+
+
+async def probe_model_experiment_readiness_results(
+    specs: list[ModelSpec],
+) -> dict[str, ModelExperimentReadinessResult]:
+    """Probe a set of model specs for experiment-grade action readiness."""
+    results: dict[str, ModelExperimentReadinessResult] = {}
+
+    for spec in _unique_specs(specs):
+        result = await probe_model_experiment_readiness(spec)
         results[spec_selector(spec)] = result
     return results

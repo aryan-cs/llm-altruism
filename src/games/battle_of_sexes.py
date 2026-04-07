@@ -35,7 +35,7 @@ class BattleOfSexes(Game):
 
     def get_description(self) -> str:
         """Return a natural language description of Battle of the Sexes."""
-        return load_prompt("games/battle_of_sexes/description.txt")
+        return load_prompt(self.prompt_path("description", "games/battle_of_sexes/description.txt"))
 
     def format_prompt(
         self,
@@ -48,7 +48,7 @@ class BattleOfSexes(Game):
     ) -> str:
         """Build the prompt for this round of Battle of the Sexes."""
         return render_prompt_template(
-            "games/battle_of_sexes/round.txt",
+            self.prompt_path("round", "games/battle_of_sexes/round.txt"),
             description_block=f"{self.get_description()}\n\n" if round_num == 1 else "",
             round_info=self._format_round_info(round_num, total_rounds),
             history_block=f"{self._format_history(history, payoff_visible)}\n\n" if history else "",

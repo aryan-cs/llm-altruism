@@ -30,14 +30,52 @@ class Game(ABC):
     or have special structure. Subclasses handle role-specific payoff logic.
     """
 
-    def __init__(self):
-        """Initialize the game. Subclasses should set name, actions, and payoff_matrix."""
+    def __init__(
+        self,
+        *,
+        prompt_overrides: dict[str, str] | None = None,
+        action_aliases: dict[str, str] | None = None,
+    ):
+        """Initialize the game.
+
+        Args:
+            prompt_overrides: Optional mapping from logical prompt key to prompt path.
+                Example: {"description": "games_variants/prisoners_dilemma/unnamed_description.txt"}
+            action_aliases: Optional mapping from canonical action to displayed alias.
+        """
         if not hasattr(self, "name"):
             raise NotImplementedError(f"{self.__class__.__name__} must define 'name'")
         if not hasattr(self, "actions"):
             raise NotImplementedError(
                 f"{self.__class__.__name__} must define 'actions' list"
             )
+        self.prompt_overrides = dict(prompt_overrides or {})
+        self.action_aliases = dict(action_aliases or {})
+        unknown_alias_keys = set(self.action_aliases) - set(self.actions)
+        if unknown_alias_keys:
+            unknown = ", ".join(sorted(unknown_alias_keys))
+            raise ValueError(f"Unknown action alias keys for {self.name}: {unknown}")
+        self.alias_to_action = {
+            alias.strip().lower(): action
+            for action, alias in self.action_aliases.items()
+            if isinstance(alias, str) and alias.strip()
+        }
+
+    def prompt_path(self, key: str, default_path: str) -> str:
+        """Return the prompt path for a logical template key."""
+        return self.prompt_overrides.get(key, default_path)
+
+    def display_action(self, action: str) -> str:
+        """Return the displayed label for an action."""
+        return self.action_aliases.get(action, action)
+
+    def canonicalize_action(self, action: str) -> str | None:
+        """Map either a canonical action or an alias back to the canonical action."""
+        action_lower = action.strip().lower()
+        for candidate in self.actions:
+            if candidate.lower() == action_lower:
+                return candidate
+        return self.alias_to_action.get(action_lower)
 
     def get_description(self) -> str:
         """Return a natural language description of the game rules.
@@ -102,14 +140,16 @@ class Game(ABC):
             data = json.loads(response)
             if isinstance(data, dict) and "action" in data:
                 action = str(data["action"]).strip()
-                if self._is_valid_action(action):
-                    return action
+                canonical = self.canonicalize_action(action)
+                if canonical is not None:
+                    return canonical
         except json.JSONDecodeError:
             pass
 
-        # Strategy 2: Regex match against action names (case-insensitive)
+        # Strategy 2: Regex match against action names or aliases (case-insensitive)
         for action in self.actions:
-            pattern = r"\b" + re.escape(action) + r"\b"
+            candidates = [action, self.display_action(action)]
+            pattern = r"\b(" + "|".join(re.escape(candidate) for candidate in candidates) + r")\b"
             if re.search(pattern, response, re.IGNORECASE):
                 return action
 
@@ -186,8 +226,8 @@ class Game(ABC):
         lines = ["Previous rounds:"]
         for round_data in history:
             round_num = round_data["round"]
-            action_a = round_data["action_a"]
-            action_b = round_data["action_b"]
+            action_a = self.display_action(round_data["action_a"])
+            action_b = self.display_action(round_data["action_b"])
             lines.append(f"  Round {round_num}: You played {action_a}, opponent played {action_b}")
 
             if payoff_visible:
@@ -213,7 +253,7 @@ class Game(ABC):
             if action_order_seed is not None
             else self.actions
         )
-        formatted = ", ".join(f'"{a}"' for a in actions)
+        formatted = ", ".join(f'"{self.display_action(a)}"' for a in actions)
         return f"Available actions: {formatted}"
 
     def _format_round_info(

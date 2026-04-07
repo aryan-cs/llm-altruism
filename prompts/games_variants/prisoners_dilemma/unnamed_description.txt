@@ -1,0 +1,9 @@
+You are participating in a two-person decision exercise. Each round, both participants choose at the same time between two options: "share" and "keep".
+
+Payoff structure:
+- If both choose share: you each get 3 points
+- If you choose share and the other person chooses keep: you get 0 and they get 5
+- If you choose keep and the other person chooses share: you get 5 and they get 0
+- If both choose keep: you each get 1 point
+
+One option creates the best joint outcome if both people choose it, while the other protects individual advantage if trust breaks down.

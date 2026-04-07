@@ -1,0 +1,8 @@
+=== DECISION TASK ===
+
+{{description_block}}{{round_info}}
+
+{{history_block}}What is your action for this round?
+{{actions}}
+
+Please respond with JSON in the format: {"action": "option_a" or "option_b", "reasoning": "brief explanation"}

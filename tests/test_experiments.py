@@ -162,6 +162,32 @@ def test_request_completion_retries_rate_limits_until_success(monkeypatch, tmp_p
     assert not runner.skipped_models
 
 
+def test_request_completion_skips_cache_for_nonzero_temperature(monkeypatch, tmp_path: Path):
+    config = load_experiment_config("configs/part1/prisoners_dilemma_baseline.yaml")
+    runner = Part1Runner(config, results_dir=str(tmp_path), dry_run=False)
+    spec = config.pairings[2][1]
+    provider = FlakyProvider([_success_response(spec.model, spec.provider or "ollama")])
+    runner._providers[(spec.provider or "ollama", spec.model)] = provider
+    cache_calls: list[str] = []
+
+    monkeypatch.setenv("OLLAMA_BASE_URL", "http://localhost:11434")
+    monkeypatch.setattr(runner.cache, "load", lambda **_kwargs: cache_calls.append("load"))
+    monkeypatch.setattr(runner.cache, "save", lambda *_args, **_kwargs: cache_calls.append("save"))
+
+    response = asyncio.run(
+        runner.request_completion(
+            spec=spec,
+            messages=[{"role": "user", "content": "Choose an action."}],
+            temperature=0.3,
+            response_format={"type": "json_object"},
+        )
+    )
+
+    assert response.content == '{"action": "cooperate"}'
+    assert provider.calls == 1
+    assert cache_calls == []
+
+
 def test_request_completion_skips_after_exhausting_transient_retries(monkeypatch, tmp_path: Path):
     config = load_experiment_config("configs/part1/prisoners_dilemma_baseline.yaml")
     config.parameters.max_transient_retries = 2

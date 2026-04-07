@@ -1,0 +1,8 @@
+=== RESOURCE ALLOCATION TASK ===
+
+{{description_block}}{{round_info}}
+
+{{history_block}}Do you pool or lock your cache this round?
+{{actions}}
+
+Please respond with JSON in the format: {"action": "pool" or "lock", "reasoning": "brief explanation"}

@@ -29,7 +29,7 @@ class UltimatumGame(Game):
 
     def get_description(self) -> str:
         """Return a natural language description of Ultimatum Game."""
-        return load_prompt("games/ultimatum/description.txt")
+        return load_prompt(self.prompt_path("description", "games/ultimatum/description.txt"))
 
     def format_prompt(
         self,
@@ -55,9 +55,9 @@ class UltimatumGame(Game):
         """
         template = "games/ultimatum/proposer_round.txt"
         if player_id.lower() == "proposer":
-            template = "games/ultimatum/proposer_round.txt"
+            template = self.prompt_path("proposer_round", "games/ultimatum/proposer_round.txt")
         else:
-            template = "games/ultimatum/responder_round.txt"
+            template = self.prompt_path("responder_round", "games/ultimatum/responder_round.txt")
 
         return render_prompt_template(
             template,

@@ -158,12 +158,22 @@ def extract_reasoning(text: str) -> str:
     if not text:
         return ""
 
+    parsed = parse_json_response(text)
+    if isinstance(parsed, dict):
+        for key in ("reasoning", "explanation", "analysis", "thinking", "reasoning_content"):
+            value = parsed.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        for value in parsed.values():
+            if isinstance(value, dict):
+                for key in ("reasoning", "explanation", "analysis", "thinking", "reasoning_content"):
+                    nested = value.get(key)
+                    if isinstance(nested, str) and nested.strip():
+                        return nested.strip()
+
     # Common reasoning markers
     reasoning_markers = [
-        r"(?:reasoning|reasoning:)(.*?)(?:\n\n|action|action:|$)",
-        r"(?:thinking|thinking:)(.*?)(?:\n\n|action|action:|$)",
-        r"(?:analysis|analysis:)(.*?)(?:\n\n|action|action:|$)",
-        r"(?:explanation|explanation:)(.*?)(?:\n\n|action|action:|$)",
+        r"(?:^|[\n\r])\s*(?:reasoning|thinking|analysis|explanation)\s*:?\s*(.*?)(?=(?:[\n\r]+\s*(?:action|my action)\s*:?)|$)",
     ]
 
     for marker in reasoning_markers:

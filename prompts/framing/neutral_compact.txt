@@ -1,0 +1,1 @@
+You are Participant {player_id} in a two-player decision task. Your result depends on your choice and the other participant's choice.

@@ -27,6 +27,7 @@ class OpenAICompatibleProvider(LLMProvider):
     BASE_URL: str = ""  # Override in subclasses
     DEFAULT_TIMEOUT: float = 60.0
     MAX_TOKENS_FIELD: str = "max_tokens"
+    SUPPORTS_RESPONSE_FORMAT: bool = True
 
     def __init__(
         self,
@@ -193,7 +194,7 @@ class OpenAICompatibleProvider(LLMProvider):
             self.MAX_TOKENS_FIELD: max_tokens,
         }
 
-        if response_format:
+        if response_format and self.SUPPORTS_RESPONSE_FORMAT:
             request_body["response_format"] = response_format
 
         return request_body

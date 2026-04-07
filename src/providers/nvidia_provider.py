@@ -14,6 +14,7 @@ class NVIDIAProvider(OpenAICompatibleProvider):
     """NVIDIA provider using the OpenAI-compatible integrate API."""
 
     BASE_URL = "https://integrate.api.nvidia.com/v1"
+    SUPPORTS_RESPONSE_FORMAT = False
 
     def __init__(
         self,

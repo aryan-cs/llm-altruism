@@ -283,6 +283,7 @@ class BaseExperimentRunner(ABC):
         """Call a real provider or return a deterministic dry-run response."""
         provider_name = spec.provider or infer_provider_name(spec.model)
         max_tokens = self.config.parameters.max_tokens
+        use_cache = (not self.dry_run) and abs(float(temperature)) < 1e-9
 
         if self.dry_run:
             content = mock_content or '{"action": "idle"}'
@@ -306,9 +307,10 @@ class BaseExperimentRunner(ABC):
             "max_tokens": max_tokens,
             "response_format": response_format,
         }
-        cached = self.cache.load(**cache_kwargs)
-        if cached is not None:
-            return cached
+        if use_cache:
+            cached = self.cache.load(**cache_kwargs)
+            if cached is not None:
+                return cached
 
         skip_reason = self.get_skip_reason(spec)
         if skip_reason is not None:
@@ -402,7 +404,8 @@ class BaseExperimentRunner(ABC):
                 self.mark_model_unavailable(spec, str(exc))
                 raise ModelUnavailableError(f"{self.spec_key(spec)} skipped: {exc}") from exc
 
-        self.cache.save(response, **cache_kwargs)
+        if use_cache:
+            self.cache.save(response, **cache_kwargs)
         try:
             self.cost_tracker.add(
                 model=response.model,

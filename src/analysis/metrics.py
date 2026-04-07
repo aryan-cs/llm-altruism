@@ -228,6 +228,10 @@ def summarize_society(
             "average_trade_volume": 0.0,
             "commons_health": 0.0,
             "survival_rate": 0.0,
+            "final_survival_rate": 0.0,
+            "final_alive_count": 0.0,
+            "final_total_agents": 0.0,
+            "extinction_event": 0.0,
             "alliance_count": 0.0,
         }
 
@@ -255,6 +259,11 @@ def summarize_society(
                     alliance_round_counts[pair] += 1
 
     alliance_count = sum(1 for count in alliance_round_counts.values() if count >= 2)
+    final_round = rounds[-1]
+    final_alive_count = float(final_round.get("alive_count", 0))
+    final_total_agents = float(final_round.get("total_agents", final_alive_count or 1))
+    final_survival_rate = final_alive_count / final_total_agents if final_total_agents else 0.0
+    extinction_event = 1.0 if final_alive_count <= 0 else 0.0
 
     return {
         "round_count": float(len(rounds)),
@@ -262,6 +271,10 @@ def summarize_society(
         "average_trade_volume": resource_velocity(trade_volumes),
         "commons_health": commons_health(public_resources, max_public_resources),
         "survival_rate": safe_mean(survival_rates),
+        "final_survival_rate": final_survival_rate,
+        "final_alive_count": final_alive_count,
+        "final_total_agents": final_total_agents,
+        "extinction_event": extinction_event,
         "alliance_count": float(alliance_count),
         "commons_depletion_rate": 1.0 - commons_health(public_resources, max_public_resources),
     }

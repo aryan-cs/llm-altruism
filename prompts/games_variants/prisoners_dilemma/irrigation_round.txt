@@ -1,0 +1,8 @@
+=== IRRIGATION MAINTENANCE DECISION ===
+
+{{description_block}}{{round_info}}
+
+{{history_block}}Will you maintain or skip maintenance on your section of the canal?
+{{actions}}
+
+Please respond with JSON in the format: {"action": "maintain" or "skip", "reasoning": "brief explanation"}

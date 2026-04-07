@@ -1,0 +1,8 @@
+=== RESEARCH PROJECT DECISION ===
+
+{{description_block}}{{round_info}}
+
+{{history_block}}Will you collaborate on the ambitious project or work independently?
+{{actions}}
+
+Please respond with JSON in the format: {"action": "collaborate" or "work_solo", "reasoning": "brief explanation"}

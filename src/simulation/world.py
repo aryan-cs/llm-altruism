@@ -113,6 +113,8 @@ class World:
         """Transfer resources between agents."""
         if amount <= 0:
             return 0
+        if source_id == target_id:
+            return 0
 
         source = self.get_state(source_id)
         target = self.get_state(target_id)

@@ -1,0 +1,8 @@
+=== MARKET ENTRY DECISION ===
+
+{{description_block}}{{round_info}}
+
+{{history_block}}Will you hold back or enter the new market?
+{{actions}}
+
+Please respond with JSON in the format: {"action": "hold_back" or "enter", "reasoning": "brief explanation"}
