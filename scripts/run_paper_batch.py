@@ -101,6 +101,23 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Use a smaller runtime budget for quick iteration.",
     )
+    parser.add_argument(
+        "--multiagent-repetitions",
+        type=int,
+        default=1,
+        help="Override repetitions for Part 2/3 society and reputation experiments.",
+    )
+    parser.add_argument(
+        "--multiagent-concurrency",
+        type=int,
+        default=6,
+        help="Override agent-decision concurrency for Part 2/3 experiments.",
+    )
+    parser.add_argument(
+        "--name-suffix",
+        default="",
+        help="Optional suffix appended to generated experiment names.",
+    )
     return parser.parse_args()
 
 
@@ -232,6 +249,14 @@ def build_pairings(models: list[ModelSpec], *, include_self_play: bool = True) -
         pairings.extend((model, model) for model in models)
     pairings.extend(combinations(models, 2))
     return pairings
+
+
+def apply_name_suffix(name: str, suffix: str) -> str:
+    """Append a stable suffix to an experiment name when requested."""
+    cleaned = suffix.strip().strip("-")
+    if not cleaned:
+        return name
+    return f"{name}-{cleaned}"
 
 
 def baseline_prompt_variants() -> list[PromptVariantConfig]:
@@ -414,7 +439,9 @@ def build_society_config(
     models: list[ModelSpec],
     prompt_variants: list[PromptVariantConfig],
     rounds: int,
+    repetitions: int,
     temperatures: list[float],
+    concurrency: int,
 ) -> ExperimentSettings:
     """Create either a part 2 or part 3 society config."""
     reputation = None
@@ -431,7 +458,7 @@ def build_society_config(
         name=name,
         part=part,
         rounds=rounds,
-        repetitions=1,
+        repetitions=repetitions,
         agents=build_society_agents(models, per_model_count=2),
         history=HistoryConfig(mode="summarized", window_size=5),
         prompt_variants=prompt_variants,
@@ -439,7 +466,7 @@ def build_society_config(
             temperature=temperatures,
             payoff_visibility=False,
             max_tokens=400,
-            concurrency=6,
+            concurrency=concurrency,
             max_transient_retries=6,
             initial_retry_delay_seconds=10,
             max_retry_delay_seconds=300,
@@ -468,7 +495,14 @@ def build_society_config(
     )
 
 
-def build_experiment_plan(models: list[ModelSpec], *, fast: bool) -> list[tuple[str, ExperimentSettings, dict[str, object]]]:
+def build_experiment_plan(
+    models: list[ModelSpec],
+    *,
+    fast: bool,
+    multiagent_repetitions: int,
+    multiagent_concurrency: int,
+    name_suffix: str,
+) -> list[tuple[str, ExperimentSettings, dict[str, object]]]:
     """Create the full paper-oriented experiment plan."""
     part1_rounds = 4 if fast else 6
     part1_repetitions = 1
@@ -484,7 +518,7 @@ def build_experiment_plan(models: list[ModelSpec], *, fast: bool) -> list[tuple[
             (
                 "baseline",
                 build_part1_config(
-                    name=f"paper-baseline-{game}",
+                    name=apply_name_suffix(f"paper-baseline-{game}", name_suffix),
                     game=game,
                     pairings=pairings,
                     prompt_variants=baseline_prompt_variants(),
@@ -507,7 +541,7 @@ def build_experiment_plan(models: list[ModelSpec], *, fast: bool) -> list[tuple[
                 (
                     "benchmark",
                     build_part1_config(
-                        name=f"paper-benchmark-{game}-{presentation}",
+                        name=apply_name_suffix(f"paper-benchmark-{game}-{presentation}", name_suffix),
                         game=game,
                         pairings=pairings,
                         prompt_variants=[
@@ -531,7 +565,7 @@ def build_experiment_plan(models: list[ModelSpec], *, fast: bool) -> list[tuple[
             (
                 "susceptibility",
                 build_part1_config(
-                    name=f"paper-susceptibility-{game}",
+                    name=apply_name_suffix(f"paper-susceptibility-{game}", name_suffix),
                     game=game,
                     pairings=pairings,
                     prompt_variants=susceptibility_prompt_variants(),
@@ -549,12 +583,14 @@ def build_experiment_plan(models: list[ModelSpec], *, fast: bool) -> list[tuple[
             (
                 "society",
                 build_society_config(
-                    name="paper-society-prompts",
+                    name=apply_name_suffix("paper-society-prompts", name_suffix),
                     part=2,
                     models=society_models,
                     prompt_variants=society_prompt_variants(reputation=False),
                     rounds=society_rounds,
+                    repetitions=multiagent_repetitions,
                     temperatures=society_temperatures,
+                    concurrency=multiagent_concurrency,
                 ),
                 {"track": "society", "presentation": "prompt_comparison"},
             )
@@ -563,12 +599,14 @@ def build_experiment_plan(models: list[ModelSpec], *, fast: bool) -> list[tuple[
             (
                 "reputation",
                 build_society_config(
-                    name="paper-reputation-prompts",
+                    name=apply_name_suffix("paper-reputation-prompts", name_suffix),
                     part=3,
                     models=society_models,
                     prompt_variants=society_prompt_variants(reputation=True),
                     rounds=society_rounds,
+                    repetitions=multiagent_repetitions,
                     temperatures=society_temperatures,
+                    concurrency=multiagent_concurrency,
                 ),
                 {"track": "reputation", "presentation": "prompt_comparison"},
             )
@@ -617,6 +655,13 @@ def manifest_entry_from_result(
 
 async def run_batch(args: argparse.Namespace) -> int:
     """Run the selected experiment batch."""
+    if args.multiagent_repetitions < 1:
+        console.print(Panel("--multiagent-repetitions must be at least 1.", border_style="red"))
+        return 1
+    if args.multiagent_concurrency < 1:
+        console.print(Panel("--multiagent-concurrency must be at least 1.", border_style="red"))
+        return 1
+
     tracks = resolve_tracks(args.track)
     models, access_results, readiness_results = await resolve_accessible_cohort(args)
     if not models:
@@ -629,7 +674,16 @@ async def run_batch(args: argparse.Namespace) -> int:
         return 1
 
     render_cohort_summary(models, access_results, readiness_results)
-    plan = filter_plan_by_tracks(build_experiment_plan(models, fast=args.fast), tracks)
+    plan = filter_plan_by_tracks(
+        build_experiment_plan(
+            models,
+            fast=args.fast,
+            multiagent_repetitions=args.multiagent_repetitions,
+            multiagent_concurrency=args.multiagent_concurrency,
+            name_suffix=args.name_suffix,
+        ),
+        tracks,
+    )
     if not plan:
         console.print(Panel("No experiments matched the requested tracks.", border_style="red"))
         return 1
@@ -640,6 +694,9 @@ async def run_batch(args: argparse.Namespace) -> int:
     manifest: dict[str, object] = {
         "tracks": tracks,
         "dry_run": args.dry_run,
+        "name_suffix": args.name_suffix,
+        "multiagent_repetitions": args.multiagent_repetitions,
+        "multiagent_concurrency": args.multiagent_concurrency,
         "selected_models": [spec_selector(spec) for spec in models],
         "access_results": {
             selector: {

@@ -109,6 +109,60 @@ def flatten_prompt_variant_rows(summary: dict[str, Any]) -> list[dict[str, Any]]
     return rows
 
 
+def flatten_trial_rows(summary: dict[str, Any]) -> list[dict[str, Any]]:
+    """Flatten raw per-trial metrics for cross-experiment pooling."""
+    experiment = summary.get("config", {}).get("experiment", summary.get("config", {}))
+    run_metadata = summary.get("run_metadata", {})
+    rows: list[dict[str, Any]] = []
+    for trial in summary.get("trials", []):
+        trial_summary = trial.get("summary")
+        prompt_variant = trial.get("prompt_variant")
+        if not prompt_variant or not isinstance(trial_summary, dict):
+            continue
+        row: dict[str, Any] = {
+            "experiment_id": summary.get("experiment_id"),
+            "name": experiment.get("name"),
+            "part": experiment.get("part"),
+            "game": experiment.get("game"),
+            "track": run_metadata.get("track"),
+            "presentation": run_metadata.get("presentation"),
+            "prompt_variant": prompt_variant,
+            "trial_id": trial.get("trial_id"),
+            "repetition": trial.get("repetition"),
+        }
+        for key, value in trial_summary.items():
+            if isinstance(value, (int, float)):
+                row[key] = value
+        rows.append(row)
+    return rows
+
+
+def pooled_prompt_variant_frame(trial_frame: pd.DataFrame) -> pd.DataFrame:
+    """Aggregate raw trial rows across experiments by prompt condition."""
+    if trial_frame.empty:
+        return pd.DataFrame()
+
+    group_columns = ["track", "presentation", "game", "prompt_variant"]
+    numeric_columns = [
+        column
+        for column in trial_frame.columns
+        if column not in {"part", "trial_id", "repetition"}
+        and pd.api.types.is_numeric_dtype(trial_frame[column])
+    ]
+
+    rows: list[dict[str, Any]] = []
+    for keys, group in trial_frame.groupby(group_columns, dropna=False):
+        row = dict(zip(group_columns, keys, strict=False))
+        row["experiment_count"] = int(group["experiment_id"].nunique())
+        row["trial_count"] = int(len(group))
+        for column in numeric_columns:
+            values = group[column].dropna()
+            if not values.empty:
+                row[column] = float(values.mean())
+        rows.append(row)
+    return pd.DataFrame(rows)
+
+
 def is_experiment_summary(summary: dict[str, Any]) -> bool:
     """Return True when a JSON artifact looks like a real experiment summary."""
     return bool(summary.get("experiment_id")) and (
@@ -135,6 +189,14 @@ def markdown_table(frame: pd.DataFrame, columns: list[str]) -> list[str]:
         lines.append("| " + " | ".join(values) + " |")
     lines.append("")
     return lines
+
+
+def sort_frame(frame: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
+    """Sort by the subset of requested columns that are present."""
+    sort_columns = [column for column in columns if column in frame.columns]
+    if not sort_columns:
+        return frame
+    return frame.sort_values(sort_columns)
 
 
 def benchmark_delta_frame(experiment_frame: pd.DataFrame) -> pd.DataFrame:
@@ -177,6 +239,7 @@ def benchmark_delta_frame(experiment_frame: pd.DataFrame) -> pd.DataFrame:
 def render_markdown(
     experiment_frame: pd.DataFrame,
     prompt_variant_frame: pd.DataFrame,
+    pooled_prompt_frame: pd.DataFrame,
 ) -> str:
     if experiment_frame.empty:
         return "# Paper Summary\n\nNo result rows found.\n"
@@ -187,7 +250,7 @@ def render_markdown(
     lines.append("")
     lines.extend(
         markdown_table(
-            experiment_frame.sort_values(["track", "game", "presentation", "experiment_id"]),
+            sort_frame(experiment_frame, ["track", "game", "presentation", "experiment_id"]),
             [
                 "experiment_id",
                 "track",
@@ -212,7 +275,8 @@ def render_markdown(
         lines.append("")
         lines.extend(
             markdown_table(
-                prompt_variant_frame.sort_values(
+                sort_frame(
+                    prompt_variant_frame,
                     ["track", "game", "presentation", "prompt_variant", "experiment_id"]
                 ),
                 [
@@ -233,13 +297,44 @@ def render_markdown(
             )
         )
 
+    if not pooled_prompt_frame.empty:
+        lines.append("## Pooled Prompt Variant Summary")
+        lines.append("")
+        lines.extend(
+            markdown_table(
+                sort_frame(
+                    pooled_prompt_frame,
+                    ["track", "game", "presentation", "prompt_variant"]
+                ),
+                [
+                    "track",
+                    "presentation",
+                    "game",
+                    "prompt_variant",
+                    "experiment_count",
+                    "trial_count",
+                    "cooperation_rate_a",
+                    "cooperation_rate_b",
+                    "average_payoff_a",
+                    "average_payoff_b",
+                    "survival_rate",
+                    "final_survival_rate",
+                    "average_trade_volume",
+                    "average_gini",
+                    "commons_health",
+                    "alliance_count",
+                    "extinction_event",
+                ],
+            )
+        )
+
     benchmark_deltas = benchmark_delta_frame(experiment_frame)
     if not benchmark_deltas.empty:
         lines.append("## Benchmark Presentation Deltas")
         lines.append("")
         lines.extend(
             markdown_table(
-                benchmark_deltas.sort_values(["game", "presentation"]),
+                sort_frame(benchmark_deltas, ["game", "presentation"]),
                 [
                     "game",
                     "presentation",
@@ -262,6 +357,7 @@ def main() -> int:
     args = parse_args()
     rows = []
     prompt_variant_rows = []
+    trial_rows = []
     for path in expand_paths(args.results):
         if path.is_dir():
             for json_path in sorted(path.glob("*.json")):
@@ -269,14 +365,18 @@ def main() -> int:
                 if is_experiment_summary(summary):
                     rows.append(flatten_summary(summary))
                     prompt_variant_rows.extend(flatten_prompt_variant_rows(summary))
+                    trial_rows.extend(flatten_trial_rows(summary))
         elif path.suffix == ".json":
             summary = load_result_artifact(path)
             if is_experiment_summary(summary):
                 rows.append(flatten_summary(summary))
                 prompt_variant_rows.extend(flatten_prompt_variant_rows(summary))
+                trial_rows.extend(flatten_trial_rows(summary))
 
     experiment_frame = pd.DataFrame(rows)
     prompt_variant_frame = pd.DataFrame(prompt_variant_rows)
+    trial_frame = pd.DataFrame(trial_rows)
+    pooled_prompt_frame = pooled_prompt_variant_frame(trial_frame)
     if experiment_frame.empty:
         print("No result rows found.")
         return 1
@@ -290,11 +390,11 @@ def main() -> int:
         markdown_path = Path(args.markdown)
         markdown_path.parent.mkdir(parents=True, exist_ok=True)
         markdown_path.write_text(
-            render_markdown(experiment_frame, prompt_variant_frame),
+            render_markdown(experiment_frame, prompt_variant_frame, pooled_prompt_frame),
             encoding="utf-8",
         )
     else:
-        print(render_markdown(experiment_frame, prompt_variant_frame))
+        print(render_markdown(experiment_frame, prompt_variant_frame, pooled_prompt_frame))
 
     return 0
 
