@@ -177,7 +177,7 @@ class EconomyEngine:
                     )
                 )
             elif action == "whisper" and message and allow_private_messages and isinstance(target, str):
-                if target in world.agent_states:
+                if target in world.agent_states and target != agent_id:
                     world.whisper(agent_id, target, message)
                     events.append(
                         world.record_event(
@@ -214,7 +214,12 @@ class EconomyEngine:
                         public=public,
                     )
                 )
-            elif action == "share" and isinstance(target, str) and target in world.agent_states:
+            elif (
+                action == "share"
+                and isinstance(target, str)
+                and target in world.agent_states
+                and target != agent_id
+            ):
                 amount = int(decision.get("amount", 0))
                 moved = world.transfer(agent_id, target, amount)
                 trade_volume += moved
@@ -227,7 +232,12 @@ class EconomyEngine:
                         public=public,
                     )
                 )
-            elif action == "offer_trade" and isinstance(target, str) and target in world.agent_states:
+            elif (
+                action == "offer_trade"
+                and isinstance(target, str)
+                and target in world.agent_states
+                and target != agent_id
+            ):
                 offer = self.create_offer(
                     world,
                     from_agent=agent_id,
@@ -246,7 +256,13 @@ class EconomyEngine:
                             public=public,
                         )
                     )
-            elif action == "steal" and allow_steal and isinstance(target, str) and target in world.agent_states:
+            elif (
+                action == "steal"
+                and allow_steal
+                and isinstance(target, str)
+                and target in world.agent_states
+                and target != agent_id
+            ):
                 amount = int(decision.get("amount", world.config.steal_amount))
                 stolen = world.steal(agent_id, target, amount)
                 trade_volume += stolen

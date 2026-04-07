@@ -53,6 +53,32 @@ Correction implemented:
 This matters scientifically because paper claims depend on the reliability of
 the recorded actions, not just whether a model returned some text.
 
+### Methodology corrections applied later in the session
+
+Two additional validity issues were found and fixed during the live paper runs:
+
+1. Society self-transfer bug
+
+- self-targeted `share` / `steal` actions were being logged as events
+- even when they did not change resources materially, they could inflate
+  trade-volume and alliance-style metrics
+- fix applied:
+  - self-transfers are now no-ops in `World.transfer`
+  - self-targeted `share`, `steal`, and `whisper` actions are ignored in the economy layer
+- consequence:
+  - society and reputation claims should be based on the corrected reruns, not the earlier interrupted part 2 run
+
+2. Nonzero-temperature cache bug
+
+- the global response cache could accidentally reuse outputs for stochastic runs
+- this is acceptable for deterministic temperature-0 conditions, but it is **not**
+  acceptable for fresh society/reputation replications
+- fix applied:
+  - cache reuse now happens only for temperature `0.0`
+- consequence:
+  - the completed `results/paper_live_clean` fast batch remains useful
+  - fresh stochastic replication runs should use the post-fix cache policy
+
 ### Stable paper cohort selected
 
 Current main paper cohort for live runs:
@@ -282,6 +308,166 @@ Goal of this batch:
 Checkpoint branch:
 
 - `codex/interactive-experiment-wizard`
+
+### Prompt-susceptibility results starting to arrive
+
+Completed so far:
+
+- `results/paper_live_clean/paper-susceptibility-prisoners_dilemma-20260407T000033Z.json`
+- `results/paper_live_clean/paper-susceptibility-chicken-20260407T000353Z.json`
+- `results/paper_live_clean/paper-susceptibility-stag_hunt-20260407T001137Z.json`
+
+PD susceptibility result:
+
+- competitive prompt:
+  - cooperation rate A: `0.000`
+  - cooperation rate B: `0.000`
+  - average payoffs: `1.0`, `1.0`
+- cooperative prompt:
+  - cooperation rate A: `1.000`
+  - cooperation rate B: `1.000`
+  - average payoffs: `3.0`, `3.0`
+- minimal-neutral prompt:
+  - cooperation rate A: `0.325`
+  - cooperation rate B: `0.500`
+  - average payoffs: `2.45`, `1.575`
+
+Interpretation:
+
+- this is a very strong prompt-steerability result
+- under otherwise identical game structure and model cohort:
+  - cooperative prompting induces universal cooperation
+  - competitive prompting induces universal defection
+  - neutral prompting sits between those extremes
+
+This supports the paper's planned distinction between:
+
+- baseline/default-policy behavior
+- prompt susceptibility
+- institutional pressure effects
+
+In other words, prompt framing is not a small nuisance variable here; it can completely dominate observed strategic behavior.
+
+Chicken susceptibility result:
+
+- competitive prompt:
+  - cooperation rate A: `0.425`
+  - cooperation rate B: `0.375`
+  - average payoffs: `1.625`, `1.825`
+- cooperative prompt:
+  - cooperation rate A: `0.975`
+  - cooperation rate B: `0.900`
+  - average payoffs: `2.775`, `3.075`
+- minimal-neutral prompt:
+  - cooperation rate A: `0.675`
+  - cooperation rate B: `0.600`
+  - average payoffs: `2.40`, `2.70`
+
+Stag Hunt susceptibility result:
+
+- competitive prompt:
+  - cooperation rate A: `0.425`
+  - cooperation rate B: `0.400`
+  - average payoffs: `2.375`, `2.450`
+- cooperative prompt:
+  - cooperation rate A: `0.925`
+  - cooperation rate B: `0.700`
+  - average payoffs: `2.950`, `3.625`
+- minimal-neutral prompt:
+  - cooperation rate A: `0.825`
+  - cooperation rate B: `0.700`
+  - average payoffs: `3.150`, `3.525`
+
+Cross-game susceptibility takeaway:
+
+- prompt attitude-bias has strong, systematic effects across all three core games
+- the clearest pattern is:
+  - `competitive` lowers cooperation
+  - `cooperative` raises cooperation
+  - `minimal-neutral` sits in between
+- the strength of the effect varies by game:
+  - very strong in Prisoner's Dilemma
+  - strong in Chicken
+  - present but more moderated in Stag Hunt
+
+### Society prompt-condition result
+
+Completed so far:
+
+- `results/paper_live_clean/paper-society-prompts-20260407T002518Z.json`
+
+Aggregate society result:
+
+- average survival rate across conditions: `0.9167`
+- average final survival rate across conditions: `0.7917`
+- extinction events: `0`
+
+Prompt-condition breakdown:
+
+- `task-only`
+  - survival rate: `1.000`
+  - final survival rate: `1.000`
+- `competitive`
+  - survival rate: `0.9375`
+  - final survival rate: `0.875`
+- `cooperative`
+  - survival rate: `0.8125`
+  - final survival rate: `0.500`
+
+Interpretation:
+
+- the task-only / non-attitudinal society prompt produced the best society-preserving outcome in this run
+- the explicitly cooperative prompt did **not** maximize survival; it performed worst on final survival
+- this is an important paper result because it shows that “cooperative framing” and “society-preserving outcome” are not interchangeable
+
+This directly supports one of the central paper claims we planned to test:
+
+- attitude-biasing prompts can change behavior
+- but those changes do not necessarily improve long-run collective outcomes
+
+### Reputation prompt-condition result
+
+Completed so far:
+
+- `results/paper_live_clean/paper-reputation-prompts-20260407T003157Z.json`
+
+Aggregate reputation result:
+
+- average survival rate across conditions: `0.9444`
+- average final survival rate across conditions: `0.875`
+- extinction events: `0`
+
+Prompt-condition breakdown:
+
+- `task-only`
+  - survival rate: `1.000`
+  - final survival rate: `1.000`
+  - average trade volume: `0.0`
+  - alliance count: `0.0`
+- `competitive`
+  - survival rate: `1.000`
+  - final survival rate: `1.000`
+  - average trade volume: `1.5`
+  - alliance count: `0.0`
+- `cooperative`
+  - survival rate: `0.8333`
+  - final survival rate: `0.625`
+  - average trade volume: `5.3333`
+  - alliance count: `6.0`
+
+Interpretation:
+
+- public reputation did **not** make the cooperative prompt dominate on survival
+- in fact, the cooperative reputation condition had:
+  - the most trade
+  - the most alliances
+  - the highest inequality
+  - the worst final survival
+
+This is a very important paper-level result:
+
+- visible prosocial signaling and alliance formation do not automatically imply better society-level preservation
+- in this run, more overt social coordination under the cooperative condition coincided with worse collective survival than the task-only and competitive conditions
 
 ## What Has Been Done
 
