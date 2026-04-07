@@ -16,7 +16,7 @@ from src.providers import ProviderError, RateLimitProviderError, TemporaryProvid
 from src.utils.parsing import parse_json_response
 
 from .config import ModelSpec
-from .runner import API_KEY_ENV, ENDPOINT_ENV, infer_provider_name
+from .runner import API_KEY_ENV, ENDPOINT_ENV, apply_response_format_contract, infer_provider_name
 
 ROOT = Path(__file__).resolve().parents[2]
 PROBE_MESSAGES = [
@@ -32,9 +32,10 @@ PROBE_MESSAGES = [
 PROBE_MAX_TOKENS = 64
 PROBE_MAX_ATTEMPTS = 3
 PROBE_MAX_WAIT_SECONDS = 20.0
+PROBE_CONCURRENCY = 6
 ACTION_PROBE_GAME = "prisoners_dilemma"
 ACTION_PROBE_ROUNDS = 2
-ACTION_PROBE_MAX_TOKENS = 256
+ACTION_PROBE_MAX_TOKENS = 512
 ACTION_PROBE_SYSTEM_PROMPT = "prompts/system/minimal.txt"
 ACTION_PROBE_FRAMING_PROMPT = "prompts/framing/neutral.txt"
 
@@ -182,7 +183,15 @@ def _extract_explicit_probe_action(game: object, response_text: str) -> tuple[st
     """Require an explicit final action instead of fuzzy inference from reasoning text."""
     parsed = parse_json_response(response_text)
     if isinstance(parsed, dict):
-        for key in ("action", "choice", "final_action"):
+        for key in (
+            "action",
+            "choice",
+            "final_action",
+            "decision",
+            "chosen_action",
+            "selected_action",
+            "move",
+        ):
             value = parsed.get(key)
             if isinstance(value, str):
                 canonical = game.canonicalize_action(value)
@@ -229,6 +238,7 @@ async def probe_model_experiment_readiness(spec: ModelSpec) -> ModelExperimentRe
         return ModelExperimentReadinessResult(spec=spec, ready=False, status=str(exc))
 
     game, messages = _build_action_probe_messages()
+    messages = apply_response_format_contract(messages, {"type": "json_object"})
     last_retryable_error: TemporaryProviderError | None = None
 
     try:
@@ -294,10 +304,16 @@ async def probe_model_access_results(
 ) -> dict[str, ModelAccessResult]:
     """Probe a set of model specs and return selector-keyed access results."""
     results: dict[str, ModelAccessResult] = {}
+    semaphore = asyncio.Semaphore(PROBE_CONCURRENCY)
 
-    for spec in _unique_specs(specs):
-        result = await probe_model_access(spec)
-        results[spec_selector(spec)] = result
+    async def run_probe(spec: ModelSpec) -> tuple[str, ModelAccessResult]:
+        async with semaphore:
+            result = await probe_model_access(spec)
+            return spec_selector(spec), result
+
+    tasks = [run_probe(spec) for spec in _unique_specs(specs)]
+    for selector, result in await asyncio.gather(*tasks):
+        results[selector] = result
     return results
 
 
@@ -306,8 +322,14 @@ async def probe_model_experiment_readiness_results(
 ) -> dict[str, ModelExperimentReadinessResult]:
     """Probe a set of model specs for experiment-grade action readiness."""
     results: dict[str, ModelExperimentReadinessResult] = {}
+    semaphore = asyncio.Semaphore(PROBE_CONCURRENCY)
 
-    for spec in _unique_specs(specs):
-        result = await probe_model_experiment_readiness(spec)
-        results[spec_selector(spec)] = result
+    async def run_probe(spec: ModelSpec) -> tuple[str, ModelExperimentReadinessResult]:
+        async with semaphore:
+            result = await probe_model_experiment_readiness(spec)
+            return spec_selector(spec), result
+
+    tasks = [run_probe(spec) for spec in _unique_specs(specs)]
+    for selector, result in await asyncio.gather(*tasks):
+        results[selector] = result
     return results
