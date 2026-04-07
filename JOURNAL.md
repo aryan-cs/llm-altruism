@@ -186,13 +186,84 @@ Notable baseline examples from the completed Chicken run:
 Completed so far:
 
 - `results/paper_live_clean/paper-benchmark-prisoners_dilemma-canonical-20260406T234609Z.json`
+- `results/paper_live_clean/paper-benchmark-prisoners_dilemma-unnamed-20260406T234609Z.json`
+- `results/paper_live_clean/paper-benchmark-prisoners_dilemma-resource-20260406T234743Z.json`
+- `results/paper_live_clean/paper-benchmark-chicken-canonical-20260406T235427Z.json`
+- `results/paper_live_clean/paper-benchmark-chicken-unnamed-20260406T235428Z.json`
+- `results/paper_live_clean/paper-benchmark-stag_hunt-canonical-20260406T235846Z.json`
+- `results/paper_live_clean/paper-benchmark-stag_hunt-unnamed-20260406T235846Z.json`
 
 Canonical PD benchmark result:
 
 - cooperation rate A: `0.325`
 - cooperation rate B: `0.500`
 
-This is useful because it gives a direct benchmark-reference condition that can be compared against the unnamed and disguised variants now being run. If the unnamed/disguised variants shift behavior materially, that will support the benchmark-contamination concern.
+Unnamed PD benchmark result:
+
+- cooperation rate A: `0.900`
+- cooperation rate B: `0.925`
+
+Current interpretation:
+
+- the unnamed/isomorphic version is **far more cooperative** than the canonical named Prisoner's Dilemma condition
+- that is exactly the kind of benchmark-recognition / benchmark-contamination effect we were concerned about
+- under the canonical named version:
+  - `deepseek-ai/deepseek-v3.2` self-play was `always_defect`
+- under the unnamed version:
+  - `deepseek-ai/deepseek-v3.2` self-play became `always_cooperate`
+
+This is one of the strongest findings collected so far because it suggests that
+what looks like a model's “social preference” can depend heavily on whether the
+interaction is presented as a familiar named benchmark.
+
+Resource-disguised PD benchmark result:
+
+- cooperation rate A: `0.575`
+- cooperation rate B: `0.650`
+
+This sits between canonical PD and unnamed PD, suggesting a possible gradient:
+
+- canonical benchmark label -> least cooperative
+- disguised resource framing -> moderately more cooperative
+- unnamed/isomorphic framing -> most cooperative
+
+Chicken benchmark result:
+
+- canonical Chicken:
+  - cooperation rate A: `0.675`
+  - cooperation rate B: `0.600`
+- unnamed Chicken:
+  - cooperation rate A: `0.375`
+  - cooperation rate B: `0.500`
+
+Interpretation:
+
+- benchmark disguise effects are **game-dependent**
+- in Chicken, removing the canonical presentation reduced cooperative/yield behavior
+- this means benchmark familiarity is not just inflating one universal cooperative norm; it appears to interact with the specific game schema the model recognizes
+
+Stag Hunt benchmark result:
+
+- canonical Stag Hunt:
+  - cooperation rate A: `0.825`
+  - cooperation rate B: `0.700`
+- unnamed Stag Hunt:
+  - cooperation rate A: `0.800`
+  - cooperation rate B: `0.925`
+
+Interpretation:
+
+- Stag Hunt appears relatively stable under disguise compared with Prisoner's Dilemma and Chicken
+- benchmark disguise still changes the distribution of payoffs/cooperation, but less dramatically than in PD
+
+Overall benchmark takeaway at this point:
+
+- benchmark recognition is a real validity issue
+- but it is not one-dimensional
+- the effect of canonical naming versus disguise depends on the game structure:
+  - PD: disguise increases cooperation sharply
+  - Chicken: disguise decreases cooperation
+  - Stag Hunt: disguise changes outcomes more modestly
 
 ### Live batch currently in progress
 
