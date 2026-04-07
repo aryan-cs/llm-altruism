@@ -561,7 +561,7 @@ This is a very important paper-level result:
   - experiment dry runs
   - prompt template behavior
   - skip-on-missing-provider-config behavior
-- Updated `PLAN.md` to reflect implemented code work
+- Updated `agent/PLAN.md` to reflect implemented code work
 
 ## Results Seen So Far
 
@@ -708,12 +708,12 @@ If resuming in a future session, start here:
 - Completed the corrected paper-oriented fast batch in:
   - `results/paper_live_clean/`
 - Wrote the main paper-result summary:
-  - `PAPERRESULTS.md`
+  - `agent/PAPERRESULTS.md`
 - Wrote the manuscript planning docs:
-  - `PAPER.md`
-  - `PAPEROUTLINE.md`
+  - `agent/PAPER.md`
+  - `agent/PAPEROUTLINE.md`
 - Wrote the comprehensive findings record:
-  - `FINDINGS.md`
+  - `agent/FINDINGS.md`
 
 ### Final completed batch scope
 
@@ -767,8 +767,8 @@ Two important fixes were applied and are reflected in the corrected paper batch:
 ### What to trust
 
 - Use `results/paper_live_clean/` as the primary empirical record.
-- Use `FINDINGS.md` as the most explicit narrative summary of the results.
-- Use `PAPERRESULTS.md` as the compact paper-facing summary.
+- Use `agent/FINDINGS.md` as the most explicit narrative summary of the results.
+- Use `agent/PAPERRESULTS.md` as the compact paper-facing summary.
 
 ### What still needs strengthening
 
@@ -779,7 +779,7 @@ Two important fixes were applied and are reflected in the corrected paper batch:
 
 ### Resume point from here
 
-1. Read `FINDINGS.md`.
+1. Read `agent/FINDINGS.md`.
 2. Read `results/paper_live_clean/summary_final.md`.
 3. If continuing empirical work, prioritize additional Part 2 and Part 3
    replications.

@@ -10,7 +10,7 @@ It is meant to answer three practical questions:
 2. What evidence belongs in each section?
 3. What work do we still need to complete before each section can be written confidently?
 
-This is more concrete than [PAPER.md](/Users/aryan/Desktop/llm-altruism/PAPER.md). `PAPER.md` defines the research direction. This file defines the manuscript we are trying to produce.
+This is more concrete than [PAPER.md](/Users/aryan/Desktop/llm-altruism/agent/PAPER.md). `agent/PAPER.md` defines the research direction. This file defines the manuscript we are trying to produce.
 
 ---
 

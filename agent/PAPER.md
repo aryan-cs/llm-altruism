@@ -10,7 +10,7 @@ It answers four questions:
 3. What evidence do we still need for a publishable, novel paper?
 4. What experiments, analyses, and artifacts do we need to produce next?
 
-This is intentionally more publication-oriented than `PLAN.md` and more durable than `JOURNAL.md`.
+This is intentionally more publication-oriented than `agent/PLAN.md` and more durable than `agent/JOURNAL.md`.
 
 ---
 

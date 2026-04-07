@@ -2,7 +2,7 @@
 
 stress-testing LLM alignment through game-theoretic simulation. this project studies the intrinsic motivations and priorities of LLMs by observing their decisions in structured games, societal simulations, and reputation-aware environments.
 
-see [PLAN.md](PLAN.md) for the full research plan.
+internal research-state and paper-planning docs live in [agent/](/Users/aryan/Desktop/llm-altruism/agent).
 
 ## setup
 
@@ -56,3 +56,4 @@ uv run pytest
 - `scripts/` — CLI entrypoints
 - `results/` — experiment output logs (gitignored)
 - `tests/` — unit and integration tests
+- `agent/` — internal state, planning, findings, and paper-prep docs

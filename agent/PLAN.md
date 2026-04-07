@@ -225,8 +225,9 @@ plus three neutral paraphrase variants (`neutral_v1.txt`, `neutral_v2.txt`, `neu
 ```
 llm-altruism/
 ├── pyproject.toml                 # uv project config
-├── PLAN.md                        # this file
 ├── README.md                      # project overview & how to run
+├── agent/
+│   └── PLAN.md                    # this file
 ├── .env.example                   # template for API keys
 ├── .gitignore
 │
@@ -528,7 +529,7 @@ with 7 providers and potentially hundreds of trials, API costs add up. the frame
 
 ### phase 0 — scaffolding (week 1)
 
-- [x] create PLAN.md
+- [x] create agent/PLAN.md
 - [x] initialize uv project (`pyproject.toml` with dependencies)
 - [x] set up project structure (dirs, `__init__.py` files)
 - [x] implement provider abstraction + openai and anthropic providers
