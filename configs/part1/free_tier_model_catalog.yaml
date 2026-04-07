@@ -12,6 +12,10 @@ experiment:
   pairings:
     - [{model: "z-ai/glm4.7", provider: "nvidia"}, {model: "z-ai/glm4.7", provider: "nvidia"}]
     - [{model: "z-ai/glm5", provider: "nvidia"}, {model: "z-ai/glm5", provider: "nvidia"}]
+    - [{model: "mistralai/mistral-small-24b-instruct", provider: "nvidia"}, {model: "mistralai/mistral-small-24b-instruct", provider: "nvidia"}]
+    - [{model: "mistralai/magistral-small-2506", provider: "nvidia"}, {model: "mistralai/magistral-small-2506", provider: "nvidia"}]
+    - [{model: "tiiuae/falcon3-7b-instruct", provider: "nvidia"}, {model: "tiiuae/falcon3-7b-instruct", provider: "nvidia"}]
+    - [{model: "rakuten/rakutenai-7b-instruct", provider: "nvidia"}, {model: "rakuten/rakutenai-7b-instruct", provider: "nvidia"}]
     - [{model: "google/gemma-3-1b-it", provider: "nvidia"}, {model: "google/gemma-3-1b-it", provider: "nvidia"}]
     - [{model: "google/gemma-3-27b-it", provider: "nvidia"}, {model: "google/gemma-3-27b-it", provider: "nvidia"}]
     - [{model: "bytedance/seed-oss-36b-instruct", provider: "nvidia"}, {model: "bytedance/seed-oss-36b-instruct", provider: "nvidia"}]

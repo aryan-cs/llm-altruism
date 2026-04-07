@@ -136,6 +136,10 @@ def test_free_tier_catalog_config_matches_requested_models():
     expected_models = {
         ("nvidia", "z-ai/glm4.7"),
         ("nvidia", "z-ai/glm5"),
+        ("nvidia", "mistralai/mistral-small-24b-instruct"),
+        ("nvidia", "mistralai/magistral-small-2506"),
+        ("nvidia", "tiiuae/falcon3-7b-instruct"),
+        ("nvidia", "rakuten/rakutenai-7b-instruct"),
         ("nvidia", "google/gemma-3-1b-it"),
         ("nvidia", "google/gemma-3-27b-it"),
         ("nvidia", "bytedance/seed-oss-36b-instruct"),

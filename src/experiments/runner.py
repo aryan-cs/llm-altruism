@@ -60,6 +60,15 @@ JSON_OUTPUT_CONTRACT = (
     "single short sentence inside the JSON object."
 )
 
+MODEL_MAX_TOKEN_FLOORS: tuple[tuple[str, int], ...] = (
+    ("z-ai/glm4.7", 768),
+    ("z-ai/glm5", 512),
+    ("moonshotai/kimi-k2-thinking", 1024),
+    ("moonshotai/kimi-k2-instruct", 512),
+    ("moonshotai/kimi-k2-instruct-0905", 512),
+    ("bytedance/seed-oss-36b-instruct", 512),
+)
+
 
 class BudgetExceededError(RuntimeError):
     """Raised when an experiment exceeds its configured budget."""
@@ -103,6 +112,14 @@ def apply_response_format_contract(
 
     updated.insert(0, {"role": "system", "content": JSON_OUTPUT_CONTRACT})
     return updated
+
+
+def apply_model_max_token_floor(model: str, requested_max_tokens: int) -> int:
+    """Raise max_tokens for verbose reasoning models that need more room to finish cleanly."""
+    for prefix, floor in MODEL_MAX_TOKEN_FLOORS:
+        if model.startswith(prefix):
+            return max(requested_max_tokens, floor)
+    return requested_max_tokens
 
 
 class ResponseCache:
@@ -307,7 +324,7 @@ class BaseExperimentRunner(ABC):
     ) -> LLMResponse:
         """Call a real provider or return a deterministic dry-run response."""
         provider_name = spec.provider or infer_provider_name(spec.model)
-        max_tokens = self.config.parameters.max_tokens
+        max_tokens = apply_model_max_token_floor(spec.model, self.config.parameters.max_tokens)
         use_cache = (not self.dry_run) and abs(float(temperature)) < 1e-9
         effective_messages = apply_response_format_contract(messages, response_format)
 

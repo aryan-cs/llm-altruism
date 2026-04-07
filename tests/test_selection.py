@@ -155,3 +155,4 @@ def test_known_model_specs_includes_dynamic_ollama_inventory(monkeypatch):
     assert ("ollama", "llama3.1:8b") in selectors
     assert ("nvidia", "z-ai/glm5") in selectors
     assert ("nvidia", "moonshotai/kimi-k2-instruct") in selectors
+    assert ("nvidia", "mistralai/mistral-small-24b-instruct") in selectors

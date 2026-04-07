@@ -69,6 +69,10 @@ KNOWN_MODELS_BY_PROVIDER: dict[str, tuple[str, ...]] = {
         "zai-glm-4.7",
     ),
     "nvidia": (
+        "mistralai/mistral-small-24b-instruct",
+        "mistralai/magistral-small-2506",
+        "tiiuae/falcon3-7b-instruct",
+        "rakuten/rakutenai-7b-instruct",
         "z-ai/glm4.7",
         "z-ai/glm5",
         "google/gemma-3-1b-it",
