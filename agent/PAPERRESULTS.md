@@ -3,15 +3,20 @@
 ## Status
 
 This document summarizes the strongest empirical findings collected so far for
-the paper from the completed fast-batch run in:
+the paper from the corrected fast batch plus the completed multi-agent
+replication extensions in:
 
 - `results/paper_live_clean/`
+- `results/paper_live_replicates_nocache/`
+- `results/paper_ready_replications/`
 
 Primary machine-readable summaries:
 
 - `results/paper_live_clean/summary_final.md`
 - `results/paper_live_clean/summary_final.csv`
 - `results/paper_live_clean/paper_batch_manifest.json`
+- `results/paper_ready_replications/summary_with_replications.md`
+- `results/paper_ready_replications/summary_with_replications.csv`
 
 Main model cohort used:
 
@@ -19,6 +24,17 @@ Main model cohort used:
 - `cerebras:qwen-3-235b-a22b-instruct-2507`
 - `nvidia:deepseek-ai/deepseek-v3.2`
 - `ollama:llama3.2:3b`
+
+Current paper-ready evidence base:
+
+- Part 1:
+  - corrected fast batch across baseline, benchmark, and susceptibility tracks
+- Part 2 society:
+  - `3` experiments pooled
+  - `7` prompt-condition trials per prompt variant
+- Part 3 reputation:
+  - `2` experiments pooled
+  - `5` prompt-condition trials per prompt variant
 
 ## Key Findings
 
@@ -131,49 +147,101 @@ Interpretation:
 
 ### 5. Society-preserving outcomes are not the same as “cooperative” prompts
 
-Part 2 society prompt comparison:
+Pooled Part 2 society prompt comparison:
 
 - task-only:
-  - survival rate: `1.000`
-  - final survival rate: `1.000`
+  - `n = 7`
+  - survival rate: `1.0000`
+  - final survival rate: `1.0000`
+  - average trade volume: `0.2143`
+  - average gini: `0.1281`
+  - commons health: `0.2758`
+  - alliance count: `0.1429`
 - competitive:
-  - survival rate: `0.9375`
-  - final survival rate: `0.875`
+  - `n = 7`
+  - survival rate: `0.9792`
+  - final survival rate: `0.9286`
+  - average trade volume: `2.3333`
+  - average gini: `0.1134`
+  - commons health: `0.2589`
+  - alliance count: `0.0000`
 - cooperative:
-  - survival rate: `0.8125`
-  - final survival rate: `0.500`
+  - `n = 7`
+  - survival rate: `0.8214`
+  - final survival rate: `0.5893`
+  - average trade volume: `5.1429`
+  - average gini: `0.4722`
+  - commons health: `0.6057`
+  - alliance count: `6.4286`
 
 Interpretation:
 
-- the best society-preserving outcome came from the task-only prompt
-- explicitly cooperative framing produced the worst final survival in this run
-- “more prosocial language” did not equal “more resilient society”
+- the best society-preserving outcome still came from the task-only prompt
+- explicitly cooperative framing remained the worst survival condition even after replication
+- this is no longer a one-off pilot anomaly; it persisted across `7` prompt-condition trials per prompt variant
+- the cooperative condition produced the most trade, the most alliances, and the healthiest commons, but also the highest inequality and the worst survival
+- “more prosocial language” still did not equal “more resilient society”
 
-### 6. Reputation did not rescue the cooperative prompt
+### 6. Reputation improved some prompt conditions, but competitive was strongest
 
-Part 3 reputation prompt comparison:
+Pooled Part 3 reputation prompt comparison:
 
 - task-only:
-  - survival rate: `1.000`
-  - final survival rate: `1.000`
-  - average trade volume: `0.0`
-  - alliance count: `0.0`
+  - `n = 5`
+  - survival rate: `0.9625`
+  - final survival rate: `0.9000`
+  - average trade volume: `1.1333`
+  - average gini: `0.2306`
+  - commons health: `0.3049`
+  - alliance count: `1.2000`
 - competitive:
-  - survival rate: `1.000`
-  - final survival rate: `1.000`
-  - average trade volume: `1.5`
-  - alliance count: `0.0`
+  - `n = 5`
+  - survival rate: `0.9958`
+  - final survival rate: `0.9750`
+  - average trade volume: `1.0667`
+  - average gini: `0.1417`
+  - commons health: `0.2535`
+  - alliance count: `0.0000`
 - cooperative:
-  - survival rate: `0.8333`
-  - final survival rate: `0.625`
-  - average trade volume: `5.3333`
-  - alliance count: `6.0`
+  - `n = 5`
+  - survival rate: `0.8917`
+  - final survival rate: `0.7750`
+  - average trade volume: `3.3000`
+  - average gini: `0.4533`
+  - commons health: `0.5917`
+  - alliance count: `3.6000`
 
 Interpretation:
 
-- public reputation increased visible social activity under the cooperative prompt
-- but that condition still produced worse survival than task-only and competitive
-- visible prosocial signaling and alliance formation did not guarantee better group preservation
+- reputation improved the cooperative condition relative to the non-reputation pooled society baseline
+- reputation also improved the competitive condition slightly and made it the strongest survival condition overall
+- task-only remained strong, but it was no longer perfect once replicated under reputation
+- public reputation increased visible social activity under the cooperative prompt, but that condition still produced the weakest survival and the highest inequality
+- visible prosocial signaling and alliance formation still did not guarantee better group preservation
+
+### 7. Observation changed behavior, but not in one simple “more watching is better” direction
+
+Pooled reputation-minus-society deltas:
+
+- task-only:
+  - survival rate: `-0.0375`
+  - final survival rate: `-0.1000`
+  - average trade volume: `+0.9190`
+- cooperative:
+  - survival rate: `+0.0703`
+  - final survival rate: `+0.1857`
+  - average trade volume: `-1.8429`
+- competitive:
+  - survival rate: `+0.0166`
+  - final survival rate: `+0.0464`
+  - average trade volume: `-1.2666`
+
+Interpretation:
+
+- observation helped the cooperative and competitive conditions on survival
+- observation modestly hurt the task-only condition on survival while increasing visible social activity
+- the main paper-quality conclusion is not that reputation makes everyone prosocial
+- the stronger conclusion is that reputation interacts with prompt framing, and that interaction is asymmetrical
 
 ## Provisional Paper Claims Supported By Current Results
 
@@ -183,7 +251,8 @@ These results support the following claims:
 2. Benchmark familiarity can materially distort game-theoretic measurements.
 3. Prompt framing strongly steers strategic behavior, often dramatically.
 4. Society-preserving outcomes cannot be inferred directly from prosocial prompt framing.
-5. Reputation and visible coordination do not necessarily improve collective survival.
+5. Reputation can improve some prompt conditions without making them dominant.
+6. Visible coordination and alliance formation do not necessarily improve collective survival.
 
 ## Important Caveats
 
@@ -193,13 +262,15 @@ These results support the following claims:
   - cross-game baseline differences
   - benchmark-disguise effects
   - prompt-susceptibility effects
+- Part 2 and Part 3 are now materially stronger than the original pilot because:
+  - society results are pooled across `7` prompt-condition trials per prompt variant
+  - reputation results are pooled across `5` prompt-condition trials per prompt variant
 
-### What still needs strengthening
+### What still needs strengthening if we want a larger follow-on paper
 
-- Part 2 and Part 3 are stochastic and were run with limited repetitions in the
-  completed fast batch
-- they are strong pilot results, but more replications are desirable before making
-  the strongest causal claims about survival and reputation
+- all live results still come from one main four-model cohort
+- the multi-agent environments are still short-horizon (`6` timesteps) and small-population (`8` agents) tests
+- mechanism claims about why alliances, trade, and commons preservation dissociate from survival still need more targeted follow-up
 
 ### Methodology fixes that matter
 
@@ -211,16 +282,22 @@ Two important fixes were applied during experimentation:
 This means:
 
 - part 1 fast-batch results are on solid footing
-- society/reputation claims should prioritize corrected reruns and no-cache replications
+- society/reputation claims should prioritize the corrected reruns and pooled replication summaries
 
 ## Recommended Next Paper Steps
 
-1. Finish the post-fix society/reputation replication block.
-2. Aggregate society/reputation results across multiple runs per prompt condition.
-3. Turn `summary_final.md` into manuscript figures and tables.
-4. Draft the Results section directly from:
+1. Turn `summary_with_replications.md` into manuscript figures and tables.
+2. Draft the Results section directly from:
    - baseline cross-game table
    - benchmark-presentation delta table
    - prompt-susceptibility table
-   - society/reputation survival table
-5. Add a short methods subsection explicitly documenting the cache and self-transfer fixes.
+   - pooled society prompt-comparison table
+   - pooled reputation prompt-comparison table
+   - pooled society-vs-reputation delta table
+3. Add a short methods subsection explicitly documenting:
+   - access preflight
+   - temperature-0-only cache reuse
+   - self-transfer blocking
+   - retry/backoff and resumable long-run behavior
+4. Produce publication-ready figures from the pooled multi-agent summaries.
+5. If time permits, add one external validation cohort; this would strengthen generality, but it is no longer required to have paper-ready core results.

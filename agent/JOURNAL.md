@@ -785,3 +785,152 @@ Two important fixes were applied and are reflected in the corrected paper batch:
    replications.
 4. Keep using `uv`.
 5. Keep committing and pushing after every tested checkpoint.
+
+## Update 2026-04-07: Replicated Society And Reputation Pass Completed
+
+### Tooling added before the live rerun
+
+- Extended `scripts/run_paper_batch.py` with:
+  - `--multiagent-repetitions`
+  - `--multiagent-concurrency`
+  - `--name-suffix`
+- Extended `scripts/paper_summary.py` to compute pooled prompt-variant summaries
+  across multiple result files and write:
+  - `summary_with_replications.md`
+  - `summary_with_replications.csv`
+- Added and passed focused tests:
+  - `uv run pytest -q tests/test_paper_batch.py tests/test_paper_summary.py`
+  - result: `6 passed`
+
+### Live replication commands completed
+
+- Society and reputation replication batch:
+  - `uv run python scripts/run_paper_batch.py --track society --track reputation --fast --multiagent-repetitions 4 --multiagent-concurrency 4 --name-suffix replicated-r4 --results-dir results/paper_ready_replications`
+- Pooled paper summary refresh:
+  - `uv run python scripts/paper_summary.py results/paper_live_clean/*.json results/paper_live_replicates_nocache/paper-society-prompts-replicated-*.json results/paper_ready_replications/paper-society-prompts-replicated-r4-*.json results/paper_ready_replications/paper-reputation-prompts-replicated-r4-*.json --markdown results/paper_ready_replications/summary_with_replications.md --csv results/paper_ready_replications/summary_with_replications.csv`
+
+### Operational observation: overnight resilience worked
+
+- The live batch encountered real transient failures:
+  - Cerebras `429` queue-limit responses
+  - transient NVIDIA network/provider failures
+- The retry and backoff logic handled these correctly.
+- The batch continued to completion instead of dying mid-run.
+
+This is important for future paper work because it means the current experiment
+stack is now demonstrating the long-run behavior we wanted:
+
+- resumable batches
+- rate-limit tolerance
+- transient-failure tolerance
+
+### New result artifacts
+
+- `results/paper_ready_replications/paper-society-prompts-replicated-r4-20260407T011033Z.json`
+- `results/paper_ready_replications/paper-reputation-prompts-replicated-r4-20260407T014505Z.json`
+- `results/paper_ready_replications/summary_with_replications.md`
+- `results/paper_ready_replications/summary_with_replications.csv`
+
+### Pooled society result after replication
+
+Evidence base:
+
+- original corrected society run
+- no-cache society replication block
+- `r4` society replication block
+
+This yields `7` society prompt-condition trials per prompt variant.
+
+Pooled means:
+
+- `task-only`
+  - survival rate: `1.0000`
+  - final survival rate: `1.0000`
+  - trade volume: `0.2143`
+  - gini: `0.1281`
+  - commons health: `0.2758`
+  - alliances: `0.1429`
+- `cooperative`
+  - survival rate: `0.8214`
+  - final survival rate: `0.5893`
+  - trade volume: `5.1429`
+  - gini: `0.4722`
+  - commons health: `0.6057`
+  - alliances: `6.4286`
+- `competitive`
+  - survival rate: `0.9792`
+  - final survival rate: `0.9286`
+  - trade volume: `2.3333`
+  - gini: `0.1134`
+  - commons health: `0.2589`
+  - alliances: `0.0000`
+
+Interpretation:
+
+- the original Part 2 pilot finding held up under replication
+- `task-only` is the most robust society-preserving condition
+- `competitive` is second-best
+- `cooperative` remains clearly worst on survival despite producing the most
+  trade, the most alliances, and the healthiest commons
+
+### Pooled reputation result after replication
+
+Evidence base:
+
+- original corrected reputation run
+- `r4` reputation replication block
+
+This yields `5` reputation prompt-condition trials per prompt variant.
+
+Pooled means:
+
+- `task-only`
+  - survival rate: `0.9625`
+  - final survival rate: `0.9000`
+  - trade volume: `1.1333`
+  - gini: `0.2306`
+  - commons health: `0.3049`
+  - alliances: `1.2000`
+- `cooperative`
+  - survival rate: `0.8917`
+  - final survival rate: `0.7750`
+  - trade volume: `3.3000`
+  - gini: `0.4533`
+  - commons health: `0.5917`
+  - alliances: `3.6000`
+- `competitive`
+  - survival rate: `0.9958`
+  - final survival rate: `0.9750`
+  - trade volume: `1.0667`
+  - gini: `0.1417`
+  - commons health: `0.2535`
+  - alliances: `0.0000`
+
+Interpretation:
+
+- reputation improves the cooperative condition relative to the non-reputation
+  pooled society baseline
+- reputation slightly improves the competitive condition and makes it the
+  strongest overall reputation condition
+- task-only remains strong, but is no longer perfect once replicated under
+  observation
+- the best-supported reputation claim is now:
+  observation changes behavior, but does not collapse all prompt conditions into
+  the same stable prosocial equilibrium
+
+### Current paper-ready record
+
+Use these as the canonical sources now:
+
+- `agent/FINDINGS.md`
+- `agent/PAPERRESULTS.md`
+- `results/paper_ready_replications/summary_with_replications.md`
+
+### Current resume point
+
+If continuing from here:
+
+1. read `results/paper_ready_replications/summary_with_replications.md`
+2. draft manuscript figures and the Results section from the pooled tables
+3. keep using `uv`
+4. keep committing and pushing after every checkpoint
