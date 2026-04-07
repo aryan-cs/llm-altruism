@@ -45,9 +45,16 @@ DEFAULT_MAIN_COHORT_SELECTORS = [
     "cerebras:llama3.1-8b",
     "cerebras:qwen-3-235b-a22b-instruct-2507",
     "nvidia:deepseek-ai/deepseek-v3.2",
+    "nvidia:z-ai/glm5",
     "ollama:llama3.2:3b",
     "nvidia:z-ai/glm4.7",
+    "nvidia:moonshotai/kimi-k2-instruct",
+    "nvidia:moonshotai/kimi-k2-instruct-0905",
     "nvidia:moonshotai/kimi-k2-thinking",
+    "nvidia:bytedance/seed-oss-36b-instruct",
+    "nvidia:nvidia/nemotron-3-nano-30b-a3b",
+    "nvidia:nvidia/nemotron-3-super-120b-a12b",
+    "nvidia:stepfun-ai/step-3-5-flash",
 ]
 
 SAFETY_CONTROL_SELECTORS = [

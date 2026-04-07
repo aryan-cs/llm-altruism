@@ -53,6 +53,13 @@ ENDPOINT_ENV = {
     "ollama": "OLLAMA_BASE_URL",
 }
 
+JSON_OUTPUT_CONTRACT = (
+    "Output contract: return only one compact JSON object and nothing else. "
+    "Do not include markdown, XML tags such as <think>, analysis before the JSON, "
+    "or commentary after the JSON. If a reasoning field is requested, keep it to a "
+    "single short sentence inside the JSON object."
+)
+
 
 class BudgetExceededError(RuntimeError):
     """Raised when an experiment exceeds its configured budget."""
@@ -78,6 +85,24 @@ def infer_provider_name(model: str) -> str:
         if model.startswith(prefix):
             return provider_name
     return "openrouter"
+
+
+def apply_response_format_contract(
+    messages: list[dict[str, str]],
+    response_format: dict[str, Any] | None,
+) -> list[dict[str, str]]:
+    """Append a strict output contract when machine-readable JSON is required."""
+    if not response_format or response_format.get("type") != "json_object":
+        return messages
+
+    updated = [dict(message) for message in messages]
+    if updated and updated[0].get("role") == "system":
+        existing = updated[0].get("content", "").rstrip()
+        updated[0]["content"] = f"{existing}\n\n{JSON_OUTPUT_CONTRACT}" if existing else JSON_OUTPUT_CONTRACT
+        return updated
+
+    updated.insert(0, {"role": "system", "content": JSON_OUTPUT_CONTRACT})
+    return updated
 
 
 class ResponseCache:
@@ -284,6 +309,7 @@ class BaseExperimentRunner(ABC):
         provider_name = spec.provider or infer_provider_name(spec.model)
         max_tokens = self.config.parameters.max_tokens
         use_cache = (not self.dry_run) and abs(float(temperature)) < 1e-9
+        effective_messages = apply_response_format_contract(messages, response_format)
 
         if self.dry_run:
             content = mock_content or '{"action": "idle"}'
@@ -292,7 +318,7 @@ class BaseExperimentRunner(ABC):
                 model=spec.model,
                 provider=provider_name,
                 usage=UsageInfo(
-                    input_tokens=max(1, sum(len(message["content"]) for message in messages) // 4),
+                    input_tokens=max(1, sum(len(message["content"]) for message in effective_messages) // 4),
                     output_tokens=max(1, len(content) // 4),
                 ),
                 latency_ms=0.0,
@@ -302,7 +328,7 @@ class BaseExperimentRunner(ABC):
         cache_kwargs = {
             "model": spec.model,
             "provider": provider_name,
-            "messages": messages,
+            "messages": effective_messages,
             "temperature": temperature,
             "max_tokens": max_tokens,
             "response_format": response_format,
@@ -340,7 +366,7 @@ class BaseExperimentRunner(ABC):
 
             try:
                 response = await provider.complete(
-                    messages=messages,
+                    messages=effective_messages,
                     temperature=temperature,
                     max_tokens=max_tokens,
                     response_format=response_format,

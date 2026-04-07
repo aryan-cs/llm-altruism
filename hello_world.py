@@ -139,6 +139,7 @@ def is_exact_hello_world(content: str) -> bool:
 
 async def check_model_hello_world(selector: str) -> HelloWorldResult:
     """Send the Hello, World! probe to a selected model."""
+    load_dotenv(ROOT / ".env", override=False)
     spec = parse_model_selectors([selector])[0]
     provider_name = spec.provider or infer_provider_name(spec.model)
     endpoint = endpoint_for_provider(provider_name)

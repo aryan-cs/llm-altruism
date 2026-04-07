@@ -162,6 +162,36 @@ def test_probe_model_experiment_readiness_rejects_ambiguous_action_output(monkey
     assert result.status == "ambiguous action output"
 
 
+def test_probe_model_experiment_readiness_accepts_decision_key(monkeypatch):
+    """Some providers emit `decision` instead of `action`; accept that when explicit."""
+    monkeypatch.setattr("src.experiments.access.load_dotenv", lambda *args, **kwargs: None)
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://example.com/v1")
+
+    class DummyProvider:
+        async def complete(self, **_kwargs):
+            return LLMResponse(
+                content='{"decision":"defect"}',
+                model="gpt-4o",
+                provider="openai",
+                usage=UsageInfo(),
+                latency_ms=1.0,
+                cost_usd=0.0,
+            )
+
+        async def close(self):
+            return None
+
+    monkeypatch.setattr("src.experiments.access.get_provider", lambda *args, **kwargs: DummyProvider())
+
+    result = asyncio.run(
+        probe_model_experiment_readiness(ModelSpec(model="gpt-4o", provider="openai"))
+    )
+
+    assert result.ready
+    assert result.parsed_action == "defect"
+
+
 def test_probe_accessible_model_catalog_filters_out_inaccessible_models(monkeypatch):
     """The catalog helper should only return specs that passed the live probe."""
     good = ModelSpec(model="gpt-4o", provider="openai")
