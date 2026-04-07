@@ -700,3 +700,88 @@ If resuming in a future session, start here:
 3. inspect `.env`
 4. run a live part 1 experiment on the free-model baseline
 5. summarize the first real results back into this journal
+
+## Update 2026-04-06: Completed Paper Fast Batch
+
+### What was completed
+
+- Completed the corrected paper-oriented fast batch in:
+  - `results/paper_live_clean/`
+- Wrote the main paper-result summary:
+  - `PAPERRESULTS.md`
+- Wrote the manuscript planning docs:
+  - `PAPER.md`
+  - `PAPEROUTLINE.md`
+- Wrote the comprehensive findings record:
+  - `FINDINGS.md`
+
+### Final completed batch scope
+
+- Models used:
+  - `cerebras:llama3.1-8b`
+  - `cerebras:qwen-3-235b-a22b-instruct-2507`
+  - `nvidia:deepseek-ai/deepseek-v3.2`
+  - `ollama:llama3.2:3b`
+- Tracks completed:
+  - `baseline`
+  - `benchmark`
+  - `susceptibility`
+  - `society`
+  - `reputation`
+- Experiments completed: `15`
+- Trials completed: `256`
+- Reported cost: `0.0 USD`
+
+### Strongest empirical findings
+
+1. Baseline behavior differs strongly by game.
+   - Prisoner's Dilemma was the least cooperative.
+   - Stag Hunt was the most cooperative.
+2. Even neutral paraphrases materially shift baseline behavior.
+   - In Prisoner's Dilemma, compact and institutional neutral prompts produced
+     substantially more cooperation than the default minimal-neutral wording.
+3. Benchmark recognition effects are real.
+   - In Prisoner's Dilemma, unnamed and disguised variants were far more
+     cooperative than the canonical named version.
+   - In Chicken, the unnamed version moved in the opposite direction and became
+     less cooperative.
+4. Attitude-biasing prompts strongly steer behavior.
+   - Cooperative prompts drove near-maximal cooperation.
+   - Competitive prompts drove harsh or fully defective play.
+5. Society-preserving outcomes are not the same as cooperative prompting.
+   - In the Part 2 society run, `task-only` had the best final survival.
+   - The `cooperative` prompt had the worst final survival despite more visible
+     sharing and alliances.
+6. Reputation helped somewhat but did not fully rescue the cooperative prompt.
+   - Competitive and task-only remained stronger survival conditions.
+
+### Methodology fixes that matter
+
+Two important fixes were applied and are reflected in the corrected paper batch:
+
+1. Self-targeted transfer/share/steal actions in the society simulation are now
+   blocked.
+2. Response caching now applies only to temperature-0 requests, so stochastic
+   society runs are no longer replaying cached responses.
+
+### What to trust
+
+- Use `results/paper_live_clean/` as the primary empirical record.
+- Use `FINDINGS.md` as the most explicit narrative summary of the results.
+- Use `PAPERRESULTS.md` as the compact paper-facing summary.
+
+### What still needs strengthening
+
+- Society and reputation results are strong pilot findings, but they still need
+  more replications before making the strongest causal claims.
+- A no-cache replication block was started to strengthen those later-stage
+  claims further.
+
+### Resume point from here
+
+1. Read `FINDINGS.md`.
+2. Read `results/paper_live_clean/summary_final.md`.
+3. If continuing empirical work, prioritize additional Part 2 and Part 3
+   replications.
+4. Keep using `uv`.
+5. Keep committing and pushing after every tested checkpoint.
