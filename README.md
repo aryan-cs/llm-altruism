@@ -2,7 +2,7 @@
 
 stress-testing LLM alignment through game-theoretic simulation. this project studies the intrinsic motivations and priorities of LLMs by observing their decisions in structured games, societal simulations, and reputation-aware environments.
 
-internal research-state and paper-planning docs live in [agent/](/Users/aryan/Desktop/llm-altruism/agent).
+internal research-state and paper-planning docs live in `agent/`.
 
 ## setup
 
@@ -54,6 +54,14 @@ uv run pytest
 - `prompts/` — all system prompt templates as individual text files
 - `configs/` — YAML experiment configurations
 - `scripts/` — CLI entrypoints
+- `paper/` — manuscript, appendix, figures, and submission assets
+- `paper/icml2025/` — anonymous ICML-style submission bundle and vendored style files
 - `results/` — experiment output logs (gitignored)
 - `tests/` — unit and integration tests
 - `agent/` — internal state, planning, findings, and paper-prep docs
+
+Generated caches and local ICML build intermediates can be removed with:
+
+```bash
+./scripts/clean_workspace.sh
+```

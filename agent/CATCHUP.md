@@ -15,12 +15,12 @@ It is meant to answer:
 
 Use this file together with:
 
-- [JOURNAL.md](/Users/aryan/Desktop/llm-altruism/agent/JOURNAL.md)
-- [FINDINGS.md](/Users/aryan/Desktop/llm-altruism/agent/FINDINGS.md)
-- [PAPER.md](/Users/aryan/Desktop/llm-altruism/agent/PAPER.md)
-- [PAPEROUTLINE.md](/Users/aryan/Desktop/llm-altruism/agent/PAPEROUTLINE.md)
-- [PAPERRESULTS.md](/Users/aryan/Desktop/llm-altruism/agent/PAPERRESULTS.md)
-- [PLAN.md](/Users/aryan/Desktop/llm-altruism/agent/PLAN.md)
+- [JOURNAL.md](JOURNAL.md)
+- [FINDINGS.md](FINDINGS.md)
+- [PAPER.md](PAPER.md)
+- [PAPEROUTLINE.md](PAPEROUTLINE.md)
+- [PAPERRESULTS.md](PAPERRESULTS.md)
+- [PLAN.md](PLAN.md)
 
 ## Project Summary
 
@@ -49,7 +49,7 @@ Shorthand:
 
 Local repo path:
 
-- `/Users/aryan/Desktop/llm-altruism`
+- repository root
 
 Remote H200 workspace path seen in tunnel session:
 
@@ -65,7 +65,7 @@ Package and command workflow:
 
 Git workflow:
 
-- active development branch has been `codex/interactive-experiment-wizard`
+- active development branch has recently been `master`
 - push frequently
 - make small, intentional commits
 - do not overwrite unrelated user edits
@@ -82,45 +82,45 @@ Be careful not to clobber those if working from the local repo again.
 Important code:
 
 - experiment framework:
-  - [config.py](/Users/aryan/Desktop/llm-altruism/src/experiments/config.py)
-  - [runner.py](/Users/aryan/Desktop/llm-altruism/src/experiments/runner.py)
-  - [part1_runner.py](/Users/aryan/Desktop/llm-altruism/src/experiments/part1_runner.py)
-  - [part2_runner.py](/Users/aryan/Desktop/llm-altruism/src/experiments/part2_runner.py)
-  - [part3_runner.py](/Users/aryan/Desktop/llm-altruism/src/experiments/part3_runner.py)
-  - [selection.py](/Users/aryan/Desktop/llm-altruism/src/experiments/selection.py)
-  - [access.py](/Users/aryan/Desktop/llm-altruism/src/experiments/access.py)
+  - [config.py](../src/experiments/config.py)
+  - [runner.py](../src/experiments/runner.py)
+  - [part1_runner.py](../src/experiments/part1_runner.py)
+  - [part2_runner.py](../src/experiments/part2_runner.py)
+  - [part3_runner.py](../src/experiments/part3_runner.py)
+  - [selection.py](../src/experiments/selection.py)
+  - [access.py](../src/experiments/access.py)
 
 - agents and prompts:
-  - [base.py](/Users/aryan/Desktop/llm-altruism/src/agents/base.py)
-  - [prompts.py](/Users/aryan/Desktop/llm-altruism/src/agents/prompts.py)
-  - [prompts/](/Users/aryan/Desktop/llm-altruism/prompts)
+  - [base.py](../src/agents/base.py)
+  - [prompts.py](../src/agents/prompts.py)
+  - [prompts/](../prompts)
 
 - simulation:
-  - [world.py](/Users/aryan/Desktop/llm-altruism/src/simulation/world.py)
-  - [economy.py](/Users/aryan/Desktop/llm-altruism/src/simulation/economy.py)
-  - [society.py](/Users/aryan/Desktop/llm-altruism/src/simulation/society.py)
-  - [reputation.py](/Users/aryan/Desktop/llm-altruism/src/simulation/reputation.py)
-  - [reproduction.py](/Users/aryan/Desktop/llm-altruism/src/simulation/reproduction.py)
+  - [world.py](../src/simulation/world.py)
+  - [economy.py](../src/simulation/economy.py)
+  - [society.py](../src/simulation/society.py)
+  - [reputation.py](../src/simulation/reputation.py)
+  - [reproduction.py](../src/simulation/reproduction.py)
 
 - analysis:
-  - [metrics.py](/Users/aryan/Desktop/llm-altruism/src/analysis/metrics.py)
-  - [strategy_classifier.py](/Users/aryan/Desktop/llm-altruism/src/analysis/strategy_classifier.py)
-  - [report.py](/Users/aryan/Desktop/llm-altruism/src/analysis/report.py)
-  - [visualization.py](/Users/aryan/Desktop/llm-altruism/src/analysis/visualization.py)
+  - [metrics.py](../src/analysis/metrics.py)
+  - [strategy_classifier.py](../src/analysis/strategy_classifier.py)
+  - [report.py](../src/analysis/report.py)
+  - [visualization.py](../src/analysis/visualization.py)
 
 - scripts:
-  - [run_experiment.py](/Users/aryan/Desktop/llm-altruism/scripts/run_experiment.py)
-  - [compare_results.py](/Users/aryan/Desktop/llm-altruism/scripts/compare_results.py)
-  - [run_paper_batch.py](/Users/aryan/Desktop/llm-altruism/scripts/run_paper_batch.py)
-  - [paper_summary.py](/Users/aryan/Desktop/llm-altruism/scripts/paper_summary.py)
-  - [pull_ollama_models.py](/Users/aryan/Desktop/llm-altruism/scripts/pull_ollama_models.py)
+  - [run_experiment.py](../scripts/run_experiment.py)
+  - [compare_results.py](../scripts/compare_results.py)
+  - [run_paper_batch.py](../scripts/run_paper_batch.py)
+  - [paper_summary.py](../scripts/paper_summary.py)
+  - [pull_ollama_models.py](../scripts/pull_ollama_models.py)
 
 - tests:
-  - [tests/](/Users/aryan/Desktop/llm-altruism/tests)
+  - [tests/](../tests)
 
 - configs:
-  - [configs/](/Users/aryan/Desktop/llm-altruism/configs)
-  - [configs/paper/](/Users/aryan/Desktop/llm-altruism/configs/paper)
+  - [configs/](../configs)
+  - [configs/paper/](../configs/paper)
 
 ## What Has Been Built
 
@@ -192,8 +192,8 @@ Issue:
 
 Fix location:
 
-- [world.py](/Users/aryan/Desktop/llm-altruism/src/simulation/world.py)
-- [economy.py](/Users/aryan/Desktop/llm-altruism/src/simulation/economy.py)
+- [world.py](../src/simulation/world.py)
+- [economy.py](../src/simulation/economy.py)
 
 Consequence:
 
@@ -207,7 +207,7 @@ Issue:
 
 Fix location:
 
-- [runner.py](/Users/aryan/Desktop/llm-altruism/src/experiments/runner.py)
+- [runner.py](../src/experiments/runner.py)
 
 Consequence:
 
@@ -222,7 +222,7 @@ Issue:
 
 Fix location:
 
-- [access.py](/Users/aryan/Desktop/llm-altruism/src/experiments/access.py)
+- [access.py](../src/experiments/access.py)
 
 Consequence:
 
@@ -234,17 +234,20 @@ Consequence:
 
 Canonical summary:
 
-- [summary_with_replications.md](/Users/aryan/Desktop/llm-altruism/results/paper_ready_replications/summary_with_replications.md)
+- [ARTIFACT_INDEX.md](../paper/ARTIFACT_INDEX.md)
 
 Canonical findings document:
 
-- [FINDINGS.md](/Users/aryan/Desktop/llm-altruism/agent/FINDINGS.md)
+- [FINDINGS.md](FINDINGS.md)
 
 Paper-result directories:
 
-- `/Users/aryan/Desktop/llm-altruism/results/paper_live_clean`
-- `/Users/aryan/Desktop/llm-altruism/results/paper_live_replicates_nocache`
-- `/Users/aryan/Desktop/llm-altruism/results/paper_ready_replications`
+- `../results/paper_ready_baseline_triplet`
+- `../results/paper_ready_benchmark_triplet`
+- `../results/paper_ready_replications`
+- `../results/paper_ready_susceptibility_triplet`
+- `../results/paper_ready_society_triplet`
+- `../results/paper_ready_reputation_triplet`
 
 Final completed pilot record:
 
@@ -272,7 +275,7 @@ Under the completed pilot:
 
 This is supported by:
 
-- [summary_with_replications.md](/Users/aryan/Desktop/llm-altruism/results/paper_ready_replications/summary_with_replications.md)
+- [interim_summary.md](../results/paper_ready_baseline_triplet/interim_summary.md)
 
 ### 2. Prompt susceptibility is very strong
 
@@ -337,8 +340,8 @@ Critical issue:
 
 Relevant code:
 
-- [part1_runner.py](/Users/aryan/Desktop/llm-altruism/src/experiments/part1_runner.py)
-- [base.py](/Users/aryan/Desktop/llm-altruism/src/agents/base.py)
+- [part1_runner.py](../src/experiments/part1_runner.py)
+- [base.py](../src/agents/base.py)
 
 What this means:
 
@@ -502,7 +505,7 @@ Important infrastructure fact:
 
 Configured in:
 
-- [pull_ollama_models.py](/Users/aryan/Desktop/llm-altruism/scripts/pull_ollama_models.py)
+- [pull_ollama_models.py](../scripts/pull_ollama_models.py)
 
 Intended H200 cohort:
 
@@ -583,8 +586,8 @@ Required change:
 
 Likely places:
 
-- [part1_runner.py](/Users/aryan/Desktop/llm-altruism/src/experiments/part1_runner.py)
-- [base.py](/Users/aryan/Desktop/llm-altruism/src/agents/base.py)
+- [part1_runner.py](../src/experiments/part1_runner.py)
+- [base.py](../src/agents/base.py)
 
 Concrete goal:
 
@@ -625,8 +628,8 @@ And add:
 
 After every meaningful milestone:
 
-- update [JOURNAL.md](/Users/aryan/Desktop/llm-altruism/agent/JOURNAL.md)
-- update [FINDINGS.md](/Users/aryan/Desktop/llm-altruism/agent/FINDINGS.md) if empirical claims changed
+- update [JOURNAL.md](JOURNAL.md)
+- update [FINDINGS.md](FINDINGS.md) if empirical claims changed
 - commit and push
 
 ## Concrete Next Experiments Recommended

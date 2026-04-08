@@ -30,3 +30,5 @@ Notes:
 - the output is an anonymous submission-style PDF, not a camera-ready version
 - the style files are vendored locally in `paper/icml2025/style/` so the build
   does not depend on network access
+- `paper/icml2025/build/` is generated scratch space and can be deleted at any
+  time; the tracked deliverable is `paper/icml2025/llm_altruism_icml2025_submission.pdf`

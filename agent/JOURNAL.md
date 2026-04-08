@@ -9,7 +9,7 @@ avoid duplicated effort, and keep the experiment process reproducible.
 ## Session Snapshot
 
 - Date: 2026-04-06
-- Working directory: `/Users/aryan/Desktop/llm-altruism`
+- Working directory: repository root
 - Package/runtime workflow: use `uv` for installs, scripts, and tests
 - Git status: repository initialized; continue making small `uv`-verified commits and push frequently
 
