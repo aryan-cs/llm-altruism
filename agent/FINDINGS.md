@@ -18,15 +18,23 @@ a self-sustaining society under scarcity.
 
 Current answer:
 
-- they can avoid extinction in the audited settings, but the society that
-  survives depends strongly on prompt family and institutional design
-- higher visible sociality does not reliably imply better collective survival
-- public reputation changes social organization more consistently than it
-  improves survival
+- the older audited society bundle suggests that higher visible sociality does
+  not reliably imply better collective survival
+- but that bundle was collected on the predecessor single-resource world
+- the canonical society simulation is now the multi-resource ecology with
+  explicit `food`, `water`, `energy`, and `health`
+- no manuscript-safe central finding should be stated from the new ecology
+  until the long-horizon reruns finish
 
 ## Main Institutional Findings
 
-Primary sources:
+Status:
+
+- predecessor evidence exists and is still useful for shaping the paper angle
+- the new canonical ecology reruns are the missing blocker for final
+  manuscript-safe institutional claims
+
+Predecessor sources:
 
 - `results/paper_ready_society_triplet/interim_summary.md`
 - `results/paper_ready_reputation_triplet/interim_summary.md`
@@ -87,12 +95,14 @@ These are the claims that now feel paper-safe.
 1. Society-serving behavior should be measured at the level of collective
    survival and social structure, not only at the level of pairwise
    cooperation.
-2. In the audited scarcity world, `task-only` prompting yields the strongest
-   final survival.
+2. The predecessor scarcity world suggests that visibly cooperative behavior
+   and survival-optimal behavior can diverge.
 3. Cooperative prompting increases visible trade and alliances more reliably
-   than it improves collective survival.
+   than it guarantees better collective survival.
 4. Public reputation is better described as an institutional stabilizer than as
    a simple cooperation booster.
+5. The final paper-grade society claim now depends on the in-progress
+   multi-resource ecology reruns.
 
 ## What Part 1 Adds
 

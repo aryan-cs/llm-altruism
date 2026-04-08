@@ -470,12 +470,20 @@ def build_part1_config(
     )
 
 
-def build_society_agents(models: list[ModelSpec], *, per_model_count: int) -> list[PopulationSpec]:
+def build_society_agents(models: list[ModelSpec], *, target_total_agents: int) -> list[PopulationSpec]:
     """Create a balanced society population from selected models."""
-    return [
-        PopulationSpec(model=spec.model, provider=spec.provider, count=per_model_count)
-        for spec in models
-    ]
+    if not models:
+        return []
+
+    base_count = target_total_agents // len(models)
+    remainder = target_total_agents % len(models)
+    populations: list[PopulationSpec] = []
+    for index, spec in enumerate(models):
+        count = base_count + (1 if index < remainder else 0)
+        populations.append(
+            PopulationSpec(model=spec.model, provider=spec.provider, count=count)
+        )
+    return populations
 
 
 def build_society_config(
@@ -505,13 +513,13 @@ def build_society_config(
         part=part,
         rounds=rounds,
         repetitions=repetitions,
-        agents=build_society_agents(models, per_model_count=2),
-        history=HistoryConfig(mode="summarized", window_size=5),
+        agents=build_society_agents(models, target_total_agents=24),
+        history=HistoryConfig(mode="summarized", window_size=8),
         prompt_variants=prompt_variants,
         parameters=ParameterConfig(
             temperature=temperatures,
             payoff_visibility=False,
-            max_tokens=400,
+            max_tokens=600,
             concurrency=concurrency,
             max_rate_limit_retries=DEFAULT_PAPER_BATCH_MAX_RATE_LIMIT_RETRIES,
             max_transient_retries=6,
@@ -520,11 +528,11 @@ def build_society_config(
             seed=101 if part == 2 else 202,
         ),
         world=WorldConfigModel(
-            initial_public_food=36,
-            max_public_food=48,
+            initial_public_food=120,
+            max_public_food=160,
             food_regeneration_rate=0.12,
-            initial_public_water=44,
-            max_public_water=56,
+            initial_public_water=160,
+            max_public_water=220,
             water_regeneration_rate=0.10,
             initial_agent_food=3,
             initial_agent_water=3,
@@ -552,14 +560,14 @@ def build_society_config(
             offspring_start_water=3,
             offspring_start_energy=6,
             offspring_start_health=8,
-            max_agents=24,
+            max_agents=60,
         ),
         society=SocietyConfig(
             allow_steal=True,
             allow_private_messages=True,
-            allow_unmonitored_agents=(part == 2),
-            unmonitored_fraction=0.2 if part == 2 else 0.0,
-            trade_offer_ttl=3,
+            allow_unmonitored_agents=False,
+            unmonitored_fraction=0.0,
+            trade_offer_ttl=4,
         ),
         reputation=reputation,
     )
@@ -577,7 +585,7 @@ def build_experiment_plan(
     part1_rounds = 6 if fast else 8
     part1_repetitions = 1
     part1_temperatures = [0.0]
-    society_rounds = 6 if fast else 8
+    society_rounds = 12 if fast else 120
     society_temperatures = [0.3]
 
     pairings = build_pairings(models, include_self_play=True)

@@ -16,6 +16,8 @@ paper/icml2025/build/
 # results (large JSON logs)
 results/*
 !results/.gitkeep
+logs/*
+!logs/.gitkeep
 
 # local models (large binary files)
 models/*

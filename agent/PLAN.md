@@ -91,23 +91,23 @@ These are supporting diagnostics, not the final paper endpoint.
 
 ## 4. Current Paper-Grade Claims
 
-1. In scarcity, `task-only` yields the best final survival in the audited
-   bundle.
-2. In reputation, all completed prompt families preserve final survival, but
-   they still produce very different social structures.
-3. Visible prosociality is not equivalent to society-preserving behavior.
-4. Repeated-game precursor measurements show that baseline behavior is prompt-
+1. Visible prosociality is not equivalent to society-preserving behavior.
+2. The predecessor audited institutional bundle supports that directional
+   claim, but it is no longer the final canonical society evidence.
+3. Repeated-game precursor measurements show that baseline behavior is prompt-
    sensitive and benchmark-sensitive enough that macro claims need audit
    discipline.
+4. The main missing paper-grade claim is the completed long-horizon result on
+   the new multi-resource ecology.
 
 ## 5. What Still Strengthens The Paper
 
 Highest-leverage improvements:
 
-1. deeper institutional replications
-2. larger model panel
-3. more society-focused writing in the main text
-4. cleaner venue-ready bibliography and appendix presentation
+1. complete the `24`-agent, `120`-round multi-resource ecology reruns
+2. rewrite the manuscript's society sections around those new results
+3. expand the model panel once the new ecology baseline is stable
+4. keep venue-ready bibliography and appendix presentation clean
 
 ## 6. Operating Rules
 

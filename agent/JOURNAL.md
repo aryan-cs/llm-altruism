@@ -12,6 +12,21 @@ It should answer:
 
 ## 2026-04-08
 
+### Long-horizon ecology alignment
+
+- aligned the paper-batch society generator with the new canonical ecology
+  instead of the older short-run institutional setup
+- moved paper-batch society runs to `24` total agents, `120` rounds, larger
+  public food/water pools, and the same `task-only` / `cooperative` /
+  `competitive` prompt comparison used by the main society templates
+- updated the main Part 2 and Part 3 YAML templates so they use the last
+  known successful live cohort:
+  - `cerebras:llama3.1-8b`
+  - `nvidia:deepseek-ai/deepseek-v3.2`
+  - `nvidia:moonshotai/kimi-k2-instruct-0905`
+- started a live baseline ecology rerun with the new setup in
+  `results/live_ecology_20260408/`
+
 ### Society-first paper reframing
 
 - rewrote the internal project docs so the main paper question is now society
@@ -68,13 +83,17 @@ It should answer:
 These remain important across sessions.
 
 1. Society self-transfer bug was fixed. Corrected Part 2 and Part 3 reruns are
-   canonical for institutional claims.
+   canonical for the older single-resource institutional claims, but those
+   claims are now predecessor evidence rather than the final society target.
 2. Nonzero-temperature cache reuse was fixed. Fresh stochastic reruns after the
    fix are canonical.
 3. Prompt-stack logging through `messages_sent` is required for manuscript-
    grade Part 1 claims.
 4. Compact and institutional neutral prompts are distinct inputs but collapse
    behaviorally on the pooled audited PD bundle.
+5. The canonical society world is now the multi-resource ecology with explicit
+   `food`, `water`, `energy`, and `health`. The paper is not fully aligned
+   until the long-horizon reruns on that world are complete.
 
 ## Workflow Notes
 

@@ -60,21 +60,30 @@ Avoid these framings:
 
 ## Strongest Evidence By Priority
 
-### Priority 1: society and reputation results
+### Priority 1: completed long-horizon ecology results
 
-These are the headline results.
+These are the headline results, but they are not complete yet.
 
-- scarcity: `task-only` best final survival
-- reputation: survival equalizes, but social structure does not
+- target experiment: the `24`-agent, `120`-round multi-resource ecology with
+  explicit `food`, `water`, `energy`, and `health`
+- required comparisons: `task-only`, `cooperative`, `competitive`, with and
+  without public reputation
+- current blocker: the live reruns on that canonical world are still in
+  progress
 
-### Priority 2: precursor diagnostics that explain macro fragility
+### Priority 2: predecessor institutional results
+
+- older scarcity bundle: `task-only` best final survival
+- older reputation bundle: survival equalizes, but social structure does not
+
+### Priority 3: precursor diagnostics that explain macro fragility
 
 - PD neutral-family instability
 - PD prompt steerability
 - benchmark-presentation sensitivity
 - cross-game ordering
 
-### Priority 3: tooling and reproducibility
+### Priority 4: tooling and reproducibility
 
 - prompt-stack logging
 - audited summaries

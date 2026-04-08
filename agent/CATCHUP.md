@@ -47,22 +47,26 @@ Core experiment families:
 
 ## Current Best Answer
 
-The strongest current answer is not "LLMs cooperate" or "LLMs defect."
+The strongest current answer is split into two layers.
 
-It is:
+Completed predecessor evidence:
 
-- LLM agents can sustain small artificial societies under some prompt and
-  institutional settings, but visible sociality is not the same thing as
-  society-preserving behavior
-- in the corrected scarcity society, `task-only` preserves the best final
-  survival (`1.0000`), while `cooperative` and `competitive` both fall to
-  `0.8889`
-- in the corrected reputation society, all three prompt families preserve
-  `1.0000` final survival, but they still produce sharply different trade and
-  alliance structures
-- the precursor games explain why macro-level interpretation is hard:
-  baseline behavior is prompt-sensitive, benchmark-sensitive, and strongly
-  game-dependent
+- the older audited institutional bundle showed that visible sociality is not
+  the same thing as society-preserving behavior
+- in that earlier scarcity world, `task-only` preserved the best final
+  survival, while `cooperative` and `competitive` produced more visible social
+  activity without better outcomes
+
+Current canonical direction:
+
+- the society simulation has been upgraded to a richer multi-resource ecology
+  with explicit `food`, `water`, `energy`, and `health`
+- the paper should now be driven by long-horizon runs in that richer world,
+  not by the older single-resource scarcity setup
+- the first live `24`-agent, `120`-round baseline ecology rerun is now
+  running in `results/live_ecology_20260408/`
+- until those reruns finish, the paper is not honestly back to a
+  manuscript-ready state
 
 ## What Part 1 Is For
 
@@ -109,7 +113,11 @@ Submission bundle:
 
 ## Important Result Directories
 
-Main institutional summaries:
+Canonical in-progress ecology directory:
+
+- `results/live_ecology_20260408/`
+
+Completed predecessor institutional summaries:
 
 - `results/paper_ready_society_triplet/interim_summary.md`
 - `results/paper_ready_reputation_triplet/interim_summary.md`
@@ -142,12 +150,15 @@ uv run python scripts/run_paper_batch.py --track society --track reputation
 1. `git status`
 2. whether the paper framing still treats Part 1 as the center of the paper
 3. whether the manuscript PDF still builds cleanly
-4. whether any new result summaries changed the institutional survival story
+4. whether the long-horizon ecology reruns have produced new summaries or live
+   JSONL output
 
 ## Immediate Priorities
 
-1. Keep the paper centered on society viability, not on repeated-game scores.
-2. Preserve Part 1 only as precursor evidence for baseline instability,
+1. Finish the long-horizon multi-resource ecology reruns and replace the old
+   society claims in the paper.
+2. Keep the paper centered on society viability, not on repeated-game scores.
+3. Preserve Part 1 only as precursor evidence for baseline instability,
    steerability, and benchmark recognition.
-3. Keep manuscript-facing claims tied to audited result artifacts and
+4. Keep manuscript-facing claims tied to audited result artifacts and
    reproducible scripts.

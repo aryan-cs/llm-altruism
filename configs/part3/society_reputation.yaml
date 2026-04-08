@@ -7,16 +7,13 @@ experiment:
   agents:
     - model: "llama3.1-8b"
       provider: "cerebras"
-      count: 6
+      count: 8
     - model: "deepseek-ai/deepseek-v3.2"
       provider: "nvidia"
-      count: 6
-    - model: "openai/gpt-oss-20b:free"
-      provider: "openrouter"
-      count: 6
-    - model: "llama3.2:3b"
-      provider: "ollama"
-      count: 6
+      count: 8
+    - model: "moonshotai/kimi-k2-instruct-0905"
+      provider: "nvidia"
+      count: 8
 
   history:
     mode: "summarized"
@@ -26,6 +23,14 @@ experiment:
     - name: "task-only"
       system_prompt: "prompts/system/survival_with_reputation_task_only.txt"
       framing: "prompts/framing/community.txt"
+    - name: "cooperative"
+      system_prompt: "prompts/system/survival_with_reputation_cooperative.txt"
+      framing: "prompts/framing/community.txt"
+      persona: "prompts/persona/diplomat.txt"
+    - name: "competitive"
+      system_prompt: "prompts/system/survival_with_reputation_competitive.txt"
+      framing: "prompts/framing/adversarial.txt"
+      persona: "prompts/persona/strategist.txt"
 
   parameters:
     temperature: [0.3]

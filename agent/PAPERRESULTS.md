@@ -11,16 +11,18 @@ Current order of importance:
 
 ## Headline Result: Can LLM Agents Sustain a Society?
 
-Current audited answer:
+Current honest answer:
 
-- yes, but only under some prompt and institutional settings
-- the safest outcome in scarcity is not the most visibly social one
-- public reputation preserves survival more reliably than it creates a single
-  common social style
+- predecessor evidence says yes in a simpler world, but with strong prompt-
+  family dependence
+- the canonical society simulation has now changed to a richer ecology with
+  explicit `food`, `water`, `energy`, and `health`
+- the paper is waiting on long-horizon reruns in that world before the society
+  headline can be treated as final again
 
 ## Primary Institutional Results
 
-### Scarcity society
+### Predecessor scarcity society
 
 Source:
 
@@ -41,13 +43,13 @@ Summary:
   - trade volume: `1.7083`
   - alliance count: `0.0000`
 
-Paper-safe interpretation:
+Predecessor interpretation:
 
 - the most social-looking scarcity society is not the most self-sustaining one
 - `task-only` is behaviorally sparse but survival-optimal in the completed
   scarcity bundle
 
-### Reputation society
+### Predecessor reputation society
 
 Source:
 
@@ -59,7 +61,7 @@ Summary:
 - `cooperative` still produces the most trade and alliance structure
 - `competitive` remains much closer to `task-only` than to `cooperative`
 
-Paper-safe interpretation:
+Predecessor interpretation:
 
 - public reputation stabilizes survival
 - it does not remove large prompt-conditioned differences in how the society
@@ -113,11 +115,10 @@ Use:
 
 ## Best One-Paragraph Summary
 
-The current paper bundle supports a society-first conclusion. In the audited
-scarcity world, the best survival outcome comes from `task-only` prompting,
-not from the most visibly cooperative prompt family. In the public-reputation
-world, survival equalizes, but trade and alliance structures remain strongly
-prompt-conditioned. The repeated-game results remain important because they
-show why these macro findings must be interpreted cautiously: baseline
-behavior is unstable under neutral paraphrase, prompt framing is highly
-steerable, and benchmark recognition can materially change the measured policy.
+The paper now has a clear society-first thesis, but the canonical society
+experiment has advanced faster than the manuscript. The older audited
+institutional bundle still supports the directional claim that visible
+sociality and survival can diverge, while the repeated-game diagnostics still
+show why macro interpretation requires prompt and benchmark robustness. The
+missing step is to replace the predecessor single-resource society evidence
+with completed long-horizon reruns from the new multi-resource ecology.

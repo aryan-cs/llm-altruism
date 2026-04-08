@@ -113,6 +113,56 @@ def test_build_experiment_plan_applies_multiagent_overrides():
     assert reputation.parameters.concurrency == 3
 
 
+def test_full_paper_batch_uses_long_horizon_society_defaults():
+    """Default paper batches should use the new long-horizon ecology settings."""
+    module = _load_paper_batch_module()
+    models = [
+        ModelSpec(model="llama3.1-8b", provider="cerebras"),
+        ModelSpec(model="deepseek-ai/deepseek-v3.2", provider="nvidia"),
+        ModelSpec(model="moonshotai/kimi-k2-instruct-0905", provider="nvidia"),
+    ]
+
+    plan = module.build_experiment_plan(
+        models,
+        fast=False,
+        multiagent_repetitions=1,
+        multiagent_concurrency=5,
+        name_suffix="",
+    )
+
+    society = next(config for track, config, _meta in plan if track == "society")
+    reputation = next(config for track, config, _meta in plan if track == "reputation")
+
+    assert society.rounds == 120
+    assert reputation.rounds == 120
+    assert [variant.name for variant in society.prompt_variants] == [
+        "task-only",
+        "cooperative",
+        "competitive",
+    ]
+    assert sum(agent.count for agent in society.agents) == 24
+    assert sum(agent.count for agent in reputation.agents) == 24
+    assert society.world.initial_public_food == 120
+    assert society.world.initial_public_water == 160
+    assert society.world.max_agents == 60
+    assert society.society.allow_unmonitored_agents is False
+    assert society.society.trade_offer_ttl == 4
+
+
+def test_build_society_agents_balances_population_to_target_total():
+    """Society populations should scale up to the target total size."""
+    module = _load_paper_batch_module()
+    models = [
+        ModelSpec(model="llama3.1-8b", provider="cerebras"),
+        ModelSpec(model="deepseek-ai/deepseek-v3.2", provider="nvidia"),
+        ModelSpec(model="moonshotai/kimi-k2-instruct-0905", provider="nvidia"),
+    ]
+
+    agents = module.build_society_agents(models, target_total_agents=24)
+
+    assert [agent.count for agent in agents] == [8, 8, 8]
+
+
 def test_paper_batch_configs_use_finite_rate_limit_retries():
     """Paper batch configs should eventually skip a persistently congested model."""
     module = _load_paper_batch_module()

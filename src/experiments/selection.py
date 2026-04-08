@@ -33,20 +33,24 @@ TEMPLATE_DESCRIPTIONS: dict[str, str] = {
         "effects before larger-society interpretation."
     ),
     "society-baseline": (
-        "Primary society experiment: a long-horizon ecology with explicit food, "
-        "water, energy, and health dynamics, without public reputation. Tests "
-        "whether an LLM population can remain self-sustaining under foraging, "
-        "water collection, sleep, trade, theft, reproduction, and messaging."
+        "Primary society experiment: a 24-agent, 120-round ecology with explicit "
+        "food, water, energy, and health dynamics, without public reputation. "
+        "Compares task-only, cooperative, and competitive prompt families while "
+        "testing whether an LLM population can remain self-sustaining under "
+        "foraging, water collection, sleep, trade, theft, reproduction, and "
+        "messaging."
     ),
     "society-reputation": (
-        "Primary institutional extension: the same long-horizon ecology with "
-        "public ratings and reputation decay, to test whether reputation "
-        "stabilizes survival or only reshapes visible social behavior."
+        "Primary institutional extension: the same 24-agent, 120-round ecology "
+        "with public ratings and reputation decay, comparing the same three "
+        "prompt families to test whether reputation stabilizes survival or only "
+        "reshapes visible social behavior."
     ),
     "society-event-stress": (
-        "Separate stress-test template: the same long-horizon food/water ecology "
-        "but with optional exogenous shocks such as drought, blight, heatwaves, "
-        "and disease enabled."
+        "Separate stress-test template: the same 24-agent, 120-round food/water "
+        "ecology with task-only, cooperative, and competitive prompt families, "
+        "but with exogenous shocks such as drought, blight, heatwaves, and "
+        "disease enabled."
     ),
 }
 
