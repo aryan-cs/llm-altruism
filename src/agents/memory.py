@@ -1,5 +1,5 @@
 """
-Memory management for agents in game-theoretic simulations.
+Memory management for agents in repeated games and society simulations.
 
 Supports different memory modes (NONE, FULL, WINDOWED, SUMMARIZED) to control
 how agents retain and recall their history of past interactions.

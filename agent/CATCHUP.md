@@ -2,18 +2,16 @@
 
 ## Purpose
 
-This file is the handoff document for a fresh Codex session, especially one
-attached to the remote UIUC ICRN 1xH200 environment.
+This file is the shortest reliable handoff for a fresh Codex session.
 
-It is meant to answer:
+Use it to answer:
 
-1. What is this repo?
-2. What has already been built?
-3. What empirical work has already been done?
-4. What findings are solid, and what findings are currently vulnerable?
-5. What should the next session do first?
+1. What is this repo actually trying to prove?
+2. Which results are central to the paper right now?
+3. Which experiment families are supporting diagnostics versus the main study?
+4. What should the next session edit or run first?
 
-Use this file together with:
+Read this together with:
 
 - [JOURNAL.md](JOURNAL.md)
 - [FINDINGS.md](FINDINGS.md)
@@ -26,709 +24,129 @@ Use this file together with:
 
 Repo: `llm-altruism`
 
-Goal:
+Current paper question:
 
-- study LLM strategic and social behavior
-- measure baseline behavior in repeated games
-- measure prompt susceptibility
-- measure benchmark contamination / disguise effects
-- measure larger-scale society survival, inequality, trade, commons health, and reputation dynamics
-- write a paper from the results
+- if a population of LLM agents is placed in a shared world with scarce
+  resources, trade, theft, messaging, and reproduction, can that population
+  maintain a self-sustaining society?
+- if not, what kinds of prompt families and institutions drive collapse,
+  brittle cooperation, or performative sociality?
+
+Paper stance:
+
+- Part 2 and Part 3 are the main empirical object
+- Part 1 is a precursor diagnostic layer
+- repeated games are used to measure micro-level behavioral tendencies before
+  we interpret macro-level society outcomes
 
 Core experiment families:
 
-1. Part 1: classical / repeated games
-2. Part 2: society simulation under scarcity
-3. Part 3: society simulation with public reputation
+1. Part 1: precursor repeated-game diagnostics
+2. Part 2: scarcity society survival
+3. Part 3: scarcity society with public reputation
 
-Shorthand:
+## Current Best Answer
 
-- `PD` = Prisoner's Dilemma
+The strongest current answer is not "LLMs cooperate" or "LLMs defect."
 
-## Working Directory And Workflow
+It is:
 
-Local repo path:
+- LLM agents can sustain small artificial societies under some prompt and
+  institutional settings, but visible sociality is not the same thing as
+  society-preserving behavior
+- in the corrected scarcity society, `task-only` preserves the best final
+  survival (`1.0000`), while `cooperative` and `competitive` both fall to
+  `0.8889`
+- in the corrected reputation society, all three prompt families preserve
+  `1.0000` final survival, but they still produce sharply different trade and
+  alliance structures
+- the precursor games explain why macro-level interpretation is hard:
+  baseline behavior is prompt-sensitive, benchmark-sensitive, and strongly
+  game-dependent
 
-- repository root
+## What Part 1 Is For
 
-Remote H200 workspace path seen in tunnel session:
+Part 1 is no longer the headline study.
 
-- `/home/aryang9/sandbox`
+It exists to answer three precursor questions:
 
-Package and command workflow:
+1. How unstable is a so-called neutral baseline?
+2. How much can prompt framing steer agent behavior?
+3. How much of a "social preference" signal disappears when canonical game
+   labels are removed?
 
-- always use `uv`
-- examples:
-  - `uv run pytest -q`
-  - `uv run scripts/run_experiment.py`
-  - `uv run python scripts/run_paper_batch.py ...`
+Current durable precursor findings:
 
-Git workflow:
+- Prisoner's Dilemma is much more fragile than Chicken or Stag Hunt
+- pooled PD `minimal-neutral` cooperation is `0.2639 / 0.2917`, versus
+  `0.5833 / 0.6667` for the two more abstract neutral paraphrases
+- compact and institutional neutral prompts are distinct inputs but collapse to
+  identical action traces on all `12/12` matched pooled PD trials
+- exact paired sign-flip test for literal-neutral versus abstract-neutral
+  family: `p = 0.03125`
 
-- active development branch has recently been `master`
-- push frequently
-- make small, intentional commits
-- do not overwrite unrelated user edits
+Interpretation:
 
-Current local worktree note from the last local session:
+- Part 1 does not tell us whether a society will survive on its own
+- it tells us that any macro-level claim has to account for unstable baseline
+  wording, steerability, and recognizability
 
-- `agent/JOURNAL.md` had uncommitted edits
-- `.cache/` existed as an untracked directory
+## Main Paper Artifacts
 
-Be careful not to clobber those if working from the local repo again.
+Primary paper docs:
 
-## High-Level Repo Layout
-
-Important code:
-
-- experiment framework:
-  - [config.py](../src/experiments/config.py)
-  - [runner.py](../src/experiments/runner.py)
-  - [part1_runner.py](../src/experiments/part1_runner.py)
-  - [part2_runner.py](../src/experiments/part2_runner.py)
-  - [part3_runner.py](../src/experiments/part3_runner.py)
-  - [selection.py](../src/experiments/selection.py)
-  - [access.py](../src/experiments/access.py)
-
-- agents and prompts:
-  - [base.py](../src/agents/base.py)
-  - [prompts.py](../src/agents/prompts.py)
-  - [prompts/](../prompts)
-
-- simulation:
-  - [world.py](../src/simulation/world.py)
-  - [economy.py](../src/simulation/economy.py)
-  - [society.py](../src/simulation/society.py)
-  - [reputation.py](../src/simulation/reputation.py)
-  - [reproduction.py](../src/simulation/reproduction.py)
-
-- analysis:
-  - [metrics.py](../src/analysis/metrics.py)
-  - [strategy_classifier.py](../src/analysis/strategy_classifier.py)
-  - [report.py](../src/analysis/report.py)
-  - [visualization.py](../src/analysis/visualization.py)
-
-- scripts:
-  - [run_experiment.py](../scripts/run_experiment.py)
-  - [compare_results.py](../scripts/compare_results.py)
-  - [run_paper_batch.py](../scripts/run_paper_batch.py)
-  - [paper_summary.py](../scripts/paper_summary.py)
-  - [pull_ollama_models.py](../scripts/pull_ollama_models.py)
-
-- tests:
-  - [tests/](../tests)
-
-- configs:
-  - [configs/](../configs)
-  - [configs/paper/](../configs/paper)
-
-## What Has Been Built
-
-### Experiment infrastructure
-
-Completed:
-
-- config-driven Part 1, Part 2, and Part 3 runners
-- provider abstraction for multiple APIs
-- result saving and comparison tooling
-- paper-batch driver
-- summaries and structured result artifacts
-- readiness probing and startup access checks
-- retry/backoff for rate limits and transient failures
-- resumable paper-batch execution
-
-### Prompt organization
-
-Completed:
-
-- behavior-facing prompts moved out of Python into their own text files
-- prompt categories include:
-  - system
-  - framing
-  - persona
-  - games
-  - simulation
-
-### CLI UX
-
-Completed:
-
-- interactive experiment wizard
-- arrow-key experiment selection
-- dynamic model selection
-- colored `rich` output
-- multi-stage run setup flow
-- startup model filtering based on live checks
-
-### Provider support
-
-Supported in code:
-
-- OpenAI
-- Anthropic
-- Google
-- xAI
-- Cerebras
-- OpenRouter
-- Ollama
-- NVIDIA
-
-For current paper work, the focus has been on:
-
-- free NVIDIA models
-- free Cerebras models
-- free OpenRouter models
-- local Ollama models
-
-## Important Methodology Corrections Already Applied
-
-These were serious and matter for interpreting old runs.
-
-### 1. Society self-transfer bug fixed
-
-Issue:
-
-- self-targeted `share` / `steal` style events could contaminate society metrics
-
-Fix location:
-
-- [world.py](../src/simulation/world.py)
-- [economy.py](../src/simulation/economy.py)
-
-Consequence:
-
-- corrected reruns should be treated as canonical for society/reputation claims
-
-### 2. Nonzero-temperature cache bug fixed
-
-Issue:
-
-- cache reuse could contaminate stochastic society/reputation runs
-
-Fix location:
-
-- [runner.py](../src/experiments/runner.py)
-
-Consequence:
-
-- cache should only apply to temperature `0.0`
-- stochastic replication runs after the fix are the valid ones
-
-### 3. Access vs experiment-readiness distinction added
-
-Issue:
-
-- a model can be API-reachable but still fail to produce a clean explicit action for experiments
-
-Fix location:
-
-- [access.py](../src/experiments/access.py)
-
-Consequence:
-
-- model selection should use:
-  1. access verification
-  2. experiment-readiness verification
-
-## Completed Empirical Batch
-
-Canonical summary:
-
+- [MANUSCRIPT.md](../paper/MANUSCRIPT.md)
+- [APPENDIX.md](../paper/APPENDIX.md)
+- [RESULTS_TABLES.md](../paper/RESULTS_TABLES.md)
+- [FIGURE_CAPTIONS.md](../paper/FIGURE_CAPTIONS.md)
 - [ARTIFACT_INDEX.md](../paper/ARTIFACT_INDEX.md)
 
-Canonical findings document:
+Submission bundle:
 
-- [FINDINGS.md](FINDINGS.md)
+- [llm_altruism_icml2025_submission.pdf](../paper/icml2025/llm_altruism_icml2025_submission.pdf)
+- [README.md](../paper/icml2025/README.md)
 
-Paper-result directories:
+## Important Result Directories
 
-- `../results/paper_ready_baseline_triplet`
-- `../results/paper_ready_benchmark_triplet`
-- `../results/paper_ready_replications`
-- `../results/paper_ready_susceptibility_triplet`
-- `../results/paper_ready_society_triplet`
-- `../results/paper_ready_reputation_triplet`
+Main institutional summaries:
 
-Final completed pilot record:
+- `results/paper_ready_society_triplet/interim_summary.md`
+- `results/paper_ready_reputation_triplet/interim_summary.md`
 
-- 18 experiments
-- 286 trials
-- about 2h 31m runtime
+Main precursor summaries:
 
-Tracks completed:
+- `results/paper_ready_baseline_triplet/interim_summary.md`
+- `results/paper_ready_replications/interim_summary.md`
+- `results/paper_ready_benchmark_triplet/interim_summary.md`
+- `results/paper_ready_susceptibility_triplet/interim_summary.md`
 
-- baseline
-- benchmark
-- susceptibility
-- society
-- reputation
+## Working Conventions
 
-## Strong Findings That Currently Hold Up Best
+- use `uv` for installs, scripts, and tests
+- preserve small intentional commits
+- push frequently
+- do not overwrite unrelated user edits
 
-### 1. Cross-game ordering
-
-Under the completed pilot:
-
-- PD was the least cooperative / most exploitation-prone
-- Chicken was intermediate
-- Stag Hunt was the most cooperative
-
-This is supported by:
-
-- [interim_summary.md](../results/paper_ready_baseline_triplet/interim_summary.md)
-
-### 2. Prompt susceptibility is very strong
-
-In the canonical susceptibility runs:
-
-- cooperative framing pushed behavior strongly toward cooperation
-- competitive framing pushed behavior strongly toward defection/aggression
-
-Example:
-
-- PD competitive: `0.0000 / 0.0000` cooperation
-- PD cooperative: `1.0000 / 1.0000` cooperation
-
-Interpretation:
-
-- prompt framing clearly steers social behavior
-- this is evidence about steerability, not about deep intrinsic values
-
-### 3. Society result: “cooperative” prompting did not maximize survival
-
-In the pooled society results:
-
-- `task-only` had the best survival
-- `competitive` was second-best
-- `cooperative` was worst on survival
-
-But `cooperative` also produced:
-
-- the highest trade volume
-- the most alliances
-- the healthiest commons
-- the highest inequality
-
-Interpretation:
-
-- prosocial-looking behavior is not the same thing as society-preserving behavior
-
-### 4. Reputation effects are asymmetric
-
-In the pooled reputation results:
-
-- `competitive` became the strongest condition
-- `task-only` remained strong
-- `cooperative` improved relative to non-reputation, but still lagged
-
-Interpretation:
-
-- public accountability changes behavior
-- but it does not force all prompt conditions into the same equilibrium
-
-## Vulnerable Or Unsafe Findings
-
-These should not be stated strongly without reruns or fixes.
-
-### 1. Neutral paraphrase sensitivity is not paper-safe yet
-
-Critical issue:
-
-- the logs store `prompt_sent`, but that field only contains the user-turn game prompt
-- it does not contain the full effective prompt actually sent to the model
-- the actual call prepends system, framing, and persona via `Agent.build_messages(...)`
-
-Relevant code:
-
-- [part1_runner.py](../src/experiments/part1_runner.py)
-- [base.py](../src/agents/base.py)
-
-What this means:
-
-- identical `prompt_sent` fields across variants do not prove the full prompts were identical
-- but the current logs are inadequate to defend neutral-paraphrase claims
-- therefore the neutral-paraphrase result should be treated as vulnerable until rerun with full prompt logging
-
-Action item:
-
-- log the full effective prompt stack
-- rerun the neutral baseline family
-
-### 2. The benchmark-contamination story is real but mixed
-
-What seems real:
-
-- presentation clearly changes behavior
-- unnamed/resource-disguised variants can shift outcomes materially
-
-What is not safe:
-
-- a simple one-direction story like “removing benchmark labels always increases cooperation”
-
-Reason:
-
-- PD unnamed became much more cooperative
-- Chicken unnamed became less cooperative
-
-Interpretation:
-
-- the broad claim should be:
-  - benchmark presentation matters
-- the narrow claim should not be:
-  - unnamed is always more cooperative
-
-### 3. Scale is still limited
-
-Current limitations of the pilot batch:
-
-- only 4 rounds per Part 1 trial
-- only 6 timesteps in Part 2 / Part 3
-- only 8 initial society agents
-- limited repetitions
-- small model cohort
-- no frontier paid closed models
-
-This is still a meaningful pilot, but not the final paper-quality scale.
-
-### 4. Statistical analysis is incomplete
-
-Currently missing or incomplete:
-
-- confidence intervals
-- hypothesis tests
-- effect sizes
-- formal uncertainty reporting
-
-This must be added before submission-quality claims.
-
-## Current Model Situation
-
-### Stable paper cohort used in the completed pilot
-
-- `cerebras:llama3.1-8b`
-- `cerebras:qwen-3-235b-a22b-instruct-2507`
-- `nvidia:deepseek-ai/deepseek-v3.2`
-- `ollama:llama3.2:3b`
-
-### Expanded confirmed NVIDIA working pool
-
-These completed real smoke runs in the experiment path:
-
-- `nvidia:z-ai/glm4.7`
-- `nvidia:z-ai/glm5`
-- `nvidia:deepseek-ai/deepseek-v3.2`
-- `nvidia:moonshotai/kimi-k2-thinking`
-- `nvidia:moonshotai/kimi-k2-instruct`
-- `nvidia:moonshotai/kimi-k2-instruct-0905`
-- `nvidia:bytedance/seed-oss-36b-instruct`
-- `nvidia:nvidia/nemotron-3-nano-30b-a3b`
-- `nvidia:google/gemma-3-1b-it`
-- `nvidia:mistralai/mistral-small-24b-instruct`
-- `nvidia:mistralai/magistral-small-2506`
-- `nvidia:tiiuae/falcon3-7b-instruct`
-- `nvidia:rakuten/rakutenai-7b-instruct`
-
-### Cerebras reality check
-
-Currently responsive:
-
-- `cerebras:llama3.1-8b`
-- `cerebras:qwen-3-235b-a22b-instruct-2507`
-
-Currently failing:
-
-- `cerebras:gpt-oss-120b`
-- `cerebras:zai-glm-4.7`
-
-Those two returned `404` in the latest checks.
-
-### OpenRouter reality check
-
-Current state:
-
-- key is configured
-- free models are generally reachable
-- but they have been heavily rate-limited
-
-Interpretation:
-
-- usable as an expansion source
-- not ideal as the only overnight backbone
-
-### Local Ollama inventory on the Mac
-
-Installed locally at last check:
-
-- `qwen3:8b`
-- `kimi-k2.5:cloud`
-- `llama2:13b`
-- `llama2:7b`
-- `llama3:8b`
-- `llama3.1:8b`
-- `gpt-oss-safeguard:20b`
-- `llama3.2:1b`
-- `llama3.2:3b`
-- `gpt-oss:20b`
-- `llama3.2:latest`
-
-Best immediate local Ollama experiment candidates:
-
-- `ollama:qwen3:8b`
-- `ollama:llama3.1:8b`
-- `ollama:llama3.2:3b`
-- `ollama:llama3.2:1b`
-
-## H200 Status
-
-### Remote environment
-
-We successfully established a VS Code tunnel from the remote environment.
-
-Observed remote workspace:
-
-- host: `jupyter-aryang9`
-- user: `aryang9`
-- path: `/home/aryang9/sandbox`
-
-Tunnel info observed during setup:
-
-- tunnel name: `uiuc-h200-aryang9`
-- accessible through `vscode.dev` tunnel URL
-
-Important infrastructure fact:
-
-- this environment is not directly SSH-reachable from the local Mac via a simple public hostname
-- it appears to be a Jupyter-backed environment with an internal hostname
-- the working bridge is the VS Code tunnel
-
-### Planned H200 model cohort
-
-Configured in:
-
-- [pull_ollama_models.py](../scripts/pull_ollama_models.py)
-
-Intended H200 cohort:
-
-- `qwen3:30b`
-- `qwen3:32b`
-- `deepseek-r1:32b`
-- `gemma3:27b-it-qat`
-- `gpt-oss:120b`
-- `nemotron:70b`
-
-Interpretation:
-
-- these are the main self-hosted large open-weight candidates
-- API models do not need the H200
-- the H200 is mainly for larger open-weight local inference work
-
-## What The Next Codex Session Should Do First
-
-Do these in order.
-
-### 1. Recreate the repo on the H200 and verify the environment
-
-On the H200 side:
-
-1. clone or sync the repo
-2. check out the intended branch
-3. install/sync dependencies with `uv`
-4. verify Python, GPU, disk, and internet
-
-Suggested checks:
+Useful commands:
 
 ```bash
-pwd
-python --version
-uv --version
-git status
-nvidia-smi || true
-df -h
+uv run pytest -q
+uv run scripts/run_experiment.py
+uv run python scripts/run_paper_batch.py --track society --track reputation
+.venv/bin/python scripts/build_icml_submission.py
 ```
 
-### 2. Recreate secrets/config safely
+## What To Check First In A New Session
 
-Need on the H200:
+1. `git status`
+2. whether the paper framing still treats Part 1 as the center of the paper
+3. whether the manuscript PDF still builds cleanly
+4. whether any new result summaries changed the institutional survival story
 
-- `.env` with the working provider keys/endpoints
+## Immediate Priorities
 
-At minimum:
-
-- `CEREBRAS_API_KEY`
-- `CEREBRAS_BASE_URL`
-- `NVIDIA_API_KEY`
-- `NVIDIA_BASE_URL`
-- `OPENROUTER_API_KEY`
-- `OPENROUTER_BASE_URL`
-
-Optional depending on remote setup:
-
-- `OLLAMA_BASE_URL` if running Ollama there
-
-### 3. Re-run access and readiness checks on the H200 side
-
-Before any major experimental expansion:
-
-```bash
-uv run pytest -q tests/test_access.py tests/test_readiness.py
-uv run python hello_world.py --provider nvidia
-uv run python hello_world.py --provider cerebras
-uv run python hello_world.py --provider openrouter
-```
-
-### 4. Fix the prompt logging issue before trusting new paraphrase claims
-
-This is a top priority.
-
-Required change:
-
-- log the full effective prompt, not just the user message
-
-Likely places:
-
-- [part1_runner.py](../src/experiments/part1_runner.py)
-- [base.py](../src/agents/base.py)
-
-Concrete goal:
-
-- persist at least:
-  - system prompt text
-  - framing text
-  - persona text
-  - user prompt text
-  - full message list if possible
-
-Then:
-
-- rerun the vulnerable neutral baseline family
-
-### 5. Expand the cohort materially
-
-Highest-priority expansion targets:
-
-- expanded NVIDIA free pool
-- selected OpenRouter free pool if rate limits allow
-- local Ollama / H200-hosted open-weight models
-
-### 6. Run larger paper-quality batches
-
-Increase:
-
-- Part 1 rounds
-- repetitions
-- society timesteps
-- society population size
-
-And add:
-
-- uncertainty/statistics
-- repeated runs across more models
-
-### 7. Keep documentation synchronized
-
-After every meaningful milestone:
-
-- update [JOURNAL.md](JOURNAL.md)
-- update [FINDINGS.md](FINDINGS.md) if empirical claims changed
-- commit and push
-
-## Concrete Next Experiments Recommended
-
-### Priority A: validity repair
-
-1. fix full prompt logging
-2. rerun neutral paraphrase baseline for:
-   - PD
-   - Chicken
-   - Stag Hunt
-
-### Priority B: cohort expansion
-
-Run core Part 1 self-play and cross-play with:
-
-- `nvidia:z-ai/glm4.7`
-- `nvidia:z-ai/glm5`
-- `nvidia:deepseek-ai/deepseek-v3.2`
-- `nvidia:moonshotai/kimi-k2-thinking`
-- `nvidia:moonshotai/kimi-k2-instruct`
-- `nvidia:moonshotai/kimi-k2-instruct-0905`
-- `nvidia:bytedance/seed-oss-36b-instruct`
-- `nvidia:mistralai/mistral-small-24b-instruct`
-- `cerebras:llama3.1-8b`
-- `cerebras:qwen-3-235b-a22b-instruct-2507`
-- `ollama:qwen3:8b`
-- `ollama:llama3.1:8b`
-
-### Priority C: H200 cohort bring-up
-
-If Ollama or another local-serving path is available on the H200, start with:
-
-- `qwen3:30b`
-- `deepseek-r1:32b`
-- `gemma3:27b-it-qat`
-
-Then try:
-
-- `nemotron:70b`
-- `gpt-oss:120b`
-
-### Priority D: stronger paper runs
-
-Re-run the strongest tracks at larger scale:
-
-- baseline
-- susceptibility
-- society
-- reputation
-
-with:
-
-- more repetitions
-- more rounds/timesteps
-- larger cohort
-
-## What To Say The Current Thesis Is
-
-The safest current paper direction is:
-
-- LLM social behavior is highly context-sensitive
-- prompt framing strongly steers behavior
-- benchmark presentation changes measured behavior
-- society-preserving outcomes do not cleanly track overtly prosocial language
-- reputation changes behavior asymmetrically rather than universally fixing cooperation
-
-Avoid overstating:
-
-- neutral paraphrase robustness
-- universal benchmark contamination narratives
-- strong general claims across all LLMs
-
-## Minimal Resume Command Set
-
-If you are on the correct machine and the repo is present, a good resume sequence is:
-
-```bash
-git status
-uv run pytest -q tests/test_access.py tests/test_readiness.py
-uv run python hello_world.py --provider nvidia
-uv run python hello_world.py --provider cerebras
-uv run scripts/run_experiment.py --list-models
-```
-
-Then decide whether you are:
-
-- doing validity repair
-- doing cohort expansion
-- doing large-batch reruns
-
-## Final Handoff Note
-
-The completed pilot batch was useful and produced genuinely interesting results.
-However, the project is not done. The most important next stage is:
-
-1. repair the prompt-logging validity gap
-2. expand the model cohort substantially
-3. scale the experiments up on the H200
-4. add proper statistics and uncertainty reporting
-
-That is the path from “strong pilot” to “submission-quality paper.”
+1. Keep the paper centered on society viability, not on repeated-game scores.
+2. Preserve Part 1 only as precursor evidence for baseline instability,
+   steerability, and benchmark recognition.
+3. Keep manuscript-facing claims tied to audited result artifacts and
+   reproducible scripts.

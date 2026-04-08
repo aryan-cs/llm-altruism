@@ -1,4 +1,4 @@
-"""Part 2 runner for multi-agent society simulations."""
+"""Part 2 runner for the main scarcity-society viability experiments."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from .runner import BaseExperimentRunner, ModelUnavailableError
 
 
 class Part2Runner(BaseExperimentRunner):
-    """Run a scarce-resource society simulation without public reputation."""
+    """Run the main scarce-resource society simulation without public reputation."""
 
     def enable_reputation(self) -> bool:
         return False

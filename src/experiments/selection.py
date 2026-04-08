@@ -13,28 +13,30 @@ CONFIGS_ROOT = ROOT / "configs"
 
 TEMPLATE_DESCRIPTIONS: dict[str, str] = {
     "free-tier-model-catalog": (
-        "Broad Part 1 screening run across the requested free NVIDIA, Cerebras, and "
-        "OpenRouter models using Prisoner's Dilemma. Good for overnight catalog sweeps."
+        "Broad precursor screening run across the requested free NVIDIA, Cerebras, "
+        "and OpenRouter models using Prisoner's Dilemma before moving into society runs."
     ),
     "pd-baseline-cross-family": (
-        "Baseline cross-family Prisoner's Dilemma benchmark with neutral, cooperative, "
-        "and competitive prompt framings. Good first live experiment."
+        "Precursor Prisoner's Dilemma diagnostic with neutral, cooperative, and "
+        "competitive prompt framings. Good for calibrating micro-level behavior."
     ),
     "pd-cross-family-sweep": (
-        "Focused Prisoner's Dilemma comparison with analytical/business framing and "
-        "shorter memory, aimed at cross-family behavior differences."
+        "Focused Prisoner's Dilemma precursor comparison with analytical/business "
+        "framing and shorter memory, aimed at cross-family behavior differences."
     ),
     "stag-hunt-persona-sweep": (
-        "Coordination experiment in Stag Hunt that compares persona effects, especially "
-        "cooperative versus grudge-holding behavior."
+        "Precursor coordination diagnostic in Stag Hunt that compares persona "
+        "effects before larger-society interpretation."
     ),
     "society-baseline": (
-        "Multi-agent scarce-resource society without public reputation. Tests gathering, "
-        "sharing, stealing, trade, reproduction, and messaging under pressure."
+        "Primary society experiment: scarce-resource world without public "
+        "reputation. Tests whether an LLM population can remain self-sustaining "
+        "under gathering, sharing, stealing, trade, reproduction, and messaging."
     ),
     "society-reputation": (
-        "Society baseline plus public ratings and reputation decay, to test whether "
-        "reputation changes partner choice and pro-social behavior."
+        "Primary institutional extension: the same society with public ratings "
+        "and reputation decay, to test whether reputation stabilizes survival "
+        "or only reshapes visible social behavior."
     ),
 }
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run a paper-oriented batch of llm-altruism experiments."""
+"""Run a paper-oriented batch with society-first and precursor diagnostic tracks."""
 
 from __future__ import annotations
 
@@ -62,12 +62,22 @@ DEFAULT_PAPER_BATCH_MAX_RATE_LIMIT_RETRIES = 6
 
 def parse_args() -> argparse.Namespace:
     """Parse CLI arguments."""
-    parser = argparse.ArgumentParser(description="Run a paper-focused experiment batch.")
+    parser = argparse.ArgumentParser(
+        description=(
+            "Run a paper-focused experiment batch. Society and reputation tracks "
+            "are the main study; baseline, benchmark, and susceptibility are "
+            "precursor repeated-game diagnostics."
+        )
+    )
     parser.add_argument(
         "--track",
         action="append",
         choices=TRACK_CHOICES,
-        help="Repeatable track selector. Defaults to baseline, benchmark, susceptibility, society, reputation.",
+        help=(
+            "Repeatable track selector. Society and reputation are the main "
+            "institutional tracks; baseline, benchmark, and susceptibility are "
+            "precursor diagnostics."
+        ),
     )
     parser.add_argument(
         "--model",
@@ -106,13 +116,13 @@ def parse_args() -> argparse.Namespace:
         "--multiagent-repetitions",
         type=int,
         default=1,
-        help="Override repetitions for Part 2/3 society and reputation experiments.",
+        help="Override repetitions for the main society and reputation experiments.",
     )
     parser.add_argument(
         "--multiagent-concurrency",
         type=int,
         default=6,
-        help="Override agent-decision concurrency for Part 2/3 experiments.",
+        help="Override agent-decision concurrency for society and reputation experiments.",
     )
     parser.add_argument(
         "--name-suffix",

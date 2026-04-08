@@ -1,8 +1,8 @@
 """
-Agent module for game-theoretic simulations.
+Agent module for repeated-game diagnostics and society simulations.
 
-Provides Agent class with configurable system prompts, framings, personas,
-and memory management for tracking interactions.
+Provides the Agent class plus prompt and memory utilities for the repo's
+precursor micro-level tasks and its main artificial-society environments.
 """
 
 from .base import Agent

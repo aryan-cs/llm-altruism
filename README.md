@@ -1,6 +1,11 @@
 # llm-altruism
 
-stress-testing LLM alignment through game-theoretic simulation. this project studies the intrinsic motivations and priorities of LLMs by observing their decisions in structured games, societal simulations, and reputation-aware environments.
+evaluating whether LLM agents can build and sustain societies of their own.
+the primary question in this repo is whether populations of LLM agents remain
+self-sustaining and society-serving under scarcity, trade, theft, messaging,
+reproduction, and public reputation. repeated games are used as precursor
+diagnostics to measure baseline instability, prompt steerability, and
+benchmark-recognition effects before interpreting the larger social worlds.
 
 internal research-state and paper-planning docs live in `agent/`.
 
@@ -22,21 +27,21 @@ For real runs, the experiment runner loads `.env` automatically. If a provider's
 # open the interactive experiment + model picker
 uv run scripts/run_experiment.py
 
-# run a part 1 experiment non-interactively with explicit model choices
+# run the main scarcity-society experiment
+uv run scripts/run_experiment.py --config configs/part2/society_baseline.yaml
+
+# run the public-reputation institutional extension
+uv run scripts/run_experiment.py --config configs/part3/society_reputation.yaml
+
+# run a precursor repeated-game diagnostic with explicit model choices
 uv run scripts/run_experiment.py \
   --config configs/part1/prisoners_dilemma_baseline.yaml \
   --model cerebras:llama3.1-8b \
   --model nvidia:deepseek-ai/deepseek-v3.2 \
   --model openrouter:openai/gpt-oss-20b:free
 
-# run the full requested NVIDIA/Cerebras/OpenRouter free-model catalog sweep
+# run the broader precursor model-catalog sweep
 uv run scripts/run_experiment.py --config configs/part1/free_tier_model_catalog.yaml
-
-# run a part 2 society simulation
-uv run scripts/run_experiment.py --config configs/part2/society_baseline.yaml
-
-# run a part 3 reputation-aware society simulation
-uv run scripts/run_experiment.py --config configs/part3/society_reputation.yaml
 
 # dry run (no API calls, mock responses)
 uv run scripts/run_experiment.py --config configs/part1/prisoners_dilemma_baseline.yaml --model cerebras:llama3.1-8b --dry-run
@@ -53,6 +58,8 @@ uv run pytest
 - `src/` — core library (providers, games, agents, simulation, analysis)
 - `prompts/` — all system prompt templates as individual text files
 - `configs/` — YAML experiment configurations
+- `configs/part2/` and `configs/part3/` — main society and institutional experiments
+- `configs/part1/` — precursor repeated-game diagnostics
 - `scripts/` — CLI entrypoints
 - `paper/` — manuscript, appendix, figures, and submission assets
 - `paper/icml2025/` — anonymous ICML-style submission bundle and vendored style files

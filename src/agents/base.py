@@ -1,8 +1,9 @@
 """
-Base Agent class for game-theoretic simulations.
+Base agent class for precursor games and society simulations.
 
 Agents have configurable system prompts, framings, personas, and memory systems.
-They can be prompted for actions and maintain a history of interactions.
+They can be prompted for repeated-game actions or broader society decisions
+while retaining a history of prior interactions.
 """
 
 from dataclasses import dataclass, field
@@ -14,7 +15,7 @@ from .memory import Memory, MemoryEntry, MemoryMode
 @dataclass
 class Agent:
     """
-    An agent that plays in game-theoretic simulations.
+    An agent that participates in repeated games and larger artificial societies.
 
     Attributes:
         agent_id: Unique identifier for this agent

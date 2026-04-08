@@ -1,7 +1,7 @@
 [project]
 name = "llm-altruism"
 version = "0.1.0"
-description = "stress-testing LLM alignment through game-theoretic simulation"
+description = "evaluating whether LLM agents can sustain societies under scarcity, reputation, and precursor games"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [

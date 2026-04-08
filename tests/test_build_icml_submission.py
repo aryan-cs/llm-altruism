@@ -43,3 +43,18 @@ def test_write_main_tex_includes_anonymous_corresponding_author(tmp_path: Path):
         module.BUILD_DIR = original_build_dir
 
     assert r"\icmlcorrespondingauthor{Anonymous Author}{anon.email@domain.com}" in main_tex
+    assert r"\bibliographystyle{icml2025}" in main_tex
+    assert r"\bibliography{../../references}" in main_tex
+
+
+def test_normalize_markdown_headings_strips_manual_numbering():
+    """Markdown headings should not carry manual numbering into LaTeX sections."""
+    module = _load_build_module()
+
+    text = "## 1. Introduction\n### 3.2 Model cohort\n## A. Artifact Map\n"
+
+    normalized = module.normalize_markdown_headings(text)
+
+    assert "## Introduction" in normalized
+    assert "### Model cohort" in normalized
+    assert "## Artifact Map" in normalized

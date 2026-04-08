@@ -1,186 +1,152 @@
-# From Social Dilemmas to Artificial Societies:
-# Measuring Baseline, Steerability, Recognition, and Institutional Behavior in LLM Agents
+# Can LLM Agents Sustain a Society?
+# Repeated Games as Precursor Probes for Collective Survival in LLM Societies
 
 ## Abstract
 
-Large language models are increasingly deployed as interactive agents, but
-their social behavior is still often summarized with a single headline number:
-how cooperative a model appears on one benchmark under one prompt. That
-summary is too coarse. In social environments, measured behavior can reflect at
-least four separable factors: a model's baseline policy under minimally
-directive prompts, its susceptibility to prompt framing, its sensitivity to
-canonical benchmark presentation, and its adaptation to institutions such as
-scarcity or public reputation. We present an evaluation framework organized
-explicitly around that decomposition and apply it to repeated Prisoner's
-Dilemma, Chicken, Stag Hunt, and small artificial-society settings.
+Large language models are increasingly deployed as interactive agents, but the
+most important social question is still under-measured: if many such agents
+must share a world with scarce resources, can they maintain a self-sustaining
+society, or do they drift toward brittle cooperation, exploitative exchange,
+and eventual collapse? We study that question with a society-first evaluation
+framework. The main environments are a scarcity society and a public-
+reputation extension of the same world. Repeated Prisoner's Dilemma, Chicken,
+and Stag Hunt are used as precursor probes to measure baseline instability,
+prompt steerability, and benchmark-recognition effects before we interpret the
+macro behavior.
 
-The current audited result bundle supports five main conclusions. First, game
-structure strongly shapes baseline behavior: cooperation rises from Prisoner's
-Dilemma (`0.4722 / 0.5463`) to Chicken (`0.9074 / 0.7870`) to Stag Hunt
-(`0.9722 / 0.9907`) on the stable triplet cohort, and the same qualitative
-ordering appears in a same-day replication cohort. Second, neutral wording is
-not behaviorally innocuous. In pooled Prisoner's Dilemma runs, the literal
-`minimal-neutral` wording averages `0.2639 / 0.2917` cooperation, whereas two
-more abstract neutral paraphrases average `0.5833 / 0.6667`; the compact and
-institutional paraphrases yield identical action traces on all 12 matched
-pairings, so we collapse them into a single abstract-neutral family and obtain
-an exact paired randomization p-value of `0.03125`. Third, prompt framing can
-move the same audited Prisoner's Dilemma setup from universal defection to
-universal cooperation. Fourth, benchmark presentation materially changes
-measured behavior, but not monotonically across games: unnamed framing raises
-cooperation in Prisoner's Dilemma while lowering it in Chicken and Stag Hunt.
-Fifth, institutional prompts alter visible social structure more reliably than
-they improve collective survival: in scarcity, `task-only` achieves the best
-final survival, while public reputation equalizes survival without erasing
-differences in trade and alliances.
+The audited result bundle supports four main conclusions. First, visible
+sociality is not equivalent to society-preserving behavior. In the corrected
+scarcity society, `task-only` achieves the best final survival (`1.0000`),
+while `cooperative` and `competitive` both fall to `0.8889` despite producing
+more visible social interaction. Second, public reputation stabilizes survival
+more reliably than it homogenizes behavior: in the corrected reputation
+society, all completed prompt families preserve `1.0000` final survival, but
+trade and alliance structure remain sharply prompt-conditioned. Third, the
+precursor games explain why society claims require prompt discipline. In pooled
+Prisoner's Dilemma runs, literal `minimal-neutral` wording averages
+`0.2639 / 0.2917` cooperation, whereas two more abstract neutral paraphrases
+average `0.5833 / 0.6667`; collapsing those two paraphrases into an
+abstract-neutral family yields an exact paired randomization `p = 0.03125`.
+Fourth, prompt framing and benchmark presentation remain strong confounds:
+cooperative versus competitive prompting spans universal cooperation to
+universal defection in Prisoner's Dilemma, and unnamed versus canonical
+presentation changes measured behavior in a game-dependent way.
 
-Taken together, the results argue that behavioral alignment work should not ask
-whether models are "cooperative" in the abstract. It should ask which behavior
-is being measured, under which prompt, in which game, and under what
-institutional frame.
+The central lesson is methodological and substantive. Evaluating whether LLM
+agents can sustain a society requires macro-level survival and social-
+structure metrics, but it also requires precursor measurements that quantify
+how unstable the underlying micro-level policies are under changes in wording,
+framing, and recognizability.
 
-## 1. Introduction
+## Introduction
 
-Alignment is often discussed as if it were a property that can be read off from
-static safety benchmarks or from whether a model refuses an obviously harmful
-request. Many real deployments, however, are strategic and social. Models
-negotiate, coordinate, bargain, advise, compete, and act in institutional
-settings where short-horizon incentives can conflict with collective outcomes.
-In those settings the relevant question is not just whether a model can follow
-instructions. It is how the model behaves when the environment makes
-cooperation valuable, risky, or manipulable.
+Alignment is often discussed through refusals, red-team prompts, or static
+capability benchmarks. Those measurements matter, but they are not enough for
+agentic deployment settings in which language models must negotiate,
+coordinate, trade, hoard, retaliate, and survive over time. In those settings,
+the key question is not whether a model appears nice in a single interaction.
+It is whether a population of such models can maintain a functioning social
+order when resources are limited and private incentives diverge from collective
+outcomes.
 
-Repeated games and artificial societies offer a natural way to study that
-question because they expose several distinct failure modes that are easy to
-conflate. A model may appear cooperative on a canonical benchmark only because
-it recognizes the task label. Another model may look cooperative only under a
-prompt that explicitly asks it to be prosocial. A third may produce visible
-trade and alliance behavior in a society simulation while still degrading the
-group's survival prospects. Treating all of those outcomes as one scalar
-"cooperation" score obscures the real empirical structure.
+This paper therefore asks a society-first question: if we place LLM agents in a
+shared world with gathering, theft, trade, communication, and reproduction, do
+they build a self-sustaining society, or do they eventually make decisions
+that degrade collective survival? Public reputation sharpens the question: does
+institutional accountability preserve the society, or does it mostly change how
+social the agents look while leaving the deeper survival problem untouched?
 
-This paper therefore frames LLM social evaluation as a decomposition problem.
-We separate four targets that are often mixed together in prior work:
+Repeated games are still useful in this story, but not as the paper's
+destination. We use Prisoner's Dilemma, Chicken, and Stag Hunt as precursor
+probes. They let us ask whether an apparent baseline is stable under neutral
+paraphrase, whether prompt framing can steer the same pairing toward opposite
+policies, and whether a canonical benchmark label activates a different policy
+from an unnamed or disguised isomorph. Those precursor measurements are needed
+because macro-level society results are hard to interpret if the underlying
+micro-level policies are already unstable under small presentation changes.
 
-1. baseline behavior under minimally directive prompts
-2. steerability under cooperative or competitive framing
-3. sensitivity to canonical benchmark presentation
-4. adaptation to institutions such as scarcity and public reputation
+This framing changes the contribution of the paper. The point is not to report
+one more LLM Prisoner's Dilemma cooperation rate. The point is to evaluate
+whether LLM societies are self-sustaining, to show that visible prosociality
+and collective resilience separate, and to demonstrate why precursor
+diagnostics are necessary before one interprets larger social worlds.
 
-That decomposition matters methodologically. If neutral paraphrases shift
-behavior, then a paper that reports one default Prisoner's Dilemma cooperation
-rate is overstating the precision of its own baseline. If canonical benchmark
-labels move behavior, then benchmark familiarity is a confound rather than a
-detail. If prompt framing can swing the same setup from universal defection to
-universal cooperation, then prompt obedience and default policy should not be
-treated as the same construct. If institutions preserve survival without
-preserving the same social dynamics, then visible prosociality and resilient
-collective outcomes should be analyzed separately.
+The paper makes four contributions:
 
-The contribution of the current paper is not the generic observation that LLMs
-can cooperate or compete. That space is already crowded. The contribution is a
-more careful measurement framework paired with an audited empirical bundle that
-shows why the decomposition is necessary. We focus on three repeated games
-where the evidence is deepest, then connect them to two small multi-agent
-institutions. The result is a paper about measurement, not just a paper about
-levels.
+1. It treats collective survival, trade, alliance formation, and inequality in
+   LLM-only societies as the main empirical target, rather than treating
+   pairwise social dilemmas as the final endpoint.
+2. It uses repeated games as precursor probes for baseline instability, prompt
+   steerability, and benchmark recognition, so that macro-level claims are not
+   built on an unexamined micro-level baseline.
+3. It documents an audited result bundle in which `task-only` prompting yields
+   the strongest scarcity survival, while public reputation equalizes survival
+   without collapsing differences in social organization.
+4. It provides a reproducible artifact pipeline with prompt-stack logging,
+   paired exact tests, figure generation, and an anonymous submission build.
 
-The most important manuscript-facing contributions are:
+## Related Work
 
-1. A repeated-game evaluation design that distinguishes baseline behavior,
-   prompt steerability, and benchmark recognizability instead of collapsing
-   them.
-2. An audited Prisoner's Dilemma baseline result showing that even neutral
-   wording must be treated as a family of defensible baselines rather than as a
-   single point estimate.
-3. A cross-game comparison showing that both baseline cooperation and prompt
-   sensitivity depend strongly on strategic structure.
-4. A society/reputation extension showing that institutions can preserve
-   survival while still producing sharply different social organization.
+The most relevant prior work falls into four clusters: LLM societies and
+institutional design, repeated strategic games, social preference and human-
+comparison studies, and broader multi-agent evaluation frameworks.
 
-The current paper is strongest as a methodological and empirical submission on
-behavioral evaluation. It is not a claim that we have solved the full micro-to-
-macro alignment problem. It is a claim that current practice often measures the
-wrong thing too coarsely, and that a more careful decomposition already changes
-the substantive interpretation of LLM social behavior.
+On the society side, foundational work on generative agents established the
+idea of language-model-driven social simulation [@park2023generative].
+Subsequent work on larger agent societies and policy-style interventions shows
+that LLM populations can produce meaningful social patterns at scale
+[@piao2025agentsociety; @sreedhar2025simulating]. These papers motivate our
+choice to treat larger social worlds as a primary target. At the same time,
+their emphasis is not the one we need here. Our question is narrower and more
+evaluative: can a population of LLM agents maintain a self-sustaining society
+under scarcity, and how do prompt families and institutions change that
+outcome?
 
-## 2. Related Work
+Repeated-game work provides the precursor layer for this paper. Studies of LLM
+strategy in classical games already show that game structure and contextual
+framing both matter [@lore2024strategic], and broader repeated-game analyses
+make clear that finitely repeated interaction is a useful behavioral probe
+[@akata2025repeated]. Prisoner's Dilemma-specific work further shows that
+cooperation rates and strategy labels can differ markedly across model setups
+[@fontana2024nicer]. We build directly on this literature, but we reassign its
+role: repeated games are not the final object of study here. They are a
+controlled diagnostic layer for understanding what macro-level society results
+mean.
 
-The most relevant prior work falls into four clusters: classical-game studies
-of LLM strategy, work on altruism and human social preferences, multi-agent
-simulation and institutional design, and broader multi-agent evaluation
-frameworks.
+Work on altruism, fairness, and human-comparison benchmarks adds a second
+important caution. Advice-based or human-prediction studies show that LLM
+outputs can reflect reciprocal concerns or partially track human social
+preferences without warranting broad trait claims [@schmidt2024gpt35;
+@capraro2025benchmark]. That caution matters here because the paper explicitly
+distinguishes conditioned behavior from stable moral essence. We do not treat
+pairwise cooperation, trade, or alliance formation as direct evidence of an
+intrinsic altruistic disposition.
 
-In classical games, the closest predecessors are Lorè and Heydari (2024),
-Akata et al. (2025), and Fontana et al. (2024). Lorè and Heydari are
-especially important because they already show that context and game structure
-both matter for strategic behavior, making prompt sensitivity a methodological
-issue rather than a nuisance variable. Akata et al. extend repeated-game
-analysis across broader task families and anchor the literature on finitely
-repeated strategic interaction. Fontana et al. focus specifically on iterated
-Prisoner's Dilemma behavior and provide a comparison point for cooperation
-rates and policy style. Relative to this line of work, our goal is not to
-rediscover that prompts matter. It is to turn prompt sensitivity, benchmark
-recognition, and baseline instability into separate design axes within one
-evaluation bundle.
+Finally, broader multi-agent evaluation frameworks such as ALYMPICS and
+MultiAgentBench situate this work as part of a larger effort to test
+interaction among LLM agents [@mao2024alympics; @zhu2025multiagentbench]. Our
+contribution is more behaviorally specific. We focus on the gap between
+precursor micro-level instability and macro-level society viability, rather
+than on a broad catalog of collaborative and competitive tasks.
 
-Work on altruism, fairness, and human-comparison benchmarks provides a second
-anchor. Schmidt et al. (2024) show that GPT-3.5's advice in altruistic
-settings is sensitive to reciprocal concerns. Capraro et al. (2025) provide a
-benchmark for predicting how humans balance self-interest against others'
-welfare. These studies are important because they discourage naive claims that
-LLM outputs straightforwardly reveal stable moral traits. At the same time,
-they are not primarily about repeated strategic interaction among LLM agents,
-and they do not ask whether benchmark names or neutral wording alter measured
-behavior in the games themselves.
+## Experimental Design
 
-On the multi-agent side, Park et al. (2023) introduced generative agents as a
-general architecture for socially situated simulations. Sreedhar et al. (2025)
-and Piao et al. (2025) are closer to our institutional direction: they show
-that multi-agent LLM systems can produce meaningful social patterns and policy-
-relevant behavior in larger environments. These papers motivate our move from
-two-player games to scarcity and public-reputation societies, but they do not
-center the bridge between micro-level strategic measurement and macro-level
-institutional outcomes. Our society experiments are deliberately narrower and
-more game-theoretic: the aim is not to simulate all social life, but to test
-how prompt-conditioned behavioral tendencies survive or fail under
-institutional pressure.
+### Main evaluation target
 
-Finally, benchmark-oriented frameworks such as ALYMPICS (Mao et al., 2024) and
-MultiAgentBench (Zhu et al., 2025) provide useful context for evaluation
-infrastructure. They broaden the space of collaboration and competition tasks
-for LLM agents, but their primary contribution is not the specific separation
-of baseline behavior, framing obedience, benchmark recognition, and
-institutional mediation. That separation is the cleanest novelty gap for the
-present work.
+The paper's main target is collective viability in small artificial societies.
+Part 2 instantiates a scarce-resource world in which agents gather, share,
+steal, offer trades, accept trades, message one another, and reproduce. Part 3
+adds a public-reputation layer with visible ratings. The main outcomes are
+final survival, average survival, trade volume, alliance count, inequality, and
+commons health.
 
-The paper therefore positions itself at the intersection of these literatures.
-It uses repeated games as the most controlled setting for baseline,
-steerability, and recognition effects, then uses small institutions to test
-whether those prompt-conditioned behaviors survive contact with collective
-constraints. The resulting claim is narrower than "LLMs can act socially" but
-more useful for evaluation design.
+This makes the paper's primary object a population-level outcome: whether the
+society remains alive and what kind of social order it creates while doing so.
+Repeated games are used to interpret these results, not to replace them.
 
-## 3. Experimental Design
+### Model cohort and environments
 
-### 3.1 Measurement targets
-
-The framework treats social evaluation as a set of related but distinct
-measurement problems.
-
-Baseline measurement asks what a model does under minimally directive prompts.
-This is the closest analogue to a default social policy, but even here we do
-not assume there is one canonical neutral phrasing. Prompt susceptibility asks
-how much behavior moves when the system and framing layers explicitly encourage
-cooperative or competitive interpretation. Benchmark-recognition measurement
-asks whether canonical task labels activate different policies than unnamed or
-disguised isomorphs. Institutional measurement asks whether these micro-level
-behavioral tendencies survive under social environments with resource pressure
-and public reputation.
-
-### 3.2 Model cohort and task families
-
-The audited Part 1 bundle uses a stable three-model cohort:
+The audited repeated-game bundle uses a stable three-model cohort:
 
 - `cerebras:llama3.1-8b`
 - `nvidia:deepseek-ai/deepseek-v3.2`
@@ -192,70 +158,113 @@ A same-day replication cohort substitutes Qwen for Kimi:
 - `nvidia:deepseek-ai/deepseek-v3.2`
 - `cerebras:qwen-3-235b-a22b-instruct-2507`
 
-The cohort is intentionally pragmatic rather than aspirational. Models were
-selected because they were both accessible and action-ready during the April 7
-to April 8, 2026 runs. That makes the panel dated and imperfect, but it also
-makes the reported results reproducible. We do not present the panel as a
-representative sample of closed frontier models, and we return to that
-limitation explicitly in Section 6.
+The scarcity and reputation societies use the stable triplet cohort, with two
+agents per model. This is a pragmatic panel selected for accessibility and
+action-readiness during the April 7 to April 8, 2026 run window. It is
+reproducible, but it is not meant to stand in for a comprehensive frontier
+model survey.
 
-The repeated-game portion centers on Prisoner's Dilemma, Chicken, and Stag
-Hunt because those three games already separate conflict, anti-coordination,
-and coordination incentives. The institutional portion uses a scarcity society
-and a public-reputation variant of the same world.
+### Repeated-game precursor probes
 
-### 3.3 Repeated-game protocol
+Part 1 uses self-play plus all cross-model pairings, yielding six matched
+pairings per cohort. The audited experiments cited in this paper use six rounds
+per trial at temperature `0.0`, with one trial per pairing-condition
+combination. Baseline experiments compare neutral prompt variants.
+Susceptibility experiments compare `minimal-neutral`, `cooperative`, and
+`competitive` prompts. Benchmark experiments compare canonical labels against
+unnamed or disguised presentations.
 
-Each repeated-game experiment uses self-play plus all cross-model pairings,
-yielding six matched pairings per cohort. The audited experiments cited in this
-paper use six rounds per trial at temperature `0.0`, with one trial per
-pairing-condition combination. Baseline experiments compare three neutral
-prompt variants. Susceptibility experiments compare `minimal-neutral`,
-`cooperative`, and `competitive` prompts. Benchmark experiments compare
-canonical labels against unnamed and, for Prisoner's Dilemma, resource-disguise
-presentations.
+The precursor layer serves three purposes:
 
-This design is small-n at the trial level, but it supports paired inference:
-the same model pairing can be compared across prompt conditions, which is more
-informative than treating each condition as a fully independent sample. That
-paired structure is especially important for the baseline-instability result,
-where the strongest evidence comes from within-pairing shifts rather than from
-between-experiment aggregate means.
+1. quantify how unstable a "baseline" is under defensible neutral paraphrases
+2. quantify how much behavior can be steered by framing
+3. quantify how much policy changes when the benchmark becomes less canonical
 
-### 3.4 Metrics and statistical reporting
+### Payoff matrices for the precursor games
 
-The paper reports cooperation and average payoff in the repeated games, plus
-survival, trade volume, inequality, commons health, and alliance count in the
-institutions. We report agent-position metrics because asymmetries sometimes
-matter, but for inferential tests we collapse to a per-trial mean across the
-two positions.
+The three repeated games are intentionally simple and standard so they can
+serve as controlled precursor probes. The exact payoffs used in the current
+paper are:
 
-We use two forms of uncertainty reporting. First, result summaries and figures
-show bootstrap confidence intervals on trial means. These intervals are
-descriptive, not inferential. Overlap or non-overlap between two bootstrap
-intervals is not treated as a formal hypothesis test. Second, when the design
-admits a clean matched comparison, we use an exact two-sided sign-flip
-randomization test on paired trial-level mean cooperation. This is the
-inferential statistic used for the manuscript's focal baseline and
-steerability contrasts.
+| Game | Mutual coordination / cooperation | Asymmetric outcome 1 | Asymmetric outcome 2 | Mutual non-coordination |
+| --- | --- | --- | --- | --- |
+| Prisoner's Dilemma | `cooperate/cooperate -> (3, 3)` | `cooperate/defect -> (0, 5)` | `defect/cooperate -> (5, 0)` | `defect/defect -> (1, 1)` |
+| Chicken | `swerve/swerve -> (3, 3)` | `swerve/straight -> (1, 5)` | `straight/swerve -> (5, 1)` | `straight/straight -> (0, 0)` |
+| Stag Hunt | `stag/stag -> (4, 4)` | `stag/hare -> (0, 3)` | `hare/stag -> (3, 0)` | `hare/hare -> (2, 2)` |
 
-### 3.5 Audit protections
+Appendix sections provide the exact prompt text used to present these games and
+the exact system prompts used in the society experiments.
 
-Two audit protections matter for interpretation. First, the current result
-bundle preserves the full message stack through `messages_sent`, rather than
-only the final game prompt. That is necessary because the effective input
-contains system, framing, persona, and history layers. Second, summary tooling
-de-duplicates interrupted retries and prefers the latest completed JSON result
-for each logical experiment name. This avoids stale partial JSONL files being
-double-counted in manuscript-facing summaries and figures.
+### Metrics and statistical reporting
 
-## 4. Results
+The paper reports cooperation and average payoff for the precursor repeated
+games, and survival, trade volume, inequality, commons health, and alliance
+count for the societies. For repeated-game inference, we collapse each trial to
+the mean cooperation across the two positions and use matched exact two-sided
+sign-flip randomization tests when a clean within-pairing contrast exists.
 
-### 4.1 Strategic environment dominates simple cooperation labels
+Bootstrap confidence intervals shown in tables and figures are descriptive, not
+inferential. Overlap or non-overlap between bootstrap intervals is not treated
+as a formal significance test. This distinction matters especially for the
+benchmark-recognition results, where descriptive shifts are large but matched
+samples remain small.
 
-The stable triplet cohort produces a clear cross-game ordering. Aggregate
-cooperation is lowest in Prisoner's Dilemma, higher in Chicken, and highest in
-Stag Hunt:
+## Results
+
+### Society viability is the main result
+
+The strongest result in the paper is about the societies, not the precursor
+games. In the corrected scarcity world, the prompt family that yields the best
+final survival is not the one that yields the most visible social activity.
+
+| Scarcity Prompt Variant | Trials | Survival Rate | Final Survival Rate | Average Trade Volume | Average Gini | Commons Health | Alliance Count |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `task-only` | 3 | 1.0000 | 1.0000 | 0.0000 | 0.1279 | 0.2969 | 0.0000 |
+| `cooperative` | 3 | 0.9583 | 0.8889 | 2.1667 | 0.3253 | 0.5321 | 2.0000 |
+| `competitive` | 3 | 0.9444 | 0.8889 | 1.7083 | 0.1429 | 0.3767 | 0.0000 |
+
+This table is the core empirical answer to the paper's main question. The
+`task-only` society is austere and nearly non-social, but it preserves the
+entire population to the end of the run. `Cooperative` and `competitive` both
+lose final survival, albeit in behaviorally different ways. `Cooperative`
+creates the most trade and the only visible alliance structure, while
+`competitive` remains alliance-free and much less unequal.
+
+Public reputation changes the picture again:
+
+| Reputation Prompt Variant | Trials | Survival Rate | Final Survival Rate | Average Trade Volume | Average Gini | Commons Health | Alliance Count |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `task-only` | 3 | 1.0000 | 1.0000 | 0.0000 | 0.0942 | 0.2960 | 0.0000 |
+| `cooperative` | 3 | 1.0000 | 1.0000 | 1.6667 | 0.2724 | 0.6128 | 2.3333 |
+| `competitive` | 3 | 1.0000 | 1.0000 | 0.5000 | 0.1139 | 0.2960 | 0.0000 |
+
+Public reputation equalizes final survival across the completed prompt families
+without collapsing them into the same social organization. `Cooperative` still
+produces the densest social structure, while `competitive` remains much closer
+to `task-only`.
+
+### Visible sociality and collective survival separate
+
+These institutional results matter because they separate two quantities that are
+often casually conflated: looking social and preserving the society. The
+scarcity world is the clearest case. `Cooperative` creates more exchange,
+higher commons recovery, and explicit alliances, but it does not outperform the
+minimal `task-only` condition on final survival. `Task-only` is less visibly
+social, yet it is more robust on the paper's primary macro outcome.
+
+The reputation world shows a related but distinct pattern. Public accountability
+stabilizes final survival, but it does not erase prompt-conditioned
+organizational differences. That is a strong reason to evaluate institutions on
+both survival and social structure. A world can preserve life while still
+inducing very different trade, alliance, and inequality regimes.
+
+### Precursor games explain why society interpretation needs caution
+
+The repeated games matter because the underlying micro-level policies are not
+stable enough to support a naive macro interpretation.
+
+On the stable cohort, baseline cooperation rises sharply from Prisoner's
+Dilemma to Chicken to Stag Hunt:
 
 | Game | Trials | Cooperation A | Cooperation B | Average Payoff A | Average Payoff B |
 | --- | ---: | ---: | ---: | ---: | ---: |
@@ -263,253 +272,157 @@ Stag Hunt:
 | Chicken | 18 | 0.9074 | 0.7870 | 2.5093 | 2.9907 |
 | Stag Hunt | 18 | 0.9722 | 0.9907 | 3.9630 | 3.9074 |
 
-The same qualitative ordering appears in the same-day replication cohort:
-Prisoner's Dilemma at `0.4815 / 0.5370`, Chicken at `0.6852 / 0.6389`, and
-Stag Hunt at `0.9722 / 0.9907`. The levels move, especially in Chicken, but
-the ranking is stable. This matters because it argues against a simple model-
-wide label such as "cooperative" or "competitive." The strategic environment
-is doing substantial explanatory work.
+The same ordering replicates on the same-day Qwen-inclusive cohort, even though
+levels change materially in Chicken. This is a useful precursor result because
+it argues against any simple label such as "these models are cooperative." The
+strategic environment already changes the measured policy before we reach
+society scale.
 
-### 4.2 Neutral baselines are a family, not a point estimate
+### Neutral baselines are a family, not a point estimate
 
-The strongest baseline-instability result is in Prisoner's Dilemma. Pooling two
-cohorts yields the following descriptive summary:
+The strongest baseline-instability signal appears in Prisoner's Dilemma.
+Pooling the two audited cohorts yields:
 
 | Prompt Variant | Pooled Trials | Cooperation A | Cooperation B | Average Payoff A | Average Payoff B |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| minimal-neutral | 12 | 0.2639 | 0.2917 | 1.6806 | 1.5417 |
-| minimal-neutral-compact | 12 | 0.5833 | 0.6667 | 2.5000 | 2.0833 |
-| minimal-neutral-institutional | 12 | 0.5833 | 0.6667 | 2.5000 | 2.0833 |
+| `minimal-neutral` | 12 | 0.2639 | 0.2917 | 1.6806 | 1.5417 |
+| `minimal-neutral-compact` | 12 | 0.5833 | 0.6667 | 2.5000 | 2.0833 |
+| `minimal-neutral-institutional` | 12 | 0.5833 | 0.6667 | 2.5000 | 2.0833 |
 
-The key point is not merely that the means differ. It is that the two more
-abstract neutral paraphrases produced identical action traces on all 12 matched
-pairings across both cohorts while still eliciting different raw natural-
-language reasoning. That makes the result easier to interpret. This is not a
-file-selection or condition-label bug. The compact and institutional prompts
-are distinct inputs, but for this specific game and model panel they collapse
-behaviorally to the same policy.
+The literal neutral wording and the two more abstract neutral paraphrases do
+not estimate the same baseline policy on this audited bundle. At the same time,
+the compact and institutional prompts are distinct inputs that collapse to
+identical action traces on all `12/12` matched pooled pairings. We therefore
+treat them as an `abstract-neutral` family for inference rather than pretending
+the data support three fully separate neutral policies. On matched pairings,
+the abstract-neutral family exceeds `minimal-neutral` by `+0.3472` mean trial
+cooperation, with exact paired `p = 0.03125`.
 
-We therefore treat them as an abstract-neutral family for inference rather than
-as two independent discoveries. On matched pairings, the abstract-neutral
-family exceeds `minimal-neutral` by `+0.3472` mean per-trial cooperation, with
-an exact paired sign-flip p-value of `0.03125`. Put differently: the literal
-neutral wording and the abstract neutral wording families are not estimating the
-same baseline policy on this audited Prisoner's Dilemma bundle.
+This matters for the society study because it shows that even a supposedly
+neutral precursor probe is not a single point estimate. A macro claim about
+"what the agents are like" must therefore be careful about the prompt family
+that generated the micro-level evidence.
 
-This is a stronger and more reviewer-proof claim than "three neutral prompts
-all differ significantly." We do not have evidence for that stronger claim, and
-the compact/institutional collapse argues against it. The defensible conclusion
-is narrower and still important: there is no single prompt-free baseline here.
-There is at least a two-family neutral baseline problem, and papers that report
-one default cooperation estimate without robustness checks risk overstating
-precision.
+### Prompt steerability is large, but uneven
 
-### 4.3 Prompt framing is highly steerable, but not uniformly so
-
-Prompt susceptibility is strongest in Prisoner's Dilemma. On the stable cohort,
-`competitive` yields `0.0000 / 0.0000` cooperation, `cooperative` yields
-`1.0000 / 1.0000`, and `minimal-neutral` remains much lower at
-`0.2500 / 0.3056`. The exact paired sign-flip comparison between competitive
-and cooperative framing is `p = 0.03125` on the six matched pairings because
-every pairing moves in the same direction.
-
-Chicken and Stag Hunt are also steerable, but they retain far more residual
-cooperation under competitive framing:
+Prompt framing can drive the same audited Prisoner's Dilemma setup from
+universal defection to universal cooperation:
 
 | Game | Prompt Variant | Trials | Cooperation A | Cooperation B |
 | --- | --- | ---: | ---: | ---: |
-| Prisoner's Dilemma | competitive | 6 | 0.0000 | 0.0000 |
-| Prisoner's Dilemma | cooperative | 6 | 1.0000 | 1.0000 |
-| Chicken | competitive | 6 | 0.6389 | 0.3333 |
-| Chicken | cooperative | 6 | 1.0000 | 1.0000 |
-| Stag Hunt | competitive | 6 | 0.4167 | 0.3056 |
-| Stag Hunt | cooperative | 6 | 1.0000 | 1.0000 |
+| Prisoner's Dilemma | `competitive` | 6 | 0.0000 | 0.0000 |
+| Prisoner's Dilemma | `cooperative` | 6 | 1.0000 | 1.0000 |
+| Chicken | `competitive` | 6 | 0.6389 | 0.3333 |
+| Chicken | `cooperative` | 6 | 1.0000 | 1.0000 |
+| Stag Hunt | `competitive` | 6 | 0.4167 | 0.3056 |
+| Stag Hunt | `cooperative` | 6 | 1.0000 | 1.0000 |
 
-The correct reading is therefore not simply that prompt framing matters. It is
-that steerability itself is game-dependent. In some environments framing can
-almost fully determine observed social behavior; in others it changes behavior
-without erasing the underlying strategic affordances of the game.
+The repeated-game lesson is not only that framing matters. It is that
+steerability is itself game-dependent. Some environments retain substantial
+cooperation even under competitive prompting, while Prisoner's Dilemma
+collapses completely. This again cautions against carrying a simple micro-level
+label into the larger societies.
 
-### 4.4 Benchmark presentation matters, but the current evidence is still small-sample
+### Benchmark presentation is real but still underpowered
 
-Benchmark presentation materially changes the measured Prisoner's Dilemma
-result. The canonical presentation yields `0.2500 / 0.3056` cooperation, the
-resource-disguise presentation yields `0.5833 / 0.6667`, and the unnamed
-presentation yields `0.7500 / 0.8056`. The mean per-trial cooperation increase
-from canonical to unnamed is `+0.5000`.
+Prisoner's Dilemma benchmark presentation produces a large descriptive shift:
 
-However, this is where inferential restraint matters. The benchmark track uses
-only six matched pairings on the stable cohort. An exact paired sign-flip test
-for canonical versus unnamed Prisoner's Dilemma gives `p = 0.0625`, while the
-canonical versus resource contrast gives `p = 0.25`. Those p-values do not
-erase the very large descriptive effect sizes, but they do tell us that the
-benchmark-recognition result should be framed as strong directional evidence
-with limited power rather than as a precision estimate.
-
-The cross-game pattern is still informative. Chicken and Stag Hunt move in the
-opposite direction from Prisoner's Dilemma: unnamed framing lowers cooperation
-relative to canonical. That reversal is theoretically important because it
-argues against a naive story in which removing benchmark labels simply reveals
-some deeper underlying cooperation tendency. Presentation is interacting with
-the strategic schema a model appears to activate for each game.
-
-### 4.5 Institutions separate visible prosociality from collective survival
-
-The two institutional settings yield a cleaner macro-level result than the
-earlier pilot: visible sociality and resilient collective outcomes do not move
-in lockstep.
-
-In the scarcity society, `task-only` achieves the best final survival
-(`1.0000`) while both `cooperative` and `competitive` fall to `0.8889`.
-Yet those two lower-survival conditions do not look the same. `Cooperative`
-produces the most trade and alliance activity, along with the highest
-inequality and stronger commons recovery. `Competitive` remains alliance-free
-and much less unequal. Public reputation changes the picture again: all three
-prompt families preserve `1.0000` final survival, but `cooperative` still
-produces much more trade and alliance structure than either `task-only` or
-`competitive`.
-
-This is exactly the kind of dissociation that a one-number cooperation metric
-misses. A prompt can make an environment look more visibly prosocial without
-improving survival, and an institution can equalize survival without
-equalizing the rest of social organization.
-
-### 4.6 Summary of inferential support
-
-For clarity, Table 1 summarizes the exact paired tests for the manuscript's
-three focal repeated-game claims.
-
-| Contrast | Matched Trials | Mean Trial Cooperation A | Mean Trial Cooperation B | Mean Difference (B - A) | Exact Paired p-value |
+| Presentation | Trials | Cooperation A | Cooperation B | Average Payoff A | Average Payoff B |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| PD minimal-neutral vs abstract-neutral family | 12 | 0.2778 | 0.6250 | 0.3472 | 0.03125 |
-| PD competitive vs cooperative | 6 | 0.0000 | 1.0000 | 1.0000 | 0.03125 |
-| PD canonical vs unnamed | 6 | 0.2778 | 0.7778 | 0.5000 | 0.06250 |
+| canonical | 6 | 0.2500 | 0.3056 | 1.7500 | 1.4722 |
+| resource disguise | 6 | 0.5833 | 0.6667 | 2.5000 | 2.0833 |
+| unnamed / isomorphic | 6 | 0.7500 | 0.8056 | 2.7778 | 2.5000 |
 
-The table makes the paper's intended evidential posture explicit. The baseline-
-instability and prompt-steerability results now have matched-pair inferential
-support on the audited bundle. The benchmark-presentation result is still a
-large descriptive shift, but it remains underpowered in the current stable
-cohort and should be written that way.
+However, inferential discipline matters. Canonical versus unnamed yields exact
+paired `p = 0.0625` on the stable cohort. That is strong directional evidence,
+not a settled law. The cross-game pattern is still informative, because Chicken
+and Stag Hunt move in the opposite direction: unnamed framing lowers
+cooperation relative to canonical. Presentation is therefore a real precursor
+axis, but it interacts with the strategic schema activated by each game.
 
-## 5. Discussion
+## Discussion
 
-Three broader lessons follow from these results.
+The paper's central result is that society-preserving behavior is not well
+captured by pairwise cooperation alone. A prompt family can produce more trade,
+alliances, and commons recovery while still underperforming on final survival.
+An institution can equalize survival while preserving large differences in how
+the society actually behaves. These are population-level facts, and they are
+the right level of analysis for the paper's main question.
 
-First, LLM social behavior is not well described by a single latent trait. The
-same model panel can look exploitative in one game, cooperative in another,
-hyper-responsive to prompt framing in one setting, and relatively insensitive
-in another. That finding is conceptually important because much of the public
-discussion around model alignment still talks as if models can be assigned a
-stable social label. Our data do not support that style of summary.
+The precursor games remain essential because they show why macro evaluation is
+hard. Baseline behavior is not a single number; it depends on defensible
+neutral wording. Prompt framing can substantially steer policy. Benchmark
+recognition can change measured behavior when the same incentive structure is
+named or unnamed. If those precursor instabilities are ignored, society-level
+results become easier to misread: a macro pattern may reflect prompt choice or
+benchmark familiarity rather than a stable underlying social policy.
 
-Second, neutral-baseline measurement deserves to be treated as a methodological
-robustness problem. In many empirical literatures, a neutral prompt is treated
-as a default control condition whose wording is not itself of scientific
-interest. In social LLM evaluation that assumption is unsafe. The audited
-Prisoner's Dilemma result shows that a literal neutral wording and a more
-abstract neutral wording family can induce materially different behavior even
-when neither prompt is overtly prosocial or adversarial. That does not mean
-all neutral paraphrases are equally unstable, and indeed our compact and
-institutional phrasings collapsed behaviorally. But it does mean that a single
-"baseline" estimate should not be presented without prompt-robustness context.
+This society-first framing also clarifies what should count as an institutional
+success. The right question is not only whether a prompt or public mechanism
+increases visible niceness. The right question is whether the resulting social
+order preserves collective survival while producing a defensible pattern of
+exchange, inequality, and cooperation. On the current evidence, reputation does
+better on that criterion than raw cooperative prompting.
 
-Third, institutions should not be evaluated only through their effect on
-headline survival or cooperation rates. The scarcity and reputation results
-show that institutions can preserve or equalize survival while still producing
-very different trade, alliance, and inequality regimes. From an alignment
-perspective, that matters because visible prosocial activity may not be a good
-proxy for resilient collective outcomes. The right institutional question is
-not only whether agents act socially, but whether the induced social structure
-is compatible with the objective the institution is supposed to protect.
-
-The paper's framing also suggests a useful way to interpret benchmark effects.
-Canonical task names should be treated as part of the prompt distribution, not
-as a transparent window onto some model's "true" social preference. If a model
-changes behavior when the benchmark name is removed, that is itself an
-important behavioral fact. The correct response is not to decide that either
-the canonical or unnamed condition is uniquely real. It is to recognize that
-recognizability is a first-class axis of evaluation.
-
-## 6. Limitations
+## Limitations
 
 The current submission has six important limitations.
 
-First, the repeated-game cohort is small and pragmatic. It is multi-model and
-multi-provider, but it is not a frontier panel. The paper should therefore not
-claim that the reported levels are representative of the strongest closed
-models.
+First, the model panel is pragmatic rather than frontier-complete. The paper
+should not be read as a definitive census of the strongest closed models.
 
-Second, the repeated-game trial count is still limited. Even with paired
-comparisons, six matched pairings per cohort is not enough to make every large
-effect statistically decisive. We therefore distinguish between descriptive
-effect size and inferential support rather than pretending they are the same
-thing.
+Second, the matched repeated-game samples are still small. Some descriptive
+effects are large, but only the focal baseline-instability and steerability
+contrasts clear an exact paired `p < 0.05` threshold on the audited bundle.
 
-Third, the benchmark track is especially underpowered. The Prisoner's Dilemma
-presentation effect is descriptively large, but the exact paired p-value for
-canonical versus unnamed is `0.0625` on the stable cohort. That is directionally
-valuable evidence, not a license to write the result as a settled law.
+Third, the institutional battery is still modest at three repetitions per
+prompt family. The paper supports cautious claims about society viability and
+social-structure dissociation, not universal institutional laws.
 
-Fourth, the institutional battery is still small at three repetitions per
-prompt family in each institution. The social-structure patterns are already
-interesting, but the correct tone is "current evidence" rather than
-"institutional universals."
+Fourth, provider availability is date-specific. The reported cohorts reflect
+the models that were both accessible and action-ready during the April 2026
+execution window.
 
-Fifth, the current baseline result depends on a specific neutral-family
-decomposition. Compact and institutional prompts are distinct inputs, yet they
-collapse to identical Prisoner's Dilemma action traces on the pooled matched
-trials. We respond by collapsing them into an abstract-neutral family for the
-inferential claim, but future work should test a wider bank of neutral
-phrasings and larger model panels before turning this into a generalized
-taxonomy.
+Fifth, the current prompt audit still documents a nuisance prompt-construction
+issue in which a literal player identifier placeholder survives in some
+framing-layer text. The issue does not explain the compact/institutional
+collapse, but it should be corrected in future reruns.
 
-Sixth, provider availability is temporally unstable. The cohort reported here
-is tied to the models that were accessible and action-ready during the April
-2026 execution window. Future reruns may require substitutions, and those
-substitutions should be treated as empirical changes rather than invisible
-maintenance.
+Sixth, the society environments are intentionally small. They are designed as
+auditable testbeds for collective survival, not as exhaustive models of human
+society.
 
-These limitations do not erase the paper's main contribution. They bound it.
-The strongest claim is not that the current experiments settle LLM social
-behavior. It is that a careful evaluation framework already changes what we can
-say responsibly with the data we have.
+## Reproducibility And Release Considerations
 
-## 7. Reproducibility And Release Considerations
+The project is structured so that manuscript claims can be regenerated from
+versioned artifacts rather than from hand-maintained tables. Prompts live as
+text files, experiments are config-driven, raw outputs are preserved in JSON or
+JSONL artifacts, and summary, statistics, figure, and PDF generation are
+handled by dedicated scripts. This is important for a paper about prompt and
+institution sensitivity: reviewers should be able to inspect the exact prompt
+text, payoff matrices, and result directories that generated the headline
+claims.
 
-The project is structured so that the paper can be regenerated from versioned
-artifacts rather than from hand-maintained tables. Prompts live as text files,
-experiments are config-driven, raw results are preserved in JSON or JSONL
-artifacts, and summary/figure generation is handled by dedicated scripts. That
-layout makes the paper auditable in a way that many benchmark reports are not:
-the manuscript can point directly to the result directories and regeneration
-commands that produced its tables and figures.
+The release posture should nevertheless be careful. These findings are
+behavioral and contextual. They do not show that models are intrinsically
+altruistic, selfish, or morally aligned. They show that when many LLM agents
+share a world, collective survival depends on the interaction between prompts,
+institutions, and strategic environment. That is a narrower claim, but it is
+also the more defensible one.
 
-The release posture should still be careful. These results are behavioral and
-contextual. They do not show that a model is intrinsically altruistic, selfish,
-or morally aligned in any deep sense. They show that behavior in social
-environments is shaped by game structure, prompt framing, benchmark
-recognition, and institutional rules. Open release is useful because it lets
-others inspect those conditions directly, but the accompanying narrative should
-avoid anthropomorphic overclaiming.
+## Conclusion
 
-The statistical reporting policy should also remain explicit in the released
-bundle. Bootstrap confidence intervals are descriptive. Matched exact paired
-tests are inferential where the design supports them. Older artifacts that do
-not preserve the full message stack should not be treated as the manuscript
-record when newer audited artifacts exist.
-
-## 8. Conclusion
-
-The central lesson of the paper is methodological. Before asking whether LLMs
-are cooperative, altruistic, or aligned in the abstract, we need to ask which
-behavior is being measured, under which prompt, in which game, and under what
-institutional frame. Once those factors are separated, the empirical picture is
-less tidy but more useful: baseline behavior is game-dependent, neutral wording
-is not innocuous, prompt steerability is large but uneven, benchmark
-recognition is real, and institutions can preserve survival without preserving
-the same social structure. That is a better foundation for social-behavior
-evaluation than any single canonical cooperation score.
+The paper's main question is whether LLM agents can sustain a society of their
+own. The audited answer is mixed. Under scarcity, the prompt family that best
+preserves survival is not the one that produces the most visible sociality.
+Under public reputation, survival stabilizes, but social structure remains
+highly prompt-conditioned. Repeated games matter because they reveal why these
+macro findings cannot be interpreted naively: baseline behavior is unstable
+under neutral paraphrase, prompt steerability is large, and benchmark
+presentation changes measured policy. Evaluating LLM social behavior therefore
+requires both macro society outcomes and precursor diagnostics that quantify how
+fragile the underlying micro-level policies are.
 
 ## References
 
-This manuscript uses the verified reference block in `paper/REFERENCES.md`.
+Bibliography entries are compiled from `paper/references.bib`.

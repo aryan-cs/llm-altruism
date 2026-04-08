@@ -1,4 +1,4 @@
-"""Part 1 experiment runner for classical two-player games."""
+"""Part 1 runner for precursor repeated-game diagnostics."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from .runner import BaseExperimentRunner, ModelUnavailableError
 
 
 class Part1Runner(BaseExperimentRunner):
-    """Run iterated two-player games across model pairings and prompt variants."""
+    """Run iterated two-player precursor probes across model pairings and prompt variants."""
 
     @staticmethod
     def _serialize_messages(messages: list[dict[str, str]]) -> list[dict[str, str]]:

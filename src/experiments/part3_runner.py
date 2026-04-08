@@ -1,4 +1,4 @@
-"""Part 3 runner for society simulations with a public reputation system."""
+"""Part 3 runner for the public-reputation extension of the society study."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from .part2_runner import Part2Runner
 
 
 class Part3Runner(Part2Runner):
-    """Extend the society simulation with public ratings and visibility."""
+    """Extend the main society simulation with public ratings and visibility."""
 
     def enable_reputation(self) -> bool:
         return True

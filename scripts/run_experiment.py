@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Interactive CLI entrypoint for running llm-altruism experiments."""
+"""Interactive CLI entrypoint for society and precursor-game experiments."""
 
 from __future__ import annotations
 
@@ -68,8 +68,11 @@ def parse_args() -> argparse.Namespace:
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
         description=(
-            "Run an llm-altruism experiment. With no arguments in a terminal, "
-            "an interactive wizard guides you through experiment, model, and run settings."
+            "Run an llm-altruism experiment. The main study is society survival "
+            "under scarcity and reputation, while Part 1 configs provide "
+            "precursor repeated-game diagnostics. With no arguments in a "
+            "terminal, an interactive wizard guides you through experiment, "
+            "model, and run settings."
         )
     )
     parser.add_argument(
