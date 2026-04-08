@@ -2,6 +2,14 @@
 
 Suggested manuscript-facing captions for the generated figures.
 
+Live-monitoring note:
+
+- the canonical ecology refresh also produces a local-only monitoring figure
+  set under `results/live_ecology_20260408/monitoring_figures/`
+- the most useful additional diagnostic there is
+  `society_reputation_population_by_model_over_time.png`, which can be treated
+  as an appendix candidate once the canonical reruns finish
+
 ## Figure 1: Scarcity Society Final Survival
 
 File:
@@ -143,3 +151,16 @@ Suggested caption:
 > Cooperative prompting yields universal cooperation, but competitive prompting
 > suppresses cooperation much more sharply in Prisoner's Dilemma than in
 > Chicken or Stag Hunt.
+
+## Appendix Candidate: Population By Model Over Time
+
+File:
+
+- `results/live_ecology_20260408/monitoring_figures/society_reputation_population_by_model_over_time.png`
+
+Suggested caption:
+
+> Model-level survival trajectories in the canonical long-horizon ecology
+> refresh. The figure is intended as an appendix-style diagnostic for the live
+> rerun, showing which model families remain in the population as collapse
+> unfolds.

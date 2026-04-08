@@ -2,6 +2,28 @@
 
 This file maps the paper's main claims to the exact supporting artifacts.
 
+## 0. Canonical Ecology Refresh Monitoring
+
+Status note:
+
+- the canonical long-horizon replacement for the older institutional bundle is
+  the live multi-resource ecology refresh under `results/live_ecology_20260408/`
+- these artifacts are monitoring and audit artifacts, not final pooled paper
+  tables yet
+
+Primary artifacts:
+
+- `results/live_ecology_20260408/society-baseline-20260408T171454Z.jsonl`
+- `results/live_ecology_20260408/interim_summary.md`
+- `results/live_ecology_20260408/monitoring_figures/`
+- `results/live_ecology_20260408/society-baseline-casebook.md`
+
+Main claim supported:
+
+- the canonical society refresh is auditable while in progress
+- the current baseline trajectory already exposes concrete collapse milestones,
+  model-level survivor composition, and a gather-dominated behavior regime
+
 ## 1. Scarcity Society
 
 Status note:

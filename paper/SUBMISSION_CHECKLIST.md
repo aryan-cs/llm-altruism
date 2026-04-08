@@ -23,6 +23,9 @@ submission-readiness bar.
 - [x] Ethics and release framing written
 - [x] Artifact index and reproduction commands prepared
 - [x] Anonymous ICML-style submission PDF generated
+- [ ] Canonical long-horizon ecology baseline completed on the multi-resource world
+- [ ] Canonical long-horizon reputation or event-stress follow-on completed on the same world
+- [ ] Manuscript society claims fully updated from the predecessor institutional bundle to the canonical ecology bundle
 
 ## Remaining Nice-To-Haves
 

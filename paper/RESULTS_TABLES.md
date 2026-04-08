@@ -7,6 +7,8 @@ Current repo note:
 - the institutional tables below are still the completed predecessor bundle
 - the canonical replacement is the live long-horizon ecology refresh under
   `results/live_ecology_20260408/`
+- the live refresh is also accompanied by a qualitative milestone summary in
+  `results/live_ecology_20260408/society-baseline-casebook.md`
 
 ## Table 1. Scarcity Society Survival And Social Structure
 
