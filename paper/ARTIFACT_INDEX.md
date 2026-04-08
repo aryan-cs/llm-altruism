@@ -228,7 +228,24 @@ These pilot artifacts remain helpful for manuscript framing, but repaired Part 1
 claims should replace older under-logged Part 1 evidence whenever the repaired
 artifacts exist.
 
-## 8. Current Best Paper-Safe Claims
+## 8. Submission Build
+
+Current anonymous submission-style artifact:
+
+- `paper/icml2025/build/llm_altruism_icml2025_submission.pdf`
+
+Build support files:
+
+- `scripts/build_icml_submission.py`
+- `paper/icml2025/README.md`
+
+Status:
+
+- the current paper bundle now compiles into an anonymous ICML-style PDF
+- the PDF is generated from the Markdown manuscript, appendix, and references
+  rather than maintained as a separate hand-edited source
+
+## 9. Current Best Paper-Safe Claims
 
 These claims are now on the strongest footing:
 
@@ -260,3 +277,4 @@ Remaining worthwhile upgrades:
 
 1. deeper society/reputation replications for tighter institutional confidence
    intervals
+2. adapt the current ICML-style build to the final target venue if needed

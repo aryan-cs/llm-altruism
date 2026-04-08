@@ -143,6 +143,12 @@ Regenerate manuscript-facing society/reputation figures:
   --output-dir paper/figures/society_reputation_live
 ```
 
+Build the anonymous ICML-style submission PDF:
+
+```bash
+.venv/bin/python scripts/build_icml_submission.py
+```
+
 Run paper-related regression coverage:
 
 ```bash

@@ -364,9 +364,11 @@ are now background context, not the paper record.
 
 ### 7.2 Venue-formatting is now a packaging task
 
-The remaining structural work is mostly to move the current manuscript bundle
-into the exact template of the chosen venue and normalize references, captions,
-and appendix formatting.
+An anonymous ICML-style submission build now exists in
+`paper/icml2025/build/llm_altruism_icml2025_submission.pdf`, generated from
+the Markdown manuscript bundle by `scripts/build_icml_submission.py`. The
+remaining structural work is mostly to adapt that build to the exact target
+venue if we choose NeurIPS or ICLR instead.
 
 ### 7.3 Stronger institutional replications would still help
 
@@ -389,8 +391,7 @@ act socially.
 
 ## 8. Immediate Next Steps
 
-1. Convert the manuscript bundle into the exact conference template of the
-   target venue.
+1. Adapt the current ICML-style build to the final target venue if needed.
 2. Keep the repaired Part 1 and institutional artifacts as the canonical paper
    record.
 3. Run deeper Part 2 / Part 3 replications if tighter intervals are needed.

@@ -17,10 +17,11 @@ submission-readiness bar.
 - [x] Threats-to-validity discussion written
 - [x] Ethics and release framing written
 - [x] Artifact index and reproduction commands prepared
+- [x] Anonymous ICML-style submission PDF generated
 
 ## Remaining Nice-To-Haves
 
-- convert the Markdown manuscript into the exact conference template of the
-  target venue
+- adapt the current ICML-style build to NeurIPS or ICLR if one of those is the
+  final target venue
 - run deeper institutional replications for tighter confidence intervals
 - produce a camera-ready bibliography format for the chosen venue
