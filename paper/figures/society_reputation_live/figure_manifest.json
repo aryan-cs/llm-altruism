@@ -1,0 +1,12 @@
+{
+  "source_results": [
+    "results/paper_ready_society_triplet",
+    "results/paper_ready_reputation_triplet"
+  ],
+  "experiment_count": 2,
+  "figures": [
+    "society_reputation_final_survival.png",
+    "society_reputation_trade_volume.png",
+    "society_reputation_alliance_count.png"
+  ]
+}
