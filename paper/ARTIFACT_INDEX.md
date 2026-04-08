@@ -6,29 +6,34 @@ This file maps the paper's main claims to the exact supporting artifacts.
 
 Status note:
 
-- the canonical long-horizon replacement for the older institutional bundle is
-  the live multi-resource ecology refresh under `results/live_ecology_20260408/`
+- the original live baseline under `results/live_ecology_20260408/` stalled
+  after completing `task-only` and partially running `cooperative`
+- the canonical active monitoring packet is now the continuation run under
+  `results/live_ecology_20260408_resume/`
 - these artifacts are monitoring and audit artifacts, not final pooled paper
   tables yet
 
 Primary artifacts:
 
 - `results/live_ecology_20260408/society-baseline-20260408T171454Z.jsonl`
-- `results/live_ecology_20260408/interim_summary.md`
-- `results/live_ecology_20260408/monitoring_figures/`
-- `results/live_ecology_20260408/society-baseline-casebook.md`
-- `results/live_ecology_20260408/live_status.json`
-- `results/live_ecology_20260408/live_trial_snapshot.md`
-- `results/live_ecology_20260408/live_trial_snapshot.csv`
-- `results/live_ecology_20260408/live_trial_snapshot.png`
-- `results/live_ecology_20260408/live_trial_comparison.md`
-- `results/live_ecology_20260408/monitoring_figures/society_reputation_survivor_vitals_heatmap.png`
-- `results/live_ecology_20260408/monitoring_figures/society_reputation_model_vitals_over_time.png`
-- `results/live_ecology_20260408/monitoring_figures/society_reputation_phase_window_summary.png`
+- `results/live_ecology_20260408_resume/society-baseline-20260408T235541Z.jsonl`
+- `results/live_ecology_20260408_resume/interim_summary.md`
+- `results/live_ecology_20260408_resume/monitoring_figures/`
+- `results/live_ecology_20260408_resume/society-baseline-casebook.md`
+- `results/live_ecology_20260408_resume/live_status.json`
+- `results/live_ecology_20260408_resume/live_trial_snapshot.md`
+- `results/live_ecology_20260408_resume/live_trial_snapshot.csv`
+- `results/live_ecology_20260408_resume/live_trial_snapshot.png`
+- `results/live_ecology_20260408_resume/live_trial_comparison.md`
+- `results/live_ecology_20260408_resume/monitoring_figures/society_reputation_survivor_vitals_heatmap.png`
+- `results/live_ecology_20260408_resume/monitoring_figures/society_reputation_model_vitals_over_time.png`
 
 Main claim supported:
 
 - the canonical society refresh is auditable while in progress
+- stalled suite work is now recoverable without discarding completed trials,
+  because the continuation log reuses completed trial summaries after strict
+  config matching
 - the current baseline trajectory already exposes concrete collapse milestones,
   model-level survivor composition, a gather-dominated behavior regime, and
   the resource/vital profile of the surviving agents

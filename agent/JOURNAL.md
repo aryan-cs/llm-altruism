@@ -165,17 +165,23 @@ These remain important across sessions.
 
 ### Live ecology status
 
-- the canonical multi-resource baseline remains active in
+- the original canonical multi-resource baseline stalled in
   `results/live_ecology_20260408/society-baseline-20260408T171454Z.jsonl`
-- the first `task-only` trial is complete with `10/24` agents alive at round
-  `120`
-- the active live trial is now `cooperative`, currently at round `36` with
-  `18/24` agents alive; latest refreshed packet has advanced to round `39`
-- the `cooperative` trial has also entered a stable post-collapse plateau,
-  with first loss at round `7`, last death at round `11`, and `28` rounds
-  since the last death
-- current `cooperative` survivor mix is `deepseek-ai/deepseek-v3.2: 8`,
-  `moonshotai/kimi-k2-instruct-0905: 8`, and `llama3.1-8b: 2`
+- the last event in that stale log was at `2026-04-08T21:49:31Z`
+- stale state at the handoff point was: completed `task-only`, active
+  `cooperative`, `1/3` trials complete, `cooperative` stalled at round `87`
+  with `12/24` agents alive
+- there was no live runner process by `2026-04-08T23:49:35Z`, so the run was
+  not merely slow; it had stopped
+- the canonical continuation is now
+  `results/live_ecology_20260408_resume/society-baseline-20260408T235541Z.jsonl`
+- continuation logic now reuses completed trial summaries from the stale log
+  and reruns only the incomplete trial slots
+- the resumed log imported the completed `task-only` trial summary at
+  `2026-04-08T23:55:41Z` and started a fresh `cooperative` trial
+- first resumed live round landed at `2026-04-08T23:56:01Z` with `24/24`
+  agents alive, `public_food=98`, `public_water=166`, `average_health=11.0`,
+  and `average_energy=9.0`
 
 ### Monitoring artifacts
 
@@ -209,3 +215,6 @@ These remain important across sessions.
 - `scripts/live_run_status.py` now exposes suite progress explicitly, so the
   heartbeat can report completed, active, and remaining trial counts for the
   current live batch
+- `scripts/run_experiment.py` now accepts `--resume-log`, and Part 2/3 runs
+  now reuse completed trial summaries from a prior JSONL after strict config
+  matching instead of discarding finished work from a stalled suite

@@ -9,7 +9,11 @@ import pytest
 
 from src.experiments import load_experiment_config
 from src.experiments.part1_runner import Part1Runner
-from src.experiments.runner import ModelUnavailableError, run_experiment_from_path
+from src.experiments.runner import (
+    ModelUnavailableError,
+    run_experiment_config,
+    run_experiment_from_path,
+)
 from src.providers import LLMResponse, RateLimitProviderError, TemporaryProviderError, UsageInfo
 
 
@@ -121,6 +125,42 @@ def test_part3_dry_run_logs_reputation(tmp_path: Path):
     first_round = result["trials"][0]["rounds"][0]
     assert "ratings" in first_round
     assert "public_food" in first_round
+
+
+def test_part2_can_resume_completed_trials_from_prior_log(tmp_path: Path):
+    config = load_experiment_config("configs/part2/society_smoke.yaml")
+    config.prompt_variants = [
+        config.prompt_variants[0].model_copy(update={"name": "task-only"}),
+        config.prompt_variants[0].model_copy(update={"name": "cooperative"}),
+    ]
+    config.name = "society-resume-smoke"
+    resume_log = tmp_path / "prior.jsonl"
+    resume_log.write_text(
+        "\n".join(
+            [
+                '{"type":"experiment_start","timestamp":"2026-04-08T20:00:00+00:00","experiment_id":"society-resume-smoke-20260408T200000Z","config":{"experiment":{"name":"society-resume-smoke","part":2,"rounds":8,"repetitions":1,"agents":[{"model":"llama3.1-8b","provider":"cerebras","count":2},{"model":"deepseek-ai/deepseek-v3.2","provider":"nvidia","count":2},{"model":"openai/gpt-oss-20b:free","provider":"openrouter","count":2}],"prompt_variants":[{"name":"task-only"},{"name":"cooperative"}],"parameters":{"temperature":[0.3]}}}}',
+                '{"type":"trial_summary","timestamp":"2026-04-08T20:10:00+00:00","trial_id":0,"summary":{"round_count":8.0,"final_survival_rate":0.5,"final_alive_count":3.0,"final_total_agents":6.0,"average_gini":0.1}}',
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = asyncio.run(
+        run_experiment_config(
+            config,
+            dry_run=True,
+            results_dir=str(tmp_path / "results"),
+            resume_log=resume_log,
+        )
+    )
+
+    assert len(result["trials"]) == 2
+    assert result["trials"][0]["reused"] is True
+    assert result["trials"][0]["summary"]["final_alive_count"] == 3.0
+    assert result["trials"][0]["rounds"] == []
+    assert result["trials"][1].get("reused") is not True
+    assert result["trials"][1]["rounds"]
 
 
 def test_real_run_skips_unconfigured_models_instead_of_crashing(monkeypatch, tmp_path: Path):

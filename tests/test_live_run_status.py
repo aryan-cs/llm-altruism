@@ -8,6 +8,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 import sys
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -151,6 +153,64 @@ def test_summarize_jsonl_log_marks_stale_runs(tmp_path: Path):
     assert summary["state"] == "stale"
     assert summary["trial_summary_count"] == 1
     assert summary["latest_event_type"] == "trial_summary"
+
+
+def test_summarize_jsonl_log_uses_trial_summary_when_rounds_are_missing(tmp_path: Path):
+    module = _load_live_run_status_module()
+    log_path = tmp_path / "summary-only.jsonl"
+    log_path.write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "type": "experiment_start",
+                        "timestamp": "2026-04-08T17:00:00+00:00",
+                        "experiment_id": "exp-summary-only",
+                        "config": {
+                            "experiment": {
+                                "name": "exp-summary-only",
+                                "part": 2,
+                                "repetitions": 1,
+                                "prompt_variants": [{"name": "task-only"}],
+                                "parameters": {"temperature": [0.3]},
+                            }
+                        },
+                    }
+                ),
+                json.dumps(
+                    {
+                        "type": "trial_summary",
+                        "timestamp": "2026-04-08T17:05:00+00:00",
+                        "trial_id": 0,
+                        "summary": {
+                            "round_count": 120.0,
+                            "final_survival_rate": 0.4166666667,
+                            "final_alive_count": 10.0,
+                            "final_total_agents": 24.0,
+                        },
+                    }
+                ),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    summary = module.summarize_jsonl_log(
+        log_path,
+        stale_minutes=15.0,
+        now=datetime(2026, 4, 8, 17, 10, 0, tzinfo=UTC),
+    )
+
+    assert summary is not None
+    assert summary["completed_trials"] == 1
+    assert summary["active_trials"] == 0
+    row = summary["trial_status_rows"][0]
+    assert row["completed"] is True
+    assert row["alive_count"] == 10.0
+    assert row["total_agents"] == 24.0
+    assert row["alive_fraction"] == pytest.approx(0.4166666667)
+    assert row["latest_round_num"] == 120.0
 
 
 def test_summarize_jsonl_log_detects_stable_post_collapse_plateau(tmp_path: Path):

@@ -31,34 +31,162 @@ class Part2Runner(BaseExperimentRunner):
     def enable_reputation(self) -> bool:
         return False
 
-    async def run(self) -> dict[str, Any]:
-        start = time.time()
-        trials: list[dict[str, Any]] = []
+    def _trial_conditions(self) -> list[dict[str, Any]]:
+        conditions: list[dict[str, Any]] = []
         trial_id = 0
-
         for prompt_variant in self.config.prompt_variants:
             for temperature in self.config.parameters.temperature:
                 for repetition in range(self.config.repetitions):
-                    trial = await self._run_society_trial(
-                        trial_id=trial_id,
-                        prompt_variant=prompt_variant,
-                        temperature=temperature,
-                        repetition=repetition,
+                    conditions.append(
+                        {
+                            "trial_id": trial_id,
+                            "prompt_variant": prompt_variant,
+                            "temperature": temperature,
+                            "repetition": repetition,
+                        }
                     )
-                    trials.append(trial)
-                    self.logger.log_trial_summary(trial_id, trial["summary"])
-                    if trial.get("status") == "skipped":
-                        self.record_skipped_trial(
-                            {
-                                "trial_id": trial_id,
-                                "prompt_variant": prompt_variant.name,
-                                "temperature": temperature,
-                                "repetition": repetition,
-                                "reason": trial.get("skip_reason", "unavailable population"),
-                                "status": "skipped",
-                            }
-                        )
                     trial_id += 1
+        return conditions
+
+    def _config_signature(self) -> dict[str, Any]:
+        return {
+            "name": self.config.name,
+            "part": self.config.part,
+            "rounds": self.config.rounds,
+            "repetitions": self.config.repetitions,
+            "prompt_variants": [variant.name for variant in self.config.prompt_variants],
+            "temperature": [float(value) for value in self.config.parameters.temperature],
+            "agents": [
+                {
+                    "provider": population.provider,
+                    "model": population.model,
+                    "count": population.count,
+                }
+                for population in self.config.agents
+            ],
+        }
+
+    def _validate_resume_log(self, experiment: dict[str, Any]) -> None:
+        expected = self._config_signature()
+        observed = {
+            "name": experiment.get("name"),
+            "part": experiment.get("part"),
+            "rounds": experiment.get("rounds"),
+            "repetitions": experiment.get("repetitions"),
+            "prompt_variants": [
+                item.get("name") for item in (experiment.get("prompt_variants") or [])
+            ],
+            "temperature": [
+                float(value)
+                for value in ((experiment.get("parameters") or {}).get("temperature") or [])
+            ],
+            "agents": [
+                {
+                    "provider": item.get("provider"),
+                    "model": item.get("model"),
+                    "count": item.get("count"),
+                }
+                for item in (experiment.get("agents") or [])
+            ],
+        }
+        if observed != expected:
+            raise ValueError(
+                f"Resume log {self.resume_log} does not match the active config for {self.config.name}."
+            )
+
+    def _load_resumed_trial_summaries(self) -> dict[int, dict[str, Any]]:
+        if self.resume_log is None:
+            return {}
+        records = self.logger.read_log(self.resume_log)
+        start_record = next(
+            (record for record in records if record.get("type") == "experiment_start"),
+            None,
+        )
+        if start_record is None:
+            raise ValueError(f"Resume log {self.resume_log} does not contain an experiment_start record.")
+
+        config = start_record.get("config", {})
+        experiment = config.get("experiment", config)
+        self._validate_resume_log(experiment)
+
+        resumed: dict[int, dict[str, Any]] = {}
+        for record in records:
+            if record.get("type") != "trial_summary":
+                continue
+            trial_id = record.get("trial_id")
+            if not isinstance(trial_id, int):
+                continue
+            summary = record.get("summary") or {}
+            if isinstance(summary, dict):
+                resumed[trial_id] = summary
+        return resumed
+
+    async def run(self) -> dict[str, Any]:
+        start = time.time()
+        trials: list[dict[str, Any]] = []
+        resumed_trials = self._load_resumed_trial_summaries()
+
+        if resumed_trials:
+            self.logger.log_event(
+                "resume_log_loaded",
+                {
+                    "resume_log": str(self.resume_log),
+                    "reused_trial_count": len(resumed_trials),
+                },
+            )
+
+        for condition in self._trial_conditions():
+            trial_id = int(condition["trial_id"])
+            prompt_variant = condition["prompt_variant"]
+            temperature = float(condition["temperature"])
+            repetition = int(condition["repetition"])
+            resumed_summary = resumed_trials.get(trial_id)
+            if resumed_summary is not None:
+                self.logger.log_event(
+                    "trial_reused",
+                    {
+                        "trial_id": trial_id,
+                        "prompt_variant": prompt_variant.name,
+                        "temperature": temperature,
+                        "repetition": repetition,
+                        "resume_log": str(self.resume_log),
+                    },
+                )
+                self.logger.log_trial_summary(trial_id, resumed_summary)
+                trials.append(
+                    {
+                        "trial_id": trial_id,
+                        "prompt_variant": prompt_variant.name,
+                        "temperature": temperature,
+                        "repetition": repetition,
+                        "rounds": [],
+                        "summary": resumed_summary,
+                        "status": "completed",
+                        "resumed_from_log": str(self.resume_log),
+                        "reused": True,
+                    }
+                )
+                continue
+
+            trial = await self._run_society_trial(
+                trial_id=trial_id,
+                prompt_variant=prompt_variant,
+                temperature=temperature,
+                repetition=repetition,
+            )
+            trials.append(trial)
+            self.logger.log_trial_summary(trial_id, trial["summary"])
+            if trial.get("status") == "skipped":
+                self.record_skipped_trial(
+                    {
+                        "trial_id": trial_id,
+                        "prompt_variant": prompt_variant.name,
+                        "temperature": temperature,
+                        "repetition": repetition,
+                        "reason": trial.get("skip_reason", "unavailable population"),
+                        "status": "skipped",
+                    }
+                )
 
         duration = time.time() - start
         aggregate = self._aggregate_trials(trials)

@@ -61,6 +61,7 @@ class PreparedRun:
     run_metadata: dict[str, object]
     dry_run: bool
     results_dir: str
+    resume_log: str | None = None
     access_results: dict[str, ModelAccessResult] | None = None
 
 
@@ -132,6 +133,13 @@ def parse_args() -> argparse.Namespace:
         "--results-dir",
         default="results",
         help="Directory where JSON/JSONL outputs should be written.",
+    )
+    parser.add_argument(
+        "--resume-log",
+        help=(
+            "Optional prior JSONL log to reuse completed trial summaries from before "
+            "continuing the remaining trial slots."
+        ),
     )
     return parser.parse_args()
 
@@ -757,6 +765,7 @@ def render_run_plan(
     dry_run: bool,
     results_dir: str,
     *,
+    resume_log: str | None = None,
     access_results: dict[str, ModelAccessResult] | None = None,
 ) -> None:
     """Render a colored summary of the planned run."""
@@ -784,6 +793,8 @@ def render_run_plan(
     details.add_row("Estimated trial conditions", str(estimate_trial_conditions(config)))
     details.add_row("Run mode", "dry run" if dry_run else "live run")
     details.add_row("Results directory", results_dir)
+    if resume_log:
+        details.add_row("Resume log", resume_log)
     details.add_row("Selected models", str(len(selected_models)))
     details.add_row("Ready models", str(ready_count))
     if missing_count:
@@ -814,6 +825,7 @@ def confirm_run(
     dry_run: bool,
     results_dir: str,
     *,
+    resume_log: str | None = None,
     access_results: dict[str, ModelAccessResult] | None = None,
 ) -> None:
     """Show a review screen and ask the user to confirm the run."""
@@ -829,6 +841,7 @@ def confirm_run(
         selected_models,
         dry_run,
         results_dir,
+        resume_log=resume_log,
         access_results=access_results,
     )
     start = questionary.confirm(
@@ -893,6 +906,7 @@ def build_run_metadata(
     config,
     dry_run: bool,
     results_dir: str,
+    resume_log: str | None,
 ) -> dict[str, object]:
     """Build persisted metadata describing how the run was configured."""
     return {
@@ -906,6 +920,7 @@ def build_run_metadata(
             "concurrency": config.parameters.concurrency if config.part in {2, 3} else None,
             "dry_run": dry_run,
             "results_dir": results_dir,
+            "resume_log": resume_log,
         },
     }
 
@@ -942,6 +957,7 @@ def prepare_run_via_wizard(
         selected_model_values,
         dry_run,
         results_dir,
+        resume_log=args.resume_log,
         access_results=selected_access_results,
     )
     run_metadata = build_run_metadata(
@@ -951,6 +967,7 @@ def prepare_run_via_wizard(
         config=runtime_config,
         dry_run=dry_run,
         results_dir=results_dir,
+        resume_log=args.resume_log,
     )
     return PreparedRun(
         config_path=config_path,
@@ -959,6 +976,7 @@ def prepare_run_via_wizard(
         run_metadata=run_metadata,
         dry_run=dry_run,
         results_dir=results_dir,
+        resume_log=args.resume_log,
         access_results=selected_access_results,
     )
 
@@ -999,6 +1017,7 @@ def prepare_run_non_interactive(
         config=runtime_config,
         dry_run=args.dry_run,
         results_dir=args.results_dir,
+        resume_log=args.resume_log,
     )
     return PreparedRun(
         config_path=config_path,
@@ -1007,6 +1026,7 @@ def prepare_run_non_interactive(
         run_metadata=run_metadata,
         dry_run=args.dry_run,
         results_dir=args.results_dir,
+        resume_log=args.resume_log,
         access_results=selected_access_results,
     )
 
@@ -1041,6 +1061,7 @@ async def _run(prepared: PreparedRun) -> int:
         selected_models=prepared.selected_model_values,
         dry_run=prepared.dry_run,
         results_dir=prepared.results_dir,
+        resume_log=prepared.resume_log,
         access_results=prepared.access_results,
     )
 
@@ -1050,6 +1071,7 @@ async def _run(prepared: PreparedRun) -> int:
             dry_run=prepared.dry_run,
             results_dir=prepared.results_dir,
             run_metadata=prepared.run_metadata,
+            resume_log=prepared.resume_log,
         )
 
     console.print(Panel(Text("Experiment complete.", style="bold green"), border_style="green"))

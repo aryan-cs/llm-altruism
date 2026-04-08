@@ -129,16 +129,26 @@ def summarize_trial_records(
         summary_payload = trial_summary_records.get(trial_id, {})
         alive_count = latest_payload.get("alive_count")
         total_agents = latest_payload.get("total_agents")
+        if alive_count is None:
+            alive_count = summary_payload.get("final_alive_count")
+        if total_agents is None:
+            total_agents = summary_payload.get("final_total_agents")
         alive_fraction = None
         if isinstance(alive_count, (int, float)) and isinstance(total_agents, (int, float)) and total_agents:
             alive_fraction = float(alive_count) / float(total_agents)
+        if alive_fraction is None and isinstance(summary_payload.get("final_survival_rate"), (int, float)):
+            alive_fraction = float(summary_payload["final_survival_rate"])
 
         row = {
             "trial_id": trial_id,
             "prompt_variant": prompt_info["prompt_variant"],
             "repetition": prompt_info["repetition"],
             "completed": trial_id in trial_summary_records,
-            "latest_round_num": latest_round.get("round_num") if latest_round is not None else None,
+            "latest_round_num": (
+                latest_round.get("round_num")
+                if latest_round is not None
+                else summary_payload.get("round_count")
+            ),
             "alive_count": alive_count,
             "total_agents": total_agents,
             "alive_fraction": alive_fraction,

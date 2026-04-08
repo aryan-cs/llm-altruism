@@ -132,6 +132,7 @@ class BaseExperimentRunner(ABC):
         results_dir: str = "results",
         dry_run: bool = False,
         run_metadata: dict[str, Any] | None = None,
+        resume_log: str | Path | None = None,
     ):
         load_dotenv()
         self.config = config
@@ -139,6 +140,7 @@ class BaseExperimentRunner(ABC):
         self.results_dir.mkdir(parents=True, exist_ok=True)
         self.dry_run = dry_run
         self.run_metadata = run_metadata or {}
+        self.resume_log = Path(resume_log) if resume_log else None
         self.cost_tracker = CostTracker()
         self.logger = ExperimentLogger(results_dir=str(self.results_dir))
         self.cache = ResponseCache(self.results_dir.parent / ".cache" / "responses")
@@ -459,6 +461,7 @@ async def run_experiment_from_path(
     dry_run: bool = False,
     results_dir: str = "results",
     run_metadata: dict[str, Any] | None = None,
+    resume_log: str | Path | None = None,
 ) -> dict[str, Any]:
     """Load an experiment config from disk and dispatch to the right runner."""
     from .config import load_experiment_config
@@ -469,6 +472,7 @@ async def run_experiment_from_path(
         dry_run=dry_run,
         results_dir=results_dir,
         run_metadata=run_metadata,
+        resume_log=resume_log,
     )
 
 
@@ -478,6 +482,7 @@ async def run_experiment_config(
     dry_run: bool = False,
     results_dir: str = "results",
     run_metadata: dict[str, Any] | None = None,
+    resume_log: str | Path | None = None,
 ) -> dict[str, Any]:
     """Dispatch an already-loaded experiment config to the correct runner."""
     from .part1_runner import Part1Runner
@@ -491,6 +496,7 @@ async def run_experiment_config(
         results_dir=results_dir,
         dry_run=dry_run,
         run_metadata=run_metadata,
+        resume_log=resume_log,
     )
 
     try:

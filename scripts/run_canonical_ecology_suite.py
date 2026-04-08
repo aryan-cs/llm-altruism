@@ -61,6 +61,13 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Print the planned commands without launching them.",
     )
+    parser.add_argument(
+        "--resume-log",
+        help=(
+            "Optional prior JSONL log to reuse completed trial summaries from "
+            "when launching the first selected suite stage."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -90,7 +97,13 @@ def selected_runs(runs: list[SuiteRun], start_name: str) -> list[SuiteRun]:
     return runs[start_index:]
 
 
-def build_command(run: SuiteRun, *, models: list[str], dry_run: bool) -> list[str]:
+def build_command(
+    run: SuiteRun,
+    *,
+    models: list[str],
+    dry_run: bool,
+    resume_log: str | None = None,
+) -> list[str]:
     command = [
         sys.executable,
         "scripts/run_experiment.py",
@@ -103,6 +116,8 @@ def build_command(run: SuiteRun, *, models: list[str], dry_run: bool) -> list[st
         command.extend(["--model", selector])
     if dry_run:
         command.append("--dry-run")
+    if resume_log:
+        command.extend(["--resume-log", resume_log])
     return command
 
 
@@ -115,8 +130,9 @@ def main() -> int:
     models = args.model or list(DEFAULT_MODEL_SELECTORS)
     runs = selected_runs(suite_runs(args.results_root), args.from_run)
 
+    resume_log = args.resume_log
     for run in runs:
-        command = build_command(run, models=models, dry_run=args.dry_run)
+        command = build_command(run, models=models, dry_run=args.dry_run, resume_log=resume_log)
         print(f"[{run.name}] {format_command(command)}")
         if args.print_only:
             continue
@@ -124,6 +140,7 @@ def main() -> int:
         completed = subprocess.run(command, cwd=ROOT, check=False)
         if completed.returncode != 0:
             return completed.returncode
+        resume_log = None
     return 0
 
 

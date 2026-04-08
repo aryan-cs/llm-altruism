@@ -169,8 +169,10 @@ uv run pytest -q
 uv run scripts/run_experiment.py
 uv run scripts/run_canonical_ecology_suite.py
 uv run scripts/refresh_live_ecology_packet.py results/live_ecology_20260408
+uv run scripts/refresh_live_ecology_packet.py results/live_ecology_20260408_resume
 uv run python scripts/run_paper_batch.py --track society --track reputation
 .venv/bin/python scripts/live_run_status.py results/live_ecology_20260408
+.venv/bin/python scripts/live_run_status.py results/live_ecology_20260408_resume
 .venv/bin/python scripts/ecology_casebook.py results/live_ecology_20260408/society-baseline-20260408T171454Z.jsonl
 .venv/bin/python scripts/build_icml_submission.py
 ```
@@ -195,39 +197,30 @@ uv run python scripts/run_paper_batch.py --track society --track reputation
 
 ## Current Live Baseline Snapshot
 
-- canonical artifact:
+- stale predecessor artifact:
   `results/live_ecology_20260408/society-baseline-20260408T171454Z.jsonl`
-- completed trial:
-  `task-only`, round `120`, `10/24` alive, stable post-collapse plateau since
-  round `26`
-- active trial:
-  `cooperative`, round `39`, `18/24` alive, stable post-collapse plateau since
-  round `11`
-- active-trial alive models:
-  `deepseek-ai/deepseek-v3.2: 8`, `moonshotai/kimi-k2-instruct-0905: 8`,
-  `llama3.1-8b: 2`
-- qualitative artifact:
-  `results/live_ecology_20260408/society-baseline-casebook.md`
-- note: the casebook now uses the same plateau definition as
-  `scripts/paper_summary.py`, so the qualitative and quantitative live
-  artifacts agree on the plateau interpretation
-- machine-readable heartbeat:
-  `results/live_ecology_20260408/live_status.json`
-- live status now includes `population_regime`, `first_loss_round_num`,
-  `last_death_round_num`, `stability_start_round_num`, and
-  `rounds_since_last_death`
-- live status diagnostics are scoped to the active trial, so a completed
-  `task-only` trial cannot contaminate the current `cooperative` heartbeat
-- live status also includes phase windows and means for the collapse phase and
-  the stable plateau phase
-- live figure packet now includes
-  `results/live_ecology_20260408/monitoring_figures/society_reputation_phase_window_summary.png`
-- live packet now also includes
-  `results/live_ecology_20260408/live_trial_snapshot.md` and
-  `results/live_ecology_20260408/live_trial_snapshot.csv`
-- live packet now also includes
-  `results/live_ecology_20260408/live_trial_snapshot.png`
-- live packet now also includes
-  `results/live_ecology_20260408/live_trial_comparison.md`
-- live heartbeat now reports suite progress directly:
-  completed `1/3`, active `1`, remaining `2`
+- stale predecessor status:
+  last event `2026-04-08T21:49:31Z`, completed `task-only`, stalled
+  `cooperative` at round `87`, `1/3` complete
+- canonical continuation artifact:
+  `results/live_ecology_20260408_resume/society-baseline-20260408T235541Z.jsonl`
+- continuation behavior:
+  reused the completed `task-only` summary from the stale log and relaunched
+  the incomplete baseline slots into a fresh results directory
+- current continuation state:
+  `cooperative`, round `1`, `24/24` alive, `public_food=98`,
+  `public_water=166`, `average_health=11.0`, `average_energy=9.0`
+- current heartbeat artifact:
+  `results/live_ecology_20260408_resume/live_status.json`
+- current qualitative artifact:
+  `results/live_ecology_20260408_resume/society-baseline-casebook.md`
+- current live packet:
+  `results/live_ecology_20260408_resume/interim_summary.md`,
+  `results/live_ecology_20260408_resume/live_trial_snapshot.md`,
+  `results/live_ecology_20260408_resume/live_trial_snapshot.csv`,
+  `results/live_ecology_20260408_resume/live_trial_snapshot.png`, and
+  `results/live_ecology_20260408_resume/live_trial_comparison.md`
+- runner note:
+  `scripts/run_experiment.py --resume-log ...` is now the supported recovery
+  path for stalled Part 2/3 suite runs when at least one trial summary already
+  exists

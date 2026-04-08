@@ -62,3 +62,22 @@ def test_build_command_includes_models_results_dir_and_dry_run():
     assert "results/canonical/baseline" in command
     assert command.count("--model") == 2
     assert "--dry-run" in command
+
+
+def test_build_command_can_forward_resume_log():
+    module = _load_suite_module()
+    run = module.SuiteRun(
+        name="baseline",
+        config_path="configs/part2/society_baseline.yaml",
+        results_dir="results/canonical/baseline",
+    )
+
+    command = module.build_command(
+        run,
+        models=["cerebras:llama3.1-8b"],
+        dry_run=False,
+        resume_log="results/live_ecology_20260408/society-baseline-20260408T171454Z.jsonl",
+    )
+
+    assert "--resume-log" in command
+    assert "results/live_ecology_20260408/society-baseline-20260408T171454Z.jsonl" in command
