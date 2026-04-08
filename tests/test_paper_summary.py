@@ -175,9 +175,104 @@ def test_ecology_diagnostic_rows_summarize_latest_society_state():
     assert rows[0]["alive"] == "2/4"
     assert rows[0]["first_loss_timestep"] == 2
     assert rows[0]["first_death_timestep"] == 2
+    assert rows[0]["last_death_timestep"] == 2
+    assert rows[0]["stability_start_timestep"] == 2
+    assert rows[0]["rounds_since_last_death"] == 0
+    assert rows[0]["stabilized_post_collapse"] is False
     assert rows[0]["cumulative_deaths"] == 2
     assert rows[0]["alive_models"] == "model-a: 1, model-b: 1"
     assert rows[0]["dominant_behavior"] == "gather (100%)"
+
+
+def test_ecology_diagnostic_rows_detect_stable_post_collapse_plateau():
+    """Diagnostics should detect when a reduced population remains stable for several rounds."""
+    module = _load_paper_summary_module()
+    summaries = [
+        {
+            "experiment_id": "society-baseline-20260408T171454Z",
+            "config": {"experiment": {"name": "society-baseline", "part": 2}},
+            "trials": [
+                {
+                    "trial_id": 0,
+                    "prompt_variant": "task-only",
+                    "repetition": 0,
+                    "rounds": [
+                        {
+                            "timestep": 1,
+                            "alive_count": 4,
+                            "total_agents": 4,
+                            "events": [],
+                            "spawned_agents": [],
+                            "newly_dead": [],
+                            "agent_vitals": {},
+                        },
+                        {
+                            "timestep": 2,
+                            "alive_count": 2,
+                            "total_agents": 4,
+                            "events": [],
+                            "spawned_agents": [],
+                            "newly_dead": ["agent-3", "agent-1"],
+                            "agent_vitals": {},
+                        },
+                        {
+                            "timestep": 3,
+                            "alive_count": 2,
+                            "total_agents": 4,
+                            "events": [],
+                            "spawned_agents": [],
+                            "newly_dead": [],
+                            "agent_vitals": {},
+                        },
+                        {
+                            "timestep": 4,
+                            "alive_count": 2,
+                            "total_agents": 4,
+                            "events": [],
+                            "spawned_agents": [],
+                            "newly_dead": [],
+                            "agent_vitals": {},
+                        },
+                        {
+                            "timestep": 5,
+                            "alive_count": 2,
+                            "total_agents": 4,
+                            "events": [],
+                            "spawned_agents": [],
+                            "newly_dead": [],
+                            "agent_vitals": {},
+                        },
+                        {
+                            "timestep": 6,
+                            "alive_count": 2,
+                            "total_agents": 4,
+                            "events": [],
+                            "spawned_agents": [],
+                            "newly_dead": [],
+                            "agent_vitals": {},
+                        },
+                        {
+                            "timestep": 7,
+                            "alive_count": 2,
+                            "total_agents": 4,
+                            "events": [],
+                            "spawned_agents": [],
+                            "newly_dead": [],
+                            "agent_vitals": {},
+                        },
+                    ],
+                }
+            ],
+        }
+    ]
+
+    rows = module.ecology_diagnostic_rows(summaries)
+
+    assert len(rows) == 1
+    assert rows[0]["last_death_timestep"] == 2
+    assert rows[0]["stability_start_timestep"] == 2
+    assert rows[0]["rounds_since_last_death"] == 5
+    assert rows[0]["stabilized_post_collapse"] is True
 
 
 def test_render_markdown_includes_ecology_diagnostics_section():

@@ -66,12 +66,16 @@ It should answer:
   standardized suite instead of by hand
 - current live baseline status:
   - `society-baseline-20260408T171454Z`
-  - first `task-only` trial has completed round `36`
+  - first `task-only` trial has completed round `48`
   - alive agents are now `10 / 24`
   - cumulative deaths are `14`
   - current survivors are `8` `deepseek-ai/deepseek-v3.2` agents and `2`
     `llama3.1-8b` agents; `moonshotai/kimi-k2-instruct-0905` is extinct in
     the current trial
+  - the population has been stable at `10 / 24` since round `26`
+  - there have been no deaths for `22` rounds
+  - the surviving subpopulation now sits near the energy/health ceiling while
+    public food and water continue to recover
   - current action mix is overwhelmingly `gather`-dominated
   - interim monitoring artifacts are written under
     `results/live_ecology_20260408/monitoring_figures/`

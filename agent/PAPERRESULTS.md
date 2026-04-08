@@ -22,7 +22,7 @@ Current honest answer:
 
 Current live baseline signal:
 
-- the first long-horizon baseline trial has reached round `29`
+- the first long-horizon baseline trial has reached round `48`
 - survival has fallen to `10 / 24`
 - cumulative deaths are `14`
 - survivors are currently split as:
@@ -30,11 +30,15 @@ Current live baseline signal:
   - `llama3.1-8b`: `2`
   - `moonshotai/kimi-k2-instruct-0905`: `0`
 - the dominant logged behavior category is `gather (97%)`
+- the population has remained flat since round `26`
+- there have been no deaths for `22` rounds
 
 How to use this:
 
 - as an in-progress indication that the new ecology is materially harder than
   the predecessor institutional setup
+- as early evidence that the baseline may converge to a smaller stable society
+  rather than only to monotone extinction
 - not yet as a final manuscript claim, because the full baseline and follow-on
   conditions are incomplete
 

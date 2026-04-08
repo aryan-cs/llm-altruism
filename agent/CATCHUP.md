@@ -81,11 +81,13 @@ Current canonical direction:
   `scripts/run_canonical_ecology_suite.py`, which standardizes the baseline,
   reputation, and event-stress sequence on the stable triplet cohort
 - latest observed partial result on the first baseline trial:
-  - round `29`
+  - round `48`
   - alive agents `10 / 24`
   - cumulative deaths `14`
   - alive models: `deepseek-ai/deepseek-v3.2: 8`, `llama3.1-8b: 2`
   - dominant behavior: `gather (97%)`
+  - stable post-collapse plateau since round `26`
+  - no deaths for `22` rounds
 - until those reruns finish, the paper is not honestly back to a
   manuscript-ready state
 

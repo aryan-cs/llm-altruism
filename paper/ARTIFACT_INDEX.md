@@ -26,6 +26,9 @@ Main claim supported:
 - the current baseline trajectory already exposes concrete collapse milestones,
   model-level survivor composition, a gather-dominated behavior regime, and
   the resource/vital profile of the surviving agents
+- the current live baseline also shows a stable post-collapse plateau, which
+  is methodologically important because the failure mode may be culling into a
+  smaller viable society rather than simple monotone extinction
 
 ## 1. Scarcity Society
 

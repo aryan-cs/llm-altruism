@@ -666,6 +666,10 @@ def render_markdown(
                     "alive",
                     "first_loss_timestep",
                     "first_death_timestep",
+                    "last_death_timestep",
+                    "stability_start_timestep",
+                    "rounds_since_last_death",
+                    "stabilized_post_collapse",
                     "latest_public_food",
                     "latest_public_water",
                     "latest_average_health",
@@ -778,6 +782,39 @@ def ecology_diagnostic_rows(summaries: list[dict[str, Any]]) -> list[dict[str, A
                 ),
                 None,
             )
+            last_death_timestep = next(
+                (
+                    round_payload.get("timestep")
+                    for round_payload in reversed(rounds)
+                    if round_payload.get("newly_dead")
+                ),
+                None,
+            )
+            latest_alive_count = latest_round.get("alive_count")
+            stability_start_timestep = next(
+                (
+                    round_payload.get("timestep")
+                    for round_payload in reversed(rounds)
+                    if round_payload.get("alive_count") != latest_alive_count
+                ),
+                None,
+            )
+            if stability_start_timestep is None and rounds:
+                stability_start_timestep = rounds[0].get("timestep")
+            else:
+                stability_start_timestep = (
+                    None
+                    if stability_start_timestep is None
+                    else int(stability_start_timestep) + 1
+                )
+            rounds_since_last_death = None
+            if last_death_timestep is not None and latest_round.get("timestep") is not None:
+                rounds_since_last_death = int(latest_round["timestep"]) - int(last_death_timestep)
+            stabilized_post_collapse = bool(
+                rounds_since_last_death is not None
+                and rounds_since_last_death >= 5
+                and stability_start_timestep == last_death_timestep
+            )
 
             alive_summary = ""
             if isinstance(alive_count, (int, float)) and isinstance(total_agents, (int, float)):
@@ -801,6 +838,10 @@ def ecology_diagnostic_rows(summaries: list[dict[str, Any]]) -> list[dict[str, A
                     "cumulative_deaths": total_deaths,
                     "max_death_shock": max_death_shock,
                     "max_death_shock_timestep": max_death_shock_timestep,
+                    "last_death_timestep": last_death_timestep,
+                    "stability_start_timestep": stability_start_timestep,
+                    "rounds_since_last_death": rounds_since_last_death,
+                    "stabilized_post_collapse": stabilized_post_collapse,
                     "alive_models": format_alive_models(latest_round),
                     "dominant_behavior": dominant_behavior(rounds),
                 }

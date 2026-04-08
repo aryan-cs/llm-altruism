@@ -28,7 +28,7 @@ Current answer:
 
 Current non-final live signal from the first canonical baseline trial:
 
-- by round `29`, the society has dropped to `10 / 24` surviving agents
+- by round `48`, the society has dropped to `10 / 24` surviving agents
 - cumulative deaths are `14`
 - the surviving population is currently concentrated in
   `deepseek-ai/deepseek-v3.2` (`8` survivors) with only `2`
@@ -36,6 +36,8 @@ Current non-final live signal from the first canonical baseline trial:
   `moonshotai/kimi-k2-instruct-0905` agents
 - logged behavior is overwhelmingly `gather`-dominated rather than socially
   coordinated
+- the reduced population has remained stable since round `26`, with no deaths
+  for `22` rounds and near-max survivor health and energy
 
 Interpretation:
 
@@ -43,6 +45,8 @@ Interpretation:
   the predecessor single-resource world
 - the main current failure mode appears to be survival under scarcity, not
   lack of opportunities for visible social signaling
+- the current baseline looks less like total extinction and more like harsh
+  culling into a smaller self-sustaining subpopulation
 - this is directional live evidence only, not yet a paper-safe headline claim
 
 ## Main Institutional Findings
