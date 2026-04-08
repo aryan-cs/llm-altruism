@@ -206,3 +206,8 @@ uv run python scripts/run_paper_batch.py --track society --track reputation
 - note: the casebook now uses the same plateau definition as
   `scripts/paper_summary.py`, so the qualitative and quantitative live
   artifacts agree on the plateau interpretation
+- machine-readable heartbeat:
+  `results/live_ecology_20260408/live_status.json`
+- live status now includes `population_regime`, `first_loss_round_num`,
+  `last_death_round_num`, `stability_start_round_num`, and
+  `rounds_since_last_death`

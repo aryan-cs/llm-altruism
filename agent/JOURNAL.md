@@ -182,3 +182,7 @@ These remain important across sessions.
 - the refreshed casebook explicitly marks the stable plateau and records the
   plateau-start death event, so the qualitative narrative now matches the live
   quantitative summary
+- `scripts/live_run_status.py` now reports machine-readable collapse
+  diagnostics directly, including `first_loss_round_num`,
+  `last_death_round_num`, `stability_start_round_num`,
+  `rounds_since_last_death`, and a `population_regime` label

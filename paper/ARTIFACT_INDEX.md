@@ -17,6 +17,7 @@ Primary artifacts:
 - `results/live_ecology_20260408/interim_summary.md`
 - `results/live_ecology_20260408/monitoring_figures/`
 - `results/live_ecology_20260408/society-baseline-casebook.md`
+- `results/live_ecology_20260408/live_status.json`
 - `results/live_ecology_20260408/monitoring_figures/society_reputation_survivor_vitals_heatmap.png`
 - `results/live_ecology_20260408/monitoring_figures/society_reputation_model_vitals_over_time.png`
 
@@ -29,6 +30,9 @@ Main claim supported:
 - the current live baseline also shows a stable post-collapse plateau, which
   is methodologically important because the failure mode may be culling into a
   smaller viable society rather than simple monotone extinction
+- the live status packet now exposes the same plateau diagnosis in
+  machine-readable form, so heartbeat checks and paper-facing summaries are
+  using the same regime classification
 
 ## 1. Scarcity Society
 

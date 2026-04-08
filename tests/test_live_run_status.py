@@ -99,6 +99,10 @@ def test_summarize_jsonl_log_extracts_society_state(tmp_path: Path):
     assert summary["provider_retry_count"] == 1
     assert summary["last_retry_model"] == "deepseek-ai/deepseek-v3.2"
     assert summary["state"] == "active"
+    assert summary["first_loss_round_num"] == 30
+    assert summary["first_death_round_num"] is None
+    assert summary["last_death_round_num"] is None
+    assert summary["population_regime"] == "losses_observed"
 
 
 def test_summarize_jsonl_log_marks_stale_runs(tmp_path: Path):
@@ -139,6 +143,140 @@ def test_summarize_jsonl_log_marks_stale_runs(tmp_path: Path):
     assert summary["state"] == "stale"
     assert summary["trial_summary_count"] == 1
     assert summary["latest_event_type"] == "trial_summary"
+
+
+def test_summarize_jsonl_log_detects_stable_post_collapse_plateau(tmp_path: Path):
+    module = _load_live_run_status_module()
+    log_path = tmp_path / "plateau.jsonl"
+    log_path.write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "type": "experiment_start",
+                        "timestamp": "2026-04-08T17:00:00+00:00",
+                        "experiment_id": "exp-plateau",
+                        "config": {"experiment": {"name": "exp-plateau", "part": 2}},
+                    }
+                ),
+                json.dumps(
+                    {
+                        "type": "round",
+                        "timestamp": "2026-04-08T17:01:00+00:00",
+                        "trial_id": 0,
+                        "round_num": 1,
+                        "data": {
+                            "alive_count": 4,
+                            "total_agents": 4,
+                            "newly_dead": [],
+                            "agent_vitals": {},
+                        },
+                    }
+                ),
+                json.dumps(
+                    {
+                        "type": "round",
+                        "timestamp": "2026-04-08T17:02:00+00:00",
+                        "trial_id": 0,
+                        "round_num": 2,
+                        "data": {
+                            "alive_count": 2,
+                            "total_agents": 4,
+                            "newly_dead": ["c", "d"],
+                            "agent_vitals": {},
+                        },
+                    }
+                ),
+                json.dumps(
+                    {
+                        "type": "round",
+                        "timestamp": "2026-04-08T17:03:00+00:00",
+                        "trial_id": 0,
+                        "round_num": 3,
+                        "data": {
+                            "alive_count": 2,
+                            "total_agents": 4,
+                            "newly_dead": [],
+                            "agent_vitals": {},
+                        },
+                    }
+                ),
+                json.dumps(
+                    {
+                        "type": "round",
+                        "timestamp": "2026-04-08T17:04:00+00:00",
+                        "trial_id": 0,
+                        "round_num": 4,
+                        "data": {
+                            "alive_count": 2,
+                            "total_agents": 4,
+                            "newly_dead": [],
+                            "agent_vitals": {},
+                        },
+                    }
+                ),
+                json.dumps(
+                    {
+                        "type": "round",
+                        "timestamp": "2026-04-08T17:05:00+00:00",
+                        "trial_id": 0,
+                        "round_num": 5,
+                        "data": {
+                            "alive_count": 2,
+                            "total_agents": 4,
+                            "newly_dead": [],
+                            "agent_vitals": {},
+                        },
+                    }
+                ),
+                json.dumps(
+                    {
+                        "type": "round",
+                        "timestamp": "2026-04-08T17:06:00+00:00",
+                        "trial_id": 0,
+                        "round_num": 6,
+                        "data": {
+                            "alive_count": 2,
+                            "total_agents": 4,
+                            "newly_dead": [],
+                            "agent_vitals": {},
+                        },
+                    }
+                ),
+                json.dumps(
+                    {
+                        "type": "round",
+                        "timestamp": "2026-04-08T17:07:00+00:00",
+                        "trial_id": 0,
+                        "round_num": 7,
+                        "data": {
+                            "alive_count": 2,
+                            "total_agents": 4,
+                            "newly_dead": [],
+                            "agent_vitals": {},
+                        },
+                    }
+                ),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    summary = module.summarize_jsonl_log(
+        log_path,
+        stale_minutes=15.0,
+        now=datetime(2026, 4, 8, 17, 7, 30, tzinfo=UTC),
+    )
+
+    assert summary is not None
+    assert summary["first_loss_round_num"] == 2
+    assert summary["first_death_round_num"] == 2
+    assert summary["last_death_round_num"] == 2
+    assert summary["stability_start_round_num"] == 2
+    assert summary["rounds_since_last_death"] == 5
+    assert summary["stabilized_post_collapse"] is True
+    assert summary["population_regime"] == "stable_post_collapse"
 
 
 def test_expand_inputs_reads_jsonl_files_from_directories(tmp_path: Path):

@@ -98,6 +98,95 @@ def alive_models_from_round(round_payload: dict[str, Any]) -> dict[str, int]:
     return dict(sorted(counts.items(), key=lambda item: (-item[1], item[0])))
 
 
+def collapse_diagnostics(rounds: list[dict[str, Any]]) -> dict[str, Any]:
+    if not rounds:
+        return {
+            "first_loss_round_num": None,
+            "first_death_round_num": None,
+            "last_death_round_num": None,
+            "stability_start_round_num": None,
+            "rounds_since_last_death": None,
+            "stabilized_post_collapse": False,
+            "population_regime": "no_rounds",
+        }
+
+    latest_round = rounds[-1]
+    latest_payload = latest_round.get("data", {}) or {}
+    latest_round_num = latest_round.get("round_num")
+    latest_alive = latest_payload.get("alive_count")
+    total_agents = latest_payload.get("total_agents")
+    first_loss_round_num = next(
+        (
+            record.get("round_num")
+            for record in rounds
+            if isinstance((record.get("data") or {}).get("alive_count"), (int, float))
+            and isinstance((record.get("data") or {}).get("total_agents"), (int, float))
+            and (record.get("data") or {})["alive_count"] < (record.get("data") or {})["total_agents"]
+        ),
+        None,
+    )
+    first_death_round_num = next(
+        (
+            record.get("round_num")
+            for record in rounds
+            if ((record.get("data") or {}).get("newly_dead") or [])
+        ),
+        None,
+    )
+    last_death_round_num = next(
+        (
+            record.get("round_num")
+            for record in reversed(rounds)
+            if ((record.get("data") or {}).get("newly_dead") or [])
+        ),
+        None,
+    )
+    stability_start_round_num = next(
+        (
+            record.get("round_num")
+            for record in reversed(rounds)
+            if (record.get("data") or {}).get("alive_count") != latest_alive
+        ),
+        None,
+    )
+    if stability_start_round_num is None and rounds:
+        stability_start_round_num = rounds[0].get("round_num")
+    elif stability_start_round_num is not None:
+        stability_start_round_num = int(stability_start_round_num) + 1
+
+    rounds_since_last_death = None
+    if last_death_round_num is not None and latest_round_num is not None:
+        rounds_since_last_death = int(latest_round_num) - int(last_death_round_num)
+
+    stabilized_post_collapse = bool(
+        rounds_since_last_death is not None
+        and rounds_since_last_death >= 5
+        and stability_start_round_num == last_death_round_num
+    )
+
+    population_regime = "unknown"
+    if first_loss_round_num is None and isinstance(latest_alive, (int, float)) and isinstance(total_agents, (int, float)):
+        population_regime = "no_losses_yet" if int(latest_alive) == int(total_agents) else "losses_without_detection"
+    elif stabilized_post_collapse:
+        population_regime = "stable_post_collapse"
+    elif first_loss_round_num is not None and last_death_round_num is None:
+        population_regime = "losses_observed"
+    elif last_death_round_num is not None and latest_round_num is not None and int(last_death_round_num) == int(latest_round_num):
+        population_regime = "active_collapse"
+    elif last_death_round_num is not None:
+        population_regime = "post_loss_unsettled"
+
+    return {
+        "first_loss_round_num": first_loss_round_num,
+        "first_death_round_num": first_death_round_num,
+        "last_death_round_num": last_death_round_num,
+        "stability_start_round_num": stability_start_round_num,
+        "rounds_since_last_death": rounds_since_last_death,
+        "stabilized_post_collapse": stabilized_post_collapse,
+        "population_regime": population_regime,
+    }
+
+
 def summarize_jsonl_log(
     path: Path,
     *,
@@ -115,6 +204,7 @@ def summarize_jsonl_log(
     last_retry: dict[str, Any] | None = None
     trial_summary_count = 0
     provider_retry_count = 0
+    round_records: list[dict[str, Any]] = []
 
     with path.open(encoding="utf-8") as handle:
         for raw_line in handle:
@@ -128,6 +218,7 @@ def summarize_jsonl_log(
                 start = record
             if record_type == "round":
                 latest_round = record
+                round_records.append(record)
             if record_type == "trial_summary":
                 trial_summary_count += 1
             if record_type == "provider_retry":
@@ -173,6 +264,8 @@ def summarize_jsonl_log(
     if minutes_since_latest_event is not None:
         state = "active" if minutes_since_latest_event <= stale_minutes else "stale"
 
+    diagnostics = collapse_diagnostics(round_records)
+
     return {
         "path": str(path),
         "experiment_id": start.get("experiment_id"),
@@ -186,6 +279,7 @@ def summarize_jsonl_log(
         "alive_count": alive_count,
         "total_agents": total_agents,
         "alive_fraction": alive_fraction,
+        "population_loss_fraction": None if alive_fraction is None else 1.0 - float(alive_fraction),
         "public_food": round_payload.get("public_food"),
         "public_water": round_payload.get("public_water"),
         "average_health": round_payload.get("average_health"),
@@ -199,6 +293,7 @@ def summarize_jsonl_log(
         "latest_event_timestamp": latest_event_timestamp,
         "minutes_since_latest_event": minutes_since_latest_event,
         "state": state,
+        **diagnostics,
     }
 
 
@@ -228,6 +323,13 @@ def format_status(summary: dict[str, Any]) -> str:
             f"provider_retries={summary.get('provider_retry_count')} "
             f"latest_event={summary.get('latest_event_type')}@{summary.get('latest_event_timestamp')} "
             f"minutes_since_latest={minutes_text}"
+        ),
+        (
+            f"  regime={summary.get('population_regime')} "
+            f"first_loss={summary.get('first_loss_round_num')} "
+            f"last_death={summary.get('last_death_round_num')} "
+            f"stability_start={summary.get('stability_start_round_num')} "
+            f"rounds_since_last_death={summary.get('rounds_since_last_death')}"
         ),
     ]
     if alive_models_text:
