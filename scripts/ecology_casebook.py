@@ -91,6 +91,72 @@ def fragile_agents_text(record: dict[str, Any], *, limit: int = 3) -> str:
     )
 
 
+def stable_plateau_summary(rounds: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """Return a stable post-collapse plateau summary when one exists."""
+    if not rounds:
+        return None
+
+    latest = rounds[-1]
+    latest_alive = round_payload(latest).get("alive_count")
+    if latest_alive is None:
+        return None
+
+    last_death_index = next(
+        (
+            index
+            for index in range(len(rounds) - 1, -1, -1)
+            if round_payload(rounds[index]).get("newly_dead")
+        ),
+        None,
+    )
+    if last_death_index is None:
+        return None
+
+    plateau_start_index = next(
+        (
+            index + 1
+            for index in range(len(rounds) - 1, -1, -1)
+            if round_payload(rounds[index]).get("alive_count") != latest_alive
+        ),
+        0,
+    )
+    if plateau_start_index >= len(rounds):
+        return None
+
+    if plateau_start_index != last_death_index:
+        return None
+
+    plateau_start_round = rounds[plateau_start_index]
+    plateau_rounds = rounds[plateau_start_index:]
+    if len(plateau_rounds) < 5:
+        return None
+
+    if any(round_payload(record).get("alive_count") != latest_alive for record in plateau_rounds):
+        return None
+    if any(round_payload(record).get("newly_dead") for record in plateau_rounds[1:]):
+        return None
+
+    mean_public_food = sum(float(round_payload(record).get("public_food", 0.0)) for record in plateau_rounds) / len(plateau_rounds)
+    mean_public_water = sum(float(round_payload(record).get("public_water", 0.0)) for record in plateau_rounds) / len(plateau_rounds)
+    mean_health = sum(float(round_payload(record).get("average_health", 0.0)) for record in plateau_rounds) / len(plateau_rounds)
+    mean_energy = sum(float(round_payload(record).get("average_energy", 0.0)) for record in plateau_rounds) / len(plateau_rounds)
+
+    return {
+        "start_round": plateau_start_round,
+        "latest_round": latest,
+        "duration_rounds": len(plateau_rounds),
+        "alive": latest_alive,
+        "alive_models": alive_models_text(latest),
+        "mean_public_food": mean_public_food,
+        "mean_public_water": mean_public_water,
+        "mean_health": mean_health,
+        "mean_energy": mean_energy,
+        "action_mix": top_events_text(plateau_rounds, limit=5),
+        "fragile_agents": fragile_agents_text(latest),
+        "deaths_on_start": ", ".join(round_payload(plateau_start_round).get("newly_dead", []) or []) or "none",
+    }
+
+
 def milestone_records(rounds: list[dict[str, Any]]) -> list[tuple[str, dict[str, Any]]]:
     milestones: list[tuple[str, dict[str, Any]]] = [("start", rounds[0])]
 
@@ -146,6 +212,7 @@ def render_markdown(start: dict[str, Any], rounds: list[dict[str, Any]]) -> str:
     config = start.get("config", {})
     experiment = config.get("experiment", config)
     milestones = milestone_records(rounds)
+    plateau = stable_plateau_summary(rounds)
     lines = [
         "# Ecology Casebook",
         "",
@@ -184,6 +251,25 @@ def render_markdown(start: dict[str, Any], rounds: list[dict[str, Any]]) -> str:
                 f"- alive models: `{alive_models_text(record)}`",
                 f"- dominant events in this round: `{top_events_text([record], limit=5)}`",
                 f"- most fragile surviving agents: `{fragile_agents_text(record)}`",
+            ]
+        )
+
+    if plateau is not None:
+        lines.extend(
+            [
+                "",
+                "## Stable Plateau",
+                "",
+                f"- plateau start round: `{plateau['start_round'].get('round_num')}`",
+                f"- latest observed round: `{plateau['latest_round'].get('round_num')}`",
+                f"- duration: `{plateau['duration_rounds']}` rounds",
+                f"- stable alive population: `{int(plateau['alive'])}/{round_payload(plateau['latest_round']).get('total_agents')}`",
+                f"- alive models: `{plateau['alive_models']}`",
+                f"- mean public food / water during plateau: `{plateau['mean_public_food']:.1f}` / `{plateau['mean_public_water']:.1f}`",
+                f"- mean health / energy during plateau: `{plateau['mean_health']:.1f}` / `{plateau['mean_energy']:.1f}`",
+                f"- deaths on plateau start round: `{plateau['deaths_on_start']}`",
+                f"- plateau action mix: `{plateau['action_mix']}`",
+                f"- most fragile agents at latest observed state: `{plateau['fragile_agents']}`",
             ]
         )
     return "\n".join(lines) + "\n"

@@ -192,3 +192,17 @@ uv run python scripts/run_paper_batch.py --track society --track reputation
    steerability, and benchmark recognition.
 4. Keep manuscript-facing claims tied to audited result artifacts and
    reproducible scripts.
+
+## Current Live Baseline Snapshot
+
+- canonical artifact:
+  `results/live_ecology_20260408/society-baseline-20260408T171454Z.jsonl`
+- latest observed round: `100`
+- current alive population: `10/24`
+- plateau diagnosis: stable post-collapse plateau since round `26`
+- alive models: `deepseek-ai/deepseek-v3.2: 8`, `llama3.1-8b: 2`
+- qualitative artifact:
+  `results/live_ecology_20260408/society-baseline-casebook.md`
+- note: the casebook now uses the same plateau definition as
+  `scripts/paper_summary.py`, so the qualitative and quantitative live
+  artifacts agree on the plateau interpretation

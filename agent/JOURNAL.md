@@ -160,3 +160,25 @@ These remain important across sessions.
 - push frequently
 - prefer audited artifact directories over older pilot outputs when updating
   paper claims
+
+## 2026-04-08
+
+### Live ecology status
+
+- the canonical multi-resource baseline remains active in
+  `results/live_ecology_20260408/society-baseline-20260408T171454Z.jsonl`
+- latest observed state is round `100` of the first `task-only` trial with
+  `10/24` agents alive
+- the run no longer looks like monotone collapse; it has held a stable
+  post-collapse plateau since round `26`
+- current survivor mix is `deepseek-ai/deepseek-v3.2: 8` and
+  `llama3.1-8b: 2`; `moonshotai/kimi-k2-instruct-0905` is extinct in this
+  trial
+
+### Monitoring artifacts
+
+- `scripts/ecology_casebook.py` now uses the same plateau definition as
+  `scripts/paper_summary.py`
+- the refreshed casebook explicitly marks the stable plateau and records the
+  plateau-start death event, so the qualitative narrative now matches the live
+  quantitative summary

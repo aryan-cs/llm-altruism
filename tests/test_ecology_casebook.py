@@ -152,3 +152,150 @@ def test_main_writes_output_file(tmp_path: Path):
 
     assert output_path.exists()
     assert "# Ecology Casebook" in output_path.read_text(encoding="utf-8")
+
+
+def test_render_markdown_includes_stable_plateau_section_when_population_flattens(tmp_path: Path):
+    module = _load_casebook_module()
+    log_path = tmp_path / "society.jsonl"
+    log_path.write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "type": "experiment_start",
+                        "experiment_id": "exp-plateau",
+                        "config": {"experiment": {"name": "exp-plateau", "part": 2}},
+                    }
+                ),
+                json.dumps(
+                    {
+                        "type": "round",
+                        "round_num": 1,
+                        "data": {
+                            "alive_count": 4,
+                            "total_agents": 4,
+                            "public_food": 10,
+                            "public_water": 10,
+                            "average_health": 8.0,
+                            "average_energy": 7.0,
+                            "events": [{"kind": "forage_food"}],
+                            "newly_dead": [],
+                            "agent_vitals": {},
+                        },
+                    }
+                ),
+                json.dumps(
+                    {
+                        "type": "round",
+                        "round_num": 2,
+                        "data": {
+                            "alive_count": 2,
+                            "total_agents": 4,
+                            "public_food": 8,
+                            "public_water": 9,
+                            "average_health": 7.0,
+                            "average_energy": 6.0,
+                            "events": [{"kind": "draw_water"}],
+                            "newly_dead": ["c", "d"],
+                            "agent_vitals": {},
+                        },
+                    }
+                ),
+                json.dumps(
+                    {
+                        "type": "round",
+                        "round_num": 3,
+                        "data": {
+                            "alive_count": 2,
+                            "total_agents": 4,
+                            "public_food": 9,
+                            "public_water": 11,
+                            "average_health": 9.0,
+                            "average_energy": 10.0,
+                            "events": [{"kind": "forage_food"}],
+                            "newly_dead": [],
+                            "agent_vitals": {},
+                        },
+                    }
+                ),
+                json.dumps(
+                    {
+                        "type": "round",
+                        "round_num": 4,
+                        "data": {
+                            "alive_count": 2,
+                            "total_agents": 4,
+                            "public_food": 10,
+                            "public_water": 12,
+                            "average_health": 10.0,
+                            "average_energy": 10.0,
+                            "events": [{"kind": "forage_food"}],
+                            "newly_dead": [],
+                            "agent_vitals": {},
+                        },
+                    }
+                ),
+                json.dumps(
+                    {
+                        "type": "round",
+                        "round_num": 5,
+                        "data": {
+                            "alive_count": 2,
+                            "total_agents": 4,
+                            "public_food": 11,
+                            "public_water": 13,
+                            "average_health": 10.0,
+                            "average_energy": 11.0,
+                            "events": [{"kind": "draw_water"}],
+                            "newly_dead": [],
+                            "agent_vitals": {},
+                        },
+                    }
+                ),
+                json.dumps(
+                    {
+                        "type": "round",
+                        "round_num": 6,
+                        "data": {
+                            "alive_count": 2,
+                            "total_agents": 4,
+                            "public_food": 12,
+                            "public_water": 14,
+                            "average_health": 11.0,
+                            "average_energy": 11.0,
+                            "events": [{"kind": "draw_water"}],
+                            "newly_dead": [],
+                            "agent_vitals": {},
+                        },
+                    }
+                ),
+                json.dumps(
+                    {
+                        "type": "round",
+                        "round_num": 7,
+                        "data": {
+                            "alive_count": 2,
+                            "total_agents": 4,
+                            "public_food": 13,
+                            "public_water": 15,
+                            "average_health": 11.0,
+                            "average_energy": 12.0,
+                            "events": [{"kind": "forage_food"}],
+                            "newly_dead": [],
+                            "agent_vitals": {},
+                        },
+                    }
+                ),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    start, rounds = module.load_log(log_path)
+    markdown = module.render_markdown(start, rounds)
+
+    assert "## Stable Plateau" in markdown
+    assert "plateau start round: `2`" in markdown
+    assert "duration: `6` rounds" in markdown
+    assert "deaths on plateau start round: `c, d`" in markdown
