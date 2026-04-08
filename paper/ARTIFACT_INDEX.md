@@ -182,6 +182,8 @@ Submission packet support files:
 
 - `paper/APPENDIX.md`
 - `paper/SUBMISSION_CHECKLIST.md`
+- `paper/tables/paired_statistical_tests.md`
+- `paper/tables/paired_statistical_tests.csv`
 
 Final corrected institutional comparison:
 
@@ -245,7 +247,28 @@ Status:
 - the PDF is generated from the Markdown manuscript, appendix, and references
   rather than maintained as a separate hand-edited source
 
-## 9. Current Best Paper-Safe Claims
+## 9. Exact Paired Tests
+
+Primary statistical artifact:
+
+- `paper/tables/paired_statistical_tests.md`
+- `paper/tables/paired_statistical_tests.csv`
+
+Main points supported:
+
+- pooled Prisoner's Dilemma baseline: `minimal-neutral` versus the
+  `abstract-neutral-family` yields a matched mean cooperation difference of
+  `+0.34722` with exact paired `p = 0.03125`
+- pooled Prisoner's Dilemma compact versus institutional: mean difference
+  `0.00000`, exact paired `p = 1.00000`, with identical action traces on all
+  `12/12` matched trials
+- Prisoner's Dilemma competitive versus cooperative susceptibility: exact
+  paired `p = 0.03125`
+- benchmark presentation effects remain descriptively large but small-sample,
+  with Prisoner's Dilemma canonical versus unnamed at exact paired
+  `p = 0.06250`
+
+## 10. Current Best Paper-Safe Claims
 
 These claims are now on the strongest footing:
 

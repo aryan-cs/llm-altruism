@@ -44,6 +44,11 @@ TRACK_COLORS = {
     "society": "#577590",
     "reputation": "#bc4749",
 }
+FIGURE_DPI = 300
+
+
+def configure_plot_style() -> None:
+    sns.set_theme(style="whitegrid", context="talk", font_scale=1.05)
 
 
 def parse_args() -> argparse.Namespace:
@@ -148,6 +153,20 @@ def add_error_bars(
     )
 
 
+def annotate_bar_values(ax: plt.Axes, heights: list[float]) -> None:
+    for index, height in enumerate(heights):
+        ax.text(
+            index,
+            height + 0.02,
+            f"{height:.2f}",
+            ha="center",
+            va="bottom",
+            fontsize=10,
+            color="#222222",
+            zorder=4,
+        )
+
+
 def save_prompt_variant_track_figure(
     frame: pd.DataFrame,
     *,
@@ -167,8 +186,8 @@ def save_prompt_variant_track_figure(
     if not games:
         return None
 
-    sns.set_theme(style="whitegrid", context="talk")
-    fig, axes = plt.subplots(1, len(games), figsize=(5.2 * len(games), 4.8), squeeze=False)
+    configure_plot_style()
+    fig, axes = plt.subplots(1, len(games), figsize=(6.0 * len(games), 5.8), squeeze=False)
 
     for index, game in enumerate(games):
         ax = axes[0][index]
@@ -196,20 +215,23 @@ def save_prompt_variant_track_figure(
             else None
         )
         add_error_bars(ax, x_positions, heights, lower, upper)
+        annotate_bar_values(ax, heights)
 
-        ax.set_title(prettify_slug(str(game)), fontsize=14)
+        ax.set_title(prettify_slug(str(game)), fontsize=15)
         ax.set_xticks(x_positions)
         ax.set_xticklabels(
             [prettify_slug(str(item)) for item in game_frame["prompt_variant"].tolist()],
-            fontsize=10,
+            fontsize=11,
         )
         ax.set_ylabel(y_label if index == 0 else "")
         if limit is not None:
             ax.set_ylim(*limit)
+        else:
+            ax.set_ylim(0, max(1.0, max(heights) + 0.12))
 
-    fig.suptitle(title, fontsize=16, y=1.04)
+    fig.suptitle(title, fontsize=18, y=1.02)
     fig.tight_layout()
-    fig.savefig(output_path, dpi=220, bbox_inches="tight")
+    fig.savefig(output_path, dpi=FIGURE_DPI, bbox_inches="tight")
     plt.close(fig)
     return output_path
 
@@ -224,8 +246,8 @@ def save_benchmark_figure(experiment_frame: pd.DataFrame, output_path: Path) -> 
     if not games:
         return None
 
-    sns.set_theme(style="whitegrid", context="talk")
-    fig, axes = plt.subplots(1, len(games), figsize=(5.2 * len(games), 4.8), squeeze=False)
+    configure_plot_style()
+    fig, axes = plt.subplots(1, len(games), figsize=(6.0 * len(games), 5.8), squeeze=False)
 
     for index, game in enumerate(games):
         ax = axes[0][index]
@@ -238,18 +260,19 @@ def save_benchmark_figure(experiment_frame: pd.DataFrame, output_path: Path) -> 
             for presentation in game_frame["presentation"].tolist()
         ]
         ax.bar(x_positions, heights, color=colors, width=0.7, zorder=2)
-        ax.set_title(prettify_slug(str(game)), fontsize=14)
+        annotate_bar_values(ax, heights)
+        ax.set_title(prettify_slug(str(game)), fontsize=15)
         ax.set_xticks(x_positions)
         ax.set_xticklabels(
             [prettify_slug(str(item)) for item in game_frame["presentation"].tolist()],
-            fontsize=10,
+            fontsize=11,
         )
         ax.set_ylabel("Mean cooperation" if index == 0 else "")
         ax.set_ylim(0, 1)
 
-    fig.suptitle("Benchmark presentation shifts measured cooperation", fontsize=16, y=1.04)
+    fig.suptitle("Benchmark presentation shifts measured cooperation", fontsize=18, y=1.02)
     fig.tight_layout()
-    fig.savefig(output_path, dpi=220, bbox_inches="tight")
+    fig.savefig(output_path, dpi=FIGURE_DPI, bbox_inches="tight")
     plt.close(fig)
     return output_path
 
@@ -273,9 +296,9 @@ def save_society_metric_figure(
     if subset.empty:
         return None
 
-    sns.set_theme(style="whitegrid", context="talk")
+    configure_plot_style()
     tracks = [track for track in ["society", "reputation"] if track in subset["track"].tolist()]
-    fig, axes = plt.subplots(1, len(tracks), figsize=(5.2 * len(tracks), 4.8), squeeze=False)
+    fig, axes = plt.subplots(1, len(tracks), figsize=(6.0 * len(tracks), 5.8), squeeze=False)
 
     for index, track in enumerate(tracks):
         ax = axes[0][index]
@@ -301,20 +324,23 @@ def save_society_metric_figure(
             else None
         )
         add_error_bars(ax, x_positions, heights, lower, upper)
+        annotate_bar_values(ax, heights)
 
-        ax.set_title(track.title(), fontsize=14)
+        ax.set_title(track.title(), fontsize=15)
         ax.set_xticks(x_positions)
         ax.set_xticklabels(
             [prettify_slug(str(item)) for item in track_frame["prompt_variant"].tolist()],
-            fontsize=10,
+            fontsize=11,
         )
         ax.set_ylabel(y_label if index == 0 else "")
         if limit is not None:
             ax.set_ylim(*limit)
+        else:
+            ax.set_ylim(0, max(max(heights) + 0.25, 1.0))
 
-    fig.suptitle(title, fontsize=16, y=1.04)
+    fig.suptitle(title, fontsize=18, y=1.02)
     fig.tight_layout()
-    fig.savefig(output_path, dpi=220, bbox_inches="tight")
+    fig.savefig(output_path, dpi=FIGURE_DPI, bbox_inches="tight")
     plt.close(fig)
     return output_path
 

@@ -1,6 +1,6 @@
 # Results Tables
 
-Current manuscript-ready tables derived from the repaired result set.
+Current manuscript-ready tables derived from the audited result set.
 
 ## Table 1. Repaired Cross-Game Baseline on the Stable Triplet Cohort
 
@@ -16,7 +16,7 @@ Source:
 
 Interpretation:
 
-- game structure strongly shapes repaired baseline behavior
+- game structure strongly shapes baseline behavior on the audited cohort
 - Prisoner's Dilemma is the least cooperative and most exploitation-prone
 - Stag Hunt is the most coordination-friendly
 
@@ -34,7 +34,7 @@ Source:
 
 Interpretation:
 
-- the repaired cross-game ordering is not a one-cohort artifact
+- the cross-game ordering is not a one-cohort artifact
 - the second cohort is notably less cooperative in Chicken, which is useful
   evidence that levels vary by model mixture even when the ordering is stable
 
@@ -54,9 +54,14 @@ Sources:
 
 Interpretation:
 
-- neutral paraphrase sensitivity survives same-day repaired replication
-- compact and institutional neutral prompts are much more cooperative than the
-  default minimal-neutral wording
+- neutral paraphrase sensitivity survives same-day replication
+- compact and institutional prompts are distinct inputs but produce identical
+  action traces on all 12 matched pooled PD pairings
+- the inferential claim in the manuscript therefore compares
+  `minimal-neutral` against an abstract-neutral family rather than pretending
+  all three prompts separate cleanly
+- exact paired sign-flip test for `minimal-neutral` versus the
+  abstract-neutral family: `p = 0.03125`
 
 ## Table 3. Repaired Benchmark: Canonical vs Resource vs Unnamed Prisoner's Dilemma
 
@@ -79,10 +84,11 @@ Delta relative to canonical:
 
 Interpretation:
 
-- the strongest benchmark-recognition effect from the pilot survives the
-  repaired rerun
-- in repaired Prisoner's Dilemma, cooperation rises monotonically as the
-  framing becomes less canonical
+- the strongest benchmark-recognition effect from the pilot survives in the
+  current audited Prisoner's Dilemma bundle
+- cooperation rises monotonically as the framing becomes less canonical, but
+  the exact paired test for canonical versus unnamed remains small-sample
+  (`p = 0.0625` on six matched pairings)
 
 ## Table 4. Finalized Repaired Susceptibility in Prisoner's Dilemma
 
@@ -98,9 +104,10 @@ Source:
 
 Interpretation:
 
-- the repaired Prisoner's Dilemma susceptibility result is now finalized
+- the Prisoner's Dilemma susceptibility result is now finalized on the audited
+  cohort
 - it recreates the clearest prompt-steerability pattern from the earlier pilot
-- the same repaired track is now complete across Chicken and Stag Hunt too
+- the same track is now complete across Chicken and Stag Hunt too
 
 ## Table 5. Repaired Benchmark: Canonical vs Unnamed Chicken
 
@@ -115,10 +122,10 @@ Source:
 
 Interpretation:
 
-- repaired benchmark effects are game-dependent rather than uniformly
+- benchmark effects are game-dependent rather than uniformly
   cooperation-increasing when labels are removed
 - Chicken moves in the opposite direction from Prisoner's Dilemma on the same
-  repaired cohort
+  audited cohort
 
 ## Table 6. Repaired Benchmark: Canonical vs Unnamed Stag Hunt
 
@@ -135,7 +142,7 @@ Interpretation:
 
 - Stag Hunt matches Chicken rather than Prisoner's Dilemma: unnamed framing is
   less cooperative than canonical framing
-- the repaired benchmark table is now closed across the three core games
+- the benchmark table is now closed across the three core games
 
 ## Table 7. Finalized Repaired Susceptibility Across Core Games
 
@@ -157,7 +164,7 @@ Source:
 
 Interpretation:
 
-- prompt susceptibility is now finalized across all three repaired core games
+- prompt susceptibility is now finalized across all three core games
 - cooperative framing saturates cooperation in every game, but competitive
   framing suppresses cooperation most sharply in Prisoner's Dilemma
 - the magnitude of prompt steering is therefore game-dependent rather than

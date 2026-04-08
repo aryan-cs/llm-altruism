@@ -507,7 +507,7 @@ def build_experiment_plan(
     name_suffix: str,
 ) -> list[tuple[str, ExperimentSettings, dict[str, object]]]:
     """Create the full paper-oriented experiment plan."""
-    part1_rounds = 4 if fast else 6
+    part1_rounds = 6 if fast else 8
     part1_repetitions = 1
     part1_temperatures = [0.0]
     society_rounds = 6 if fast else 8

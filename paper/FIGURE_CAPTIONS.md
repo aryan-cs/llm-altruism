@@ -10,10 +10,11 @@ File:
 
 Suggested caption:
 
-> Mean cooperation in the repaired Prisoner's Dilemma baseline rerun with full
-> prompt-stack logging. Even within a neutral prompt family, wording changes the
-> measured baseline substantially: the compact and institutional variants are
-> much more cooperative than the default minimal-neutral wording.
+> Mean cooperation in the audited Prisoner's Dilemma baseline bundle with full
+> prompt-stack logging. The compact and institutional prompts are distinct
+> inputs, but in the pooled PD cohorts they collapse to the same behavioral
+> action trace family while remaining much more cooperative than the literal
+> minimal-neutral wording.
 
 ## Figure 2: Repaired PD Replication
 
@@ -23,10 +24,11 @@ File:
 
 Suggested caption:
 
-> Mean cooperation pooled across two same-day repaired Prisoner's Dilemma
-> cohorts. The neutral-paraphrase sensitivity effect replicates across distinct
-> model mixtures: `minimal-neutral` remains much less cooperative than the
-> compact and institutional neutral variants.
+> Mean cooperation pooled across two same-day Prisoner's Dilemma cohorts. The
+> neutral-baseline effect replicates across distinct model mixtures:
+> `minimal-neutral` remains much less cooperative than the two more abstract
+> neutral paraphrases, which are behaviorally identical on matched pooled PD
+> trials.
 
 ## Figure 3: Repaired Triplet Baseline Cross-Game Comparison
 
@@ -50,14 +52,14 @@ File:
 
 Suggested caption:
 
-> Current repaired benchmark live comparison. In Prisoner's Dilemma, the
+> Current audited benchmark comparison. In Prisoner's Dilemma, the
 > canonical, resource-disguise, and unnamed/isomorphic conditions are all
 > finalized and show an ordered cooperation gradient from `0.2500 / 0.3056` to
 > `0.5833 / 0.6667` to `0.7500 / 0.8056`. Chicken already shows the opposite
-> directional effect under repaired logging, with canonical more cooperative
+> directional effect under audited logging, with canonical more cooperative
 > than unnamed; Stag Hunt now shows the same qualitative reversal, with
 > canonical `0.9167 / 0.9722` versus unnamed `0.6667 / 0.8333`. The full
-> repaired benchmark table is therefore complete across the three core games
+> benchmark table is therefore complete across the three core games
 > and shows that benchmark-presentation effects are real but game-dependent.
 
 ## Figure 5: Repaired Susceptibility Live Comparison
@@ -68,12 +70,12 @@ File:
 
 Suggested caption:
 
-> Current repaired susceptibility comparison across the three core games.
+> Current audited susceptibility comparison across the three core games.
 > Cooperative prompting yields universal cooperation in all three games, but
 > competitive prompting suppresses cooperation to different degrees:
 > Prisoner's Dilemma collapses to `0.0000 / 0.0000`, while Chicken remains at
-> `0.6389 / 0.3333` and Stag Hunt at `0.4167 / 0.3056`. The repaired
-> susceptibility battery is now complete across the core games and shows that
+> `0.6389 / 0.3333` and Stag Hunt at `0.4167 / 0.3056`. The susceptibility
+> battery is now complete across the core games and shows that
 > prompt steerability is itself game-dependent.
 
 ## Figure 6: Corrected Institutional Final Survival

@@ -133,3 +133,28 @@ def test_paper_batch_configs_use_finite_rate_limit_retries():
         assert config.parameters.max_rate_limit_retries == (
             module.DEFAULT_PAPER_BATCH_MAX_RATE_LIMIT_RETRIES
         )
+
+
+def test_fast_paper_batch_uses_six_round_part1_protocol():
+    """Fast paper batches should still use the six-round audited Part 1 protocol."""
+    module = _load_paper_batch_module()
+    models = [
+        ModelSpec(model="llama3.1-8b", provider="cerebras"),
+        ModelSpec(model="deepseek-ai/deepseek-v3.2", provider="nvidia"),
+    ]
+
+    plan = module.build_experiment_plan(
+        models,
+        fast=True,
+        multiagent_repetitions=1,
+        multiagent_concurrency=2,
+        name_suffix="",
+    )
+
+    part1_rounds = {
+        config.rounds
+        for track, config, _meta in plan
+        if track in {"baseline", "benchmark", "susceptibility"}
+    }
+
+    assert part1_rounds == {6}

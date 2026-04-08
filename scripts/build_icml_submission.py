@@ -118,20 +118,33 @@ def selected_figures_tex() -> str:
 
 \begin{figure*}[t]
 \centering
-\includegraphics[width=0.32\textwidth]{../../figures/triplet_live/baseline_prompt_variants_cooperation.png}
-\includegraphics[width=0.32\textwidth]{../../figures/benchmark_live/benchmark_presentations_cooperation.png}
-\includegraphics[width=0.32\textwidth]{../../figures/susceptibility_live/susceptibility_prompt_variants_cooperation.png}
-\caption{Selected repaired Part 1 figures: cross-game baseline comparison, benchmark-presentation comparison, and prompt-susceptibility comparison.}
+\includegraphics[width=0.48\textwidth]{../../figures/repaired_pd_replications/baseline_prompt_variants_cooperation.png}
+\includegraphics[width=0.48\textwidth]{../../figures/triplet_live/baseline_prompt_variants_cooperation.png}
+\caption{Neutral-baseline robustness in Prisoner's Dilemma (left) and cross-game baseline comparison (right). The pooled PD figure makes the central baseline-instability claim legible at full size, while the cross-game figure shows that strategic environment dominates simple model-wide cooperation labels.}
+\label{fig:baseline-selected}
+\end{figure*}
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.48\textwidth]{../../figures/benchmark_live/benchmark_presentations_cooperation.png}
+\includegraphics[width=0.48\textwidth]{../../figures/susceptibility_live/susceptibility_prompt_variants_cooperation.png}
+\caption{Benchmark-presentation effects (left) and prompt susceptibility (right). Both results are shown at a larger scale than the earlier three-across layout so the game-level differences remain readable in the submission PDF.}
 \label{fig:part1-selected}
 \end{figure*}
 
 \begin{figure*}[t]
 \centering
-\includegraphics[width=0.32\textwidth]{../../figures/society_reputation_live/society_reputation_final_survival.png}
-\includegraphics[width=0.32\textwidth]{../../figures/society_reputation_live/society_reputation_trade_volume.png}
-\includegraphics[width=0.32\textwidth]{../../figures/society_reputation_live/society_reputation_alliance_count.png}
-\caption{Completed corrected institutional figures for final survival, trade volume, and alliance count under scarcity and public reputation.}
-\label{fig:institution-selected}
+\includegraphics[width=0.48\textwidth]{../../figures/society_reputation_live/society_reputation_final_survival.png}
+\includegraphics[width=0.48\textwidth]{../../figures/society_reputation_live/society_reputation_trade_volume.png}
+\caption{Institutional outcomes under scarcity and public reputation. Final survival is shown on the left and trade volume on the right. Public reputation equalizes survival while preserving large prompt-conditioned differences in social activity.}
+\label{fig:institution-selected-a}
+\end{figure*}
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.48\textwidth]{../../figures/society_reputation_live/society_reputation_alliance_count.png}
+\caption{Alliance formation under scarcity and public reputation. Cooperative prompting produces visible alliance structure even when final survival converges under public reputation.}
+\label{fig:institution-selected-b}
 \end{figure*}
 """.strip() + "\n"
 
@@ -170,6 +183,7 @@ def write_main_tex(abstract_tex: str) -> None:
 \end{{icmlauthorlist}}
 
 \icmlaffiliation{{anon}}{{Anonymous Institution}}
+\icmlcorrespondingauthor{{Anonymous Author}}{{anon.email@domain.com}}
 \icmlkeywords{{large language models, social dilemmas, alignment evaluation, multi-agent systems}}
 
 \vskip 0.3in

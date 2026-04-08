@@ -22,7 +22,7 @@ Primary result summaries:
 - `results/paper_ready_society_triplet/interim_summary.md`
 - `results/paper_ready_reputation_triplet/interim_summary.md`
 
-Primary paper figures:
+Primary manuscript-facing figures:
 
 - `paper/figures/repaired_pd_replications/baseline_prompt_variants_cooperation.png`
 - `paper/figures/triplet_live/baseline_prompt_variants_cooperation.png`
@@ -32,11 +32,16 @@ Primary paper figures:
 - `paper/figures/society_reputation_live/society_reputation_trade_volume.png`
 - `paper/figures/society_reputation_live/society_reputation_alliance_count.png`
 
-## B. Repaired Experimental Settings
+Primary statistical appendix outputs:
 
-### B.1 Part 1 repeated-game cohort
+- `paper/tables/paired_statistical_tests.csv`
+- `paper/tables/paired_statistical_tests.md`
 
-Stable repaired cohort:
+## B. Experimental Settings
+
+### B.1 Part 1 repeated-game cohorts
+
+Stable triplet cohort:
 
 - `cerebras:llama3.1-8b`
 - `nvidia:deepseek-ai/deepseek-v3.2`
@@ -51,15 +56,16 @@ Same-day replication cohort:
 Protocol highlights:
 
 - self-play plus all cross-model pairings
-- four repeated rounds per repaired fast-batch trial
+- six repeated rounds per trial in the cited Part 1 artifact bundle
 - temperature `0.0`
-- full `messages_sent` prompt-stack logging
+- one trial per pairing-condition combination
+- full `messages_sent` prompt-stack logging in the audited artifacts
 
 ### B.2 Part 2 scarcity society
 
 Population:
 
-- two agents per model from the stable repaired triplet cohort
+- two agents per model from the stable triplet cohort
 
 World settings:
 
@@ -92,12 +98,13 @@ Part 3 uses the same world configuration as Part 2, with:
 - rating range `1` to `5`
 - no unmonitored agents
 
-## C. Metrics
+## C. Metrics And Statistical Reporting
 
 ### C.1 Repeated-game metrics
 
 - cooperation by agent position
 - average payoff by agent position
+- pooled per-trial mean cooperation for paired inference
 - benchmark-presentation deltas
 - prompt-susceptibility deltas
 
@@ -114,29 +121,74 @@ Part 3 uses the same world configuration as Part 2, with:
 
 ### C.3 Reporting convention
 
-Paper summaries report pooled means and 95% confidence intervals where
-available. Whole-directory aggregation prefers the latest completed artifact
-for each logical experiment name and excludes stale interrupted JSONL retries.
+The paper uses two different uncertainty summaries.
+
+Descriptive summaries:
+
+- pooled means
+- 95% bootstrap confidence intervals on trial means
+
+Inferential summaries:
+
+- exact two-sided sign-flip randomization tests on matched trial-level mean
+  cooperation when the design supports a paired comparison
+
+This distinction matters. Confidence-interval overlap is not treated as a
+hypothesis test in the manuscript. The focal Prisoner's Dilemma baseline and
+steerability claims rely on the paired exact tests instead.
+
+### C.4 Neutral-family handling
+
+In pooled Prisoner's Dilemma baseline runs, the compact and institutional
+neutral prompts are distinct inputs but produce identical action traces on all
+12 matched pairings across the two cohorts. The paper therefore treats them as
+an `abstract-neutral` family for the inferential baseline claim and reports the
+compact-versus-institutional comparison separately as a null contrast.
 
 ## D. Reproduction Commands
 
 All commands below were run from the repository root.
 
-Regenerate corrected institutional summaries:
+Regenerate manuscript-facing summaries:
 
 ```bash
-.venv/bin/python scripts/paper_summary.py results/paper_ready_society_triplet \
-  --markdown results/paper_ready_society_triplet/interim_summary.md \
-  --csv results/paper_ready_society_triplet/interim_summary.csv
-
-.venv/bin/python scripts/paper_summary.py results/paper_ready_reputation_triplet \
-  --markdown results/paper_ready_reputation_triplet/interim_summary.md \
-  --csv results/paper_ready_reputation_triplet/interim_summary.csv
+.venv/bin/python scripts/paper_summary.py \
+  results/paper_ready_baseline_triplet \
+  results/paper_ready_replications \
+  results/paper_ready_benchmark_triplet \
+  results/paper_ready_susceptibility_triplet \
+  results/paper_ready_society_triplet \
+  results/paper_ready_reputation_triplet \
+  --markdown paper/summary.md \
+  --csv paper/summary.csv
 ```
 
-Regenerate manuscript-facing society/reputation figures:
+Regenerate paired statistical tests:
 
 ```bash
+.venv/bin/python scripts/paper_stats.py
+```
+
+Regenerate manuscript-facing figures:
+
+```bash
+.venv/bin/python scripts/paper_figures.py \
+  results/paper_ready_baseline_triplet/paper-baseline-prisoners_dilemma-20260407T173331Z.json \
+  results/paper_ready_replications/paper-baseline-prisoners_dilemma-20260407T172819Z.json \
+  --output-dir paper/figures/repaired_pd_replications
+
+.venv/bin/python scripts/paper_figures.py \
+  results/paper_ready_baseline_triplet \
+  --output-dir paper/figures/triplet_live
+
+.venv/bin/python scripts/paper_figures.py \
+  results/paper_ready_benchmark_triplet \
+  --output-dir paper/figures/benchmark_live
+
+.venv/bin/python scripts/paper_figures.py \
+  results/paper_ready_susceptibility_triplet \
+  --output-dir paper/figures/susceptibility_live
+
 .venv/bin/python scripts/paper_figures.py \
   results/paper_ready_society_triplet \
   results/paper_ready_reputation_triplet \
@@ -156,37 +208,47 @@ Run paper-related regression coverage:
   tests/test_paper_summary.py \
   tests/test_paper_figures.py \
   tests/test_paper_batch.py \
+  tests/test_paper_stats.py \
+  tests/test_build_icml_submission.py \
   tests/test_experiments.py
 ```
 
 ## E. Threats To Validity
 
-The most important repaired validity issue was incomplete prompt logging. Older
-artifacts that logged only the final task prompt should not be treated as the
-paper record when repaired artifacts exist with full message-stack logging.
+The current paper bundle improves over earlier pilot artifacts, but several
+validity constraints still matter.
 
-Provider availability is also unstable over time. The accessible model panel is
-therefore a dated empirical object, not a timeless canonical benchmark. This
-paper addresses that by documenting the exact repaired cohorts rather than
-claiming they are exhaustive.
+First, the result panel is date-specific. The accessible and action-ready model
+cohort for the April 2026 runs should be treated as an empirical object, not as
+a timeless standard benchmark.
 
-Finally, the institutional battery remains modest in scale. The corrected Part
-2 and Part 3 reruns are now complete across all three prompt families, but only
-at three repetitions per condition. That is sufficient for a defensible
-behavioral result set, but not for overconfident claims about universal
-institutional laws.
+Second, the benchmark and susceptibility contrasts remain small-sample. Large
+descriptive shifts can coexist with exact p-values that remain above common
+thresholds because only six matched pairings are available in the stable
+cohort.
+
+Third, the institutional battery is still modest in scale at three repetitions
+per prompt family. This supports cautious claims about survival-sociality
+dissociations, not sweeping claims about institutional law.
+
+Fourth, the current prompt audit uncovered a nuisance prompt-construction issue
+in the framing layer: a literal player identifier placeholder is preserved in
+some framing prompts. Because the issue is shared across compared neutral
+conditions and the logged outputs show condition-specific raw responses, we do
+not treat it as an explanation for the compact/institutional collapse. It
+should nevertheless be corrected in future reruns.
 
 ## F. Ethics And Release
 
 This project should be released as a behavioral benchmark and artifact bundle,
 not as evidence that models possess stable moral traits. Terms such as
-"cooperative," "competitive," or "aligned" should always be interpreted as
-conditioned behavioral descriptors under specific prompts, games, and
-institutions.
+`cooperative`, `competitive`, or `aligned` should be interpreted as conditioned
+behavioral descriptors under specific prompts, games, and institutions.
 
-Prompt files, configs, and logs are appropriate to release because they enable
-auditing and replication. The main ethical risk is misinterpretation:
-anthropomorphic readings can make narrow behavioral findings sound like claims
-about intention or character. The paper should therefore pair open artifacts
-with careful framing about scope, dated provider access, and the distinction
-between visible prosociality and resilient collective outcomes.
+Prompt files, configs, summaries, and logs are appropriate to release because
+they enable auditing and replication. The main ethical risk is
+misinterpretation: narrow behavioral findings can easily be overread as claims
+about intention, value, or character. The release bundle should therefore pair
+open artifacts with explicit statements about scope, sample size, dated
+provider availability, and the difference between visible prosociality and
+collective resilience.
