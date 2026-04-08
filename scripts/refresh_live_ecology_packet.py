@@ -58,6 +58,7 @@ def packet_paths(results_dir: Path, log_path: Path) -> dict[str, Path]:
         "trial_snapshot_markdown": results_dir / "live_trial_snapshot.md",
         "trial_snapshot_csv": results_dir / "live_trial_snapshot.csv",
         "trial_snapshot_figure": results_dir / "live_trial_snapshot.png",
+        "trial_comparison_markdown": results_dir / "live_trial_comparison.md",
     }
 
 
@@ -235,6 +236,66 @@ def write_trial_snapshot_figure(outputs: dict[str, Path], live_status: dict[str,
     plt.close(fig)
 
 
+def write_trial_comparison(outputs: dict[str, Path], live_status: dict[str, object]) -> None:
+    trial_rows = sorted(
+        list(live_status.get("trial_status_rows") or []),
+        key=lambda row: (row.get("trial_id", 0)),
+    )
+    if len(trial_rows) < 2:
+        outputs["trial_comparison_markdown"].write_text(
+            "# Live Trial Comparison\n\nNot enough trial rows observed for a comparison.\n",
+            encoding="utf-8",
+        )
+        return
+
+    completed_rows = [row for row in trial_rows if row.get("completed")]
+    active_rows = [row for row in trial_rows if not row.get("completed")]
+    reference = completed_rows[-1] if completed_rows else trial_rows[0]
+    candidate = active_rows[0] if active_rows else trial_rows[-1]
+
+    def fmt_delta(current: object, baseline: object, *, digits: int = 4) -> str:
+        if not isinstance(current, (int, float)) or not isinstance(baseline, (int, float)):
+            return ""
+        delta = float(current) - float(baseline)
+        return f"{delta:+.{digits}f}"
+
+    lines = [
+        "# Live Trial Comparison",
+        "",
+        f"- reference trial: `{reference.get('trial_id')}` `{reference.get('prompt_variant')}`",
+        f"- comparison trial: `{candidate.get('trial_id')}` `{candidate.get('prompt_variant')}`",
+        "",
+        "| metric | reference | comparison | delta |",
+        "| --- | --- | --- | --- |",
+    ]
+
+    metrics = [
+        ("alive_fraction", "Alive fraction", 4),
+        ("alive_count", "Alive count", 0),
+        ("plateau_duration_rounds", "Plateau rounds", 0),
+        ("collapse_death_count", "Collapse deaths", 0),
+        ("public_food", "Latest public food", 1),
+        ("public_water", "Latest public water", 1),
+        ("average_health", "Latest average health", 4),
+        ("average_energy", "Latest average energy", 4),
+        ("trade_volume", "Latest trade volume", 0),
+    ]
+    for key, label, digits in metrics:
+        reference_value = reference.get(key)
+        comparison_value = candidate.get(key)
+        reference_text = (
+            f"{float(reference_value):.{digits}f}" if isinstance(reference_value, (int, float)) else ""
+        )
+        comparison_text = (
+            f"{float(comparison_value):.{digits}f}" if isinstance(comparison_value, (int, float)) else ""
+        )
+        lines.append(
+            f"| {label} | {reference_text} | {comparison_text} | {fmt_delta(comparison_value, reference_value, digits=digits)} |"
+        )
+
+    outputs["trial_comparison_markdown"].write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 def main() -> int:
     args = parse_args()
     results_dir = Path(args.results_dir)
@@ -276,6 +337,7 @@ def main() -> int:
     outputs["status_json"].write_text(json.dumps(live_status, indent=2), encoding="utf-8")
     write_trial_snapshot(outputs, live_status)
     write_trial_snapshot_figure(outputs, live_status)
+    write_trial_comparison(outputs, live_status)
 
     for label, path in outputs.items():
         print(f"{label}: {path}")

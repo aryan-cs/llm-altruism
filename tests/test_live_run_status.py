@@ -171,6 +171,11 @@ def test_summarize_jsonl_log_detects_stable_post_collapse_plateau(tmp_path: Path
                         "data": {
                             "alive_count": 4,
                             "total_agents": 4,
+                            "public_food": 10,
+                            "public_water": 20,
+                            "average_health": 8.0,
+                            "average_energy": 7.0,
+                            "trade_volume": 0,
                             "newly_dead": [],
                             "agent_vitals": {},
                         },
@@ -185,6 +190,11 @@ def test_summarize_jsonl_log_detects_stable_post_collapse_plateau(tmp_path: Path
                         "data": {
                             "alive_count": 2,
                             "total_agents": 4,
+                            "public_food": 8,
+                            "public_water": 18,
+                            "average_health": 7.0,
+                            "average_energy": 6.0,
+                            "trade_volume": 0,
                             "newly_dead": ["c", "d"],
                             "agent_vitals": {},
                         },
@@ -320,6 +330,11 @@ def test_summarize_jsonl_log_scopes_phase_diagnostics_to_latest_trial(tmp_path: 
                         "data": {
                             "alive_count": 4,
                             "total_agents": 4,
+                            "public_food": 10,
+                            "public_water": 20,
+                            "average_health": 8.0,
+                            "average_energy": 7.0,
+                            "trade_volume": 0,
                             "newly_dead": [],
                             "agent_vitals": {},
                         },
@@ -334,6 +349,11 @@ def test_summarize_jsonl_log_scopes_phase_diagnostics_to_latest_trial(tmp_path: 
                         "data": {
                             "alive_count": 2,
                             "total_agents": 4,
+                            "public_food": 8,
+                            "public_water": 18,
+                            "average_health": 7.0,
+                            "average_energy": 6.0,
+                            "trade_volume": 0,
                             "newly_dead": ["c", "d"],
                             "agent_vitals": {},
                         },
@@ -356,6 +376,11 @@ def test_summarize_jsonl_log_scopes_phase_diagnostics_to_latest_trial(tmp_path: 
                         "data": {
                             "alive_count": 4,
                             "total_agents": 4,
+                            "public_food": 12,
+                            "public_water": 22,
+                            "average_health": 9.0,
+                            "average_energy": 8.0,
+                            "trade_volume": 1,
                             "newly_dead": [],
                             "agent_vitals": {},
                         },
@@ -370,6 +395,11 @@ def test_summarize_jsonl_log_scopes_phase_diagnostics_to_latest_trial(tmp_path: 
                         "data": {
                             "alive_count": 4,
                             "total_agents": 4,
+                            "public_food": 13,
+                            "public_water": 23,
+                            "average_health": 9.5,
+                            "average_energy": 8.5,
+                            "trade_volume": 2,
                             "newly_dead": [],
                             "agent_vitals": {},
                         },
@@ -400,10 +430,13 @@ def test_summarize_jsonl_log_scopes_phase_diagnostics_to_latest_trial(tmp_path: 
     assert summary["trial_status_rows"][0]["trial_id"] == 0
     assert summary["trial_status_rows"][0]["completed"] is True
     assert summary["trial_status_rows"][0]["prompt_variant"] == "task-only"
+    assert summary["trial_status_rows"][0]["public_food"] == 8
     assert summary["trial_status_rows"][1]["trial_id"] == 1
     assert summary["trial_status_rows"][1]["completed"] is False
     assert summary["trial_status_rows"][1]["prompt_variant"] == "cooperative"
     assert summary["trial_status_rows"][1]["population_regime"] == "no_losses_yet"
+    assert summary["trial_status_rows"][1]["public_food"] == 13
+    assert summary["trial_status_rows"][1]["trade_volume"] == 2
 
 
 def test_expand_inputs_reads_jsonl_files_from_directories(tmp_path: Path):

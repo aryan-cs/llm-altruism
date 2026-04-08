@@ -203,3 +203,6 @@ These remain important across sessions.
 - the live packet now also emits a PNG comparison snapshot so the completed
   `task-only` trial and active `cooperative` trial can be compared visually at
   a glance
+- the live packet now also emits `live_trial_comparison.md`, which states the
+  current cross-trial deltas directly instead of requiring manual comparison of
+  the snapshot table

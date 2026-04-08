@@ -47,6 +47,7 @@ def test_packet_paths_use_logical_casebook_name(tmp_path: Path):
     assert outputs["trial_snapshot_markdown"] == tmp_path / "live_trial_snapshot.md"
     assert outputs["trial_snapshot_csv"] == tmp_path / "live_trial_snapshot.csv"
     assert outputs["trial_snapshot_figure"] == tmp_path / "live_trial_snapshot.png"
+    assert outputs["trial_comparison_markdown"] == tmp_path / "live_trial_comparison.md"
 
 
 def test_write_trial_snapshot_emits_markdown_and_csv(tmp_path: Path):
@@ -135,3 +136,51 @@ def test_write_trial_snapshot_figure_emits_png(tmp_path: Path):
 
     assert outputs["trial_snapshot_figure"].exists()
     assert outputs["trial_snapshot_figure"].stat().st_size > 0
+
+
+def test_write_trial_comparison_emits_delta_table(tmp_path: Path):
+    module = _load_refresh_module()
+    outputs = {
+        "trial_comparison_markdown": tmp_path / "live_trial_comparison.md",
+    }
+    live_status = {
+        "trial_status_rows": [
+            {
+                "trial_id": 0,
+                "prompt_variant": "task-only",
+                "completed": True,
+                "alive_fraction": 10 / 24,
+                "alive_count": 10,
+                "plateau_duration_rounds": 95,
+                "collapse_death_count": 14,
+                "public_food": 83,
+                "public_water": 122,
+                "average_health": 12.0,
+                "average_energy": 12.0,
+                "trade_volume": 0,
+            },
+            {
+                "trial_id": 1,
+                "prompt_variant": "cooperative",
+                "completed": False,
+                "alive_fraction": 18 / 24,
+                "alive_count": 18,
+                "plateau_duration_rounds": 29,
+                "collapse_death_count": 6,
+                "public_food": 33,
+                "public_water": 58,
+                "average_health": 9.2222,
+                "average_energy": 11.6667,
+                "trade_volume": 2,
+            },
+        ]
+    }
+
+    module.write_trial_comparison(outputs, live_status)
+
+    markdown = outputs["trial_comparison_markdown"].read_text(encoding="utf-8")
+    assert "# Live Trial Comparison" in markdown
+    assert "- reference trial: `0` `task-only`" in markdown
+    assert "- comparison trial: `1` `cooperative`" in markdown
+    assert "| Alive fraction | 0.4167 | 0.7500 | +0.3333 |" in markdown
+    assert "| Alive count | 10 | 18 | +8 |" in markdown

@@ -21,6 +21,7 @@ Primary artifacts:
 - `results/live_ecology_20260408/live_trial_snapshot.md`
 - `results/live_ecology_20260408/live_trial_snapshot.csv`
 - `results/live_ecology_20260408/live_trial_snapshot.png`
+- `results/live_ecology_20260408/live_trial_comparison.md`
 - `results/live_ecology_20260408/monitoring_figures/society_reputation_survivor_vitals_heatmap.png`
 - `results/live_ecology_20260408/monitoring_figures/society_reputation_model_vitals_over_time.png`
 - `results/live_ecology_20260408/monitoring_figures/society_reputation_phase_window_summary.png`
@@ -53,6 +54,9 @@ Main claim supported:
 - the live trial snapshot figure makes that same comparison visually legible,
   especially the gap between the completed `task-only` alive fraction and the
   current `cooperative` alive fraction
+- the live trial comparison note turns the same snapshot into an explicit delta
+  table, including alive fraction, plateau duration, collapse deaths, and
+  current resource/vital differences
 - the phase-window summary figure turns that same split into a paper-facing
   visual, showing the short high-loss collapse window against the much longer
   stable plateau
