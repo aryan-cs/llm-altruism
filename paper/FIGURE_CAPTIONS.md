@@ -9,6 +9,10 @@ Live-monitoring note:
 - the most useful additional diagnostic there is
   `society_reputation_population_by_model_over_time.png`, which can be treated
   as an appendix candidate once the canonical reruns finish
+- the latest-state companion diagnostic is
+  `society_reputation_survivor_vitals_heatmap.png`, which shows per-agent
+  `food`, `water`, `energy`, and `health` for the currently surviving
+  population
 
 ## Figure 1: Scarcity Society Final Survival
 
@@ -164,3 +168,17 @@ Suggested caption:
 > refresh. The figure is intended as an appendix-style diagnostic for the live
 > rerun, showing which model families remain in the population as collapse
 > unfolds.
+
+## Appendix Candidate: Survivor Vitals Heatmap
+
+File:
+
+- `results/live_ecology_20260408/monitoring_figures/society_reputation_survivor_vitals_heatmap.png`
+
+Suggested caption:
+
+> Latest observed survivor vitals in the canonical long-horizon ecology
+> refresh. Each row is a surviving agent, and the columns show `food`,
+> `water`, `energy`, and `health`. The figure makes the surviving population's
+> internal state directly auditable rather than relying only on aggregate
+> survival counts.

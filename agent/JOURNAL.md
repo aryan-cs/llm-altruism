@@ -55,6 +55,9 @@ It should answer:
 - added `scripts/ecology_casebook.py` to turn a live society JSONL log into a
   milestone casebook with start, first-loss, largest-death-shock, and latest
   snapshots
+- added a latest-state survivor-vitals heatmap to the monitoring figure
+  pipeline so the live ecology bundle now shows per-agent `food`, `water`,
+  `energy`, and `health` for the surviving population
 - current live baseline status:
   - `society-baseline-20260408T171454Z`
   - first `task-only` trial has completed round `36`

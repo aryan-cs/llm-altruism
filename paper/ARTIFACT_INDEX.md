@@ -17,12 +17,14 @@ Primary artifacts:
 - `results/live_ecology_20260408/interim_summary.md`
 - `results/live_ecology_20260408/monitoring_figures/`
 - `results/live_ecology_20260408/society-baseline-casebook.md`
+- `results/live_ecology_20260408/monitoring_figures/society_reputation_survivor_vitals_heatmap.png`
 
 Main claim supported:
 
 - the canonical society refresh is auditable while in progress
 - the current baseline trajectory already exposes concrete collapse milestones,
-  model-level survivor composition, and a gather-dominated behavior regime
+  model-level survivor composition, a gather-dominated behavior regime, and
+  the resource/vital profile of the surviving agents
 
 ## 1. Scarcity Society
 

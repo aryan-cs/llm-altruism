@@ -272,6 +272,60 @@ def test_flatten_society_model_rows_extracts_alive_counts_by_model():
     assert sorted(model_frame["alive_count_model"].tolist()) == [1, 1]
 
 
+def test_flatten_society_agent_vital_rows_extracts_latest_survivor_vitals():
+    """Agent-level vital extraction should preserve per-agent food, water, energy, and health."""
+    module = _load_paper_figures_module()
+    summaries = [
+        {
+            "experiment_id": "society-baseline-20260408T171454Z",
+            "config": {"experiment": {"name": "society-baseline", "part": 2}},
+            "trials": [
+                {
+                    "trial_id": 0,
+                    "prompt_variant": "task-only",
+                    "repetition": 0,
+                    "rounds": [
+                        {
+                            "timestep": 1,
+                            "agent_vitals": {
+                                "agent-0": {
+                                    "agent_id": "agent-0",
+                                    "model": "model-a",
+                                    "alive": True,
+                                    "food": 3,
+                                    "water": 2,
+                                    "energy": 8,
+                                    "health": 9,
+                                    "resources_total": 22,
+                                },
+                                "agent-1": {
+                                    "agent_id": "agent-1",
+                                    "model": "model-b",
+                                    "alive": False,
+                                    "food": 0,
+                                    "water": 0,
+                                    "energy": 0,
+                                    "health": 0,
+                                    "resources_total": 0,
+                                },
+                            },
+                        }
+                    ],
+                }
+            ],
+        }
+    ]
+
+    vital_frame = module.flatten_society_agent_vital_rows(summaries)
+
+    assert len(vital_frame) == 1
+    assert vital_frame.iloc[0]["agent_id"] == "agent-0"
+    assert vital_frame.iloc[0]["food"] == 3
+    assert vital_frame.iloc[0]["water"] == 2
+    assert vital_frame.iloc[0]["energy"] == 8
+    assert vital_frame.iloc[0]["health"] == 9
+
+
 def test_save_society_timeline_figure_writes_png(tmp_path: Path):
     """Timeline figure helper should emit a non-empty PNG from per-round rows."""
     module = _load_paper_figures_module()
@@ -343,6 +397,50 @@ def test_save_society_model_population_figure_writes_png(tmp_path: Path):
         model_frame,
         output_path=output_path,
         title="Population trajectories by model",
+    )
+
+    assert written == output_path
+    assert output_path.exists()
+    assert output_path.stat().st_size > 0
+
+
+def test_save_society_vitals_heatmap_writes_png(tmp_path: Path):
+    """Latest survivor vitals should render to a non-empty PNG."""
+    module = _load_paper_figures_module()
+    agent_frame = pd.DataFrame(
+        [
+            {
+                "track": "society",
+                "prompt_variant": "task-only",
+                "trial_id": 0,
+                "timestep": 5,
+                "agent_id": "agent-0",
+                "model": "model-a",
+                "food": 5,
+                "water": 3,
+                "energy": 10,
+                "health": 11,
+            },
+            {
+                "track": "society",
+                "prompt_variant": "task-only",
+                "trial_id": 0,
+                "timestep": 5,
+                "agent_id": "agent-1",
+                "model": "model-b",
+                "food": 2,
+                "water": 4,
+                "energy": 9,
+                "health": 10,
+            },
+        ]
+    )
+    output_path = tmp_path / "survivor_vitals.png"
+
+    written = module.save_society_vitals_heatmap(
+        agent_frame,
+        output_path=output_path,
+        title="Latest survivor vitals",
     )
 
     assert written == output_path

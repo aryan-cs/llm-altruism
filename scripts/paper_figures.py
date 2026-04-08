@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import math
 from pathlib import Path
 from typing import Any
 
@@ -230,6 +231,46 @@ def flatten_society_model_rows(summaries: list[dict[str, Any]]) -> pd.DataFrame:
                     )
 
     return pd.DataFrame(model_rows)
+
+
+def flatten_society_agent_vital_rows(summaries: list[dict[str, Any]]) -> pd.DataFrame:
+    """Extract per-agent vital signs from society rounds."""
+    vital_rows: list[dict[str, Any]] = []
+
+    for summary in summaries:
+        experiment = summary.get("config", {}).get("experiment", summary.get("config", {}))
+        track = summary_track(summary)
+        if track not in {"society", "reputation"}:
+            continue
+
+        for trial in summary.get("trials", []):
+            prompt_variant = trial.get("prompt_variant")
+            if not prompt_variant:
+                continue
+            for round_payload in trial.get("rounds", []):
+                for agent_id, vital in (round_payload.get("agent_vitals") or {}).items():
+                    if not isinstance(vital, dict) or not vital.get("alive", False):
+                        continue
+                    vital_rows.append(
+                        {
+                            "experiment_id": summary.get("experiment_id"),
+                            "name": experiment.get("name"),
+                            "track": track,
+                            "prompt_variant": prompt_variant,
+                            "trial_id": trial.get("trial_id"),
+                            "repetition": trial.get("repetition"),
+                            "timestep": round_payload.get("timestep"),
+                            "agent_id": str(vital.get("agent_id") or agent_id),
+                            "model": str(vital.get("model") or "unknown"),
+                            "food": vital.get("food"),
+                            "water": vital.get("water"),
+                            "energy": vital.get("energy"),
+                            "health": vital.get("health"),
+                            "resources_total": vital.get("resources_total"),
+                        }
+                    )
+
+    return pd.DataFrame(vital_rows)
 
 
 def prettify_slug(value: str) -> str:
@@ -874,6 +915,91 @@ def save_society_model_population_figure(
     return output_path
 
 
+def save_society_vitals_heatmap(
+    agent_frame: pd.DataFrame,
+    *,
+    output_path: Path,
+    title: str,
+) -> Path | None:
+    if agent_frame.empty:
+        return None
+
+    required = {"track", "prompt_variant", "trial_id", "timestep", "agent_id", "model"}
+    if not required.issubset(set(agent_frame.columns)):
+        return None
+
+    panels: list[tuple[tuple[str, str, int], pd.DataFrame]] = []
+    for keys, group in agent_frame.groupby(["track", "prompt_variant", "trial_id"], dropna=False):
+        latest_timestep = group["timestep"].max()
+        latest_group = group[group["timestep"] == latest_timestep].copy()
+        if latest_group.empty:
+            continue
+        latest_group = latest_group.sort_values(["model", "agent_id"])
+        latest_group["agent_label"] = [
+            f"{agent_id} | {str(model).split('/')[-1]}"
+            for agent_id, model in zip(
+                latest_group["agent_id"],
+                latest_group["model"],
+                strict=False,
+            )
+        ]
+        latest_group.attrs["latest_timestep"] = latest_timestep
+        panels.append((keys, latest_group))
+
+    if not panels:
+        return None
+
+    ncols = 1 if len(panels) == 1 else min(2, len(panels))
+    nrows = math.ceil(len(panels) / ncols)
+    max_agents = max(len(panel) for _, panel in panels)
+    figure_height = max(4.5 * nrows, 0.33 * max_agents * nrows + 1.8)
+
+    configure_plot_style()
+    fig, axes = plt.subplots(
+        nrows,
+        ncols,
+        figsize=(7.2 * ncols, figure_height),
+        squeeze=False,
+    )
+    flat_axes = axes.flatten()
+    metrics = ["food", "water", "energy", "health"]
+
+    for index, ((track, prompt_variant, trial_id), panel) in enumerate(panels):
+        ax = flat_axes[index]
+        heatmap_frame = (
+            panel.set_index("agent_label")[metrics]
+            .apply(pd.to_numeric, errors="coerce")
+            .fillna(0.0)
+        )
+        sns.heatmap(
+            heatmap_frame,
+            annot=True,
+            fmt=".0f",
+            cmap="YlOrRd",
+            linewidths=0.5,
+            linecolor="#ffffff",
+            cbar=index == 0,
+            ax=ax,
+        )
+        latest_timestep = panel.attrs.get("latest_timestep")
+        ax.set_title(
+            f"{track.title()}: {prettify_slug(prompt_variant).replace(chr(10), ' ')} "
+            f"(trial {trial_id}, t={latest_timestep})",
+            fontsize=13,
+        )
+        ax.set_xlabel("")
+        ax.set_ylabel("Agent")
+
+    for ax in flat_axes[len(panels) :]:
+        ax.axis("off")
+
+    fig.suptitle(title, fontsize=18, y=1.02)
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=FIGURE_DPI, bbox_inches="tight")
+    plt.close(fig)
+    return output_path
+
+
 def main() -> int:
     args = parse_args()
     output_dir = Path(args.output_dir)
@@ -886,6 +1012,7 @@ def main() -> int:
     )
     society_round_frame, society_event_frame = flatten_society_round_rows(summaries)
     society_model_frame = flatten_society_model_rows(summaries)
+    society_agent_frame = flatten_society_agent_vital_rows(summaries)
     if experiment_frame.empty:
         print("No experiment rows found.")
         return 1
@@ -1004,6 +1131,11 @@ def main() -> int:
             society_model_frame,
             output_path=output_dir / "society_reputation_population_by_model_over_time.png",
             title="Population trajectories by model in the LLM societies",
+        ),
+        save_society_vitals_heatmap(
+            society_agent_frame,
+            output_path=output_dir / "society_reputation_survivor_vitals_heatmap.png",
+            title="Latest observed survivor vitals in the LLM societies",
         ),
     ]:
         if maybe_path is not None:

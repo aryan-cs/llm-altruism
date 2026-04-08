@@ -72,7 +72,8 @@ Current canonical direction:
   generated before a full trial finishes
 - the monitoring pipeline now also exposes model-level survival trajectories
   and compact ecology diagnostics, including first-loss timing, death shocks,
-  alive-by-model composition, and dominant behavior category
+  alive-by-model composition, dominant behavior category, and a latest-state
+  survivor-vitals heatmap
 - latest observed partial result on the first baseline trial:
   - round `29`
   - alive agents `10 / 24`
