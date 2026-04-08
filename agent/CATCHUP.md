@@ -157,6 +157,7 @@ uv run pytest -q
 uv run scripts/run_experiment.py
 uv run python scripts/run_paper_batch.py --track society --track reputation
 .venv/bin/python scripts/live_run_status.py results/live_ecology_20260408
+.venv/bin/python scripts/ecology_casebook.py results/live_ecology_20260408/society-baseline-20260408T171454Z.jsonl
 .venv/bin/python scripts/build_icml_submission.py
 ```
 

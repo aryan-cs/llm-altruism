@@ -52,9 +52,12 @@ It should answer:
     shocks, alive-by-model composition, and dominant behavior category
 - added `scripts/live_run_status.py` for direct stale-vs-active summaries of
   live JSONL runs
+- added `scripts/ecology_casebook.py` to turn a live society JSONL log into a
+  milestone casebook with start, first-loss, largest-death-shock, and latest
+  snapshots
 - current live baseline status:
   - `society-baseline-20260408T171454Z`
-  - first `task-only` trial has completed round `29`
+  - first `task-only` trial has completed round `36`
   - alive agents are now `10 / 24`
   - cumulative deaths are `14`
   - current survivors are `8` `deepseek-ai/deepseek-v3.2` agents and `2`
@@ -63,6 +66,8 @@ It should answer:
   - current action mix is overwhelmingly `gather`-dominated
   - interim monitoring artifacts are written under
     `results/live_ecology_20260408/monitoring_figures/`
+  - qualitative milestone notes are written to
+    `results/live_ecology_20260408/society-baseline-casebook.md`
 
 ### Society-first paper reframing
 
