@@ -365,7 +365,7 @@ are now background context, not the paper record.
 ### 7.2 Venue-formatting is now a packaging task
 
 An anonymous ICML-style submission build now exists in
-`paper/icml2025/build/llm_altruism_icml2025_submission.pdf`, generated from
+`paper/icml2025/llm_altruism_icml2025_submission.pdf`, generated from
 the Markdown manuscript bundle by `scripts/build_icml_submission.py`. The
 remaining structural work is mostly to adapt that build to the exact target
 venue if we choose NeurIPS or ICLR instead.

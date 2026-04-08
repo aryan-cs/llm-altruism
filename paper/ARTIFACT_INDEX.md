@@ -232,7 +232,7 @@ artifacts exist.
 
 Current anonymous submission-style artifact:
 
-- `paper/icml2025/build/llm_altruism_icml2025_submission.pdf`
+- `paper/icml2025/llm_altruism_icml2025_submission.pdf`
 
 Build support files:
 

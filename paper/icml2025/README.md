@@ -15,6 +15,7 @@ Build command from the repository root:
 
 Generated outputs:
 
+- `paper/icml2025/llm_altruism_icml2025_submission.pdf`
 - `paper/icml2025/build/main.tex`
 - `paper/icml2025/build/generated_body.tex`
 - `paper/icml2025/build/generated_appendix.tex`

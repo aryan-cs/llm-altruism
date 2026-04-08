@@ -16,6 +16,7 @@ PAPER_DIR = ROOT / "paper"
 ICML_DIR = PAPER_DIR / "icml2025"
 STYLE_DIR = ICML_DIR / "style"
 BUILD_DIR = ICML_DIR / "build"
+TRACKED_PDF = ICML_DIR / "llm_altruism_icml2025_submission.pdf"
 
 
 LONGTABLE_CAPTIONS = [
@@ -215,6 +216,7 @@ def compile_pdf() -> None:
     pdf = BUILD_DIR / "main.pdf"
     if pdf.exists():
         pdf.replace(BUILD_DIR / "llm_altruism_icml2025_submission.pdf")
+    shutil.copy2(BUILD_DIR / "llm_altruism_icml2025_submission.pdf", TRACKED_PDF)
     for style_name in ["algorithm.sty", "algorithmic.sty", "fancyhdr.sty", "icml2025.bst", "icml2025.sty"]:
         stale = BUILD_DIR / style_name
         if stale.exists():
@@ -247,7 +249,7 @@ def main() -> None:
     (BUILD_DIR / "selected_figures.tex").write_text(selected_figures_tex(), encoding="utf-8")
     write_main_tex(abstract_tex)
     compile_pdf()
-    print(BUILD_DIR / "llm_altruism_icml2025_submission.pdf")
+    print(TRACKED_PDF)
 
 
 if __name__ == "__main__":
