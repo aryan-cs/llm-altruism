@@ -187,6 +187,76 @@ def collapse_diagnostics(rounds: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def phase_mean(rounds: list[dict[str, Any]], key: str) -> float | None:
+    values = [
+        float((record.get("data") or {}).get(key))
+        for record in rounds
+        if isinstance((record.get("data") or {}).get(key), (int, float))
+    ]
+    if not values:
+        return None
+    return sum(values) / len(values)
+
+
+def phase_diagnostics(rounds: list[dict[str, Any]], diagnostics: dict[str, Any]) -> dict[str, Any]:
+    first_loss = diagnostics.get("first_loss_round_num")
+    last_death = diagnostics.get("last_death_round_num")
+    stability_start = diagnostics.get("stability_start_round_num")
+    latest_round_num = rounds[-1].get("round_num") if rounds else None
+
+    result: dict[str, Any] = {
+        "collapse_start_round_num": first_loss,
+        "collapse_end_round_num": last_death,
+        "collapse_duration_rounds": None,
+        "collapse_death_count": None,
+        "collapse_mean_public_food": None,
+        "collapse_mean_public_water": None,
+        "collapse_mean_health": None,
+        "collapse_mean_energy": None,
+        "plateau_start_round_num": stability_start if diagnostics.get("stabilized_post_collapse") else None,
+        "plateau_end_round_num": latest_round_num if diagnostics.get("stabilized_post_collapse") else None,
+        "plateau_duration_rounds": None,
+        "plateau_mean_public_food": None,
+        "plateau_mean_public_water": None,
+        "plateau_mean_health": None,
+        "plateau_mean_energy": None,
+    }
+
+    if isinstance(first_loss, (int, float)) and isinstance(last_death, (int, float)):
+        collapse_rounds = [
+            record
+            for record in rounds
+            if isinstance(record.get("round_num"), (int, float))
+            and int(first_loss) <= int(record.get("round_num")) <= int(last_death)
+        ]
+        if collapse_rounds:
+            result["collapse_duration_rounds"] = len(collapse_rounds)
+            result["collapse_death_count"] = sum(
+                len(((record.get("data") or {}).get("newly_dead") or []))
+                for record in collapse_rounds
+            )
+            result["collapse_mean_public_food"] = phase_mean(collapse_rounds, "public_food")
+            result["collapse_mean_public_water"] = phase_mean(collapse_rounds, "public_water")
+            result["collapse_mean_health"] = phase_mean(collapse_rounds, "average_health")
+            result["collapse_mean_energy"] = phase_mean(collapse_rounds, "average_energy")
+
+    if diagnostics.get("stabilized_post_collapse") and isinstance(stability_start, (int, float)):
+        plateau_rounds = [
+            record
+            for record in rounds
+            if isinstance(record.get("round_num"), (int, float))
+            and int(stability_start) <= int(record.get("round_num")) <= int(latest_round_num)
+        ]
+        if plateau_rounds:
+            result["plateau_duration_rounds"] = len(plateau_rounds)
+            result["plateau_mean_public_food"] = phase_mean(plateau_rounds, "public_food")
+            result["plateau_mean_public_water"] = phase_mean(plateau_rounds, "public_water")
+            result["plateau_mean_health"] = phase_mean(plateau_rounds, "average_health")
+            result["plateau_mean_energy"] = phase_mean(plateau_rounds, "average_energy")
+
+    return result
+
+
 def summarize_jsonl_log(
     path: Path,
     *,
@@ -265,6 +335,7 @@ def summarize_jsonl_log(
         state = "active" if minutes_since_latest_event <= stale_minutes else "stale"
 
     diagnostics = collapse_diagnostics(round_records)
+    phase_metrics = phase_diagnostics(round_records, diagnostics)
 
     return {
         "path": str(path),
@@ -294,6 +365,7 @@ def summarize_jsonl_log(
         "minutes_since_latest_event": minutes_since_latest_event,
         "state": state,
         **diagnostics,
+        **phase_metrics,
     }
 
 
@@ -334,6 +406,14 @@ def format_status(summary: dict[str, Any]) -> str:
     ]
     if alive_models_text:
         lines.append(f"  alive_models={alive_models_text}")
+    if summary.get("plateau_duration_rounds") is not None:
+        lines.append(
+            (
+                f"  phases=collapse[{summary.get('collapse_start_round_num')}..{summary.get('collapse_end_round_num')}] "
+                f"plateau[{summary.get('plateau_start_round_num')}..{summary.get('plateau_end_round_num')}] "
+                f"plateau_rounds={summary.get('plateau_duration_rounds')}"
+            )
+        )
     return "\n".join(lines)
 
 

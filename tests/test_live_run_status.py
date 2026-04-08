@@ -103,6 +103,9 @@ def test_summarize_jsonl_log_extracts_society_state(tmp_path: Path):
     assert summary["first_death_round_num"] is None
     assert summary["last_death_round_num"] is None
     assert summary["population_regime"] == "losses_observed"
+    assert summary["collapse_start_round_num"] == 30
+    assert summary["collapse_end_round_num"] is None
+    assert summary["plateau_duration_rounds"] is None
 
 
 def test_summarize_jsonl_log_marks_stale_runs(tmp_path: Path):
@@ -277,6 +280,13 @@ def test_summarize_jsonl_log_detects_stable_post_collapse_plateau(tmp_path: Path
     assert summary["rounds_since_last_death"] == 5
     assert summary["stabilized_post_collapse"] is True
     assert summary["population_regime"] == "stable_post_collapse"
+    assert summary["collapse_start_round_num"] == 2
+    assert summary["collapse_end_round_num"] == 2
+    assert summary["collapse_duration_rounds"] == 1
+    assert summary["collapse_death_count"] == 2
+    assert summary["plateau_start_round_num"] == 2
+    assert summary["plateau_end_round_num"] == 7
+    assert summary["plateau_duration_rounds"] == 6
 
 
 def test_expand_inputs_reads_jsonl_files_from_directories(tmp_path: Path):

@@ -211,3 +211,5 @@ uv run python scripts/run_paper_batch.py --track society --track reputation
 - live status now includes `population_regime`, `first_loss_round_num`,
   `last_death_round_num`, `stability_start_round_num`, and
   `rounds_since_last_death`
+- live status also includes phase windows and means for the collapse phase and
+  the stable plateau phase

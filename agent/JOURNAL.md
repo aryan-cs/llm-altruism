@@ -186,3 +186,6 @@ These remain important across sessions.
   diagnostics directly, including `first_loss_round_num`,
   `last_death_round_num`, `stability_start_round_num`,
   `rounds_since_last_death`, and a `population_regime` label
+- the same status packet now exposes phase-level metrics for the loss window
+  versus the stable plateau, so the heartbeat view can distinguish the
+  collapse phase (`12..26`) from the plateau phase (`26..101`)

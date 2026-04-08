@@ -33,6 +33,9 @@ Main claim supported:
 - the live status packet now exposes the same plateau diagnosis in
   machine-readable form, so heartbeat checks and paper-facing summaries are
   using the same regime classification
+- the live status packet now also separates collapse-window and plateau-window
+  resource/vital means, which makes the partial baseline easier to interpret
+  before the full suite completes
 
 ## 1. Scarcity Society
 
