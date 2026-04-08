@@ -7,6 +7,7 @@ from typing import Any
 from src.agents.base import Agent
 
 from .economy import EconomyEngine
+from .events import RandomEventEngine
 from .reproduction import ReproductionEngine
 from .reputation import ReputationSystem
 from .world import World
@@ -23,6 +24,7 @@ class SocietySimulation:
         economy: EconomyEngine,
         reproduction: ReproductionEngine,
         reputation: ReputationSystem | None = None,
+        event_engine: RandomEventEngine | None = None,
         allow_private_messages: bool = True,
         allow_steal: bool = True,
     ):
@@ -31,6 +33,7 @@ class SocietySimulation:
         self.economy = economy
         self.reproduction = reproduction
         self.reputation = reputation
+        self.event_engine = event_engine
         self.allow_private_messages = allow_private_messages
         self.allow_steal = allow_steal
         self._child_counter = 0
@@ -45,6 +48,8 @@ class SocietySimulation:
         return {
             "timestep": self.world.timestep,
             "self": state.to_dict(),
+            "public_food": self.world.public_food,
+            "public_water": self.world.public_water,
             "public_resources": self.world.public_resources,
             "visible_events": self.world.visible_events_for(agent_id, limit=recent_limit),
             "public_messages": self.world.public_messages[-recent_limit:],
@@ -116,8 +121,16 @@ class SocietySimulation:
             if child is not None:
                 spawned_agents.append(child.agent_id)
 
-        newly_dead = self.world.apply_survival_cost()
+        sleeping_agents = {
+            agent_id
+            for agent_id, decision in decisions.items()
+            if str(decision.get("action", "idle")) == "sleep"
+        }
+        maintenance_result = self.world.apply_nightly_maintenance(sleeping_agents)
+        newly_dead = maintenance_result["newly_dead"]
         regenerated = self.world.regenerate_resources()
+        if self.event_engine is not None:
+            events.extend(self.event_engine.maybe_apply(self.world))
 
         post_resources = {
             agent_id: self.world.get_state(agent_id).resources
@@ -145,17 +158,41 @@ class SocietySimulation:
             for agent_id, state in self.world.agent_states.items()
             if state.alive
         }
+        alive_states = self.world.get_alive_agents()
+        agent_vitals = {
+            agent_id: self.world.get_state(agent_id).to_dict()
+            for agent_id in self.world.agent_states
+            if self.world.get_state(agent_id).alive
+        }
+        average_health = (
+            sum(state.health for state in alive_states) / len(alive_states)
+            if alive_states
+            else 0.0
+        )
+        average_energy = (
+            sum(state.energy for state in alive_states) / len(alive_states)
+            if alive_states
+            else 0.0
+        )
 
         return {
             "timestep": self.world.timestep,
             "events": events,
             "ratings": ratings_logged,
             "trade_volume": trade_volume,
+            "public_food": self.world.public_food,
+            "public_water": self.world.public_water,
             "public_resources": self.world.public_resources,
             "agent_resources": agent_resources,
+            "agent_vitals": agent_vitals,
+            "average_health": average_health,
+            "average_energy": average_energy,
             "alive_count": len(self.alive_agent_ids()),
             "total_agents": len(self.world.agent_states),
             "spawned_agents": spawned_agents,
             "newly_dead": newly_dead,
-            "regenerated": regenerated,
+            "maintenance": maintenance_result["maintenance"],
+            "regenerated": regenerated["total"],
+            "regenerated_food": regenerated["food"],
+            "regenerated_water": regenerated["water"],
         }

@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from .world import World
+from .world import TRADABLE_RESOURCE_TYPES, World
 
 
 @dataclass
@@ -15,7 +15,9 @@ class TradeOffer:
     offer_id: str
     from_agent: str
     to_agent: str
+    give_resource: str
     give_amount: int
+    ask_resource: str
     ask_amount: int
     created_at: int
     note: str | None = None
@@ -27,7 +29,9 @@ class TradeOffer:
             "offer_id": self.offer_id,
             "from_agent": self.from_agent,
             "to_agent": self.to_agent,
+            "give_resource": self.give_resource,
             "give_amount": self.give_amount,
+            "ask_resource": self.ask_resource,
             "ask_amount": self.ask_amount,
             "created_at": self.created_at,
             "note": self.note,
@@ -36,7 +40,7 @@ class TradeOffer:
 
 
 class EconomyEngine:
-    """Handle gathering, transfers, theft, and delayed trade settlement."""
+    """Handle resource gathering, transfers, theft, and delayed trade settlement."""
 
     def __init__(self, trade_offer_ttl: int = 3):
         self.trade_offer_ttl = trade_offer_ttl
@@ -82,7 +86,9 @@ class EconomyEngine:
         *,
         from_agent: str,
         to_agent: str,
+        give_resource: str,
         give_amount: int,
+        ask_resource: str,
         ask_amount: int,
         note: str | None = None,
         public: bool = True,
@@ -90,16 +96,20 @@ class EconomyEngine:
         """Create a new trade offer if it is valid."""
         if give_amount < 0 or ask_amount < 0:
             return None
+        if give_resource not in TRADABLE_RESOURCE_TYPES or ask_resource not in TRADABLE_RESOURCE_TYPES:
+            return None
         if from_agent == to_agent or to_agent not in world.agent_states:
             return None
-        if world.get_state(from_agent).resources < give_amount:
+        if world.get_state(from_agent).read_resource(give_resource) < give_amount:
             return None
 
         offer = TradeOffer(
             offer_id=self._next_offer_id(),
             from_agent=from_agent,
             to_agent=to_agent,
+            give_resource=give_resource,
             give_amount=give_amount,
+            ask_resource=ask_resource,
             ask_amount=ask_amount,
             created_at=world.timestep,
             note=note,
@@ -115,7 +125,12 @@ class EconomyEngine:
         )
         return offer
 
-    def accept_offer(self, world: World, offer_id: str, accepter_id: str) -> tuple[bool, int, dict[str, Any] | None]:
+    def accept_offer(
+        self,
+        world: World,
+        offer_id: str,
+        accepter_id: str,
+    ) -> tuple[bool, int, dict[str, Any] | None]:
         """Accept a pending trade offer, settling both transfers."""
         offer = self.pending_offers.get(offer_id)
         if not offer or offer.status != "open" or offer.to_agent != accepter_id:
@@ -123,7 +138,10 @@ class EconomyEngine:
 
         source = world.get_state(offer.from_agent)
         target = world.get_state(offer.to_agent)
-        if source.resources < offer.give_amount or target.resources < offer.ask_amount:
+        if (
+            source.read_resource(offer.give_resource) < offer.give_amount
+            or target.read_resource(offer.ask_resource) < offer.ask_amount
+        ):
             offer.status = "failed"
             event = world.record_event(
                 kind="trade_failed",
@@ -134,10 +152,20 @@ class EconomyEngine:
             )
             return (False, 0, event)
 
-        world.transfer(offer.from_agent, offer.to_agent, offer.give_amount)
-        world.transfer(offer.to_agent, offer.from_agent, offer.ask_amount)
+        moved_out = world.transfer(
+            offer.from_agent,
+            offer.to_agent,
+            offer.give_resource,
+            offer.give_amount,
+        )
+        moved_back = world.transfer(
+            offer.to_agent,
+            offer.from_agent,
+            offer.ask_resource,
+            offer.ask_amount,
+        )
         offer.status = "accepted"
-        volume = offer.give_amount + offer.ask_amount
+        volume = moved_out + moved_back
         event = world.record_event(
             kind="trade_completed",
             actor=offer.from_agent,
@@ -204,11 +232,27 @@ class EconomyEngine:
             target = decision.get("target")
             public = not world.get_state(agent_id).unmonitored
 
-            if action == "gather":
-                amount = world.gather(agent_id, int(decision.get("amount", world.config.gather_amount)))
+            if action == "forage_food":
+                amount = world.forage_food(
+                    agent_id,
+                    int(decision.get("amount", world.config.forage_food_amount)),
+                )
                 events.append(
                     world.record_event(
-                        kind="gather",
+                        kind="forage_food",
+                        actor=agent_id,
+                        amount=amount,
+                        public=public,
+                    )
+                )
+            elif action == "draw_water":
+                amount = world.draw_water(
+                    agent_id,
+                    int(decision.get("amount", world.config.draw_water_amount)),
+                )
+                events.append(
+                    world.record_event(
+                        kind="draw_water",
                         actor=agent_id,
                         amount=amount,
                         public=public,
@@ -220,18 +264,21 @@ class EconomyEngine:
                 and target in world.agent_states
                 and target != agent_id
             ):
+                resource_type = str(decision.get("resource_type", "food")).strip().lower()
                 amount = int(decision.get("amount", 0))
-                moved = world.transfer(agent_id, target, amount)
+                moved = world.transfer(agent_id, target, resource_type, amount)
                 trade_volume += moved
-                events.append(
-                    world.record_event(
-                        kind="share",
-                        actor=agent_id,
-                        target=target,
-                        amount=moved,
-                        public=public,
+                if moved > 0:
+                    events.append(
+                        world.record_event(
+                            kind="share",
+                            actor=agent_id,
+                            target=target,
+                            amount=moved,
+                            public=public,
+                            metadata={"resource_type": resource_type},
+                        )
                     )
-                )
             elif (
                 action == "offer_trade"
                 and isinstance(target, str)
@@ -242,7 +289,9 @@ class EconomyEngine:
                     world,
                     from_agent=agent_id,
                     to_agent=target,
+                    give_resource=str(decision.get("give_resource", "food")).strip().lower(),
                     give_amount=int(decision.get("give_amount", 0)),
+                    ask_resource=str(decision.get("ask_resource", "water")).strip().lower(),
                     ask_amount=int(decision.get("ask_amount", 0)),
                     note=str(decision.get("message", "")).strip() or None,
                     public=public,
@@ -263,15 +312,26 @@ class EconomyEngine:
                 and target in world.agent_states
                 and target != agent_id
             ):
+                resource_type = str(decision.get("resource_type", "food")).strip().lower()
                 amount = int(decision.get("amount", world.config.steal_amount))
-                stolen = world.steal(agent_id, target, amount)
+                stolen = world.steal(agent_id, target, resource_type, amount)
                 trade_volume += stolen
+                if stolen > 0:
+                    events.append(
+                        world.record_event(
+                            kind="steal",
+                            actor=agent_id,
+                            target=target,
+                            amount=stolen,
+                            public=public,
+                            metadata={"resource_type": resource_type},
+                        )
+                    )
+            elif action == "sleep":
                 events.append(
                     world.record_event(
-                        kind="steal",
+                        kind="sleep",
                         actor=agent_id,
-                        target=target,
-                        amount=stolen,
                         public=public,
                     )
                 )

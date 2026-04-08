@@ -233,22 +233,50 @@ def summarize_society(
             "final_total_agents": 0.0,
             "extinction_event": 0.0,
             "alliance_count": 0.0,
+            "average_health": 0.0,
+            "average_energy": 0.0,
+            "average_food_inventory": 0.0,
+            "average_water_inventory": 0.0,
         }
 
     gini_values = []
     public_resources = []
     trade_volumes = []
     survival_rates = []
+    health_values = []
+    energy_values = []
+    food_values = []
+    water_values = []
     alliance_round_counts: defaultdict[tuple[str, str], int] = defaultdict(int)
 
     for round_data in rounds:
         resources = list(round_data.get("agent_resources", {}).values())
         gini_values.append(gini_coefficient(resources))
-        public_resources.append(float(round_data.get("public_resources", 0.0)))
+        public_resources.append(
+            float(
+                round_data.get(
+                    "public_resources",
+                    float(round_data.get("public_food", 0.0)) + float(round_data.get("public_water", 0.0)),
+                )
+            )
+        )
         trade_volumes.append(float(round_data.get("trade_volume", 0.0)))
         alive_count = int(round_data.get("alive_count", 0))
         total_agents = int(round_data.get("total_agents", alive_count or 1))
         survival_rates.append(alive_count / total_agents if total_agents else 0.0)
+
+        if "average_health" in round_data:
+            health_values.append(float(round_data.get("average_health", 0.0)))
+        if "average_energy" in round_data:
+            energy_values.append(float(round_data.get("average_energy", 0.0)))
+        agent_vitals = round_data.get("agent_vitals", {})
+        if agent_vitals:
+            food_values.append(
+                safe_mean([float(info.get("food", 0.0)) for info in agent_vitals.values()])
+            )
+            water_values.append(
+                safe_mean([float(info.get("water", 0.0)) for info in agent_vitals.values()])
+            )
 
         for event in round_data.get("events", []):
             if event.get("kind") in {"trade_completed", "share"}:
@@ -277,6 +305,10 @@ def summarize_society(
         "extinction_event": extinction_event,
         "alliance_count": float(alliance_count),
         "commons_depletion_rate": 1.0 - commons_health(public_resources, max_public_resources),
+        "average_health": safe_mean(health_values),
+        "average_energy": safe_mean(energy_values),
+        "average_food_inventory": safe_mean(food_values),
+        "average_water_inventory": safe_mean(water_values),
     }
 
 

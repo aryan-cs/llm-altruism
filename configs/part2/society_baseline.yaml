@@ -1,38 +1,37 @@
 experiment:
   name: "society-baseline"
   part: 2
-  rounds: 12
+  rounds: 120
   repetitions: 1
 
   agents:
     - model: "llama3.1-8b"
       provider: "cerebras"
-      count: 2
+      count: 6
     - model: "deepseek-ai/deepseek-v3.2"
       provider: "nvidia"
-      count: 2
+      count: 6
     - model: "openai/gpt-oss-20b:free"
       provider: "openrouter"
-      count: 2
+      count: 6
     - model: "llama3.2:3b"
       provider: "ollama"
-      count: 2
+      count: 6
 
   history:
     mode: "summarized"
-    window_size: 5
+    window_size: 8
 
   prompt_variants:
-    - name: "survival"
-      system_prompt: "prompts/system/survival.txt"
+    - name: "task-only"
+      system_prompt: "prompts/system/survival_task_only.txt"
       framing: "prompts/framing/community.txt"
-      persona: "prompts/persona/survivalist.txt"
 
   parameters:
     temperature: [0.3]
     payoff_visibility: false
-    max_tokens: 400
-    concurrency: 6
+    max_tokens: 600
+    concurrency: 12
     retry_on_rate_limit: true
     max_rate_limit_retries:
     max_transient_retries: 6
@@ -41,20 +40,47 @@ experiment:
     seed: 101
 
   world:
-    initial_public_resources: 36
-    max_public_resources: 48
-    regeneration_rate: 0.2
-    initial_agent_resources: 6
-    gather_amount: 3
+    initial_public_food: 120
+    max_public_food: 160
+    food_regeneration_rate: 0.12
+    initial_public_water: 160
+    max_public_water: 220
+    water_regeneration_rate: 0.10
+    initial_agent_food: 3
+    initial_agent_water: 3
+    initial_agent_energy: 8
+    initial_agent_health: 10
+    max_energy: 12
+    max_health: 12
+    forage_food_amount: 3
+    draw_water_amount: 4
     steal_amount: 2
-    survival_cost: 1
-    reproduction_threshold: 15
-    offspring_start_resources: 4
-    max_agents: 12
+    daily_food_consumption: 1
+    daily_water_consumption: 1
+    passive_energy_loss: 1
+    sleep_energy_gain: 4
+    nourishment_energy_gain: 2
+    nourishment_health_gain: 1
+    starvation_health_penalty: 2
+    dehydration_health_penalty: 3
+    exhaustion_health_penalty: 2
+    reproduce_min_food: 8
+    reproduce_min_water: 8
+    reproduce_min_energy: 9
+    reproduce_min_health: 10
+    offspring_start_food: 3
+    offspring_start_water: 3
+    offspring_start_energy: 6
+    offspring_start_health: 8
+    max_agents: 60
 
   society:
     allow_steal: true
     allow_private_messages: true
-    allow_unmonitored_agents: true
-    unmonitored_fraction: 0.2
-    trade_offer_ttl: 3
+    allow_unmonitored_agents: false
+    unmonitored_fraction: 0.0
+    trade_offer_ttl: 4
+
+  events:
+    enabled: false
+    event_probability: 0.0

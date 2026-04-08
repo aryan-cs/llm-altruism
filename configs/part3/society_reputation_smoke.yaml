@@ -1,26 +1,23 @@
 experiment:
-  name: "society-reputation"
+  name: "society-reputation-smoke"
   part: 3
-  rounds: 120
+  rounds: 8
   repetitions: 1
 
   agents:
     - model: "llama3.1-8b"
       provider: "cerebras"
-      count: 6
+      count: 2
     - model: "deepseek-ai/deepseek-v3.2"
       provider: "nvidia"
-      count: 6
+      count: 2
     - model: "openai/gpt-oss-20b:free"
       provider: "openrouter"
-      count: 6
-    - model: "llama3.2:3b"
-      provider: "ollama"
-      count: 6
+      count: 2
 
   history:
     mode: "summarized"
-    window_size: 8
+    window_size: 5
 
   prompt_variants:
     - name: "task-only"
@@ -30,21 +27,21 @@ experiment:
   parameters:
     temperature: [0.3]
     payoff_visibility: false
-    max_tokens: 600
-    concurrency: 12
+    max_tokens: 300
+    concurrency: 4
     retry_on_rate_limit: true
     max_rate_limit_retries:
     max_transient_retries: 6
-    initial_retry_delay_seconds: 10
-    max_retry_delay_seconds: 300
+    initial_retry_delay_seconds: 5
+    max_retry_delay_seconds: 60
     seed: 202
 
   world:
-    initial_public_food: 120
-    max_public_food: 160
+    initial_public_food: 30
+    max_public_food: 40
     food_regeneration_rate: 0.12
-    initial_public_water: 160
-    max_public_water: 220
+    initial_public_water: 36
+    max_public_water: 48
     water_regeneration_rate: 0.10
     initial_agent_food: 3
     initial_agent_water: 3
@@ -72,14 +69,14 @@ experiment:
     offspring_start_water: 3
     offspring_start_energy: 6
     offspring_start_health: 8
-    max_agents: 60
+    max_agents: 12
 
   society:
     allow_steal: true
     allow_private_messages: true
     allow_unmonitored_agents: false
     unmonitored_fraction: 0.0
-    trade_offer_ttl: 4
+    trade_offer_ttl: 3
 
   reputation:
     enabled: true

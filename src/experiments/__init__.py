@@ -1,6 +1,7 @@
 """Experiment config loading and runner entrypoints."""
 
 from .config import (
+    EventConfigModel,
     ExperimentConfig,
     ExperimentSettings,
     HistoryConfig,
@@ -50,6 +51,7 @@ from .selection import (
 __all__ = [
     "BaseExperimentRunner",
     "BudgetExceededError",
+    "EventConfigModel",
     "ExperimentConfig",
     "ExperimentSettings",
     "HistoryConfig",

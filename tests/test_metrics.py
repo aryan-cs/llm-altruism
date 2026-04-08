@@ -31,6 +31,12 @@ def test_society_summary_aggregates_core_metrics():
             "agent_resources": {"a": 5, "b": 5},
             "public_resources": 20,
             "trade_volume": 2,
+            "average_health": 9,
+            "average_energy": 7,
+            "agent_vitals": {
+                "a": {"food": 3, "water": 3},
+                "b": {"food": 4, "water": 4},
+            },
             "alive_count": 2,
             "total_agents": 2,
             "events": [{"kind": "share", "actor": "a", "target": "b"}],
@@ -39,6 +45,12 @@ def test_society_summary_aggregates_core_metrics():
             "agent_resources": {"a": 4, "b": 6},
             "public_resources": 18,
             "trade_volume": 3,
+            "average_health": 8,
+            "average_energy": 6,
+            "agent_vitals": {
+                "a": {"food": 2, "water": 3},
+                "b": {"food": 4, "water": 5},
+            },
             "alive_count": 2,
             "total_agents": 2,
             "events": [{"kind": "trade_completed", "actor": "a", "target": "b"}],
@@ -49,3 +61,5 @@ def test_society_summary_aggregates_core_metrics():
     assert summary["alliance_count"] == 1.0
     assert summary["final_survival_rate"] == 1.0
     assert summary["extinction_event"] == 0.0
+    assert summary["average_health"] == 8.5
+    assert summary["average_energy"] == 6.5

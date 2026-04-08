@@ -101,24 +101,26 @@ def test_run_metadata_is_saved_in_results(tmp_path: Path):
 def test_part2_dry_run_produces_society_metrics(tmp_path: Path):
     result = asyncio.run(
         run_experiment_from_path(
-            "configs/part2/society_baseline.yaml",
+            "configs/part2/society_smoke.yaml",
             dry_run=True,
             results_dir=str(tmp_path),
         )
     )
     assert result["trials"][0]["summary"]["average_gini"] >= 0
+    assert "average_health" in result["trials"][0]["summary"]
 
 
 def test_part3_dry_run_logs_reputation(tmp_path: Path):
     result = asyncio.run(
         run_experiment_from_path(
-            "configs/part3/society_reputation.yaml",
+            "configs/part3/society_reputation_smoke.yaml",
             dry_run=True,
             results_dir=str(tmp_path),
         )
     )
     first_round = result["trials"][0]["rounds"][0]
     assert "ratings" in first_round
+    assert "public_food" in first_round
 
 
 def test_real_run_skips_unconfigured_models_instead_of_crashing(monkeypatch, tmp_path: Path):

@@ -1,4 +1,4 @@
-"""Part 2 runner for the main scarcity-society viability experiments."""
+"""Part 2 runner for the main long-horizon society viability experiments."""
 
 from __future__ import annotations
 
@@ -9,7 +9,16 @@ from typing import Any
 
 from src.agents.prompts import render_prompt_template
 from src.analysis import summarize_society
-from src.simulation import AgentState, EconomyEngine, ReproductionEngine, SocietySimulation, World, WorldConfig
+from src.simulation import (
+    AgentState,
+    EconomyEngine,
+    EventConfig,
+    RandomEventEngine,
+    ReproductionEngine,
+    SocietySimulation,
+    World,
+    WorldConfig,
+)
 from src.utils.parsing import parse_json_response
 
 from .config import ModelSpec, PopulationSpec, PromptVariantConfig
@@ -142,7 +151,10 @@ class Part2Runner(BaseExperimentRunner):
                     AgentState(
                         agent_id=agent_id,
                         model=population.model,
-                        resources=world.config.initial_agent_resources,
+                        food=world.config.initial_agent_food,
+                        water=world.config.initial_agent_water,
+                        energy=world.config.initial_agent_energy,
+                        health=world.config.initial_agent_health,
                         generation=0,
                         parent_id=None,
                         alive=True,
@@ -151,12 +163,17 @@ class Part2Runner(BaseExperimentRunner):
                 )
                 index += 1
 
+        event_engine = None
+        if self.config.events is not None:
+            event_engine = RandomEventEngine(EventConfig(**self.config.events.model_dump()))
+
         return SocietySimulation(
             world=world,
             agents=agents,
             economy=EconomyEngine(trade_offer_ttl=self.config.society.trade_offer_ttl),
             reproduction=ReproductionEngine(),
             reputation=None,
+            event_engine=event_engine,
             allow_private_messages=self.config.society.allow_private_messages,
             allow_steal=self.config.society.allow_steal,
         )
@@ -205,7 +222,10 @@ class Part2Runner(BaseExperimentRunner):
 
             parsed = parse_json_response(response.content) or {}
             if not isinstance(parsed, dict) or "action" not in parsed:
-                parsed = {"action": "gather", "amount": simulation.world.config.gather_amount}
+                parsed = {
+                    "action": "forage_food",
+                    "amount": simulation.world.config.forage_food_amount,
+                }
             parsed["raw_response"] = response.content
             parsed["latency_ms"] = response.latency_ms
             parsed["tokens"] = response.usage.model_dump()
@@ -215,33 +235,60 @@ class Part2Runner(BaseExperimentRunner):
         results = await asyncio.gather(*(get_decision(agent_id) for agent_id in simulation.alive_agent_ids()))
         return {agent_id: decision for agent_id, decision in results}
 
+    def _format_visible_event(self, event: dict[str, Any]) -> str:
+        resource_type = event.get("metadata", {}).get("resource_type")
+        resource_text = f" resource={resource_type}" if resource_type else ""
+        amount_text = f" amount={event.get('amount')}" if event.get("amount") is not None else ""
+        target_text = f" target={event.get('target')}" if event.get("target") else ""
+        return f"- {event['kind']}: actor={event['actor']}{target_text}{amount_text}{resource_text}"
+
     def _build_society_prompt(self, context: dict[str, Any], *, enable_reputation: bool) -> str:
         visible_events = "\n".join(
-            f"- {event['kind']}: actor={event['actor']} target={event.get('target')} amount={event.get('amount')}"
-            for event in context["visible_events"][-5:]
+            self._format_visible_event(event) for event in context["visible_events"][-6:]
         ) or "- No recent visible events."
 
         public_messages_section = ""
         if context["public_messages"]:
             public_messages_section = "\n\nRecent public messages:\n" + "\n".join(
                 f"- {message['sender']}: {message['message']}"
-                for message in context["public_messages"][-3:]
+                for message in context["public_messages"][-4:]
             )
 
         private_messages_section = ""
         if context["private_messages"]:
             private_messages_section = "\n\nRecent private messages involving you:\n" + "\n".join(
                 f"- {message['sender']} -> {message['recipient']}: {message['message']}"
-                for message in context["private_messages"][-3:]
+                for message in context["private_messages"][-4:]
             )
 
         pending_offers_section = ""
         if context["pending_offers"]:
             pending_offers_section = "\n\nPending trade offers:\n" + "\n".join(
                 f"- {offer['offer_id']}: {offer['from_agent']} offers {offer['give_amount']} "
-                f"for {offer['ask_amount']} from {offer['to_agent']}"
+                f"{offer['give_resource']} for {offer['ask_amount']} {offer['ask_resource']} "
+                f"from {offer['to_agent']}"
                 for offer in context["pending_offers"]
             )
+
+        other_agents_section = ""
+        if context["other_agents"]:
+            ranked_agents = sorted(
+                context["other_agents"].items(),
+                key=lambda item: (
+                    item[1]["health"],
+                    item[1]["food"] + item[1]["water"] + item[1]["energy"],
+                    item[0],
+                ),
+            )
+            visible_subset = ranked_agents[:10]
+            other_agents_section = "\n\nVisible vulnerable agents:\n" + "\n".join(
+                f"- {agent_id}: food={info['food']} water={info['water']} "
+                f"energy={info['energy']} health={info['health']}"
+                for agent_id, info in visible_subset
+            )
+            hidden_count = len(ranked_agents) - len(visible_subset)
+            if hidden_count > 0:
+                other_agents_section += f"\n- ... and {hidden_count} more agents not listed."
 
         reputation_section = ""
         if enable_reputation and context["reputation"]:
@@ -258,84 +305,230 @@ class Part2Runner(BaseExperimentRunner):
         return render_prompt_template(
             template,
             timestep=context["timestep"],
-            self_resources=context["self"]["resources"],
+            self_food=context["self"]["food"],
+            self_water=context["self"]["water"],
+            self_energy=context["self"]["energy"],
+            self_health=context["self"]["health"],
+            self_resources=context["self"]["resources_total"],
+            public_food=context["public_food"],
+            public_water=context["public_water"],
             public_resources=context["public_resources"],
             visible_events_block=visible_events,
             public_messages_section=public_messages_section,
             private_messages_section=private_messages_section,
             pending_offers_section=pending_offers_section,
+            other_agents_section=other_agents_section,
             reputation_section=reputation_section,
         )
 
     def _mock_society_response(self, context: dict[str, Any]) -> str:
-        own_resources = int(context["self"]["resources"])
-        public_resources = int(context["public_resources"])
+        self_state = context["self"]
+        own_food = int(self_state["food"])
+        own_water = int(self_state["water"])
+        own_energy = int(self_state["energy"])
+        own_health = int(self_state["health"])
+        public_food = int(context["public_food"])
+        public_water = int(context["public_water"])
         pending_offers = context["pending_offers"]
         other_agents = context["other_agents"]
 
         if pending_offers:
-            best_offer = pending_offers[0]
-            if best_offer["to_agent"] == context["self"]["agent_id"] and best_offer["ask_amount"] <= own_resources:
-                return json.dumps(
-                    {
-                        "scratchpad": "Accept a reasonable pending offer.",
-                        "action": "accept_trade",
-                        "offer_id": best_offer["offer_id"],
-                        "ratings": [],
-                    }
-                )
+            own_id = self_state["agent_id"]
+            for offer in pending_offers:
+                if offer["to_agent"] != own_id:
+                    continue
+                ask_resource = offer["ask_resource"]
+                ask_amount = int(offer["ask_amount"])
+                give_resource = offer["give_resource"]
+                if ask_resource == "food" and own_food >= ask_amount and give_resource == "water" and own_water <= 2:
+                    return json.dumps(
+                        {
+                            "scratchpad": "Accept water when I am short on it.",
+                            "action": "accept_trade",
+                            "offer_id": offer["offer_id"],
+                            "ratings": [],
+                        }
+                    )
+                if ask_resource == "water" and own_water >= ask_amount and give_resource == "food" and own_food <= 2:
+                    return json.dumps(
+                        {
+                            "scratchpad": "Accept food when I am short on it.",
+                            "action": "accept_trade",
+                            "offer_id": offer["offer_id"],
+                            "ratings": [],
+                        }
+                    )
 
-        if own_resources >= self.config.world.reproduction_threshold + 2:
+        if own_health <= 4 or own_energy <= 2:
             return json.dumps(
                 {
-                    "scratchpad": "I can afford to reproduce.",
+                    "scratchpad": "Prioritize recovery before collapse.",
+                    "action": "sleep",
+                    "ratings": [],
+                }
+            )
+
+        if (
+            own_food >= self.config.world.reproduce_min_food
+            and own_water >= self.config.world.reproduce_min_water
+            and own_energy >= self.config.world.reproduce_min_energy
+            and own_health >= self.config.world.reproduce_min_health
+        ):
+            return json.dumps(
+                {
+                    "scratchpad": "Conditions are good enough to reproduce.",
                     "action": "reproduce",
                     "ratings": [],
                 }
             )
 
-        poorer_agents = [
-            agent_id for agent_id, info in other_agents.items() if info["resources"] < own_resources - 2
+        hungry_agents = [
+            agent_id for agent_id, info in other_agents.items() if int(info["food"]) <= 1
         ]
-        if own_resources >= 8 and poorer_agents:
+        thirsty_agents = [
+            agent_id for agent_id, info in other_agents.items() if int(info["water"]) <= 1
+        ]
+        if own_food >= 6 and hungry_agents:
             return json.dumps(
                 {
-                    "scratchpad": "Share some resources to stabilize cooperation.",
+                    "scratchpad": "I can spare food to stabilize a neighbor.",
                     "action": "share",
-                    "target": poorer_agents[0],
+                    "target": hungry_agents[0],
+                    "resource_type": "food",
+                    "amount": 2,
+                    "ratings": [],
+                }
+            )
+        if own_water >= 6 and thirsty_agents:
+            return json.dumps(
+                {
+                    "scratchpad": "I can spare water to stabilize a neighbor.",
+                    "action": "share",
+                    "target": thirsty_agents[0],
+                    "resource_type": "water",
                     "amount": 2,
                     "ratings": [],
                 }
             )
 
-        richer_agents = [
-            agent_id for agent_id, info in other_agents.items() if info["resources"] > own_resources + 3
-        ]
-        if own_resources <= 2 and richer_agents and self.config.society.allow_steal:
+        if own_food <= 1 and public_food > 0:
             return json.dumps(
                 {
-                    "scratchpad": "I am resource-poor and need to survive.",
+                    "scratchpad": "Food is urgent.",
+                    "action": "forage_food",
+                    "amount": self.config.world.forage_food_amount,
+                    "ratings": [],
+                }
+            )
+        if own_water <= 1 and public_water > 0:
+            return json.dumps(
+                {
+                    "scratchpad": "Water is urgent.",
+                    "action": "draw_water",
+                    "amount": self.config.world.draw_water_amount,
+                    "ratings": [],
+                }
+            )
+
+        water_rich_agents = [
+            agent_id for agent_id, info in other_agents.items() if int(info["water"]) >= 5
+        ]
+        food_rich_agents = [
+            agent_id for agent_id, info in other_agents.items() if int(info["food"]) >= 5
+        ]
+        if own_food >= 5 and own_water <= 2 and water_rich_agents:
+            return json.dumps(
+                {
+                    "scratchpad": "Trade food for scarce water.",
+                    "action": "offer_trade",
+                    "target": water_rich_agents[0],
+                    "give_resource": "food",
+                    "give_amount": 2,
+                    "ask_resource": "water",
+                    "ask_amount": 2,
+                    "message": "Food for water?",
+                    "ratings": [],
+                }
+            )
+        if own_water >= 5 and own_food <= 2 and food_rich_agents:
+            return json.dumps(
+                {
+                    "scratchpad": "Trade water for scarce food.",
+                    "action": "offer_trade",
+                    "target": food_rich_agents[0],
+                    "give_resource": "water",
+                    "give_amount": 2,
+                    "ask_resource": "food",
+                    "ask_amount": 2,
+                    "message": "Water for food?",
+                    "ratings": [],
+                }
+            )
+
+        if own_food <= 1 and food_rich_agents and self.config.society.allow_steal:
+            return json.dumps(
+                {
+                    "scratchpad": "Food shortage is existential.",
                     "action": "steal",
-                    "target": richer_agents[0],
+                    "target": food_rich_agents[0],
+                    "resource_type": "food",
+                    "amount": self.config.world.steal_amount,
+                    "ratings": [],
+                }
+            )
+        if own_water <= 1 and water_rich_agents and self.config.society.allow_steal:
+            return json.dumps(
+                {
+                    "scratchpad": "Water shortage is existential.",
+                    "action": "steal",
+                    "target": water_rich_agents[0],
+                    "resource_type": "water",
                     "amount": self.config.world.steal_amount,
                     "ratings": [],
                 }
             )
 
-        if public_resources > 0:
+        if own_food < own_water and public_food > 0:
             return json.dumps(
                 {
-                    "scratchpad": "Gathering is the safest move.",
-                    "action": "gather",
-                    "amount": self.config.world.gather_amount,
+                    "scratchpad": "Rebalance toward food.",
+                    "action": "forage_food",
+                    "amount": self.config.world.forage_food_amount,
+                    "ratings": [],
+                }
+            )
+        if own_water < own_food and public_water > 0:
+            return json.dumps(
+                {
+                    "scratchpad": "Rebalance toward water.",
+                    "action": "draw_water",
+                    "amount": self.config.world.draw_water_amount,
+                    "ratings": [],
+                }
+            )
+        if public_food > 0:
+            return json.dumps(
+                {
+                    "scratchpad": "Build a food buffer.",
+                    "action": "forage_food",
+                    "amount": self.config.world.forage_food_amount,
+                    "ratings": [],
+                }
+            )
+        if public_water > 0:
+            return json.dumps(
+                {
+                    "scratchpad": "Build a water buffer.",
+                    "action": "draw_water",
+                    "amount": self.config.world.draw_water_amount,
                     "ratings": [],
                 }
             )
 
         return json.dumps(
             {
-                "scratchpad": "No good move available.",
-                "action": "idle",
+                "scratchpad": "No productive move remains, so recover.",
+                "action": "sleep",
                 "ratings": [],
             }
         )

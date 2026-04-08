@@ -1,6 +1,6 @@
 experiment:
-  name: "society-reputation"
-  part: 3
+  name: "society-event-stress"
+  part: 2
   rounds: 120
   repetitions: 1
 
@@ -24,7 +24,7 @@ experiment:
 
   prompt_variants:
     - name: "task-only"
-      system_prompt: "prompts/system/survival_with_reputation_task_only.txt"
+      system_prompt: "prompts/system/survival_task_only.txt"
       framing: "prompts/framing/community.txt"
 
   parameters:
@@ -37,7 +37,7 @@ experiment:
     max_transient_retries: 6
     initial_retry_delay_seconds: 10
     max_retry_delay_seconds: 300
-    seed: 202
+    seed: 303
 
   world:
     initial_public_food: 120
@@ -81,13 +81,12 @@ experiment:
     unmonitored_fraction: 0.0
     trade_offer_ttl: 4
 
-  reputation:
-    enabled: true
-    decay: 0.95
-    anonymous_ratings: false
-    min_rating: 1
-    max_rating: 5
-
   events:
-    enabled: false
-    event_probability: 0.0
+    enabled: true
+    event_probability: 0.08
+    seed: 77
+    allowed_events: ["drought", "blight", "heatwave", "disease"]
+    drought_water_loss_fraction: 0.2
+    blight_food_loss_fraction: 0.2
+    heatwave_energy_penalty: 2
+    disease_health_penalty: 2

@@ -33,14 +33,20 @@ TEMPLATE_DESCRIPTIONS: dict[str, str] = {
         "effects before larger-society interpretation."
     ),
     "society-baseline": (
-        "Primary society experiment: scarce-resource society without public "
-        "reputation. Tests whether an LLM population can remain self-sustaining "
-        "under gathering, sharing, stealing, trade, reproduction, and messaging."
+        "Primary society experiment: a long-horizon ecology with explicit food, "
+        "water, energy, and health dynamics, without public reputation. Tests "
+        "whether an LLM population can remain self-sustaining under foraging, "
+        "water collection, sleep, trade, theft, reproduction, and messaging."
     ),
     "society-reputation": (
-        "Primary institutional extension: the same society with public ratings "
-        "and reputation decay, to test whether reputation stabilizes survival "
-        "or only reshapes visible social behavior."
+        "Primary institutional extension: the same long-horizon ecology with "
+        "public ratings and reputation decay, to test whether reputation "
+        "stabilizes survival or only reshapes visible social behavior."
+    ),
+    "society-event-stress": (
+        "Separate stress-test template: the same long-horizon food/water ecology "
+        "but with optional exogenous shocks such as drought, blight, heatwaves, "
+        "and disease enabled."
     ),
 }
 
@@ -155,6 +161,8 @@ def template_setup_summary(config: ExperimentSettings) -> str:
     total_agents = sum(population.count for population in config.agents)
     model_count = len(models_from_config(config))
     extra_features = [
+        "food/water ecology",
+        "energy/health upkeep",
         "trade" if config.society and config.society.trade_offer_ttl else None,
         "private messages" if config.society and config.society.allow_private_messages else None,
         "stealing" if config.society and config.society.allow_steal else None,

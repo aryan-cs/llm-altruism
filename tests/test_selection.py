@@ -88,7 +88,7 @@ def test_apply_model_selection_rebuilds_part2_population_evenly():
 
     updated = apply_model_selection(config, selected)
 
-    assert [agent.count for agent in updated.agents] == [3, 3, 2]
+    assert [agent.count for agent in updated.agents] == [8, 8, 8]
     assert [agent.provider for agent in updated.agents] == ["cerebras", "nvidia", "openrouter"]
 
 
@@ -126,8 +126,8 @@ def test_experiment_templates_are_discoverable():
 
 def test_template_description_explains_setup():
     description = template_description("configs/part2/society_baseline.yaml")
-    assert "scarce-resource society" in description
-    assert "12 rounds" in description
+    assert "food, water, energy, and health" in description
+    assert "120 rounds" in description
     assert "private messages" in description
 
 

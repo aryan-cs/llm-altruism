@@ -97,15 +97,38 @@ class ParameterConfig(BaseModel):
 class WorldConfigModel(BaseModel):
     """Serializable config mirror for the simulation world."""
 
-    initial_public_resources: int = 40
-    max_public_resources: int = 60
-    regeneration_rate: float = 0.15
-    initial_agent_resources: int = 6
-    gather_amount: int = 3
+    initial_public_food: int = 80
+    max_public_food: int = 120
+    food_regeneration_rate: float = 0.12
+    initial_public_water: int = 100
+    max_public_water: int = 140
+    water_regeneration_rate: float = 0.10
+    initial_agent_food: int = 3
+    initial_agent_water: int = 3
+    initial_agent_energy: int = 8
+    initial_agent_health: int = 10
+    max_energy: int = 12
+    max_health: int = 12
+    forage_food_amount: int = 3
+    draw_water_amount: int = 4
     steal_amount: int = 2
-    survival_cost: int = 1
-    reproduction_threshold: int = 16
-    offspring_start_resources: int = 5
+    daily_food_consumption: int = 1
+    daily_water_consumption: int = 1
+    passive_energy_loss: int = 1
+    sleep_energy_gain: int = 4
+    nourishment_energy_gain: int = 2
+    nourishment_health_gain: int = 1
+    starvation_health_penalty: int = 2
+    dehydration_health_penalty: int = 3
+    exhaustion_health_penalty: int = 2
+    reproduce_min_food: int = 8
+    reproduce_min_water: int = 8
+    reproduce_min_energy: int = 9
+    reproduce_min_health: int = 10
+    offspring_start_food: int = 3
+    offspring_start_water: int = 3
+    offspring_start_energy: int = 6
+    offspring_start_health: int = 8
     max_agents: int = 100
 
 
@@ -117,6 +140,21 @@ class SocietyConfig(BaseModel):
     allow_unmonitored_agents: bool = False
     unmonitored_fraction: float = 0.0
     trade_offer_ttl: int = 3
+
+
+class EventConfigModel(BaseModel):
+    """Optional exogenous events for stress-testing the society."""
+
+    enabled: bool = False
+    event_probability: float = 0.0
+    seed: int = 42
+    allowed_events: list[Literal["drought", "blight", "heatwave", "disease"]] = Field(
+        default_factory=lambda: ["drought", "blight", "heatwave", "disease"]
+    )
+    drought_water_loss_fraction: float = 0.2
+    blight_food_loss_fraction: float = 0.2
+    heatwave_energy_penalty: int = 2
+    disease_health_penalty: int = 2
 
 
 class ReputationConfigModel(BaseModel):
@@ -146,6 +184,7 @@ class ExperimentSettings(BaseModel):
     world: WorldConfigModel | None = None
     society: SocietyConfig | None = None
     reputation: ReputationConfigModel | None = None
+    events: EventConfigModel | None = None
 
     @field_validator("pairings", mode="before")
     @classmethod
