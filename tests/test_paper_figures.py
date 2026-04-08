@@ -95,6 +95,56 @@ def test_save_prompt_variant_track_figure_writes_png(tmp_path: Path):
     assert output_path.stat().st_size > 0
 
 
+def test_save_society_metric_figure_writes_png(tmp_path: Path):
+    """The society/reputation metric helper should emit a non-empty PNG."""
+    module = _load_paper_figures_module()
+    frame = pd.DataFrame(
+        [
+            {
+                "track": "society",
+                "prompt_variant": "task-only",
+                "average_trade_volume": 0.0,
+                "average_trade_volume_ci95_low": 0.0,
+                "average_trade_volume_ci95_high": 0.0,
+            },
+            {
+                "track": "society",
+                "prompt_variant": "cooperative",
+                "average_trade_volume": 2.5,
+                "average_trade_volume_ci95_low": 2.0,
+                "average_trade_volume_ci95_high": 3.0,
+            },
+            {
+                "track": "reputation",
+                "prompt_variant": "task-only",
+                "average_trade_volume": 0.0,
+                "average_trade_volume_ci95_low": 0.0,
+                "average_trade_volume_ci95_high": 0.0,
+            },
+            {
+                "track": "reputation",
+                "prompt_variant": "cooperative",
+                "average_trade_volume": 3.0,
+                "average_trade_volume_ci95_low": 2.5,
+                "average_trade_volume_ci95_high": 3.5,
+            },
+        ]
+    )
+    output_path = tmp_path / "society_trade.png"
+
+    written = module.save_society_metric_figure(
+        frame,
+        metric_root="average_trade_volume",
+        output_path=output_path,
+        title="Scarcity and reputation trade volume by prompt condition",
+        y_label="Average trade volume",
+    )
+
+    assert written == output_path
+    assert output_path.exists()
+    assert output_path.stat().st_size > 0
+
+
 def test_build_frames_collapses_stale_retries_by_experiment_name(tmp_path: Path):
     """Figure inputs should inherit summary-level retry de-duplication by experiment name."""
     module = _load_paper_figures_module()

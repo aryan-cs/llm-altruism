@@ -254,14 +254,21 @@ def save_benchmark_figure(experiment_frame: pd.DataFrame, output_path: Path) -> 
     return output_path
 
 
-def save_society_survival_figure(pooled_prompt_frame: pd.DataFrame, output_path: Path) -> Path | None:
+def save_society_metric_figure(
+    pooled_prompt_frame: pd.DataFrame,
+    *,
+    metric_root: str,
+    output_path: Path,
+    title: str,
+    y_label: str,
+    limit: tuple[float, float] | None = None,
+) -> Path | None:
     subset = pooled_prompt_frame[
         pooled_prompt_frame.get("track").isin(["society", "reputation"])
     ].copy()
     if subset.empty or "prompt_variant" not in subset.columns or "track" not in subset.columns:
         return None
 
-    metric_root = "final_survival_rate"
     subset = subset[subset[metric_root].notna()].copy()
     if subset.empty:
         return None
@@ -301,14 +308,26 @@ def save_society_survival_figure(pooled_prompt_frame: pd.DataFrame, output_path:
             [prettify_slug(str(item)) for item in track_frame["prompt_variant"].tolist()],
             fontsize=10,
         )
-        ax.set_ylabel("Final survival rate" if index == 0 else "")
-        ax.set_ylim(0, 1)
+        ax.set_ylabel(y_label if index == 0 else "")
+        if limit is not None:
+            ax.set_ylim(*limit)
 
-    fig.suptitle("Scarcity and reputation outcomes by prompt condition", fontsize=16, y=1.04)
+    fig.suptitle(title, fontsize=16, y=1.04)
     fig.tight_layout()
     fig.savefig(output_path, dpi=220, bbox_inches="tight")
     plt.close(fig)
     return output_path
+
+
+def save_society_survival_figure(pooled_prompt_frame: pd.DataFrame, output_path: Path) -> Path | None:
+    return save_society_metric_figure(
+        pooled_prompt_frame,
+        metric_root="final_survival_rate",
+        output_path=output_path,
+        title="Scarcity and reputation outcomes by prompt condition",
+        y_label="Final survival rate",
+        limit=(0, 1),
+    )
 
 
 def main() -> int:
@@ -348,6 +367,20 @@ def main() -> int:
         save_society_survival_figure(
             pooled_prompt_frame,
             output_dir / "society_reputation_final_survival.png",
+        ),
+        save_society_metric_figure(
+            pooled_prompt_frame,
+            metric_root="average_trade_volume",
+            output_path=output_dir / "society_reputation_trade_volume.png",
+            title="Scarcity and reputation trade volume by prompt condition",
+            y_label="Average trade volume",
+        ),
+        save_society_metric_figure(
+            pooled_prompt_frame,
+            metric_root="alliance_count",
+            output_path=output_dir / "society_reputation_alliance_count.png",
+            title="Scarcity and reputation alliances by prompt condition",
+            y_label="Average alliance count",
         ),
     ]:
         if maybe_path is not None:
