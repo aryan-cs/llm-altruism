@@ -105,6 +105,24 @@ def max_public_resources_from_experiment(experiment: dict[str, Any]) -> float:
     return float(world.get("max_public_food", 0.0)) + float(world.get("max_public_water", 0.0))
 
 
+def classify_society_event(kind: str | None) -> str:
+    """Map low-level ecology events to a small paper-facing action vocabulary."""
+    normalized = str(kind or "unknown")
+    if normalized in {"broadcast", "whisper", "message"}:
+        return "communicate"
+    if normalized in {"gather", "forage_food", "draw_water"}:
+        return "gather"
+    if normalized in {"share", "offer_trade", "accept_trade", "trade_completed"}:
+        return "share"
+    if normalized in {"steal"}:
+        return "steal"
+    if normalized in {"sleep"}:
+        return "rest"
+    if normalized in {"reproduce"}:
+        return "reproduce"
+    return "system"
+
+
 def decode_trial_metadata(experiment: dict[str, Any], trial_id: int) -> dict[str, Any]:
     """Reconstruct prompt/repetition metadata from deterministic trial ordering."""
     prompt_variants = experiment.get("prompt_variants", []) or []
@@ -493,6 +511,7 @@ def render_markdown(
     experiment_frame: pd.DataFrame,
     prompt_variant_frame: pd.DataFrame,
     pooled_prompt_frame: pd.DataFrame,
+    ecology_diagnostics_frame: pd.DataFrame | None = None,
 ) -> str:
     if experiment_frame.empty:
         return "# Paper Summary\n\nNo result rows found.\n"
@@ -629,6 +648,38 @@ def render_markdown(
             )
         )
 
+    if ecology_diagnostics_frame is not None and not ecology_diagnostics_frame.empty:
+        lines.append("## Ecology Diagnostics")
+        lines.append("")
+        lines.extend(
+            markdown_table(
+                sort_frame(
+                    ecology_diagnostics_frame,
+                    ["track", "prompt_variant", "trial_id", "latest_timestep"],
+                ),
+                [
+                    "experiment_id",
+                    "track",
+                    "prompt_variant",
+                    "trial_id",
+                    "latest_timestep",
+                    "alive",
+                    "first_loss_timestep",
+                    "first_death_timestep",
+                    "latest_public_food",
+                    "latest_public_water",
+                    "latest_average_health",
+                    "latest_average_energy",
+                    "cumulative_births",
+                    "cumulative_deaths",
+                    "max_death_shock",
+                    "max_death_shock_timestep",
+                    "alive_models",
+                    "dominant_behavior",
+                ],
+            )
+        )
+
     return "\n".join(lines)
 
 
@@ -647,12 +698,123 @@ def format_ci_display_columns(frame: pd.DataFrame, metrics: list[str]) -> pd.Dat
     return display
 
 
+def format_alive_models(round_payload: dict[str, Any]) -> str:
+    """Render the current alive-population split by model for diagnostics tables."""
+    counts: dict[str, int] = {}
+    for vital in (round_payload.get("agent_vitals") or {}).values():
+        if not isinstance(vital, dict) or not vital.get("alive", False):
+            continue
+        model = str(vital.get("model") or "unknown")
+        counts[model] = counts.get(model, 0) + 1
+    if not counts:
+        return ""
+    ordered = sorted(counts.items(), key=lambda item: (-item[1], item[0]))
+    return ", ".join(f"{model}: {count}" for model, count in ordered)
+
+
+def dominant_behavior(rounds: list[dict[str, Any]]) -> str:
+    """Summarize the dominant behavior category observed across logged rounds."""
+    category_counts: dict[str, int] = {}
+    total = 0
+    for round_payload in rounds:
+        for event in round_payload.get("events", []) or []:
+            category = classify_society_event(event.get("kind"))
+            category_counts[category] = category_counts.get(category, 0) + 1
+            total += 1
+    if total == 0 or not category_counts:
+        return ""
+    category, count = max(category_counts.items(), key=lambda item: (item[1], item[0]))
+    return f"{category} ({count / total:.0%})"
+
+
+def ecology_diagnostic_rows(summaries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Extract qualitative and quantitative state diagnostics for society runs."""
+    rows: list[dict[str, Any]] = []
+    for summary in summaries:
+        experiment = summary.get("config", {}).get("experiment", summary.get("config", {}))
+        run_metadata = summary_run_metadata(summary)
+        track = infer_track_from_experiment(experiment, run_metadata)
+        if track not in {"society", "reputation"}:
+            continue
+
+        for trial in summary.get("trials", []):
+            rounds = trial.get("rounds", []) or []
+            if not rounds:
+                continue
+
+            latest_round = max(rounds, key=lambda item: item.get("timestep", 0))
+            total_agents = latest_round.get("total_agents")
+            alive_count = latest_round.get("alive_count")
+            first_loss_timestep = next(
+                (
+                    round_payload.get("timestep")
+                    for round_payload in rounds
+                    if isinstance(round_payload.get("alive_count"), (int, float))
+                    and isinstance(round_payload.get("total_agents"), (int, float))
+                    and round_payload["alive_count"] < round_payload["total_agents"]
+                ),
+                None,
+            )
+            first_death_timestep = next(
+                (
+                    round_payload.get("timestep")
+                    for round_payload in rounds
+                    if round_payload.get("newly_dead")
+                ),
+                None,
+            )
+            total_births = sum(len(round_payload.get("spawned_agents", []) or []) for round_payload in rounds)
+            total_deaths = sum(len(round_payload.get("newly_dead", []) or []) for round_payload in rounds)
+            max_death_shock = max(
+                (len(round_payload.get("newly_dead", []) or []) for round_payload in rounds),
+                default=0,
+            )
+            max_death_shock_timestep = next(
+                (
+                    round_payload.get("timestep")
+                    for round_payload in rounds
+                    if len(round_payload.get("newly_dead", []) or []) == max_death_shock
+                    and max_death_shock > 0
+                ),
+                None,
+            )
+
+            alive_summary = ""
+            if isinstance(alive_count, (int, float)) and isinstance(total_agents, (int, float)):
+                alive_summary = f"{int(alive_count)}/{int(total_agents)}"
+
+            rows.append(
+                {
+                    "experiment_id": summary.get("experiment_id"),
+                    "track": track,
+                    "prompt_variant": trial.get("prompt_variant"),
+                    "trial_id": trial.get("trial_id"),
+                    "latest_timestep": latest_round.get("timestep"),
+                    "alive": alive_summary,
+                    "first_loss_timestep": first_loss_timestep,
+                    "first_death_timestep": first_death_timestep,
+                    "latest_public_food": latest_round.get("public_food"),
+                    "latest_public_water": latest_round.get("public_water"),
+                    "latest_average_health": latest_round.get("average_health"),
+                    "latest_average_energy": latest_round.get("average_energy"),
+                    "cumulative_births": total_births,
+                    "cumulative_deaths": total_deaths,
+                    "max_death_shock": max_death_shock,
+                    "max_death_shock_timestep": max_death_shock_timestep,
+                    "alive_models": format_alive_models(latest_round),
+                    "dominant_behavior": dominant_behavior(rounds),
+                }
+            )
+    return rows
+
+
 def main() -> int:
     args = parse_args()
     rows = []
     prompt_variant_rows = []
     trial_rows = []
-    for summary in collect_unique_summaries(expand_paths(args.results)):
+    summaries = collect_unique_summaries(expand_paths(args.results))
+    for summary in summaries:
         rows.append(flatten_summary(summary))
         prompt_variant_rows.extend(flatten_prompt_variant_rows(summary))
         trial_rows.extend(flatten_trial_rows(summary))
@@ -661,6 +823,7 @@ def main() -> int:
     prompt_variant_frame = pd.DataFrame(prompt_variant_rows)
     trial_frame = pd.DataFrame(trial_rows)
     pooled_prompt_frame = pooled_prompt_variant_frame(trial_frame)
+    ecology_frame = pd.DataFrame(ecology_diagnostic_rows(summaries))
     if experiment_frame.empty:
         print("No result rows found.")
         return 1
@@ -674,11 +837,16 @@ def main() -> int:
         markdown_path = Path(args.markdown)
         markdown_path.parent.mkdir(parents=True, exist_ok=True)
         markdown_path.write_text(
-            render_markdown(experiment_frame, prompt_variant_frame, pooled_prompt_frame),
+            render_markdown(
+                experiment_frame,
+                prompt_variant_frame,
+                pooled_prompt_frame,
+                ecology_frame,
+            ),
             encoding="utf-8",
         )
     else:
-        print(render_markdown(experiment_frame, prompt_variant_frame, pooled_prompt_frame))
+        print(render_markdown(experiment_frame, prompt_variant_frame, pooled_prompt_frame, ecology_frame))
 
     return 0
 

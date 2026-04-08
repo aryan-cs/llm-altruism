@@ -20,6 +20,24 @@ Current honest answer:
 - the paper is waiting on long-horizon reruns in that world before the society
   headline can be treated as final again
 
+Current live baseline signal:
+
+- the first long-horizon baseline trial has reached round `29`
+- survival has fallen to `10 / 24`
+- cumulative deaths are `14`
+- survivors are currently split as:
+  - `deepseek-ai/deepseek-v3.2`: `8`
+  - `llama3.1-8b`: `2`
+  - `moonshotai/kimi-k2-instruct-0905`: `0`
+- the dominant logged behavior category is `gather (97%)`
+
+How to use this:
+
+- as an in-progress indication that the new ecology is materially harder than
+  the predecessor institutional setup
+- not yet as a final manuscript claim, because the full baseline and follow-on
+  conditions are incomplete
+
 ## Primary Institutional Results
 
 ### Predecessor scarcity society

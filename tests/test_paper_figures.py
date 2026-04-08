@@ -238,6 +238,40 @@ def test_flatten_society_round_rows_infers_track_from_part_when_run_metadata_mis
     assert event_frame.empty
 
 
+def test_flatten_society_model_rows_extracts_alive_counts_by_model():
+    """Model-level timeline helpers should recover alive-population splits from vitals."""
+    module = _load_paper_figures_module()
+    summaries = [
+        {
+            "experiment_id": "society-baseline-20260408T171454Z",
+            "config": {"experiment": {"name": "society-baseline", "part": 2}},
+            "trials": [
+                {
+                    "trial_id": 0,
+                    "prompt_variant": "task-only",
+                    "repetition": 0,
+                    "rounds": [
+                        {
+                            "timestep": 1,
+                            "agent_vitals": {
+                                "agent-0": {"model": "model-a", "alive": True},
+                                "agent-1": {"model": "model-a", "alive": False},
+                                "agent-2": {"model": "model-b", "alive": True},
+                            },
+                        }
+                    ],
+                }
+            ],
+        }
+    ]
+
+    model_frame = module.flatten_society_model_rows(summaries)
+
+    assert len(model_frame) == 2
+    assert set(model_frame["model"].tolist()) == {"model-a", "model-b"}
+    assert sorted(model_frame["alive_count_model"].tolist()) == [1, 1]
+
+
 def test_save_society_timeline_figure_writes_png(tmp_path: Path):
     """Timeline figure helper should emit a non-empty PNG from per-round rows."""
     module = _load_paper_figures_module()
@@ -261,6 +295,54 @@ def test_save_society_timeline_figure_writes_png(tmp_path: Path):
         output_path=output_path,
         title="Population over time",
         y_label="Alive agents",
+    )
+
+    assert written == output_path
+    assert output_path.exists()
+    assert output_path.stat().st_size > 0
+
+
+def test_save_society_model_population_figure_writes_png(tmp_path: Path):
+    """Model-level population trajectories should render to a non-empty PNG."""
+    module = _load_paper_figures_module()
+    model_frame = pd.DataFrame(
+        [
+            {
+                "track": "society",
+                "prompt_variant": "task-only",
+                "model": "model-a",
+                "timestep": 1,
+                "alive_count_model": 4,
+            },
+            {
+                "track": "society",
+                "prompt_variant": "task-only",
+                "model": "model-a",
+                "timestep": 2,
+                "alive_count_model": 3,
+            },
+            {
+                "track": "society",
+                "prompt_variant": "task-only",
+                "model": "model-b",
+                "timestep": 1,
+                "alive_count_model": 2,
+            },
+            {
+                "track": "society",
+                "prompt_variant": "task-only",
+                "model": "model-b",
+                "timestep": 2,
+                "alive_count_model": 1,
+            },
+        ]
+    )
+    output_path = tmp_path / "population_by_model.png"
+
+    written = module.save_society_model_population_figure(
+        model_frame,
+        output_path=output_path,
+        title="Population trajectories by model",
     )
 
     assert written == output_path

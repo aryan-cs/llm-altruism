@@ -70,6 +70,15 @@ Current canonical direction:
 - the summary and figure pipeline now understands in-progress ecology JSONL
   logs, so live monitoring figures and interim markdown summaries can be
   generated before a full trial finishes
+- the monitoring pipeline now also exposes model-level survival trajectories
+  and compact ecology diagnostics, including first-loss timing, death shocks,
+  alive-by-model composition, and dominant behavior category
+- latest observed partial result on the first baseline trial:
+  - round `29`
+  - alive agents `10 / 24`
+  - cumulative deaths `14`
+  - alive models: `deepseek-ai/deepseek-v3.2: 8`, `llama3.1-8b: 2`
+  - dominant behavior: `gather (97%)`
 - until those reruns finish, the paper is not honestly back to a
   manuscript-ready state
 

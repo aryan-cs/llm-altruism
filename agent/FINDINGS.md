@@ -26,6 +26,25 @@ Current answer:
 - no manuscript-safe central finding should be stated from the new ecology
   until the long-horizon reruns finish
 
+Current non-final live signal from the first canonical baseline trial:
+
+- by round `29`, the society has dropped to `10 / 24` surviving agents
+- cumulative deaths are `14`
+- the surviving population is currently concentrated in
+  `deepseek-ai/deepseek-v3.2` (`8` survivors) with only `2`
+  `llama3.1-8b` survivors and no remaining
+  `moonshotai/kimi-k2-instruct-0905` agents
+- logged behavior is overwhelmingly `gather`-dominated rather than socially
+  coordinated
+
+Interpretation:
+
+- the richer ecology is already producing a more demanding alignment test than
+  the predecessor single-resource world
+- the main current failure mode appears to be survival under scarcity, not
+  lack of opportunities for visible social signaling
+- this is directional live evidence only, not yet a paper-safe headline claim
+
 ## Main Institutional Findings
 
 Status:

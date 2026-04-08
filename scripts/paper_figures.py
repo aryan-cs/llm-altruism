@@ -193,6 +193,45 @@ def flatten_society_round_rows(summaries: list[dict[str, Any]]) -> tuple[pd.Data
     return pd.DataFrame(round_rows), pd.DataFrame(event_rows)
 
 
+def flatten_society_model_rows(summaries: list[dict[str, Any]]) -> pd.DataFrame:
+    """Extract per-model alive-population counts from society rounds."""
+    model_rows: list[dict[str, Any]] = []
+
+    for summary in summaries:
+        experiment = summary.get("config", {}).get("experiment", summary.get("config", {}))
+        track = summary_track(summary)
+        if track not in {"society", "reputation"}:
+            continue
+
+        for trial in summary.get("trials", []):
+            prompt_variant = trial.get("prompt_variant")
+            if not prompt_variant:
+                continue
+            for round_payload in trial.get("rounds", []):
+                counts: dict[str, int] = {}
+                for vital in (round_payload.get("agent_vitals") or {}).values():
+                    if not isinstance(vital, dict) or not vital.get("alive", False):
+                        continue
+                    model = str(vital.get("model") or "unknown")
+                    counts[model] = counts.get(model, 0) + 1
+                for model, alive_count_model in counts.items():
+                    model_rows.append(
+                        {
+                            "experiment_id": summary.get("experiment_id"),
+                            "name": experiment.get("name"),
+                            "track": track,
+                            "prompt_variant": prompt_variant,
+                            "trial_id": trial.get("trial_id"),
+                            "repetition": trial.get("repetition"),
+                            "timestep": round_payload.get("timestep"),
+                            "model": model,
+                            "alive_count_model": alive_count_model,
+                        }
+                    )
+
+    return pd.DataFrame(model_rows)
+
+
 def prettify_slug(value: str) -> str:
     return value.replace("_", " ").replace("-", "\n")
 
@@ -308,6 +347,41 @@ def build_event_mix_frame(event_frame: pd.DataFrame) -> pd.DataFrame:
     totals = grouped.groupby(["track", "prompt_variant"], dropna=False)["event_count"].transform("sum")
     grouped["event_share"] = grouped["event_count"] / totals
     return grouped
+
+
+def summarize_model_population_frame(
+    model_frame: pd.DataFrame,
+    *,
+    summary_module: Any | None = None,
+) -> pd.DataFrame:
+    """Aggregate per-model alive counts across repeated trials."""
+    if model_frame.empty or "alive_count_model" not in model_frame.columns:
+        return pd.DataFrame()
+
+    if summary_module is None:
+        summary_module = load_paper_summary_module()
+
+    rows: list[dict[str, Any]] = []
+    for keys, group in model_frame.groupby(
+        ["track", "prompt_variant", "model", "timestep"],
+        dropna=False,
+    ):
+        values = group["alive_count_model"].dropna().tolist()
+        if not values:
+            continue
+        mean, ci_low, ci_high = summary_module.bootstrap_mean_ci(values)
+        rows.append(
+            {
+                "track": keys[0],
+                "prompt_variant": keys[1],
+                "model": keys[2],
+                "timestep": keys[3],
+                "alive_count_model": mean,
+                "alive_count_model_ci95_low": ci_low,
+                "alive_count_model_ci95_high": ci_high,
+            }
+        )
+    return pd.DataFrame(rows)
 
 
 def add_error_bars(
@@ -704,6 +778,102 @@ def save_society_event_mix_figure(
     return output_path
 
 
+def save_society_model_population_figure(
+    model_frame: pd.DataFrame,
+    *,
+    output_path: Path,
+    title: str,
+) -> Path | None:
+    summary_frame = summarize_model_population_frame(model_frame)
+    if summary_frame.empty:
+        return None
+
+    configure_plot_style()
+    tracks = [track for track in ["society", "reputation"] if track in summary_frame["track"].tolist()]
+    prompt_variants = ordered_prompt_variants(
+        summary_frame["prompt_variant"].dropna().drop_duplicates().tolist(),
+        society_only=True,
+    )
+    if not tracks or not prompt_variants:
+        return None
+
+    models = sorted(summary_frame["model"].dropna().drop_duplicates().tolist())
+    palette = sns.color_palette("colorblind", n_colors=max(1, len(models)))
+    model_colors = {model: palette[index] for index, model in enumerate(models)}
+
+    fig, axes = plt.subplots(
+        len(tracks),
+        len(prompt_variants),
+        figsize=(5.8 * len(prompt_variants), 4.8 * len(tracks)),
+        squeeze=False,
+    )
+    legend_handles: list[Any] = []
+    legend_labels: list[str] = []
+
+    for row_index, track in enumerate(tracks):
+        for col_index, prompt_variant in enumerate(prompt_variants):
+            ax = axes[row_index][col_index]
+            panel = summary_frame[
+                (summary_frame["track"] == track)
+                & (summary_frame["prompt_variant"] == prompt_variant)
+            ].copy()
+            if panel.empty:
+                ax.axis("off")
+                continue
+
+            for model in models:
+                model_panel = panel[panel["model"] == model].copy().sort_values("timestep")
+                if model_panel.empty:
+                    continue
+                x_values = model_panel["timestep"].tolist()
+                y_values = model_panel["alive_count_model"].tolist()
+                line = ax.plot(
+                    x_values,
+                    y_values,
+                    marker="o",
+                    linewidth=2.2,
+                    color=model_colors[model],
+                    label=model,
+                    zorder=3,
+                )[0]
+                ax.fill_between(
+                    x_values,
+                    model_panel["alive_count_model_ci95_low"].tolist(),
+                    model_panel["alive_count_model_ci95_high"].tolist(),
+                    color=model_colors[model],
+                    alpha=0.12,
+                    zorder=2,
+                )
+                if row_index == 0 and col_index == 0:
+                    legend_handles.append(line)
+                    legend_labels.append(model)
+
+            ax.set_title(
+                f"{track.title()}: {prettify_slug(prompt_variant).replace(chr(10), ' ')}",
+                fontsize=14,
+            )
+            ax.set_xlabel("Timestep")
+            ax.set_ylabel("Alive agents" if col_index == 0 else "")
+            ax.set_xticks(sorted(panel["timestep"].dropna().unique().tolist()))
+            upper = float(panel["alive_count_model_ci95_high"].max())
+            ax.set_ylim(0, max(1.0, upper * 1.10))
+
+    if legend_handles:
+        fig.legend(
+            legend_handles,
+            legend_labels,
+            loc="upper center",
+            ncol=min(3, len(legend_labels)),
+            frameon=False,
+            bbox_to_anchor=(0.5, 1.02),
+        )
+    fig.suptitle(title, fontsize=18, y=1.05)
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=FIGURE_DPI, bbox_inches="tight")
+    plt.close(fig)
+    return output_path
+
+
 def main() -> int:
     args = parse_args()
     output_dir = Path(args.output_dir)
@@ -715,6 +885,7 @@ def main() -> int:
         summaries,
     )
     society_round_frame, society_event_frame = flatten_society_round_rows(summaries)
+    society_model_frame = flatten_society_model_rows(summaries)
     if experiment_frame.empty:
         print("No experiment rows found.")
         return 1
@@ -828,6 +999,11 @@ def main() -> int:
             society_event_frame,
             output_path=output_dir / "society_reputation_behavior_mix.png",
             title="Behavior mix in the LLM societies",
+        ),
+        save_society_model_population_figure(
+            society_model_frame,
+            output_path=output_dir / "society_reputation_population_by_model_over_time.png",
+            title="Population trajectories by model in the LLM societies",
         ),
     ]:
         if maybe_path is not None:

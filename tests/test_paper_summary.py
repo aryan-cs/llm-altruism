@@ -114,6 +114,105 @@ def test_render_markdown_includes_pooled_prompt_section():
     assert "1.0000 [0.7500, 1.0000]" in markdown
 
 
+def test_ecology_diagnostic_rows_summarize_latest_society_state():
+    """Ecology diagnostics should expose collapse timing and live model composition."""
+    module = _load_paper_summary_module()
+    summaries = [
+        {
+            "experiment_id": "society-baseline-20260408T171454Z",
+            "config": {"experiment": {"name": "society-baseline", "part": 2}},
+            "trials": [
+                {
+                    "trial_id": 0,
+                    "prompt_variant": "task-only",
+                    "repetition": 0,
+                    "rounds": [
+                        {
+                            "timestep": 1,
+                            "alive_count": 4,
+                            "total_agents": 4,
+                            "public_food": 20,
+                            "public_water": 30,
+                            "average_health": 12.0,
+                            "average_energy": 10.0,
+                            "events": [{"kind": "forage_food"}],
+                            "spawned_agents": [],
+                            "newly_dead": [],
+                            "agent_vitals": {
+                                "agent-0": {"model": "model-a", "alive": True},
+                                "agent-1": {"model": "model-a", "alive": True},
+                                "agent-2": {"model": "model-b", "alive": True},
+                                "agent-3": {"model": "model-c", "alive": True},
+                            },
+                        },
+                        {
+                            "timestep": 2,
+                            "alive_count": 2,
+                            "total_agents": 4,
+                            "public_food": 16,
+                            "public_water": 24,
+                            "average_health": 9.5,
+                            "average_energy": 8.0,
+                            "events": [{"kind": "draw_water"}, {"kind": "draw_water"}],
+                            "spawned_agents": [],
+                            "newly_dead": ["agent-3", "agent-1"],
+                            "agent_vitals": {
+                                "agent-0": {"model": "model-a", "alive": True},
+                                "agent-1": {"model": "model-a", "alive": False},
+                                "agent-2": {"model": "model-b", "alive": True},
+                                "agent-3": {"model": "model-c", "alive": False},
+                            },
+                        },
+                    ],
+                }
+            ],
+        }
+    ]
+
+    rows = module.ecology_diagnostic_rows(summaries)
+
+    assert len(rows) == 1
+    assert rows[0]["alive"] == "2/4"
+    assert rows[0]["first_loss_timestep"] == 2
+    assert rows[0]["first_death_timestep"] == 2
+    assert rows[0]["cumulative_deaths"] == 2
+    assert rows[0]["alive_models"] == "model-a: 1, model-b: 1"
+    assert rows[0]["dominant_behavior"] == "gather (100%)"
+
+
+def test_render_markdown_includes_ecology_diagnostics_section():
+    """Markdown output should surface ecology diagnostics when present."""
+    module = _load_paper_summary_module()
+    experiment_frame = pd.DataFrame([{"experiment_id": "exp-1", "track": "society"}])
+    prompt_variant_frame = pd.DataFrame()
+    pooled_prompt_frame = pd.DataFrame()
+    ecology_frame = pd.DataFrame(
+        [
+            {
+                "experiment_id": "society-baseline-20260408T171454Z",
+                "track": "society",
+                "prompt_variant": "task-only",
+                "trial_id": 0,
+                "latest_timestep": 29,
+                "alive": "10/24",
+                "alive_models": "deepseek: 8, llama: 2",
+                "dominant_behavior": "gather (95%)",
+            }
+        ]
+    )
+
+    markdown = module.render_markdown(
+        experiment_frame,
+        prompt_variant_frame,
+        pooled_prompt_frame,
+        ecology_frame,
+    )
+
+    assert "## Ecology Diagnostics" in markdown
+    assert "10/24" in markdown
+    assert "gather (95%)" in markdown
+
+
 def test_load_partial_jsonl_summary_recovers_trial_metadata(tmp_path: Path):
     """Active JSONL logs should be convertible into partial experiment summaries."""
     module = _load_paper_summary_module()

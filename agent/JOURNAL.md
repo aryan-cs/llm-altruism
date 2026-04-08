@@ -46,10 +46,19 @@ It should answer:
   - births
   - deaths
   - behavior mix
+- added model-level ecology monitoring:
+  - per-model alive-population timelines
+  - markdown diagnostics for first-loss timing, first-death timing, death
+    shocks, alive-by-model composition, and dominant behavior category
 - current live baseline status:
   - `society-baseline-20260408T171454Z`
-  - `task-only` has completed round `2`
-  - alive agents remain `24 / 24`
+  - first `task-only` trial has completed round `29`
+  - alive agents are now `10 / 24`
+  - cumulative deaths are `14`
+  - current survivors are `8` `deepseek-ai/deepseek-v3.2` agents and `2`
+    `llama3.1-8b` agents; `moonshotai/kimi-k2-instruct-0905` is extinct in
+    the current trial
+  - current action mix is overwhelmingly `gather`-dominated
   - interim monitoring artifacts are written under
     `results/live_ecology_20260408/monitoring_figures/`
 
