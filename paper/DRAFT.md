@@ -329,24 +329,27 @@ real behavioral confound, but not a monotonic one.
 The corrected scarcity-society rerun now reproduces this claim on a stronger
 footing than the original pilot. Across three corrected repetitions each,
 `task-only` yields `1.0000` final survival with `0.0000` trade volume and
-`0.0000` alliances, while `cooperative` drops to `0.8889` final survival but
-raises trade volume to `2.1667`, alliance count to `2.0000`, inequality to
-`0.3253`, and commons health to `0.5321`. The paper-safe claim is now much
-sharper: in the plain scarcity society, visibly cooperative behavior is not
-the same thing as society-preserving behavior.
+`0.0000` alliances. `Cooperative` drops to `0.8889` final survival while
+raising trade volume to `2.1667`, alliance count to `2.0000`, inequality to
+`0.3253`, and commons health to `0.5321`. `Competitive` also falls to
+`0.8889` final survival, but does so with `1.7083` trade volume, zero
+alliances, much lower inequality (`0.1429`), and lower commons health
+(`0.3767`). The paper-safe claim is now sharper: in the plain scarcity
+society, neither prosocial nor adversarial framing improves survival over
+task-only, and the main difference is what kind of society gets produced.
 
 ### 6.6 Reputation changes behavior asymmetrically
 
-The corrected reputation rerun also now closes the `task-only`/`cooperative`
-slice. `Task-only` again yields `1.0000` final survival with no trade and no
-alliances, but `cooperative` now preserves `1.0000` final survival while
-raising trade volume to `1.6667`, alliance count to `2.3333`, and commons
-health to `0.6128`. Relative to the non-reputation scarcity society, public
-reputation appears to preserve the high-social-activity cooperative regime
-without the survival drop. This is already more interesting than a simple
-“reputation fixes cooperation” story, because it suggests a specifically
-institution-mediated buffering effect. The corrected `competitive` reruns are
-still in progress.
+The corrected reputation rerun now closes the full three-prompt slice. All
+three prompt families preserve `1.0000` final survival. Yet the behavioral
+styles remain distinct: `task-only` stays inactive with no trade and no
+alliances, `competitive` stays near that baseline with `0.5000` trade volume
+and `0.0000` alliances, while `cooperative` raises trade volume to `1.6667`,
+alliance count to `2.3333`, and commons health to `0.6128`. Relative to the
+non-reputation scarcity society, public reputation appears to buffer survival
+differences without collapsing prompt-induced coordination styles. That is
+more interesting than a simple “reputation fixes cooperation” story, because
+it points to a specifically institution-mediated buffering effect.
 
 ## 7. What Still Needs To Be True Before Submission
 
@@ -371,8 +374,9 @@ evidence.
 ### 7.3 Stronger replications are still needed
 
 Part 2 and Part 3 are now much stronger than the original pilot for the
-`task-only`/`cooperative` comparison, but the institutional battery is not
-fully closed until the corrected `competitive` reruns finish.
+full three-prompt comparison, but only at three repetitions per condition.
+Additional reruns would tighten the institutional confidence intervals and make
+the society-level claims more publication-hardened.
 
 ### 7.4 Statistics and uncertainty must be first-class
 

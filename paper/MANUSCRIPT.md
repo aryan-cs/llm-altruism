@@ -8,11 +8,12 @@ their social behavior is often evaluated in ways that conflate default
 strategic tendencies, prompt obedience, benchmark familiarity, and
 institution-mediated adaptation. We present a behavioral evaluation framework
 that separates these factors across repeated classical games and larger
-multi-agent settings. The current repaired empirical core focuses on Part 1:
-repeated Prisoner's Dilemma, Chicken, and Stag Hunt experiments run with full
-prompt-stack logging after a validity repair. We find four robust results.
-First, game structure strongly shapes behavior: on a repaired stable cohort,
-cooperation rises from Prisoner's Dilemma (`0.4722 / 0.5463`) to Chicken
+multi-agent settings. The repaired empirical core now spans repeated
+Prisoner's Dilemma, Chicken, and Stag Hunt experiments plus corrected
+scarcity and public-reputation society reruns, all with full prompt-stack
+logging after a validity repair. We find five robust results. First, game
+structure strongly shapes behavior: on a repaired stable cohort, cooperation
+rises from Prisoner's Dilemma (`0.4722 / 0.5463`) to Chicken
 (`0.9074 / 0.7870`) to Stag Hunt (`0.9722 / 0.9907`), and the same ordering
 replicates on a second same-day cohort. Second, even neutral wording is not
 behaviorally innocuous: pooling two repaired Prisoner's Dilemma cohorts,
@@ -21,10 +22,16 @@ behaviorally innocuous: pooling two repaired Prisoner's Dilemma cohorts,
 steer the same game from universal defection to universal cooperation.
 Fourth, benchmark presentation materially changes measured behavior, but not in
 one direction across games: removing canonical framing raises cooperation in
-Prisoner's Dilemma while lowering it in Chicken and Stag Hunt. These findings
-support a behavioral view of alignment in which baseline policy, steerability,
-and benchmark recognition must be measured separately rather than collapsed
-into a single cooperation score.
+Prisoner's Dilemma while lowering it in Chicken and Stag Hunt. Fifth,
+institutional effects are not reducible to surface prosociality: in the
+corrected scarcity society, `task-only` preserves `1.0000` final survival
+while both `cooperative` and `competitive` fall to `0.8889`, whereas public
+reputation equalizes final survival at `1.0000` across all three prompt
+families while preserving large differences in trade, alliances, and
+inequality. These findings support a behavioral view of alignment in which
+baseline policy, steerability, benchmark recognition, and institutional
+mediation must be measured separately rather than collapsed into a single
+cooperation score.
 
 ## 1. Introduction
 
@@ -55,15 +62,12 @@ preferences. If public institutions change behavior, then those changes should
 be attributed to environmental structure rather than model essence.
 
 The repaired empirical core in this manuscript centers on repeated classical
-games because that is where the project now has finalized, defendable evidence
-with full message-stack logging. These repaired Part 1 results already support
-a strong paper: default behavior is game-dependent, neutral wording is unstable,
-prompt framing is highly steerable, and benchmark presentation materially
-changes measured cooperation. Exploratory pilot evidence from larger scarcity
-and reputation simulations suggests the same conceptual distinction between
-visible prosociality and robust collective outcomes, while corrected reruns of
-those multi-agent tracks are now being collected for the next revision of the
-paper package.
+games, where the evidence is deepest, and now includes a small corrected
+institutional battery under scarcity and public reputation. These repaired
+results already support a strong paper: default behavior is game-dependent,
+neutral wording is unstable, prompt framing is highly steerable, benchmark
+presentation materially changes measured cooperation, and institutional
+structure can separate visible social activity from collective survival.
 
 ## 2. Related Work
 
@@ -215,28 +219,28 @@ behavioral confound, but not a monotonic one. Less canonical presentation does
 not always increase cooperation. Instead, benchmark framing appears to interact
 with the strategic schema a model activates for a particular game.
 
-### 4.5 Multi-agent institutions remain the next empirical frontier
+### 4.5 Multi-agent institutions reveal survival-sociality dissociations
 
-The corrected multi-agent reruns now complete the `task-only` and
-`cooperative` conditions for both the scarcity society and the public-
-reputation society. In the scarcity society, `task-only` is perfectly stable
-across three repetitions (`1.0000` final survival, zero trade, zero
-alliances), while `cooperative` increases social activity and commons health
-but lowers final survival to `0.8889 [0.8333, 1.0000]`. The same cooperative
-condition raises average trade volume from `0.0000` to `2.1667`, average
-inequality from `0.1279` to `0.3253`, commons health from `0.2969` to
-`0.5321`, and alliance count from `0.0000` to `2.0000`.
+The corrected multi-agent reruns now complete all three prompt conditions for
+both the scarcity society and the public-reputation society. In the scarcity
+society, `task-only` is perfectly stable across three repetitions (`1.0000`
+final survival, zero trade, zero alliances). Both non-task prompts reduce
+final survival to `0.8889 [0.8333, 1.0000]`, but in qualitatively different
+ways. `Cooperative` produces the most social and unequal regime, with average
+trade volume `2.1667`, alliance count `2.0000`, average gini `0.3253`, and
+commons health `0.5321`. `Competitive` remains alliance-free and much less
+unequal, with average trade volume `1.7083`, alliance count `0.0000`, average
+gini `0.1429`, and commons health `0.3767`.
 
-In the reputation society, `task-only` is again perfectly stable across three
-repetitions, but `cooperative` no longer incurs a survival penalty: both
-survival and final survival remain `1.0000`, while trade volume rises to
-`1.6667`, alliance count to `2.3333`, and commons health to `0.6128`. These
-corrected reruns therefore already support a narrower institutional claim than
-the older pilot: public reputation may preserve highly social cooperative
-behavior that is less survival-preserving in the plain scarcity environment.
-The `competitive` institutional reruns are still in progress, so the full
-three-prompt institutional battery remains a next-step artifact rather than a
-closed table.
+In the reputation society, by contrast, all three prompt families preserve
+`1.0000` survival and final survival. Yet their social styles remain sharply
+separated. `Task-only` is nearly inactive (`0.0000` trade, `0.0000`
+alliances), `competitive` stays austere (`0.5000` trade, `0.0000` alliances,
+`0.2960` commons health), and `cooperative` yields the most active regime
+(`1.6667` trade, `2.3333` alliances, `0.6128` commons health, `0.2724`
+gini). The repaired institutional battery therefore supports a stronger claim
+than the earlier pilot: public reputation appears to buffer survival penalties
+without erasing prompt-induced differences in social organization.
 
 ## 5. Discussion
 
@@ -267,17 +271,16 @@ full micro-to-macro program. Second, the repaired baselines use a small but
 stable model cohort chosen by provider access and action-readiness constraints.
 Third, the repaired runs use fast-batch settings, which improves throughput but
 limits the number of rounds and repetitions per condition. Fourth, the
-institutional reruns are currently strongest for the `task-only` versus
-`cooperative` comparison, while the `competitive` prompt family is still being
-collected.
+corrected institutional battery is still small, with only three repetitions
+per prompt family in each institution.
 
 These limitations do not undercut the main contribution. The Part 1 repaired
 bundle already supports a publishable methodological and empirical paper on
 baseline instability, prompt steerability, and benchmark recognition in LLM
-social dilemmas, and the corrected institutional reruns now add a concrete
-task-only/cooperative contrast under scarcity and public reputation. They do,
-however, bound the claims that should be made about the full prompt family
-until the remaining competitive institutional runs are complete.
+social dilemmas, and the corrected institutional reruns now add a closed
+three-prompt contrast under scarcity and public reputation. They do, however,
+bound the precision of institution-level claims until the same patterns are
+replicated at larger scale.
 
 ## 7. Conclusion
 

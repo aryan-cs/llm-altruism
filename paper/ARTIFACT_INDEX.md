@@ -165,41 +165,43 @@ Status:
 
 ## 6. Corrected Institutional Reruns
 
-Current corrected institutional summaries:
+Final corrected institutional summaries:
 
 - `results/paper_ready_society_triplet/interim_summary.md`
 - `results/paper_ready_society_triplet/interim_summary.csv`
 - `results/paper_ready_reputation_triplet/interim_summary.md`
 - `results/paper_ready_reputation_triplet/interim_summary.csv`
 
-Current corrected institutional figures:
+Final corrected institutional figures:
 
 - `paper/figures/society_reputation_live/society_reputation_final_survival.png`
 - `paper/figures/society_reputation_live/society_reputation_trade_volume.png`
 - `paper/figures/society_reputation_live/society_reputation_alliance_count.png`
 
-Current strongest corrected institutional signal:
+Final corrected institutional comparison:
 
 - scarcity society
   - `task-only`: final survival `1.0000`, trade `0.0000`, alliances `0.0000`
   - `cooperative`: final survival `0.8889`, trade `2.1667`, alliances `2.0000`
+  - `competitive`: final survival `0.8889`, trade `1.7083`, alliances `0.0000`
 - reputation society
   - `task-only`: final survival `1.0000`, trade `0.0000`, alliances `0.0000`
   - `cooperative`: final survival `1.0000`, trade `1.6667`, alliances `2.3333`
+  - `competitive`: final survival `1.0000`, trade `0.5000`, alliances `0.0000`
 
-Main claim supported:
+Main claims supported:
 
-- the corrected institutional reruns now support a paper-safe task-only versus
-  cooperative contrast
-- cooperative prompting increases visible social activity in both institutions,
-  but only the plain scarcity society currently shows a survival penalty
-- public reputation appears to buffer that survival penalty in the completed
-  corrected slice
+- the corrected institutional battery is now complete across all three prompt
+  families
+- in the scarcity society, `task-only` yields the best survival, while
+  `cooperative` and `competitive` reduce survival in behaviorally different
+  ways
+- in the reputation society, public reputation equalizes survival across prompt
+  families while preserving large differences in trade and alliance structure
 
 Status:
 
-- corrected `task-only` and `cooperative` institutional conditions are complete
-- corrected `competitive` institutional reruns are still in progress
+- all corrected institutional conditions are complete
 
 ## 7. Older Pilot Results Still Useful
 
@@ -242,14 +244,14 @@ These claims are now on the strongest footing:
 9. Repaired prompt susceptibility is also game-dependent: competitive framing
    collapses Prisoner's Dilemma most strongly but leaves much higher residual
    cooperation in Chicken and Stag Hunt.
-10. In the corrected scarcity society, `cooperative` prompting increases trade,
-    alliances, commons health, and inequality, but lowers final survival
-    relative to `task-only`.
-11. In the corrected reputation society, `cooperative` also increases visible
-    social activity, but currently preserves `1.0000` final survival across the
-    completed corrected slice.
+10. In the corrected scarcity society, `task-only` is the best survival
+    condition, while `cooperative` and `competitive` both lower final survival
+    to `0.8889` through different behavioral regimes.
+11. In the corrected reputation society, all three prompt families preserve
+    `1.0000` final survival, but `cooperative` produces much more trade and
+    alliance activity than either `task-only` or `competitive`.
 
-These claims are promising but still in-progress for repaired evidence:
+Remaining worthwhile upgrades:
 
-1. the full three-prompt institutional battery, including corrected
-   `competitive` results
+1. deeper society/reputation replications for tighter institutional confidence
+   intervals

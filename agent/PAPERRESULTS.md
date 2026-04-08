@@ -460,8 +460,10 @@ This means:
 
 ## Recommended Next Paper Steps
 
-1. Finish the post-fix society/reputation replication block.
-2. Aggregate society/reputation results across multiple runs per prompt condition.
+1. Promote the completed corrected society/reputation battery into the main
+   institutional Results section.
+2. Run deeper society/reputation replications if tighter confidence intervals
+   are needed for submission.
 3. Turn `summary_final.md` into manuscript figures and tables.
 4. Draft the Results section directly from:
    - baseline cross-game table
@@ -472,11 +474,18 @@ This means:
 
 ## April 8 Corrected Institutional Update
 
-The corrected post-fix institutional reruns now close the `task-only` and
-`cooperative` comparison for both Part 2 and Part 3.
+The corrected post-fix institutional reruns now close the full three-prompt
+comparison for both Part 2 and Part 3.
 
 Part 2 corrected scarcity society prompt comparison:
 
+- competitive:
+  - survival rate: `0.9444`
+  - final survival rate: `0.8889`
+  - average trade volume: `1.7083`
+  - average gini: `0.1429`
+  - commons health: `0.3767`
+  - alliance count: `0.0000`
 - task-only:
   - survival rate: `1.0000`
   - final survival rate: `1.0000`
@@ -496,11 +505,19 @@ Interpretation:
 
 - corrected scarcity-society evidence now supports the core pilot direction on
   a stronger footing
-- cooperative prompting increases visible social activity but reduces final
-  survival relative to task-only
+- `task-only` is the best survival condition
+- `cooperative` and `competitive` both reduce final survival to `0.8889`, but
+  `cooperative` is uniquely alliance-rich and much more unequal
 
 Part 3 corrected reputation prompt comparison:
 
+- competitive:
+  - survival rate: `1.0000`
+  - final survival rate: `1.0000`
+  - average trade volume: `0.5000`
+  - average gini: `0.1139`
+  - commons health: `0.2960`
+  - alliance count: `0.0000`
 - task-only:
   - survival rate: `1.0000`
   - final survival rate: `1.0000`
@@ -519,12 +536,9 @@ Part 3 corrected reputation prompt comparison:
 Interpretation:
 
 - corrected reputation evidence now differs from the plain scarcity society
-- cooperative prompting still increases visible social activity, but it no
-  longer reduces survival in the completed corrected slice
+- all three prompt families now preserve `1.0000` final survival
+- cooperative prompting still increases visible social activity far more than
+  either `task-only` or `competitive`
 - this is a more interesting institutional result than the older pilot because
   it supports a reputation-buffering interpretation rather than a simple
   “reputation did not help” story
-
-Remaining caveat:
-
-- corrected `competitive` institutional reruns are still running

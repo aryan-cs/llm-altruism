@@ -84,10 +84,10 @@ File:
 
 Suggested caption:
 
-> Corrected institutional reruns for the completed `task-only` and
-> `cooperative` slices. In the plain scarcity society, `cooperative` lowers
-> final survival relative to `task-only`, whereas in the public-reputation
-> society both conditions currently preserve `1.0000` final survival.
+> Completed corrected institutional final-survival comparison. In the plain
+> scarcity society, `task-only` preserves `1.0000` final survival while both
+> `cooperative` and `competitive` fall to `0.8889`. In the public-reputation
+> society, all three prompt families preserve `1.0000` final survival.
 
 ## Figure 7: Corrected Institutional Trade Volume
 
@@ -97,10 +97,11 @@ File:
 
 Suggested caption:
 
-> Corrected institutional trade-volume comparison. `Task-only` remains
-> essentially inactive in both institutions, while `cooperative` increases
-> resource exchange strongly in both. This makes the survival contrast harder
-> to dismiss as merely “more or less sociality.”
+> Completed corrected institutional trade-volume comparison. `Task-only`
+> remains nearly inactive, `cooperative` produces the most exchange in both
+> institutions, and `competitive` is intermediate in scarcity but near
+> `task-only` under public reputation. Prompt families therefore remain
+> behaviorally distinct even when survival equalizes.
 
 ## Figure 8: Corrected Institutional Alliances
 
@@ -110,7 +111,8 @@ File:
 
 Suggested caption:
 
-> Corrected institutional alliance comparison. `Cooperative` prompting induces
-> visible alliance formation in both institutions, but only the non-reputation
-> scarcity society currently shows a survival penalty. Public reputation may
-> therefore buffer the cost of highly social cooperative behavior.
+> Completed corrected institutional alliance comparison. `Cooperative`
+> prompting induces visible alliance formation in both institutions, whereas
+> `competitive` and `task-only` remain alliance-free. Public reputation
+> preserves survival across all prompt families without collapsing these large
+> differences in social organization.

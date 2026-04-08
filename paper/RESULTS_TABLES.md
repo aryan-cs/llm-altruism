@@ -163,7 +163,7 @@ Interpretation:
 - the magnitude of prompt steering is therefore game-dependent rather than
   uniform
 
-## Table 8. Corrected Scarcity Society: Task-Only vs Cooperative
+## Table 8. Corrected Scarcity Society Prompt Comparison
 
 Source:
 
@@ -173,15 +173,16 @@ Source:
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | `task-only` | `3` | `1.0000` | `1.0000` | `0.0000` | `0.1279` | `0.2969` | `0.0000` |
 | `cooperative` | `3` | `0.9583` | `0.8889` | `2.1667` | `0.3253` | `0.5321` | `2.0000` |
+| `competitive` | `3` | `0.9444` | `0.8889` | `1.7083` | `0.1429` | `0.3767` | `0.0000` |
 
 Interpretation:
 
-- corrected scarcity-society evidence now supports the task-only versus
-  cooperative contrast directly rather than relying on the older pilot
-- cooperative prompting produces more trade, alliances, commons health, and
-  inequality, but worse final survival than task-only
+- `task-only` delivers the strongest survival outcome in scarcity
+- `cooperative` and `competitive` both reduce final survival to `0.8889`, but
+  `cooperative` uniquely produces high alliance formation and much higher
+  inequality
 
-## Table 9. Corrected Reputation Society: Task-Only vs Cooperative
+## Table 9. Corrected Reputation Society Prompt Comparison
 
 Source:
 
@@ -191,10 +192,11 @@ Source:
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | `task-only` | `3` | `1.0000` | `1.0000` | `0.0000` | `0.0942` | `0.2960` | `0.0000` |
 | `cooperative` | `3` | `1.0000` | `1.0000` | `1.6667` | `0.2724` | `0.6128` | `2.3333` |
+| `competitive` | `3` | `1.0000` | `1.0000` | `0.5000` | `0.1139` | `0.2960` | `0.0000` |
 
 Interpretation:
 
-- corrected reputation evidence now shows a different pattern from the plain
-  scarcity society
-- under public reputation, cooperative prompting still increases visible social
-  activity, but it no longer reduces survival in the completed corrected slice
+- under public reputation, all three prompt families preserve perfect final
+  survival
+- `cooperative` remains the clearly most social condition, while `competitive`
+  stays much closer to `task-only` on alliances and commons health

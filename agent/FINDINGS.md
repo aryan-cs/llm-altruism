@@ -968,12 +968,18 @@ That is the empirical story these results support right now.
 
 ## 11. April 8 Corrected Institutional Update
 
-The corrected institutional reruns now complete the `task-only` and
-`cooperative` conditions for both the scarcity society and the public-
-reputation society.
+The corrected institutional reruns now complete all three prompt conditions
+for both the scarcity society and the public-reputation society.
 
 Corrected scarcity society summary:
 
+- `competitive`
+  - survival rate: `0.9444`
+  - final survival rate: `0.8889`
+  - average trade volume: `1.7083`
+  - average gini: `0.1429`
+  - commons health: `0.3767`
+  - alliance count: `0.0000`
 - `task-only`
   - survival rate: `1.0000`
   - final survival rate: `1.0000`
@@ -991,6 +997,13 @@ Corrected scarcity society summary:
 
 Corrected reputation society summary:
 
+- `competitive`
+  - survival rate: `1.0000`
+  - final survival rate: `1.0000`
+  - average trade volume: `0.5000`
+  - average gini: `0.1139`
+  - commons health: `0.2960`
+  - alliance count: `0.0000`
 - `task-only`
   - survival rate: `1.0000`
   - final survival rate: `1.0000`
@@ -1011,7 +1024,8 @@ Updated interpretation:
 - the older pilot claim that prosocial-looking behavior can diverge from
   society-preserving behavior now has corrected support in the plain scarcity
   society
-- public reputation appears to buffer that survival penalty in the completed
-  corrected slice
-- the corrected `competitive` institutional reruns are still in progress, so
-  the full three-prompt institutional battery is not closed yet
+- in scarcity, `task-only` is the best survival condition, while
+  `cooperative` and `competitive` reach the same lower final survival through
+  different behavioral styles
+- public reputation buffers those survival differences while preserving large
+  differences in trade, alliance formation, and inequality
