@@ -18,6 +18,7 @@ Primary artifacts:
 - `results/live_ecology_20260408/monitoring_figures/`
 - `results/live_ecology_20260408/society-baseline-casebook.md`
 - `results/live_ecology_20260408/monitoring_figures/society_reputation_survivor_vitals_heatmap.png`
+- `results/live_ecology_20260408/monitoring_figures/society_reputation_model_vitals_over_time.png`
 
 Main claim supported:
 

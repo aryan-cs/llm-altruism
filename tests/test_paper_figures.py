@@ -448,6 +448,111 @@ def test_save_society_vitals_heatmap_writes_png(tmp_path: Path):
     assert output_path.stat().st_size > 0
 
 
+def test_summarize_model_vital_frame_aggregates_agent_vitals_by_model():
+    """Model-level vital summaries should average per-agent values by timestep."""
+    module = _load_paper_figures_module()
+    agent_frame = pd.DataFrame(
+        [
+            {
+                "track": "society",
+                "prompt_variant": "task-only",
+                "model": "model-a",
+                "timestep": 1,
+                "food": 4,
+            },
+            {
+                "track": "society",
+                "prompt_variant": "task-only",
+                "model": "model-a",
+                "timestep": 1,
+                "food": 6,
+            },
+            {
+                "track": "society",
+                "prompt_variant": "task-only",
+                "model": "model-b",
+                "timestep": 1,
+                "food": 3,
+            },
+        ]
+    )
+
+    summary = module.summarize_model_vital_frame(agent_frame, metric_root="food")
+
+    model_a = summary[summary["model"] == "model-a"].iloc[0]
+    assert model_a["food"] == 5.0
+    assert "food_ci95_low" in model_a.index
+    assert "food_ci95_high" in model_a.index
+
+
+def test_save_society_model_vitals_timeline_figure_writes_png(tmp_path: Path):
+    """Model-level vital trajectories should render to a non-empty PNG."""
+    module = _load_paper_figures_module()
+    agent_frame = pd.DataFrame(
+        [
+            {
+                "track": "society",
+                "prompt_variant": "task-only",
+                "trial_id": 0,
+                "timestep": 1,
+                "agent_id": "agent-0",
+                "model": "model-a",
+                "food": 4,
+                "water": 3,
+                "energy": 8,
+                "health": 9,
+            },
+            {
+                "track": "society",
+                "prompt_variant": "task-only",
+                "trial_id": 0,
+                "timestep": 2,
+                "agent_id": "agent-0",
+                "model": "model-a",
+                "food": 5,
+                "water": 4,
+                "energy": 9,
+                "health": 10,
+            },
+            {
+                "track": "society",
+                "prompt_variant": "task-only",
+                "trial_id": 0,
+                "timestep": 1,
+                "agent_id": "agent-1",
+                "model": "model-b",
+                "food": 2,
+                "water": 5,
+                "energy": 7,
+                "health": 8,
+            },
+            {
+                "track": "society",
+                "prompt_variant": "task-only",
+                "trial_id": 0,
+                "timestep": 2,
+                "agent_id": "agent-1",
+                "model": "model-b",
+                "food": 3,
+                "water": 5,
+                "energy": 8,
+                "health": 9,
+            },
+        ]
+    )
+    output_path = tmp_path / "model_vitals_over_time.png"
+
+    written = module.save_society_model_vitals_timeline_figure(
+        agent_frame,
+        output_path=output_path,
+        title="Model-level vital trajectories",
+    )
+
+    assert written == output_path
+    assert output_path.exists()
+    assert output_path.stat().st_size > 0
+
+
 def test_save_society_event_mix_figure_writes_png(tmp_path: Path):
     """Behavior-mix helper should emit a non-empty PNG from logged event kinds."""
     module = _load_paper_figures_module()

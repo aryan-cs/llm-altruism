@@ -425,6 +425,48 @@ def summarize_model_population_frame(
     return pd.DataFrame(rows)
 
 
+def summarize_model_vital_frame(
+    agent_frame: pd.DataFrame,
+    *,
+    metric_root: str,
+    summary_module: Any | None = None,
+) -> pd.DataFrame:
+    """Aggregate per-model vital metrics across repeated trials."""
+    if agent_frame.empty or metric_root not in agent_frame.columns:
+        return pd.DataFrame()
+
+    if summary_module is None:
+        summary_module = load_paper_summary_module()
+
+    subset = agent_frame[
+        agent_frame.get("track").isin(["society", "reputation"]) & agent_frame[metric_root].notna()
+    ].copy()
+    if subset.empty:
+        return pd.DataFrame()
+
+    rows: list[dict[str, Any]] = []
+    for keys, group in subset.groupby(
+        ["track", "prompt_variant", "model", "timestep"],
+        dropna=False,
+    ):
+        values = group[metric_root].dropna().tolist()
+        if not values:
+            continue
+        mean, ci_low, ci_high = summary_module.bootstrap_mean_ci(values)
+        rows.append(
+            {
+                "track": keys[0],
+                "prompt_variant": keys[1],
+                "model": keys[2],
+                "timestep": keys[3],
+                metric_root: mean,
+                f"{metric_root}_ci95_low": ci_low,
+                f"{metric_root}_ci95_high": ci_high,
+            }
+        )
+    return pd.DataFrame(rows)
+
+
 def add_error_bars(
     ax: plt.Axes,
     x_positions: list[int],
@@ -1000,6 +1042,130 @@ def save_society_vitals_heatmap(
     return output_path
 
 
+def save_society_model_vitals_timeline_figure(
+    agent_frame: pd.DataFrame,
+    *,
+    output_path: Path,
+    title: str,
+) -> Path | None:
+    if agent_frame.empty:
+        return None
+
+    metrics = ["food", "water", "energy", "health"]
+    metric_labels = {
+        "food": "Average food",
+        "water": "Average water",
+        "energy": "Average energy",
+        "health": "Average health",
+    }
+    summary_frames = {
+        metric: summarize_model_vital_frame(agent_frame, metric_root=metric)
+        for metric in metrics
+    }
+    if all(frame.empty for frame in summary_frames.values()):
+        return None
+
+    group_rows: list[tuple[str, str]] = []
+    for frame in summary_frames.values():
+        if frame.empty:
+            continue
+        for keys, _group in frame.groupby(["track", "prompt_variant"], dropna=False):
+            pair = (str(keys[0]), str(keys[1]))
+            if pair not in group_rows:
+                group_rows.append(pair)
+    if not group_rows:
+        return None
+
+    track_order = {"society": 0, "reputation": 1}
+    prompt_order = {name: idx for idx, name in enumerate(SOCIETY_VARIANT_ORDER)}
+    group_rows.sort(key=lambda item: (track_order.get(item[0], 99), prompt_order.get(item[1], 99), item))
+
+    models = sorted(
+        {
+            str(model)
+            for frame in summary_frames.values()
+            if not frame.empty
+            for model in frame["model"].dropna().tolist()
+        }
+    )
+    palette = sns.color_palette("colorblind", n_colors=max(1, len(models)))
+    model_colors = {model: palette[index] for index, model in enumerate(models)}
+
+    configure_plot_style()
+    fig, axes = plt.subplots(
+        len(group_rows),
+        len(metrics),
+        figsize=(5.0 * len(metrics), 4.5 * len(group_rows)),
+        squeeze=False,
+    )
+    legend_handles: list[Any] = []
+    legend_labels: list[str] = []
+
+    for row_index, (track, prompt_variant) in enumerate(group_rows):
+        for col_index, metric in enumerate(metrics):
+            ax = axes[row_index][col_index]
+            frame = summary_frames[metric]
+            panel = frame[
+                (frame["track"] == track)
+                & (frame["prompt_variant"] == prompt_variant)
+            ].copy()
+            if panel.empty:
+                ax.axis("off")
+                continue
+            for model in models:
+                model_panel = panel[panel["model"] == model].copy().sort_values("timestep")
+                if model_panel.empty:
+                    continue
+                x_values = model_panel["timestep"].tolist()
+                y_values = model_panel[metric].tolist()
+                line = ax.plot(
+                    x_values,
+                    y_values,
+                    marker="o",
+                    linewidth=2.1,
+                    color=model_colors[model],
+                    label=model,
+                    zorder=3,
+                )[0]
+                ax.fill_between(
+                    x_values,
+                    model_panel[f"{metric}_ci95_low"].tolist(),
+                    model_panel[f"{metric}_ci95_high"].tolist(),
+                    color=model_colors[model],
+                    alpha=0.12,
+                    zorder=2,
+                )
+                if row_index == 0 and col_index == 0:
+                    legend_handles.append(line)
+                    legend_labels.append(model)
+            title_prefix = (
+                f"{track.title()}: {prettify_slug(prompt_variant).replace(chr(10), ' ')}"
+                if col_index == 0
+                else metric_labels[metric]
+            )
+            ax.set_title(title_prefix, fontsize=13)
+            ax.set_xlabel("Timestep")
+            ax.set_ylabel(metric_labels[metric] if col_index == 0 else "")
+            ax.set_xticks(sorted(panel["timestep"].dropna().unique().tolist()))
+            upper = float(panel[f"{metric}_ci95_high"].max())
+            ax.set_ylim(0, max(1.0, upper * 1.10))
+
+    if legend_handles:
+        fig.legend(
+            legend_handles,
+            legend_labels,
+            loc="upper center",
+            ncol=min(3, len(legend_labels)),
+            frameon=False,
+            bbox_to_anchor=(0.5, 1.02),
+        )
+    fig.suptitle(title, fontsize=18, y=1.04)
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=FIGURE_DPI, bbox_inches="tight")
+    plt.close(fig)
+    return output_path
+
+
 def main() -> int:
     args = parse_args()
     output_dir = Path(args.output_dir)
@@ -1136,6 +1302,11 @@ def main() -> int:
             society_agent_frame,
             output_path=output_dir / "society_reputation_survivor_vitals_heatmap.png",
             title="Latest observed survivor vitals in the LLM societies",
+        ),
+        save_society_model_vitals_timeline_figure(
+            society_agent_frame,
+            output_path=output_dir / "society_reputation_model_vitals_over_time.png",
+            title="Model-level vital trajectories in the LLM societies",
         ),
     ]:
         if maybe_path is not None:

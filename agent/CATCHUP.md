@@ -74,6 +74,9 @@ Current canonical direction:
   and compact ecology diagnostics, including first-loss timing, death shocks,
   alive-by-model composition, dominant behavior category, and a latest-state
   survivor-vitals heatmap
+- the live monitoring bundle now also includes model-level vital trajectories
+  over time, which are useful for explaining why one model family persists
+  while others disappear
 - the canonical follow-on runs can now be launched with
   `scripts/run_canonical_ecology_suite.py`, which standardizes the baseline,
   reputation, and event-stress sequence on the stable triplet cohort

@@ -13,6 +13,9 @@ Live-monitoring note:
   `society_reputation_survivor_vitals_heatmap.png`, which shows per-agent
   `food`, `water`, `energy`, and `health` for the currently surviving
   population
+- the model-level companion diagnostic is
+  `society_reputation_model_vitals_over_time.png`, which shows how average
+  survivor food, water, energy, and health evolve by model over time
 
 ## Figure 1: Scarcity Society Final Survival
 
@@ -182,3 +185,17 @@ Suggested caption:
 > `water`, `energy`, and `health`. The figure makes the surviving population's
 > internal state directly auditable rather than relying only on aggregate
 > survival counts.
+
+## Appendix Candidate: Model Vital Trajectories Over Time
+
+File:
+
+- `results/live_ecology_20260408/monitoring_figures/society_reputation_model_vitals_over_time.png`
+
+Suggested caption:
+
+> Model-level average survivor food, water, energy, and health over time in
+> the canonical long-horizon ecology refresh. The figure is intended as a
+> mechanism-level diagnostic for whether population persistence is driven by
+> systematically better resource stocks or by late-stage stabilization after
+> earlier losses.

@@ -58,6 +58,9 @@ It should answer:
 - added a latest-state survivor-vitals heatmap to the monitoring figure
   pipeline so the live ecology bundle now shows per-agent `food`, `water`,
   `energy`, and `health` for the surviving population
+- added a model-level vital trajectory figure so the live ecology bundle also
+  shows average survivor `food`, `water`, `energy`, and `health` by model over
+  time
 - added `scripts/run_canonical_ecology_suite.py` so the baseline, reputation,
   and event-stress long-horizon ecology runs can be launched as one
   standardized suite instead of by hand
