@@ -2,6 +2,12 @@
 
 Current manuscript-ready tables, ordered by the paper's society-first framing.
 
+Current repo note:
+
+- the institutional tables below are still the completed predecessor bundle
+- the canonical replacement is the live long-horizon ecology refresh under
+  `results/live_ecology_20260408/`
+
 ## Table 1. Scarcity Society Survival And Social Structure
 
 Source:

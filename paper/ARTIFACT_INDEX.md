@@ -4,6 +4,12 @@ This file maps the paper's main claims to the exact supporting artifacts.
 
 ## 1. Scarcity Society
 
+Status note:
+
+- the completed artifacts below are the predecessor audited scarcity bundle
+- the canonical long-horizon ecology refresh is now running separately under
+  `results/live_ecology_20260408/`
+
 Primary artifacts:
 
 - `results/paper_ready_society_triplet/interim_summary.md`
@@ -25,6 +31,12 @@ Main claim supported:
   and more trade but still loses agents late in the run
 
 ## 2. Reputation Society
+
+Status note:
+
+- these are the completed predecessor public-reputation artifacts
+- the next paper-grade replacement will come from the long-horizon ecology
+  refresh after the baseline no-reputation run finishes
 
 Primary artifacts:
 
