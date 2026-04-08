@@ -11,11 +11,18 @@ Primary artifacts:
 - `paper/figures/society_reputation_live/society_reputation_final_survival.png`
 - `paper/figures/society_reputation_live/society_reputation_trade_volume.png`
 - `paper/figures/society_reputation_live/society_reputation_alliance_count.png`
+- `paper/figures/society_reputation_live/society_reputation_population_over_time.png`
+- `paper/figures/society_reputation_live/society_reputation_public_resources_over_time.png`
+- `paper/figures/society_reputation_live/society_reputation_trade_volume_over_time.png`
+- `paper/figures/society_reputation_live/society_reputation_behavior_mix.png`
 
 Main claim supported:
 
 - in scarcity, `task-only` preserves the best final survival even though it is
   far less visibly social than `cooperative`
+- the main difference is visible in the trajectory, not just the endpoint:
+  `task-only` keeps population flat while `cooperative` preserves more commons
+  and more trade but still loses agents late in the run
 
 ## 2. Reputation Society
 
@@ -26,11 +33,17 @@ Primary artifacts:
 - `paper/figures/society_reputation_live/society_reputation_final_survival.png`
 - `paper/figures/society_reputation_live/society_reputation_trade_volume.png`
 - `paper/figures/society_reputation_live/society_reputation_alliance_count.png`
+- `paper/figures/society_reputation_live/society_reputation_population_over_time.png`
+- `paper/figures/society_reputation_live/society_reputation_public_resources_over_time.png`
+- `paper/figures/society_reputation_live/society_reputation_trade_volume_over_time.png`
+- `paper/figures/society_reputation_live/society_reputation_behavior_mix.png`
 
 Main claim supported:
 
 - public reputation equalizes final survival while preserving large differences
   in trade and alliance structure
+- public reputation also stabilizes the full population path and allows much
+  stronger commons maintenance and social activity without the scarcity deaths
 
 ## 3. Precursor Baseline Diagnostics
 

@@ -30,6 +30,10 @@ Primary manuscript-facing figures:
 - `paper/figures/society_reputation_live/society_reputation_final_survival.png`
 - `paper/figures/society_reputation_live/society_reputation_trade_volume.png`
 - `paper/figures/society_reputation_live/society_reputation_alliance_count.png`
+- `paper/figures/society_reputation_live/society_reputation_population_over_time.png`
+- `paper/figures/society_reputation_live/society_reputation_public_resources_over_time.png`
+- `paper/figures/society_reputation_live/society_reputation_trade_volume_over_time.png`
+- `paper/figures/society_reputation_live/society_reputation_behavior_mix.png`
 - `paper/figures/repaired_pd_replications/baseline_prompt_variants_cooperation.png`
 - `paper/figures/triplet_live/baseline_prompt_variants_cooperation.png`
 - `paper/figures/benchmark_live/benchmark_presentations_cooperation.png`

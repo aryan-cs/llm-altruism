@@ -229,6 +229,10 @@ entire population to the end of the run. `Cooperative` and `competitive` both
 lose final survival, albeit in behaviorally different ways. `Cooperative`
 creates the most trade and the only visible alliance structure, while
 `competitive` remains alliance-free and much less unequal.
+The round-by-round population traces make the same point more clearly than the
+endpoint table alone: scarcity `task-only` stays flat at the initial six-agent
+population, while `cooperative` and `competitive` each incur late deaths after
+several rounds of active exchange.
 
 Public reputation changes the picture again:
 
@@ -242,6 +246,10 @@ Public reputation equalizes final survival across the completed prompt families
 without collapsing them into the same social organization. `Cooperative` still
 produces the densest social structure, while `competitive` remains much closer
 to `task-only`.
+The time-series figures sharpen the mechanism. Under public reputation, all
+three prompt families keep the full population alive, but `cooperative`
+maintains much higher public-resource levels and far more communication and
+sharing than the other variants.
 
 ### Visible sociality and collective survival separate
 
@@ -251,6 +259,10 @@ scarcity world is the clearest case. `Cooperative` creates more exchange,
 higher commons recovery, and explicit alliances, but it does not outperform the
 minimal `task-only` condition on final survival. `Task-only` is less visibly
 social, yet it is more robust on the paper's primary macro outcome.
+The new behavior-mix plots show why this is not just noise in a bar chart:
+`task-only` is dominated by gathering, `cooperative` shifts heavily toward
+sharing and communication, and `competitive` allocates a larger fraction of
+behavior to stealing and opportunistic exchange.
 
 The reputation world shows a related but distinct pattern. Public accountability
 stabilizes final survival, but it does not erase prompt-conditioned

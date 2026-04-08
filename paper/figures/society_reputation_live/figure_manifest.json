@@ -7,6 +7,10 @@
   "figures": [
     "society_reputation_final_survival.png",
     "society_reputation_trade_volume.png",
-    "society_reputation_alliance_count.png"
+    "society_reputation_alliance_count.png",
+    "society_reputation_population_over_time.png",
+    "society_reputation_public_resources_over_time.png",
+    "society_reputation_trade_volume_over_time.png",
+    "society_reputation_behavior_mix.png"
   ]
 }

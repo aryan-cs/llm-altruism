@@ -14,6 +14,7 @@ import matplotlib
 matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt
+import matplotlib.ticker as mtick
 import pandas as pd
 import seaborn as sns
 
@@ -43,6 +44,15 @@ PRESENTATION_COLORS = {
 TRACK_COLORS = {
     "society": "#577590",
     "reputation": "#bc4749",
+}
+SOCIETY_VARIANT_ORDER = ["task-only", "cooperative", "competitive"]
+EVENT_CATEGORY_ORDER = ["gather", "share", "steal", "communicate", "system"]
+EVENT_CATEGORY_COLORS = {
+    "gather": "#577590",
+    "share": "#2a9d8f",
+    "steal": "#d62828",
+    "communicate": "#e9c46a",
+    "system": "#adb5bd",
 }
 FIGURE_DPI = 300
 
@@ -76,9 +86,16 @@ def load_paper_summary_module():
     return module
 
 
-def build_frames(result_inputs: list[str]) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+def load_summaries(result_inputs: list[str]) -> tuple[Any, list[dict[str, Any]]]:
     summary_module = load_paper_summary_module()
     summaries = summary_module.collect_unique_summaries(summary_module.expand_paths(result_inputs))
+    return summary_module, summaries
+
+
+def build_frames_from_summaries(
+    summary_module: Any,
+    summaries: list[dict[str, Any]],
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     rows = [summary_module.flatten_summary(summary) for summary in summaries]
     prompt_variant_rows: list[dict[str, Any]] = []
     trial_rows: list[dict[str, Any]] = []
@@ -90,6 +107,71 @@ def build_frames(result_inputs: list[str]) -> tuple[pd.DataFrame, pd.DataFrame, 
     trial_frame = pd.DataFrame(trial_rows)
     pooled_prompt_frame = summary_module.pooled_prompt_variant_frame(trial_frame)
     return experiment_frame, prompt_variant_frame, pooled_prompt_frame
+
+
+def build_frames(result_inputs: list[str]) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    summary_module, summaries = load_summaries(result_inputs)
+    return build_frames_from_summaries(summary_module, summaries)
+
+
+def summary_run_metadata(summary: dict[str, Any]) -> dict[str, Any]:
+    return summary.get("run_metadata") or summary.get("config", {}).get("run_metadata", {})
+
+
+def flatten_society_round_rows(summaries: list[dict[str, Any]]) -> tuple[pd.DataFrame, pd.DataFrame]:
+    round_rows: list[dict[str, Any]] = []
+    event_rows: list[dict[str, Any]] = []
+
+    for summary in summaries:
+        experiment = summary.get("config", {}).get("experiment", summary.get("config", {}))
+        run_metadata = summary_run_metadata(summary)
+        track = run_metadata.get("track")
+        if track not in {"society", "reputation"}:
+            continue
+
+        for trial in summary.get("trials", []):
+            prompt_variant = trial.get("prompt_variant")
+            if not prompt_variant:
+                continue
+            for round_payload in trial.get("rounds", []):
+                events = round_payload.get("events", []) or []
+                round_rows.append(
+                    {
+                        "experiment_id": summary.get("experiment_id"),
+                        "name": experiment.get("name"),
+                        "track": track,
+                        "prompt_variant": prompt_variant,
+                        "trial_id": trial.get("trial_id"),
+                        "repetition": trial.get("repetition"),
+                        "timestep": round_payload.get("timestep"),
+                        "alive_count": round_payload.get("alive_count"),
+                        "total_agents": round_payload.get("total_agents"),
+                        "public_resources": round_payload.get("public_resources"),
+                        "trade_volume": round_payload.get("trade_volume"),
+                        "birth_count": len(round_payload.get("spawned_agents", []) or []),
+                        "death_count": len(round_payload.get("newly_dead", []) or []),
+                        "event_count": len(events),
+                    }
+                )
+                for event in events:
+                    event_rows.append(
+                        {
+                            "experiment_id": summary.get("experiment_id"),
+                            "name": experiment.get("name"),
+                            "track": track,
+                            "prompt_variant": prompt_variant,
+                            "trial_id": trial.get("trial_id"),
+                            "repetition": trial.get("repetition"),
+                            "timestep": round_payload.get("timestep"),
+                            "event_kind": event.get("kind", "unknown"),
+                            "actor": event.get("actor"),
+                            "target": event.get("target"),
+                            "amount": event.get("amount"),
+                            "message": event.get("message"),
+                        }
+                    )
+
+    return pd.DataFrame(round_rows), pd.DataFrame(event_rows)
 
 
 def prettify_slug(value: str) -> str:
@@ -125,6 +207,80 @@ def side_average_metric_frame(frame: pd.DataFrame, metric_root: str) -> pd.DataF
         averaged[f"{metric_root}_ci95_low"] = averaged[low_columns].mean(axis=1)
         averaged[f"{metric_root}_ci95_high"] = averaged[high_columns].mean(axis=1)
     return averaged
+
+
+def ordered_prompt_variants(values: list[str], *, society_only: bool = False) -> list[str]:
+    if society_only:
+        order = SOCIETY_VARIANT_ORDER
+    else:
+        order = VARIANT_ORDER
+    order_lookup = {name: idx for idx, name in enumerate(order)}
+    return sorted(values, key=lambda item: (order_lookup.get(item, 999), item))
+
+
+def event_category(kind: str | None) -> str:
+    normalized = str(kind or "unknown")
+    if normalized in {"broadcast", "whisper", "message"}:
+        return "communicate"
+    if normalized in {"gather", "share", "steal"}:
+        return normalized
+    return "system"
+
+
+def summarize_round_metric_frame(
+    round_frame: pd.DataFrame,
+    *,
+    metric_root: str,
+    summary_module: Any | None = None,
+) -> pd.DataFrame:
+    if round_frame.empty or metric_root not in round_frame.columns or "track" not in round_frame.columns:
+        return pd.DataFrame()
+
+    if summary_module is None:
+        summary_module = load_paper_summary_module()
+
+    subset = round_frame[
+        round_frame.get("track").isin(["society", "reputation"]) & round_frame[metric_root].notna()
+    ].copy()
+    if subset.empty:
+        return pd.DataFrame()
+
+    rows: list[dict[str, Any]] = []
+    for keys, group in subset.groupby(["track", "prompt_variant", "timestep"], dropna=False):
+        values = group[metric_root].dropna().tolist()
+        if not values:
+            continue
+        mean, ci_low, ci_high = summary_module.bootstrap_mean_ci(values)
+        rows.append(
+            {
+                "track": keys[0],
+                "prompt_variant": keys[1],
+                "timestep": keys[2],
+                metric_root: mean,
+                f"{metric_root}_ci95_low": ci_low,
+                f"{metric_root}_ci95_high": ci_high,
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def build_event_mix_frame(event_frame: pd.DataFrame) -> pd.DataFrame:
+    if event_frame.empty or "event_kind" not in event_frame.columns or "track" not in event_frame.columns:
+        return pd.DataFrame()
+
+    subset = event_frame[event_frame.get("track").isin(["society", "reputation"])].copy()
+    if subset.empty:
+        return pd.DataFrame()
+
+    subset["event_category"] = subset["event_kind"].map(event_category)
+    grouped = (
+        subset.groupby(["track", "prompt_variant", "event_category"], dropna=False)
+        .size()
+        .reset_index(name="event_count")
+    )
+    totals = grouped.groupby(["track", "prompt_variant"], dropna=False)["event_count"].transform("sum")
+    grouped["event_share"] = grouped["event_count"] / totals
+    return grouped
 
 
 def add_error_bars(
@@ -303,7 +459,7 @@ def save_society_metric_figure(
     for index, track in enumerate(tracks):
         ax = axes[0][index]
         track_frame = subset[subset["track"] == track].copy()
-        order_lookup = {name: idx for idx, name in enumerate(VARIANT_ORDER)}
+        order_lookup = {name: idx for idx, name in enumerate(SOCIETY_VARIANT_ORDER)}
         track_frame["_sort"] = track_frame["prompt_variant"].map(
             lambda item: order_lookup.get(item, 999)
         )
@@ -356,12 +512,182 @@ def save_society_survival_figure(pooled_prompt_frame: pd.DataFrame, output_path:
     )
 
 
+def save_society_timeline_figure(
+    round_frame: pd.DataFrame,
+    *,
+    metric_root: str,
+    output_path: Path,
+    title: str,
+    y_label: str,
+    limit: tuple[float, float] | None = None,
+) -> Path | None:
+    summary_frame = summarize_round_metric_frame(round_frame, metric_root=metric_root)
+    if summary_frame.empty:
+        return None
+
+    configure_plot_style()
+    tracks = [track for track in ["society", "reputation"] if track in summary_frame["track"].tolist()]
+    fig, axes = plt.subplots(1, len(tracks), figsize=(6.8 * len(tracks), 5.6), squeeze=False)
+    legend_handles: list[Any] = []
+    legend_labels: list[str] = []
+
+    for index, track in enumerate(tracks):
+        ax = axes[0][index]
+        track_frame = summary_frame[summary_frame["track"] == track].copy()
+        prompt_variants = ordered_prompt_variants(
+            track_frame["prompt_variant"].dropna().drop_duplicates().tolist(),
+            society_only=True,
+        )
+        for prompt_variant in prompt_variants:
+            variant_frame = track_frame[track_frame["prompt_variant"] == prompt_variant].copy()
+            variant_frame = variant_frame.sort_values("timestep")
+            x_values = variant_frame["timestep"].tolist()
+            y_values = variant_frame[metric_root].tolist()
+            line = ax.plot(
+                x_values,
+                y_values,
+                marker="o",
+                linewidth=2.5,
+                color=VARIANT_COLORS.get(prompt_variant, "#6c757d"),
+                label=prettify_slug(prompt_variant).replace("\n", " "),
+                zorder=3,
+            )[0]
+            ax.fill_between(
+                x_values,
+                variant_frame[f"{metric_root}_ci95_low"].tolist(),
+                variant_frame[f"{metric_root}_ci95_high"].tolist(),
+                color=VARIANT_COLORS.get(prompt_variant, "#6c757d"),
+                alpha=0.15,
+                zorder=2,
+            )
+            if index == 0:
+                legend_handles.append(line)
+                legend_labels.append(prettify_slug(prompt_variant).replace("\n", " "))
+
+        ax.set_title(track.title(), fontsize=15)
+        ax.set_xlabel("Timestep")
+        ax.set_ylabel(y_label if index == 0 else "")
+        ax.set_xticks(sorted(track_frame["timestep"].dropna().unique().tolist()))
+        if limit is not None:
+            ax.set_ylim(*limit)
+        else:
+            high_column = f"{metric_root}_ci95_high"
+            upper = track_frame[high_column].max() if high_column in track_frame.columns else track_frame[metric_root].max()
+            ax.set_ylim(0, max(1.0, float(upper) * 1.08))
+
+    if legend_handles:
+        fig.legend(
+            legend_handles,
+            legend_labels,
+            loc="upper center",
+            ncol=min(3, len(legend_labels)),
+            frameon=False,
+            bbox_to_anchor=(0.5, 1.06),
+        )
+    fig.suptitle(title, fontsize=18, y=1.10)
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=FIGURE_DPI, bbox_inches="tight")
+    plt.close(fig)
+    return output_path
+
+
+def save_society_event_mix_figure(
+    event_frame: pd.DataFrame,
+    *,
+    output_path: Path,
+    title: str,
+) -> Path | None:
+    mix_frame = build_event_mix_frame(event_frame)
+    if mix_frame.empty:
+        return None
+
+    configure_plot_style()
+    tracks = [track for track in ["society", "reputation"] if track in mix_frame["track"].tolist()]
+    fig, axes = plt.subplots(1, len(tracks), figsize=(6.8 * len(tracks), 5.6), squeeze=False)
+
+    for index, track in enumerate(tracks):
+        ax = axes[0][index]
+        track_frame = mix_frame[mix_frame["track"] == track].copy()
+        prompt_variants = ordered_prompt_variants(
+            track_frame["prompt_variant"].dropna().drop_duplicates().tolist(),
+            society_only=True,
+        )
+        y_positions = list(range(len(prompt_variants)))
+        cumulative = [0.0] * len(prompt_variants)
+
+        for category in EVENT_CATEGORY_ORDER:
+            category_values: list[float] = []
+            for prompt_variant in prompt_variants:
+                rows = track_frame[
+                    (track_frame["prompt_variant"] == prompt_variant)
+                    & (track_frame["event_category"] == category)
+                ]
+                category_values.append(
+                    float(rows.iloc[0]["event_share"]) if not rows.empty else 0.0
+                )
+
+            bars = ax.barh(
+                y_positions,
+                category_values,
+                left=cumulative,
+                color=EVENT_CATEGORY_COLORS.get(category, "#6c757d"),
+                label=prettify_slug(category).replace("\n", " "),
+                zorder=2,
+            )
+            for bar, share in zip(bars, category_values, strict=False):
+                if share >= 0.10:
+                    ax.text(
+                        bar.get_x() + bar.get_width() / 2.0,
+                        bar.get_y() + bar.get_height() / 2.0,
+                        f"{share:.0%}",
+                        ha="center",
+                        va="center",
+                        fontsize=10,
+                        color="#111111",
+                        zorder=3,
+                    )
+            cumulative = [left + value for left, value in zip(cumulative, category_values, strict=False)]
+
+        ax.set_title(track.title(), fontsize=15)
+        ax.set_yticks(y_positions)
+        ax.set_yticklabels([prettify_slug(item).replace("\n", " ") for item in prompt_variants])
+        ax.invert_yaxis()
+        ax.set_xlabel("Share of logged events")
+        ax.xaxis.set_major_formatter(mtick.PercentFormatter(xmax=1.0))
+        ax.set_xlim(0, 1)
+        if index == 0:
+            ax.set_ylabel("Prompt variant")
+        else:
+            ax.set_ylabel("")
+
+    handles, labels = axes[0][0].get_legend_handles_labels()
+    if handles:
+        fig.legend(
+            handles,
+            labels,
+            loc="upper center",
+            ncol=min(len(labels), 5),
+            frameon=False,
+            bbox_to_anchor=(0.5, 1.07),
+        )
+    fig.suptitle(title, fontsize=18, y=1.11)
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=FIGURE_DPI, bbox_inches="tight")
+    plt.close(fig)
+    return output_path
+
+
 def main() -> int:
     args = parse_args()
     output_dir = Path(args.output_dir)
     ensure_output_dir(output_dir)
 
-    experiment_frame, prompt_variant_frame, pooled_prompt_frame = build_frames(args.results)
+    summary_module, summaries = load_summaries(args.results)
+    experiment_frame, prompt_variant_frame, pooled_prompt_frame = build_frames_from_summaries(
+        summary_module,
+        summaries,
+    )
+    society_round_frame, society_event_frame = flatten_society_round_rows(summaries)
     if experiment_frame.empty:
         print("No experiment rows found.")
         return 1
@@ -407,6 +733,32 @@ def main() -> int:
             output_path=output_dir / "society_reputation_alliance_count.png",
             title="Scarcity and reputation alliances by prompt condition",
             y_label="Average alliance count",
+        ),
+        save_society_timeline_figure(
+            society_round_frame,
+            metric_root="alive_count",
+            output_path=output_dir / "society_reputation_population_over_time.png",
+            title="Population over time in the LLM societies",
+            y_label="Alive agents",
+        ),
+        save_society_timeline_figure(
+            society_round_frame,
+            metric_root="public_resources",
+            output_path=output_dir / "society_reputation_public_resources_over_time.png",
+            title="Public resources over time in the LLM societies",
+            y_label="Public resources",
+        ),
+        save_society_timeline_figure(
+            society_round_frame,
+            metric_root="trade_volume",
+            output_path=output_dir / "society_reputation_trade_volume_over_time.png",
+            title="Trade intensity over time in the LLM societies",
+            y_label="Trade volume per round",
+        ),
+        save_society_event_mix_figure(
+            society_event_frame,
+            output_path=output_dir / "society_reputation_behavior_mix.png",
+            title="Behavior mix in the LLM societies",
         ),
     ]:
         if maybe_path is not None:

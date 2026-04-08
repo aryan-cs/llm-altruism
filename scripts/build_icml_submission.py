@@ -163,15 +163,16 @@ def selected_figures_tex() -> str:
 \begin{figure*}[t]
 \centering
 \includegraphics[width=0.48\textwidth]{../../figures/society_reputation_live/society_reputation_final_survival.png}
-\includegraphics[width=0.48\textwidth]{../../figures/society_reputation_live/society_reputation_trade_volume.png}
-\caption{Institutional outcomes under scarcity and public reputation. Final survival is shown on the left and trade volume on the right. Public reputation equalizes survival while preserving large prompt-conditioned differences in social activity.}
+\includegraphics[width=0.48\textwidth]{../../figures/society_reputation_live/society_reputation_population_over_time.png}
+\caption{Population-level institutional outcomes. Final survival is shown on the left and the full population trajectory is shown on the right. The key question is whether the society remains populated over time, not only whether individual interactions look cooperative.}
 \label{fig:institution-selected-a}
 \end{figure*}
 
 \begin{figure*}[t]
 \centering
-\includegraphics[width=0.48\textwidth]{../../figures/society_reputation_live/society_reputation_alliance_count.png}
-\caption{Alliance formation under scarcity and public reputation. Cooperative prompting produces visible alliance structure even when final survival converges under public reputation.}
+\includegraphics[width=0.48\textwidth]{../../figures/society_reputation_live/society_reputation_public_resources_over_time.png}
+\includegraphics[width=0.48\textwidth]{../../figures/society_reputation_live/society_reputation_behavior_mix.png}
+\caption{Mechanistic views of the society runs. Public-resource trajectories are shown on the left and logged behavior mix is shown on the right. Together they show that higher sharing and communication preserve the commons better, but do not automatically maximize survival under scarcity.}
 \label{fig:institution-selected-b}
 \end{figure*}
 

@@ -27,7 +27,59 @@ Suggested caption:
 > prompting produces the most exchange in both worlds, but that added visible
 > sociality does not translate into the best scarcity survival outcome.
 
-## Figure 3: Society Alliance Count
+## Figure 3: Population Over Time
+
+File:
+
+- `paper/figures/society_reputation_live/society_reputation_population_over_time.png`
+
+Suggested caption:
+
+> Population trajectories in the scarcity and public-reputation societies.
+> `Task-only` preserves the full population throughout scarcity, whereas
+> `cooperative` and `competitive` each lose agents late in the run. Under
+> public reputation, all prompt families preserve the initial population.
+
+## Figure 4: Public Resources Over Time
+
+File:
+
+- `paper/figures/society_reputation_live/society_reputation_public_resources_over_time.png`
+
+Suggested caption:
+
+> Public-resource trajectories in the scarcity and public-reputation
+> societies. `Cooperative` prompting maintains the commons at a much higher
+> level than `task-only`, especially under public reputation, even though that
+> stronger commons stewardship does not improve scarcity survival.
+
+## Figure 5: Trade Intensity Over Time
+
+File:
+
+- `paper/figures/society_reputation_live/society_reputation_trade_volume_over_time.png`
+
+Suggested caption:
+
+> Round-by-round trade intensity in the scarcity and public-reputation
+> societies. `Task-only` remains near zero throughout, while `cooperative`
+> produces sustained exchange and `competitive` concentrates trade into a few
+> opportunistic bursts.
+
+## Figure 6: Society Behavior Mix
+
+File:
+
+- `paper/figures/society_reputation_live/society_reputation_behavior_mix.png`
+
+Suggested caption:
+
+> Composition of logged society events by prompt family. `Task-only` is almost
+> pure resource gathering, `cooperative` reallocates behavior toward sharing
+> and communication, and `competitive` contributes a larger steal fraction. The
+> plot provides a compact qualitative view of how the societies differ.
+
+## Figure 7: Society Alliance Count
 
 File:
 
@@ -40,7 +92,7 @@ Suggested caption:
 > `task-only` and `competitive` remain alliance-free. Reputation preserves this
 > organizational difference even after survival equalizes.
 
-## Figure 4: Prisoner's Dilemma Neutral-Family Replication
+## Figure 8: Prisoner's Dilemma Neutral-Family Replication
 
 File:
 
@@ -53,7 +105,7 @@ Suggested caption:
 > the two more abstract neutral paraphrases, which collapse to the same action
 > trace family on matched pooled trials.
 
-## Figure 5: Cross-Game Precursor Baseline Comparison
+## Figure 9: Cross-Game Precursor Baseline Comparison
 
 File:
 
@@ -66,7 +118,7 @@ Suggested caption:
 > highest overall. These micro-level differences motivate why society claims
 > should not be built on a single pairwise cooperation score.
 
-## Figure 6: Benchmark Presentation Effects
+## Figure 10: Benchmark Presentation Effects
 
 File:
 
@@ -79,7 +131,7 @@ Suggested caption:
 > and Stag Hunt move in the opposite direction. Benchmark recognition is
 > therefore real, but it is not a uniform cooperation-increasing effect.
 
-## Figure 7: Prompt Susceptibility Across Core Games
+## Figure 11: Prompt Susceptibility Across Core Games
 
 File:
 

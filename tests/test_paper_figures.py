@@ -145,6 +145,106 @@ def test_save_society_metric_figure_writes_png(tmp_path: Path):
     assert output_path.stat().st_size > 0
 
 
+def test_flatten_society_round_rows_extracts_round_metrics_and_events():
+    """Society timeline helpers should flatten raw rounds and logged event kinds."""
+    module = _load_paper_figures_module()
+    summaries = [
+        {
+            "experiment_id": "paper-society-prompts-20260408T005441Z",
+            "config": {"experiment": {"name": "paper-society-prompts"}},
+            "run_metadata": {"track": "society"},
+            "trials": [
+                {
+                    "trial_id": 0,
+                    "prompt_variant": "task-only",
+                    "repetition": 0,
+                    "rounds": [
+                        {
+                            "timestep": 1,
+                            "alive_count": 6,
+                            "total_agents": 6,
+                            "public_resources": 24,
+                            "trade_volume": 0,
+                            "spawned_agents": [],
+                            "newly_dead": ["agent-5"],
+                            "events": [
+                                {"kind": "gather", "actor": "agent-0", "target": None, "amount": 1},
+                                {"kind": "share", "actor": "agent-1", "target": "agent-2", "amount": 2},
+                            ],
+                        }
+                    ],
+                }
+            ],
+        }
+    ]
+
+    round_frame, event_frame = module.flatten_society_round_rows(summaries)
+
+    assert len(round_frame) == 1
+    assert round_frame.iloc[0]["track"] == "society"
+    assert round_frame.iloc[0]["birth_count"] == 0
+    assert round_frame.iloc[0]["death_count"] == 1
+    assert round_frame.iloc[0]["event_count"] == 2
+    assert len(event_frame) == 2
+    assert set(event_frame["event_kind"].tolist()) == {"gather", "share"}
+
+
+def test_save_society_timeline_figure_writes_png(tmp_path: Path):
+    """Timeline figure helper should emit a non-empty PNG from per-round rows."""
+    module = _load_paper_figures_module()
+    round_frame = pd.DataFrame(
+        [
+            {"track": "society", "prompt_variant": "task-only", "timestep": 1, "alive_count": 6},
+            {"track": "society", "prompt_variant": "task-only", "timestep": 2, "alive_count": 6},
+            {"track": "society", "prompt_variant": "cooperative", "timestep": 1, "alive_count": 6},
+            {"track": "society", "prompt_variant": "cooperative", "timestep": 2, "alive_count": 5},
+            {"track": "reputation", "prompt_variant": "task-only", "timestep": 1, "alive_count": 6},
+            {"track": "reputation", "prompt_variant": "task-only", "timestep": 2, "alive_count": 6},
+            {"track": "reputation", "prompt_variant": "cooperative", "timestep": 1, "alive_count": 6},
+            {"track": "reputation", "prompt_variant": "cooperative", "timestep": 2, "alive_count": 6},
+        ]
+    )
+    output_path = tmp_path / "population.png"
+
+    written = module.save_society_timeline_figure(
+        round_frame,
+        metric_root="alive_count",
+        output_path=output_path,
+        title="Population over time",
+        y_label="Alive agents",
+    )
+
+    assert written == output_path
+    assert output_path.exists()
+    assert output_path.stat().st_size > 0
+
+
+def test_save_society_event_mix_figure_writes_png(tmp_path: Path):
+    """Behavior-mix helper should emit a non-empty PNG from logged event kinds."""
+    module = _load_paper_figures_module()
+    event_frame = pd.DataFrame(
+        [
+            {"track": "society", "prompt_variant": "task-only", "event_kind": "gather"},
+            {"track": "society", "prompt_variant": "task-only", "event_kind": "gather"},
+            {"track": "society", "prompt_variant": "cooperative", "event_kind": "share"},
+            {"track": "society", "prompt_variant": "cooperative", "event_kind": "broadcast"},
+            {"track": "reputation", "prompt_variant": "task-only", "event_kind": "gather"},
+            {"track": "reputation", "prompt_variant": "competitive", "event_kind": "steal"},
+        ]
+    )
+    output_path = tmp_path / "behavior_mix.png"
+
+    written = module.save_society_event_mix_figure(
+        event_frame,
+        output_path=output_path,
+        title="Behavior mix",
+    )
+
+    assert written == output_path
+    assert output_path.exists()
+    assert output_path.stat().st_size > 0
+
+
 def test_build_frames_collapses_stale_retries_by_experiment_name(tmp_path: Path):
     """Figure inputs should inherit summary-level retry de-duplication by experiment name."""
     module = _load_paper_figures_module()
