@@ -20,6 +20,7 @@ Primary artifacts:
 - `results/live_ecology_20260408/live_status.json`
 - `results/live_ecology_20260408/live_trial_snapshot.md`
 - `results/live_ecology_20260408/live_trial_snapshot.csv`
+- `results/live_ecology_20260408/live_trial_snapshot.png`
 - `results/live_ecology_20260408/monitoring_figures/society_reputation_survivor_vitals_heatmap.png`
 - `results/live_ecology_20260408/monitoring_figures/society_reputation_model_vitals_over_time.png`
 - `results/live_ecology_20260408/monitoring_figures/society_reputation_phase_window_summary.png`
@@ -49,6 +50,9 @@ Main claim supported:
   states side by side, which is a better heartbeat artifact than a single
   latest-trial summary once the canonical run has advanced beyond one prompt
   condition
+- the live trial snapshot figure makes that same comparison visually legible,
+  especially the gap between the completed `task-only` alive fraction and the
+  current `cooperative` alive fraction
 - the phase-window summary figure turns that same split into a paper-facing
   visual, showing the short high-loss collapse window against the much longer
   stable plateau

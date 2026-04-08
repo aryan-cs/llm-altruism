@@ -201,7 +201,7 @@ uv run python scripts/run_paper_batch.py --track society --track reputation
   `task-only`, round `120`, `10/24` alive, stable post-collapse plateau since
   round `26`
 - active trial:
-  `cooperative`, round `36`, `18/24` alive, stable post-collapse plateau since
+  `cooperative`, round `39`, `18/24` alive, stable post-collapse plateau since
   round `11`
 - active-trial alive models:
   `deepseek-ai/deepseek-v3.2: 8`, `moonshotai/kimi-k2-instruct-0905: 8`,
@@ -225,3 +225,5 @@ uv run python scripts/run_paper_batch.py --track society --track reputation
 - live packet now also includes
   `results/live_ecology_20260408/live_trial_snapshot.md` and
   `results/live_ecology_20260408/live_trial_snapshot.csv`
+- live packet now also includes
+  `results/live_ecology_20260408/live_trial_snapshot.png`

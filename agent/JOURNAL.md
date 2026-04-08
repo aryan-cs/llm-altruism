@@ -170,9 +170,9 @@ These remain important across sessions.
 - the first `task-only` trial is complete with `10/24` agents alive at round
   `120`
 - the active live trial is now `cooperative`, currently at round `36` with
-  `18/24` agents alive
+  `18/24` agents alive; latest refreshed packet has advanced to round `39`
 - the `cooperative` trial has also entered a stable post-collapse plateau,
-  with first loss at round `7`, last death at round `11`, and `25` rounds
+  with first loss at round `7`, last death at round `11`, and `28` rounds
   since the last death
 - current `cooperative` survivor mix is `deepseek-ai/deepseek-v3.2: 8`,
   `moonshotai/kimi-k2-instruct-0905: 8`, and `llama3.1-8b: 2`
@@ -200,3 +200,6 @@ These remain important across sessions.
 - `scripts/refresh_live_ecology_packet.py` now emits a multi-trial heartbeat
   snapshot in markdown and CSV so completed and in-progress trials can be
   audited side by side from the same live log
+- the live packet now also emits a PNG comparison snapshot so the completed
+  `task-only` trial and active `cooperative` trial can be compared visually at
+  a glance

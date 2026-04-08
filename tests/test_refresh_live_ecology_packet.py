@@ -46,6 +46,7 @@ def test_packet_paths_use_logical_casebook_name(tmp_path: Path):
     assert outputs["status_json"] == tmp_path / "live_status.json"
     assert outputs["trial_snapshot_markdown"] == tmp_path / "live_trial_snapshot.md"
     assert outputs["trial_snapshot_csv"] == tmp_path / "live_trial_snapshot.csv"
+    assert outputs["trial_snapshot_figure"] == tmp_path / "live_trial_snapshot.png"
 
 
 def test_write_trial_snapshot_emits_markdown_and_csv(tmp_path: Path):
@@ -98,3 +99,39 @@ def test_write_trial_snapshot_emits_markdown_and_csv(tmp_path: Path):
     assert "| 1 | cooperative | active | 32 | 18/24 | stable_post_collapse | 11 | 22 |  |" in markdown
     assert "trial_id,prompt_variant,repetition,completed,latest_round_num" in csv_text
     assert "0,task-only,,True,120,10,24" in csv_text
+
+
+def test_write_trial_snapshot_figure_emits_png(tmp_path: Path):
+    module = _load_refresh_module()
+    outputs = {
+        "trial_snapshot_figure": tmp_path / "live_trial_snapshot.png",
+    }
+    live_status = {
+        "trial_status_rows": [
+            {
+                "trial_id": 0,
+                "prompt_variant": "task-only",
+                "completed": True,
+                "alive_count": 10,
+                "total_agents": 24,
+                "alive_fraction": 10 / 24,
+                "plateau_duration_rounds": 95,
+                "last_death_round_num": 26,
+            },
+            {
+                "trial_id": 1,
+                "prompt_variant": "cooperative",
+                "completed": False,
+                "alive_count": 18,
+                "total_agents": 24,
+                "alive_fraction": 18 / 24,
+                "plateau_duration_rounds": 22,
+                "last_death_round_num": 11,
+            },
+        ]
+    }
+
+    module.write_trial_snapshot_figure(outputs, live_status)
+
+    assert outputs["trial_snapshot_figure"].exists()
+    assert outputs["trial_snapshot_figure"].stat().st_size > 0

@@ -11,6 +11,12 @@ import subprocess
 import sys
 from pathlib import Path
 
+import matplotlib
+
+matplotlib.use("Agg")
+
+import matplotlib.pyplot as plt
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -51,6 +57,7 @@ def packet_paths(results_dir: Path, log_path: Path) -> dict[str, Path]:
         "status_json": results_dir / "live_status.json",
         "trial_snapshot_markdown": results_dir / "live_trial_snapshot.md",
         "trial_snapshot_csv": results_dir / "live_trial_snapshot.csv",
+        "trial_snapshot_figure": results_dir / "live_trial_snapshot.png",
     }
 
 
@@ -151,6 +158,83 @@ def write_trial_snapshot(outputs: dict[str, Path], live_status: dict[str, object
     outputs["trial_snapshot_markdown"].write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def write_trial_snapshot_figure(outputs: dict[str, Path], live_status: dict[str, object]) -> None:
+    trial_rows = list(live_status.get("trial_status_rows") or [])
+    if not trial_rows:
+        return
+
+    ordered_rows = sorted(trial_rows, key=lambda row: (row.get("trial_id", 0)))
+    labels = [f"{row.get('trial_id')}: {row.get('prompt_variant')}" for row in ordered_rows]
+    alive_fraction = [
+        float(row.get("alive_fraction"))
+        if isinstance(row.get("alive_fraction"), (int, float))
+        else 0.0
+        for row in ordered_rows
+    ]
+    plateau_rounds = [
+        float(row.get("plateau_duration_rounds"))
+        if isinstance(row.get("plateau_duration_rounds"), (int, float))
+        else 0.0
+        for row in ordered_rows
+    ]
+    colors = ["#2a9d8f" if row.get("completed") else "#577590" for row in ordered_rows]
+    status_labels = ["completed" if row.get("completed") else "active" for row in ordered_rows]
+
+    fig, axes = plt.subplots(1, 2, figsize=(10.5, 4.8))
+    y_positions = list(range(len(ordered_rows)))
+
+    axes[0].barh(y_positions, alive_fraction, color=colors, zorder=3)
+    axes[0].set_yticks(y_positions)
+    axes[0].set_yticklabels(labels)
+    axes[0].invert_yaxis()
+    axes[0].set_xlim(0, 1)
+    axes[0].set_xlabel("Alive fraction")
+    axes[0].set_title("Latest alive fraction")
+    axes[0].grid(axis="x", alpha=0.25, zorder=0)
+    for index, row in enumerate(ordered_rows):
+        alive_count = row.get("alive_count")
+        total_agents = row.get("total_agents")
+        alive_text = (
+            f"{alive_count}/{total_agents}"
+            if alive_count is not None and total_agents is not None
+            else "n/a"
+        )
+        axes[0].text(
+            min(0.98, alive_fraction[index] + 0.02),
+            index,
+            f"{alive_text} ({status_labels[index]})",
+            va="center",
+            ha="left",
+            fontsize=10,
+        )
+
+    axes[1].barh(y_positions, plateau_rounds, color=colors, zorder=3)
+    axes[1].set_yticks(y_positions)
+    axes[1].set_yticklabels(labels)
+    axes[1].invert_yaxis()
+    axes[1].set_xlabel("Rounds")
+    axes[1].set_title("Stable plateau duration")
+    axes[1].grid(axis="x", alpha=0.25, zorder=0)
+    upper = max(1.0, max(plateau_rounds) * 1.15)
+    axes[1].set_xlim(0, upper)
+    for index, row in enumerate(ordered_rows):
+        last_death = row.get("last_death_round_num")
+        last_death_text = "" if last_death is None else f"last death {last_death}"
+        axes[1].text(
+            plateau_rounds[index] + upper * 0.02,
+            index,
+            last_death_text,
+            va="center",
+            ha="left",
+            fontsize=10,
+        )
+
+    fig.suptitle("Live trial comparison snapshot", fontsize=16)
+    fig.tight_layout()
+    fig.savefig(outputs["trial_snapshot_figure"], dpi=300, bbox_inches="tight")
+    plt.close(fig)
+
+
 def main() -> int:
     args = parse_args()
     results_dir = Path(args.results_dir)
@@ -191,6 +275,7 @@ def main() -> int:
     live_status = load_live_status_module().summarize_jsonl_log(log_path)
     outputs["status_json"].write_text(json.dumps(live_status, indent=2), encoding="utf-8")
     write_trial_snapshot(outputs, live_status)
+    write_trial_snapshot_figure(outputs, live_status)
 
     for label, path in outputs.items():
         print(f"{label}: {path}")
