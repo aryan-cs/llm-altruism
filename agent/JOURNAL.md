@@ -50,6 +50,8 @@ It should answer:
   - per-model alive-population timelines
   - markdown diagnostics for first-loss timing, first-death timing, death
     shocks, alive-by-model composition, and dominant behavior category
+- added `scripts/live_run_status.py` for direct stale-vs-active summaries of
+  live JSONL runs
 - current live baseline status:
   - `society-baseline-20260408T171454Z`
   - first `task-only` trial has completed round `29`
