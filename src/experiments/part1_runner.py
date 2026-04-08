@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import json
 import time
 from typing import Any
@@ -17,6 +18,24 @@ from .runner import BaseExperimentRunner, ModelUnavailableError
 
 class Part1Runner(BaseExperimentRunner):
     """Run iterated two-player precursor probes across model pairings and prompt variants."""
+
+    def _merged_game_options(self, prompt_variant: PromptVariantConfig) -> dict[str, Any]:
+        """Merge experiment-level and prompt-variant game overrides."""
+        merged = copy.deepcopy(self.config.game_options)
+        for key, value in prompt_variant.game_options.items():
+            if (
+                key in merged
+                and isinstance(merged[key], dict)
+                and isinstance(value, dict)
+            ):
+                merged[key] = {**merged[key], **value}
+            else:
+                merged[key] = copy.deepcopy(value)
+        return merged
+
+    def _build_game(self, prompt_variant: PromptVariantConfig) -> Any:
+        """Instantiate the active game for a prompt variant."""
+        return get_game(self.config.game or "", **self._merged_game_options(prompt_variant))
 
     @staticmethod
     def _serialize_messages(messages: list[dict[str, str]]) -> list[dict[str, str]]:
@@ -48,12 +67,12 @@ class Part1Runner(BaseExperimentRunner):
 
     async def run(self) -> dict[str, Any]:
         start = time.time()
-        game = get_game(self.config.game or "", **self.config.game_options)
         trials: list[dict[str, Any]] = []
         trial_id = 0
 
         for pairing in self.config.pairings:
             for prompt_variant in self.config.prompt_variants:
+                game = self._build_game(prompt_variant)
                 for temperature in self.config.parameters.temperature:
                     for repetition in range(self.config.repetitions):
                         pairing_reasons = []

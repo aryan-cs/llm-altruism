@@ -54,6 +54,28 @@ def test_part1_round_logs_include_full_message_stack(tmp_path: Path):
     assert any("Your recent history:" in message["content"] for message in second_messages)
 
 
+def test_part1_prompt_variant_game_options_override_prompt_text(tmp_path: Path):
+    result = asyncio.run(
+        run_experiment_from_path(
+            "configs/part1/prisoners_dilemma_explicit_vs_indirect.yaml",
+            dry_run=True,
+            results_dir=str(tmp_path),
+        )
+    )
+
+    explicit_trial = next(trial for trial in result["trials"] if trial["prompt_variant"] == "explicit-game")
+    indirect_trial = next(trial for trial in result["trials"] if trial["prompt_variant"] == "indirect-fiction")
+
+    explicit_prompt = explicit_trial["rounds"][0]["agent_a"]["prompt_sent"]
+    indirect_prompt = indirect_trial["rounds"][0]["agent_a"]["prompt_sent"]
+
+    assert "PRISONER'S DILEMMA" in explicit_prompt
+    assert "PRISONER'S DILEMMA" not in indirect_prompt
+    assert "MOON COLONY SHIELD DECISION" in indirect_prompt
+    assert '"reinforce"' in indirect_prompt
+    assert '"withhold"' in indirect_prompt
+
+
 def test_run_metadata_is_saved_in_results(tmp_path: Path):
     result = asyncio.run(
         run_experiment_from_path(

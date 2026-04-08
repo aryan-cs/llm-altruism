@@ -40,6 +40,12 @@ uv run scripts/run_experiment.py \
   --model nvidia:deepseek-ai/deepseek-v3.2 \
   --model openrouter:openai/gpt-oss-20b:free
 
+# compare explicit game prompts against indirect fiction prompts
+uv run scripts/run_experiment.py \
+  --config configs/part1/prisoners_dilemma_explicit_vs_indirect.yaml \
+  --model cerebras:llama3.1-8b \
+  --model nvidia:deepseek-ai/deepseek-v3.2
+
 # run the broader precursor model-catalog sweep
 uv run scripts/run_experiment.py --config configs/part1/free_tier_model_catalog.yaml
 

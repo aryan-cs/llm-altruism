@@ -59,11 +59,15 @@ Key framing:
 
 - Part 1 repeated games for baseline instability, steerability, and benchmark
   recognition
+- include both explicit game-name prompts and indirect fiction-narrative
+  isomorphs for the core games
 
 ### Must include
 
 - explicit payoff matrices
 - exact prompt text or prompt-stack excerpts
+- a clear explicit-versus-indirect prompting distinction for the repeated-game
+  precursor tasks
 - clear distinction between descriptive bootstrap intervals and inferential
   paired tests
 

@@ -358,8 +358,8 @@ def society_prompt_variants(*, reputation: bool) -> list[PromptVariantConfig]:
 
 
 def benchmark_variant_options(game: str, presentation: str) -> dict[str, object]:
-    """Return game-options overrides for canonical vs disguised benchmark presentations."""
-    if presentation == "canonical":
+    """Return game-options overrides for explicit vs indirect benchmark presentations."""
+    if presentation in {"canonical", "explicit"}:
         return {}
 
     if game == "prisoners_dilemma" and presentation == "unnamed":
@@ -398,7 +398,41 @@ def benchmark_variant_options(game: str, presentation: str) -> dict[str, object]
             "action_aliases": {"stag": "team", "hare": "solo"},
         }
 
+    if game == "prisoners_dilemma" and presentation == "fiction":
+        return {
+            "prompt_overrides": {
+                "description": "games_variants/prisoners_dilemma/fiction_description.txt",
+                "round": "games_variants/prisoners_dilemma/fiction_round.txt",
+            },
+            "action_aliases": {"cooperate": "reinforce", "defect": "withhold"},
+        }
+
+    if game == "chicken" and presentation == "fiction":
+        return {
+            "prompt_overrides": {
+                "description": "games_variants/chicken/fiction_description.txt",
+                "round": "games_variants/chicken/fiction_round.txt",
+            },
+            "action_aliases": {"swerve": "veer", "straight": "charge"},
+        }
+
+    if game == "stag_hunt" and presentation == "fiction":
+        return {
+            "prompt_overrides": {
+                "description": "games_variants/stag_hunt/fiction_description.txt",
+                "round": "games_variants/stag_hunt/fiction_round.txt",
+            },
+            "action_aliases": {"stag": "unite", "hare": "scavenge"},
+        }
+
     raise ValueError(f"No benchmark presentation {presentation!r} defined for {game!r}")
+
+
+def prompting_approach(presentation: str) -> str:
+    """Map a presentation label to an explicit or indirect prompting family."""
+    if presentation in {"canonical", "explicit"}:
+        return "explicit"
+    return "indirect"
 
 
 def build_part1_config(
@@ -544,9 +578,9 @@ def build_experiment_plan(
         )
 
     benchmark_presentations = {
-        "prisoners_dilemma": ("canonical", "unnamed", "resource"),
-        "chicken": ("canonical", "unnamed"),
-        "stag_hunt": ("canonical", "unnamed"),
+        "prisoners_dilemma": ("canonical", "unnamed", "resource", "fiction"),
+        "chicken": ("canonical", "unnamed", "fiction"),
+        "stag_hunt": ("canonical", "unnamed", "fiction"),
     }
     for game, presentations in benchmark_presentations.items():
         for presentation in presentations:
@@ -569,7 +603,11 @@ def build_experiment_plan(
                         temperatures=part1_temperatures,
                         game_options=benchmark_variant_options(game, presentation),
                     ),
-                    {"track": "benchmark", "presentation": presentation},
+                    {
+                        "track": "benchmark",
+                        "presentation": presentation,
+                        "prompting_approach": prompting_approach(presentation),
+                    },
                 )
             )
 

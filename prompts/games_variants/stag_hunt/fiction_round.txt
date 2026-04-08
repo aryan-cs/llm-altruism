@@ -1,0 +1,8 @@
+=== RUINS EXPEDITION DECISION ===
+
+{{description_block}}{{round_info}}
+
+{{history_block}}What is your action for this expedition step?
+{{actions}}
+
+Please respond with JSON in the format: {"action": "unite" or "scavenge", "reasoning": "brief explanation"}

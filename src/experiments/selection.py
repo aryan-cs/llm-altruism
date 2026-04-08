@@ -24,12 +24,16 @@ TEMPLATE_DESCRIPTIONS: dict[str, str] = {
         "Focused Prisoner's Dilemma precursor comparison with analytical/business "
         "framing and shorter memory, aimed at cross-family behavior differences."
     ),
+    "pd-explicit-vs-indirect": (
+        "Precursor Prisoner's Dilemma prompting study that contrasts an explicit "
+        "game-name prompt against an indirect fiction narrative with the same incentives."
+    ),
     "stag-hunt-persona-sweep": (
         "Precursor coordination diagnostic in Stag Hunt that compares persona "
         "effects before larger-society interpretation."
     ),
     "society-baseline": (
-        "Primary society experiment: scarce-resource world without public "
+        "Primary society experiment: scarce-resource society without public "
         "reputation. Tests whether an LLM population can remain self-sustaining "
         "under gathering, sharing, stealing, trade, reproduction, and messaging."
     ),

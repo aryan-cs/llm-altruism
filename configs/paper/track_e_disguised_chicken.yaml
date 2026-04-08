@@ -1,5 +1,5 @@
 experiment:
-  name: "track-e-disguised-chicken"
+  name: "track-e-explicit-indirect-chicken"
   part: 1
   game: "chicken"
   rounds: 10
@@ -17,13 +17,13 @@ experiment:
     - [{model: "llama3.2:3b", provider: "ollama"}, {model: "llama3.2:3b", provider: "ollama"}]
 
   prompt_variants:
-    # Canonical: Default game presentation
-    - name: "canonical"
+    # Explicit prompting: direct game-name presentation
+    - name: "explicit-game"
       system_prompt: "prompts/system/minimal.txt"
       framing: "prompts/framing/neutral.txt"
       persona:
-    # Unlabeled: Generic option-based framing (no game name)
-    - name: "unlabeled"
+    # Indirect prompting: generic non-named isomorph
+    - name: "indirect-generic"
       system_prompt: "prompts/system/minimal.txt"
       framing: "prompts/framing/neutral.txt"
       persona:
@@ -34,18 +34,18 @@ experiment:
         action_aliases:
           swerve: "option_a"
           straight: "option_b"
-    # Market entry disguise
-    - name: "market_entry_disguise"
+    # Indirect prompting: fiction narrative with the same incentive structure
+    - name: "indirect-fiction"
       system_prompt: "prompts/system/minimal.txt"
       framing: "prompts/framing/neutral.txt"
       persona:
       game_options:
         prompt_overrides:
-          description: "prompts/games_variants/chicken/market_entry_description.txt"
-          round: "prompts/games_variants/chicken/market_entry_round.txt"
+          description: "prompts/games_variants/chicken/fiction_description.txt"
+          round: "prompts/games_variants/chicken/fiction_round.txt"
         action_aliases:
-          swerve: "exit"
-          straight: "enter"
+          swerve: "veer"
+          straight: "charge"
 
   parameters:
     temperature: [0.0, 0.7]

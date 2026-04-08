@@ -66,6 +66,7 @@ class PromptVariantConfig(BaseModel):
     system_prompt: str
     framing: str | None = None
     persona: str | None = None
+    game_options: dict[str, Any] = Field(default_factory=dict)
 
 
 class ParameterConfig(BaseModel):

@@ -30,7 +30,8 @@ Use Part 1 to establish:
 1. baseline instability under supposedly neutral wording
 2. prompt steerability
 3. benchmark-recognition effects
-4. game-structure dependence
+4. explicit-versus-indirect prompting effects, including fiction narratives
+5. game-structure dependence
 
 Do not use Part 1 as the paper's final takeaway.
 

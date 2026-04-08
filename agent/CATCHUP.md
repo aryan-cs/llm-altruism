@@ -72,8 +72,9 @@ It exists to answer three precursor questions:
 
 1. How unstable is a so-called neutral baseline?
 2. How much can prompt framing steer agent behavior?
-3. How much of a "social preference" signal disappears when canonical game
-   labels are removed?
+3. How much of a "social preference" signal disappears when we switch from
+   explicit game prompts to indirect isomorphic narratives, especially fiction
+   scenarios that never name the benchmark?
 
 Current durable precursor findings:
 

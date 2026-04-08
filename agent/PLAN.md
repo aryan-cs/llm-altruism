@@ -22,6 +22,8 @@ Role in the paper:
 - measure baseline instability
 - measure prompt steerability
 - measure benchmark recognition
+- compare explicit game prompts against indirect fiction narratives with the
+  same underlying incentives
 - provide controlled micro-level probes before macro interpretation
 
 Core games used in the current paper:
@@ -35,7 +37,8 @@ Main outputs:
 - cross-game baseline ordering
 - neutral-family robustness checks
 - susceptibility comparisons
-- canonical versus unnamed/disguised presentation comparisons
+- explicit versus indirect presentation comparisons, including fiction
+  narratives
 
 ### Part 2: scarcity society
 

@@ -158,3 +158,18 @@ def test_fast_paper_batch_uses_six_round_part1_protocol():
     }
 
     assert part1_rounds == {6}
+
+
+def test_benchmark_variant_options_support_fiction_presentations():
+    """Benchmark helpers should expose fiction narratives as indirect prompts."""
+    module = _load_paper_batch_module()
+
+    pd_options = module.benchmark_variant_options("prisoners_dilemma", "fiction")
+    chicken_options = module.benchmark_variant_options("chicken", "fiction")
+    stag_options = module.benchmark_variant_options("stag_hunt", "fiction")
+
+    assert pd_options["prompt_overrides"]["description"].endswith("prisoners_dilemma/fiction_description.txt")
+    assert chicken_options["action_aliases"] == {"swerve": "veer", "straight": "charge"}
+    assert stag_options["action_aliases"] == {"stag": "unite", "hare": "scavenge"}
+    assert module.prompting_approach("canonical") == "explicit"
+    assert module.prompting_approach("fiction") == "indirect"

@@ -15,6 +15,7 @@ Repeated games remain in the paper as precursor diagnostics for:
 - baseline instability
 - prompt steerability
 - benchmark recognition
+- explicit game prompts versus indirect fiction narratives with the same incentive structure
 
 ## Main Empirical Story
 
