@@ -24,7 +24,9 @@ It should answer:
   - `cerebras:llama3.1-8b`
   - `nvidia:deepseek-ai/deepseek-v3.2`
   - `nvidia:moonshotai/kimi-k2-instruct-0905`
-- started a live baseline ecology rerun with the new setup in
+- fixed `scripts/run_experiment.py` so non-interactive launches probe only the
+  explicitly requested models instead of the full catalog
+- restarted the live baseline ecology rerun with the new setup in
   `results/live_ecology_20260408/`
 
 ### Society-first paper reframing

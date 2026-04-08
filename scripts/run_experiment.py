@@ -157,17 +157,20 @@ def provider_status(provider: str) -> str:
     return "missing " + ", ".join(missing)
 
 
-def load_accessible_catalog() -> tuple[list[ModelSpec], dict[str, ModelAccessResult]]:
+def load_accessible_catalog(
+    candidate_specs: list[ModelSpec] | None = None,
+) -> tuple[list[ModelSpec], dict[str, ModelAccessResult]]:
     """Run the model-access test sweep for this invocation."""
+    probe_specs = list(candidate_specs or known_model_specs())
     with console.status(
         "[bold cyan]Running model access tests for this session...[/bold cyan]",
         spinner="dots",
     ):
-        access_results = asyncio.run(probe_model_access_results(known_model_specs()))
+        access_results = asyncio.run(probe_model_access_results(probe_specs))
 
     accessible_specs = [
         access_results[spec_selector(spec)].spec
-        for spec in known_model_specs()
+        for spec in probe_specs
         if spec_selector(spec) in access_results and access_results[spec_selector(spec)].accessible
     ]
     return accessible_specs, access_results
@@ -866,6 +869,17 @@ def resolve_selected_models(
     )
 
 
+def startup_access_probe_specs(args: argparse.Namespace) -> list[ModelSpec]:
+    """Choose which models to probe before the run starts."""
+    if args.list_models:
+        return known_model_specs()
+    if args.model:
+        return parse_model_selectors(args.model)
+    if args.interactive or is_interactive_terminal():
+        return known_model_specs()
+    return []
+
+
 def should_use_full_wizard(args: argparse.Namespace) -> bool:
     """Return True when the full staged wizard should run."""
     return args.interactive or (is_interactive_terminal() and not args.config and not args.model)
@@ -1094,7 +1108,13 @@ def main() -> int:
         if args.list_experiments:
             list_experiments()
             return 0
-        accessible_specs, access_results = load_accessible_catalog()
+
+        if not args.list_models and not args.model and not (args.interactive or is_interactive_terminal()):
+            raise SystemExit(
+                "Non-interactive mode requires at least one --model provider:model-id selector."
+            )
+
+        accessible_specs, access_results = load_accessible_catalog(startup_access_probe_specs(args))
         if args.list_models:
             render_access_test_summary(accessible_specs, access_results)
             list_models(accessible_specs, access_results)

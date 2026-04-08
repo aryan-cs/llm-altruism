@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import asyncio
 import importlib.util
 from pathlib import Path
@@ -219,3 +220,66 @@ def test_verify_selected_models_access_skips_preflight_for_dry_runs():
         )
         is None
     )
+
+
+def test_load_accessible_catalog_probes_only_requested_specs(monkeypatch):
+    """Startup access checks should honor a narrowed non-interactive cohort."""
+    module = _load_run_experiment_module()
+    requested = [
+        ModelSpec(model="llama3.1-8b", provider="cerebras"),
+        ModelSpec(model="deepseek-ai/deepseek-v3.2", provider="nvidia"),
+    ]
+    captured: dict[str, object] = {}
+
+    def fake_asyncio_run(coro):
+        try:
+            coro.close()
+        except Exception:
+            pass
+        return {
+            spec_selector(spec): ModelAccessResult(
+                spec=spec,
+                accessible=True,
+                status="verified",
+            )
+            for spec in captured["probe_specs"]
+        }
+
+    def fake_probe_model_access_results(specs):
+        captured["probe_specs"] = list(specs)
+        return object()
+
+    monkeypatch.setattr(module, "probe_model_access_results", fake_probe_model_access_results)
+    monkeypatch.setattr(module.asyncio, "run", fake_asyncio_run)
+
+    accessible, results = module.load_accessible_catalog(requested)
+
+    assert captured["probe_specs"] == requested
+    assert accessible == requested
+    assert set(results) == {spec_selector(spec) for spec in requested}
+
+
+def test_startup_access_probe_specs_prefers_cli_models(monkeypatch):
+    """Non-interactive runs should probe only the explicitly requested models."""
+    module = _load_run_experiment_module()
+    monkeypatch.setattr(module, "is_interactive_terminal", lambda: False)
+    args = argparse.Namespace(
+        config="configs/part2/society_baseline.yaml",
+        model=[
+            "cerebras:llama3.1-8b",
+            "nvidia:deepseek-ai/deepseek-v3.2",
+        ],
+        interactive=False,
+        list_experiments=False,
+        list_models=False,
+        rounds=None,
+        repetitions=None,
+        temperature=[],
+        concurrency=None,
+        dry_run=False,
+        results_dir="results",
+    )
+
+    specs = module.startup_access_probe_specs(args)
+
+    assert [spec_selector(spec) for spec in specs] == args.model

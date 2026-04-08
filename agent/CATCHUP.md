@@ -65,6 +65,8 @@ Current canonical direction:
   not by the older single-resource scarcity setup
 - the first live `24`-agent, `120`-round baseline ecology rerun is now
   running in `results/live_ecology_20260408/`
+- the CLI launch path was fixed so scripted runs now probe only the selected
+  models, which removes the old full-catalog startup bottleneck
 - until those reruns finish, the paper is not honestly back to a
   manuscript-ready state
 
