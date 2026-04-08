@@ -312,6 +312,14 @@ def summarize_jsonl_log(
         latest_trial_id = latest_round.get("trial_id")
     prompt_info = decode_trial_metadata(experiment, latest_trial_id)
 
+    active_round_records = round_records
+    if latest_trial_id is not None:
+        active_round_records = [
+            record for record in round_records if record.get("trial_id") == latest_trial_id
+        ]
+        if not active_round_records and latest_round is not None:
+            active_round_records = [latest_round]
+
     round_payload = latest_round.get("data", {}) if latest_round is not None else {}
     alive_count = round_payload.get("alive_count")
     total_agents = round_payload.get("total_agents")
@@ -334,8 +342,8 @@ def summarize_jsonl_log(
     if minutes_since_latest_event is not None:
         state = "active" if minutes_since_latest_event <= stale_minutes else "stale"
 
-    diagnostics = collapse_diagnostics(round_records)
-    phase_metrics = phase_diagnostics(round_records, diagnostics)
+    diagnostics = collapse_diagnostics(active_round_records)
+    phase_metrics = phase_diagnostics(active_round_records, diagnostics)
 
     return {
         "path": str(path),

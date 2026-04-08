@@ -197,10 +197,15 @@ uv run python scripts/run_paper_batch.py --track society --track reputation
 
 - canonical artifact:
   `results/live_ecology_20260408/society-baseline-20260408T171454Z.jsonl`
-- latest observed round: `100`
-- current alive population: `10/24`
-- plateau diagnosis: stable post-collapse plateau since round `26`
-- alive models: `deepseek-ai/deepseek-v3.2: 8`, `llama3.1-8b: 2`
+- completed trial:
+  `task-only`, round `120`, `10/24` alive, stable post-collapse plateau since
+  round `26`
+- active trial:
+  `cooperative`, round `31`, `18/24` alive, stable post-collapse plateau since
+  round `11`
+- active-trial alive models:
+  `deepseek-ai/deepseek-v3.2: 8`, `moonshotai/kimi-k2-instruct-0905: 8`,
+  `llama3.1-8b: 2`
 - qualitative artifact:
   `results/live_ecology_20260408/society-baseline-casebook.md`
 - note: the casebook now uses the same plateau definition as
@@ -211,6 +216,8 @@ uv run python scripts/run_paper_batch.py --track society --track reputation
 - live status now includes `population_regime`, `first_loss_round_num`,
   `last_death_round_num`, `stability_start_round_num`, and
   `rounds_since_last_death`
+- live status diagnostics are scoped to the active trial, so a completed
+  `task-only` trial cannot contaminate the current `cooperative` heartbeat
 - live status also includes phase windows and means for the collapse phase and
   the stable plateau phase
 - live figure packet now includes

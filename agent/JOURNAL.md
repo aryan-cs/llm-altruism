@@ -167,13 +167,15 @@ These remain important across sessions.
 
 - the canonical multi-resource baseline remains active in
   `results/live_ecology_20260408/society-baseline-20260408T171454Z.jsonl`
-- latest observed state is round `100` of the first `task-only` trial with
-  `10/24` agents alive
-- the run no longer looks like monotone collapse; it has held a stable
-  post-collapse plateau since round `26`
-- current survivor mix is `deepseek-ai/deepseek-v3.2: 8` and
-  `llama3.1-8b: 2`; `moonshotai/kimi-k2-instruct-0905` is extinct in this
-  trial
+- the first `task-only` trial is complete with `10/24` agents alive at round
+  `120`
+- the active live trial is now `cooperative`, currently at round `31` with
+  `18/24` agents alive
+- the `cooperative` trial has also entered a stable post-collapse plateau,
+  with first loss at round `7`, last death at round `11`, and `20` rounds
+  since the last death
+- current `cooperative` survivor mix is `deepseek-ai/deepseek-v3.2: 8`,
+  `moonshotai/kimi-k2-instruct-0905: 8`, and `llama3.1-8b: 2`
 
 ### Monitoring artifacts
 
@@ -186,9 +188,12 @@ These remain important across sessions.
   diagnostics directly, including `first_loss_round_num`,
   `last_death_round_num`, `stability_start_round_num`,
   `rounds_since_last_death`, and a `population_regime` label
+- the live status script was corrected to scope those phase diagnostics to the
+  active trial rather than mixing completed and in-progress trials in the same
+  JSONL log
 - the same status packet now exposes phase-level metrics for the loss window
   versus the stable plateau, so the heartbeat view can distinguish the
-  collapse phase (`12..26`) from the plateau phase (`26..101`)
+  collapse phase from the plateau phase for whichever trial is currently active
 - `scripts/paper_figures.py` now emits a phase-window summary figure for live
   ecology runs, so the collapse-versus-plateau split is visible without
   reading the raw JSON or status packet

@@ -28,6 +28,9 @@ Main claim supported:
 - the current baseline trajectory already exposes concrete collapse milestones,
   model-level survivor composition, a gather-dominated behavior regime, and
   the resource/vital profile of the surviving agents
+- the first completed `task-only` trial now sits beside an active
+  `cooperative` trial, so the live packet already contains an early
+  within-suite contrast rather than only a single trajectory
 - the current live baseline also shows a stable post-collapse plateau, which
   is methodologically important because the failure mode may be culling into a
   smaller viable society rather than simple monotone extinction
@@ -37,6 +40,9 @@ Main claim supported:
 - the live status packet now also separates collapse-window and plateau-window
   resource/vital means, which makes the partial baseline easier to interpret
   before the full suite completes
+- the live status diagnostics are scoped to the active trial, so the current
+  `cooperative` heartbeat is no longer contaminated by the completed
+  `task-only` trajectory
 - the phase-window summary figure turns that same split into a paper-facing
   visual, showing the short high-loss collapse window against the much longer
   stable plateau

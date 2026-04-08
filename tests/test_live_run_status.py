@@ -289,6 +289,115 @@ def test_summarize_jsonl_log_detects_stable_post_collapse_plateau(tmp_path: Path
     assert summary["plateau_duration_rounds"] == 6
 
 
+def test_summarize_jsonl_log_scopes_phase_diagnostics_to_latest_trial(tmp_path: Path):
+    module = _load_live_run_status_module()
+    log_path = tmp_path / "multi-trial.jsonl"
+    log_path.write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "type": "experiment_start",
+                        "timestamp": "2026-04-08T17:00:00+00:00",
+                        "experiment_id": "exp-multi",
+                        "config": {
+                            "experiment": {
+                                "name": "exp-multi",
+                                "part": 2,
+                                "repetitions": 1,
+                                "prompt_variants": [{"name": "task-only"}, {"name": "cooperative"}],
+                                "parameters": {"temperature": [0.0]},
+                            }
+                        },
+                    }
+                ),
+                json.dumps(
+                    {
+                        "type": "round",
+                        "timestamp": "2026-04-08T17:01:00+00:00",
+                        "trial_id": 0,
+                        "round_num": 1,
+                        "data": {
+                            "alive_count": 4,
+                            "total_agents": 4,
+                            "newly_dead": [],
+                            "agent_vitals": {},
+                        },
+                    }
+                ),
+                json.dumps(
+                    {
+                        "type": "round",
+                        "timestamp": "2026-04-08T17:02:00+00:00",
+                        "trial_id": 0,
+                        "round_num": 2,
+                        "data": {
+                            "alive_count": 2,
+                            "total_agents": 4,
+                            "newly_dead": ["c", "d"],
+                            "agent_vitals": {},
+                        },
+                    }
+                ),
+                json.dumps(
+                    {
+                        "type": "trial_summary",
+                        "timestamp": "2026-04-08T17:03:00+00:00",
+                        "trial_id": 0,
+                        "summary": {"final_survival_rate": 0.5},
+                    }
+                ),
+                json.dumps(
+                    {
+                        "type": "round",
+                        "timestamp": "2026-04-08T17:04:00+00:00",
+                        "trial_id": 1,
+                        "round_num": 1,
+                        "data": {
+                            "alive_count": 4,
+                            "total_agents": 4,
+                            "newly_dead": [],
+                            "agent_vitals": {},
+                        },
+                    }
+                ),
+                json.dumps(
+                    {
+                        "type": "round",
+                        "timestamp": "2026-04-08T17:05:00+00:00",
+                        "trial_id": 1,
+                        "round_num": 2,
+                        "data": {
+                            "alive_count": 4,
+                            "total_agents": 4,
+                            "newly_dead": [],
+                            "agent_vitals": {},
+                        },
+                    }
+                ),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    summary = module.summarize_jsonl_log(
+        log_path,
+        stale_minutes=15.0,
+        now=datetime(2026, 4, 8, 17, 6, 0, tzinfo=UTC),
+    )
+
+    assert summary is not None
+    assert summary["latest_trial_id"] == 1
+    assert summary["prompt_variant"] == "cooperative"
+    assert summary["trial_summary_count"] == 1
+    assert summary["first_loss_round_num"] is None
+    assert summary["last_death_round_num"] is None
+    assert summary["population_regime"] == "no_losses_yet"
+    assert summary["collapse_start_round_num"] is None
+    assert summary["plateau_duration_rounds"] is None
+
+
 def test_expand_inputs_reads_jsonl_files_from_directories(tmp_path: Path):
     module = _load_live_run_status_module()
     first = tmp_path / "a.jsonl"
