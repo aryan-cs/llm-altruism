@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 from src.experiments import (
-    KNOWN_MODELS_BY_PROVIDER,
     apply_runtime_overrides,
     apply_model_selection,
-    known_model_specs,
     estimate_trial_conditions,
     list_experiment_templates,
     load_experiment_config,
@@ -140,19 +138,3 @@ def test_wrap_picker_description_inserts_newlines_for_narrow_width():
     )
     assert "\n" in wrapped
     assert "Coordination experiment" in wrapped
-
-
-def test_known_model_specs_includes_dynamic_ollama_inventory(monkeypatch):
-    monkeypatch.setattr(
-        "src.experiments.selection.discover_ollama_models",
-        lambda: ("llama3.2:1b", "llama3.1:8b"),
-    )
-
-    specs = known_model_specs()
-    selectors = {(spec.provider, spec.model) for spec in specs}
-
-    assert ("ollama", "llama3.2:1b") in selectors
-    assert ("ollama", "llama3.1:8b") in selectors
-    assert ("nvidia", "z-ai/glm5") in selectors
-    assert ("nvidia", "moonshotai/kimi-k2-instruct") in selectors
-    assert ("nvidia", "mistralai/mistral-small-24b-instruct") in selectors

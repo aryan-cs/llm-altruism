@@ -18,6 +18,34 @@ from .runner import BaseExperimentRunner, ModelUnavailableError
 class Part1Runner(BaseExperimentRunner):
     """Run iterated two-player games across model pairings and prompt variants."""
 
+    @staticmethod
+    def _serialize_messages(messages: list[dict[str, str]]) -> list[dict[str, str]]:
+        """Copy request messages for round-level experiment logs."""
+        return [dict(message) for message in messages]
+
+    def _agent_round_log(
+        self,
+        *,
+        agent: Any,
+        prompt_sent: str,
+        messages_sent: list[dict[str, str]],
+        response: Any,
+        parsed_action: str,
+        reasoning: str,
+    ) -> dict[str, Any]:
+        """Build a consistent per-agent round log payload."""
+        return {
+            "model": agent.model,
+            "prompt_sent": prompt_sent,
+            "messages_sent": self._serialize_messages(messages_sent),
+            "raw_response": response.content,
+            "reasoning": reasoning,
+            "parsed_action": parsed_action,
+            "latency_ms": response.latency_ms,
+            "tokens": response.usage.model_dump(),
+            "cost_usd": response.cost_usd,
+        }
+
     async def run(self) -> dict[str, Any]:
         start = time.time()
         game = get_game(self.config.game or "", **self.config.game_options)
@@ -204,18 +232,26 @@ class Part1Runner(BaseExperimentRunner):
 
         mock_a = self._mock_game_response(game.name, agent_a, round_num)
         mock_b = self._mock_game_response(game.name, agent_b, round_num)
+        messages_a = agent_a.build_messages(
+            prompt_a,
+            include_payoffs=self.config.parameters.payoff_visibility,
+        )
+        messages_b = agent_b.build_messages(
+            prompt_b,
+            include_payoffs=self.config.parameters.payoff_visibility,
+        )
 
         response_a, response_b = await asyncio.gather(
             self.request_completion(
                 spec=model_a,
-                messages=agent_a.build_messages(prompt_a, include_payoffs=self.config.parameters.payoff_visibility),
+                messages=messages_a,
                 temperature=temperature,
                 response_format={"type": "json_object"},
                 mock_content=mock_a,
             ),
             self.request_completion(
                 spec=model_b,
-                messages=agent_b.build_messages(prompt_b, include_payoffs=self.config.parameters.payoff_visibility),
+                messages=messages_b,
                 temperature=temperature,
                 response_format={"type": "json_object"},
                 mock_content=mock_b,
@@ -235,26 +271,22 @@ class Part1Runner(BaseExperimentRunner):
             "action_b": action_b,
             "payoff_a": payoff_a,
             "payoff_b": payoff_b,
-            "agent_a": {
-                "model": agent_a.model,
-                "prompt_sent": prompt_a,
-                "raw_response": response_a.content,
-                "reasoning": extract_reasoning(response_a.content),
-                "parsed_action": action_a,
-                "latency_ms": response_a.latency_ms,
-                "tokens": response_a.usage.model_dump(),
-                "cost_usd": response_a.cost_usd,
-            },
-            "agent_b": {
-                "model": agent_b.model,
-                "prompt_sent": prompt_b,
-                "raw_response": response_b.content,
-                "reasoning": extract_reasoning(response_b.content),
-                "parsed_action": action_b,
-                "latency_ms": response_b.latency_ms,
-                "tokens": response_b.usage.model_dump(),
-                "cost_usd": response_b.cost_usd,
-            },
+            "agent_a": self._agent_round_log(
+                agent=agent_a,
+                prompt_sent=prompt_a,
+                messages_sent=messages_a,
+                response=response_a,
+                parsed_action=action_a,
+                reasoning=extract_reasoning(response_a.content),
+            ),
+            "agent_b": self._agent_round_log(
+                agent=agent_b,
+                prompt_sent=prompt_b,
+                messages_sent=messages_b,
+                response=response_b,
+                parsed_action=action_b,
+                reasoning=extract_reasoning(response_b.content),
+            ),
         }
 
     async def _run_ultimatum_round(
@@ -275,12 +307,13 @@ class Part1Runner(BaseExperimentRunner):
             [],
             self.config.parameters.payoff_visibility,
         )
+        proposer_messages = agent_a.build_messages(
+            proposer_prompt,
+            include_payoffs=self.config.parameters.payoff_visibility,
+        )
         proposer_response = await self.request_completion(
             spec=model_a,
-            messages=agent_a.build_messages(
-                proposer_prompt,
-                include_payoffs=self.config.parameters.payoff_visibility,
-            ),
+            messages=proposer_messages,
             temperature=temperature,
             response_format={"type": "json_object"},
             mock_content=self._mock_game_response(game.name, agent_a, round_num, role="proposer"),
@@ -294,12 +327,13 @@ class Part1Runner(BaseExperimentRunner):
             [],
             self.config.parameters.payoff_visibility,
         ) + f"\n\nThe proposer offered you {offer} units."
+        responder_messages = agent_b.build_messages(
+            responder_prompt,
+            include_payoffs=self.config.parameters.payoff_visibility,
+        )
         responder_response = await self.request_completion(
             spec=model_b,
-            messages=agent_b.build_messages(
-                responder_prompt,
-                include_payoffs=self.config.parameters.payoff_visibility,
-            ),
+            messages=responder_messages,
             temperature=temperature,
             response_format={"type": "json_object"},
             mock_content=self._mock_game_response(game.name, agent_b, round_num, role="responder", observed_action=offer),
@@ -316,26 +350,22 @@ class Part1Runner(BaseExperimentRunner):
             "action_b": decision,
             "payoff_a": payoff_a,
             "payoff_b": payoff_b,
-            "agent_a": {
-                "model": agent_a.model,
-                "prompt_sent": proposer_prompt,
-                "raw_response": proposer_response.content,
-                "reasoning": extract_reasoning(proposer_response.content),
-                "parsed_action": offer,
-                "latency_ms": proposer_response.latency_ms,
-                "tokens": proposer_response.usage.model_dump(),
-                "cost_usd": proposer_response.cost_usd,
-            },
-            "agent_b": {
-                "model": agent_b.model,
-                "prompt_sent": responder_prompt,
-                "raw_response": responder_response.content,
-                "reasoning": extract_reasoning(responder_response.content),
-                "parsed_action": decision,
-                "latency_ms": responder_response.latency_ms,
-                "tokens": responder_response.usage.model_dump(),
-                "cost_usd": responder_response.cost_usd,
-            },
+            "agent_a": self._agent_round_log(
+                agent=agent_a,
+                prompt_sent=proposer_prompt,
+                messages_sent=proposer_messages,
+                response=proposer_response,
+                parsed_action=offer,
+                reasoning=extract_reasoning(proposer_response.content),
+            ),
+            "agent_b": self._agent_round_log(
+                agent=agent_b,
+                prompt_sent=responder_prompt,
+                messages_sent=responder_messages,
+                response=responder_response,
+                parsed_action=decision,
+                reasoning=extract_reasoning(responder_response.content),
+            ),
         }
 
     async def _run_dictator_round(
@@ -355,12 +385,13 @@ class Part1Runner(BaseExperimentRunner):
             [],
             self.config.parameters.payoff_visibility,
         )
+        messages = agent_a.build_messages(
+            prompt,
+            include_payoffs=self.config.parameters.payoff_visibility,
+        )
         response = await self.request_completion(
             spec=model_a,
-            messages=agent_a.build_messages(
-                prompt,
-                include_payoffs=self.config.parameters.payoff_visibility,
-            ),
+            messages=messages,
             temperature=temperature,
             response_format={"type": "json_object"},
             mock_content=self._mock_game_response(game.name, agent_a, round_num),
@@ -377,19 +408,18 @@ class Part1Runner(BaseExperimentRunner):
             "action_b": "passive",
             "payoff_a": payoff_a,
             "payoff_b": payoff_b,
-            "agent_a": {
-                "model": agent_a.model,
-                "prompt_sent": prompt,
-                "raw_response": response.content,
-                "reasoning": extract_reasoning(response.content),
-                "parsed_action": action,
-                "latency_ms": response.latency_ms,
-                "tokens": response.usage.model_dump(),
-                "cost_usd": response.cost_usd,
-            },
+            "agent_a": self._agent_round_log(
+                agent=agent_a,
+                prompt_sent=prompt,
+                messages_sent=messages,
+                response=response,
+                parsed_action=action,
+                reasoning=extract_reasoning(response.content),
+            ),
             "agent_b": {
                 "model": agent_b.model,
                 "prompt_sent": "",
+                "messages_sent": [],
                 "raw_response": "",
                 "reasoning": "",
                 "parsed_action": "passive",
@@ -411,9 +441,10 @@ class Part1Runner(BaseExperimentRunner):
         temperature: float,
     ) -> dict[str, Any]:
         prompt_a = game.format_prompt("player_a", round_num, self.config.rounds, [], False)
+        messages_a = agent_a.build_messages(prompt_a, include_payoffs=False)
         response_a = await self.request_completion(
             spec=model_a,
-            messages=agent_a.build_messages(prompt_a, include_payoffs=False),
+            messages=messages_a,
             temperature=temperature,
             mock_content=self._mock_game_response(game.name, agent_a, round_num, role="speaker_a"),
         )
@@ -426,9 +457,10 @@ class Part1Runner(BaseExperimentRunner):
             [{"speaker": "Player A", "message": action_a}],
             False,
         )
+        messages_b = agent_b.build_messages(prompt_b, include_payoffs=False)
         response_b = await self.request_completion(
             spec=model_b,
-            messages=agent_b.build_messages(prompt_b, include_payoffs=False),
+            messages=messages_b,
             temperature=temperature,
             mock_content=self._mock_game_response(game.name, agent_b, round_num, role="speaker_b"),
         )
@@ -443,26 +475,22 @@ class Part1Runner(BaseExperimentRunner):
             "action_b": action_b,
             "payoff_a": 0.0,
             "payoff_b": 0.0,
-            "agent_a": {
-                "model": agent_a.model,
-                "prompt_sent": prompt_a,
-                "raw_response": response_a.content,
-                "reasoning": "",
-                "parsed_action": action_a,
-                "latency_ms": response_a.latency_ms,
-                "tokens": response_a.usage.model_dump(),
-                "cost_usd": response_a.cost_usd,
-            },
-            "agent_b": {
-                "model": agent_b.model,
-                "prompt_sent": prompt_b,
-                "raw_response": response_b.content,
-                "reasoning": "",
-                "parsed_action": action_b,
-                "latency_ms": response_b.latency_ms,
-                "tokens": response_b.usage.model_dump(),
-                "cost_usd": response_b.cost_usd,
-            },
+            "agent_a": self._agent_round_log(
+                agent=agent_a,
+                prompt_sent=prompt_a,
+                messages_sent=messages_a,
+                response=response_a,
+                parsed_action=action_a,
+                reasoning="",
+            ),
+            "agent_b": self._agent_round_log(
+                agent=agent_b,
+                prompt_sent=prompt_b,
+                messages_sent=messages_b,
+                response=response_b,
+                parsed_action=action_b,
+                reasoning="",
+            ),
         }
 
     def _bias_score(self, agent: Any) -> int:

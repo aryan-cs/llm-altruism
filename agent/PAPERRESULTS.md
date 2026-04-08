@@ -3,20 +3,15 @@
 ## Status
 
 This document summarizes the strongest empirical findings collected so far for
-the paper from the corrected fast batch plus the completed multi-agent
-replication extensions in:
+the paper from the completed fast-batch run in:
 
 - `results/paper_live_clean/`
-- `results/paper_live_replicates_nocache/`
-- `results/paper_ready_replications/`
 
 Primary machine-readable summaries:
 
 - `results/paper_live_clean/summary_final.md`
 - `results/paper_live_clean/summary_final.csv`
 - `results/paper_live_clean/paper_batch_manifest.json`
-- `results/paper_ready_replications/summary_with_replications.md`
-- `results/paper_ready_replications/summary_with_replications.csv`
 
 Main model cohort used:
 
@@ -25,16 +20,250 @@ Main model cohort used:
 - `nvidia:deepseek-ai/deepseek-v3.2`
 - `ollama:llama3.2:3b`
 
-Current paper-ready evidence base:
+## Update 2026-04-07: Repaired Part 1 Reruns Now Form a Complete Core Bundle
 
-- Part 1:
-  - corrected fast batch across baseline, benchmark, and susceptibility tracks
-- Part 2 society:
-  - `3` experiments pooled
-  - `7` prompt-condition trials per prompt variant
-- Part 3 reputation:
-  - `2` experiments pooled
-  - `5` prompt-condition trials per prompt variant
+The repaired Part 1 bundle is now complete on the stable triplet cohort in:
+
+- `results/paper_ready_baseline_triplet/`
+
+Current live summaries:
+
+- `results/paper_ready_baseline_triplet/interim_summary.md`
+- `results/paper_ready_baseline_triplet/interim_summary.csv`
+
+Interim rerun cohort:
+
+- `cerebras:llama3.1-8b`
+- `nvidia:deepseek-ai/deepseek-v3.2`
+- `nvidia:moonshotai/kimi-k2-instruct-0905`
+
+Most important methodological improvement:
+
+- the new run logs `messages_sent`, not only `prompt_sent`
+
+This matters because the old neutral-baseline concern was precisely that the
+full effective prompt stack was not preserved in the logs.
+
+### Finalized repaired Prisoner's Dilemma result
+
+Completed artifact:
+
+- `results/paper_ready_baseline_triplet/paper-baseline-prisoners_dilemma-20260407T173331Z.json`
+
+Aggregate result (`18` trials):
+
+- cooperation:
+  - A: `0.4722`
+  - B: `0.5463`
+- average payoff:
+  - A: `2.2500`
+  - B: `1.8796`
+
+The repaired Prisoner's Dilemma rerun reproduces the key qualitative baseline
+pattern:
+
+- `minimal-neutral`
+  - cooperation: `0.2500 / 0.3056`
+- `minimal-neutral-compact`
+  - cooperation: `0.5833 / 0.6667`
+- `minimal-neutral-institutional`
+  - cooperation: `0.5833 / 0.6667`
+
+Interpretation:
+
+- the neutral-paraphrase sensitivity signal survives the repaired rerun
+- this completed PD artifact should now replace the older under-logged
+  Prisoner's Dilemma baseline table as the primary Part 1 neutral-baseline
+  evidence
+
+### Same-day cross-cohort replication
+
+A second repaired PD rerun also completed in:
+
+- `results/paper_ready_replications/paper-baseline-prisoners_dilemma-20260407T172819Z.json`
+
+Its prompt-variant means were:
+
+- `minimal-neutral`
+  - cooperation: `0.2778 / 0.2778`
+- `minimal-neutral-compact`
+  - cooperation: `0.5833 / 0.6667`
+- `minimal-neutral-institutional`
+  - cooperation: `0.5833 / 0.6667`
+
+Pooled across both repaired PD cohorts (`36` total trials):
+
+- `minimal-neutral`
+  - cooperation: `0.2639 / 0.2917`
+- `minimal-neutral-compact`
+  - cooperation: `0.5833 / 0.6667`
+- `minimal-neutral-institutional`
+  - cooperation: `0.5833 / 0.6667`
+
+This makes the repaired neutral-paraphrase result materially stronger than a
+single rerun. It is now a same-day replicated effect across two different
+three-model cohorts.
+
+The qwen-inclusive repaired cohort is now also complete across all three
+baseline games, not just PD:
+
+- `results/paper_ready_replications/interim_summary.md`
+
+Second repaired cohort aggregate ordering:
+
+- Prisoner's Dilemma
+  - cooperation: `0.4815 / 0.5370`
+- Chicken
+  - cooperation: `0.6852 / 0.6389`
+- Stag Hunt
+  - cooperation: `0.9722 / 0.9907`
+
+This means the repaired cross-game ordering also replicates on the second
+cohort: PD < Chicken < Stag Hunt.
+
+### Repaired Chicken baseline now complete
+
+Completed artifact:
+
+- `results/paper_ready_baseline_triplet/paper-baseline-chicken-20260407T174438Z.json`
+
+Aggregate result (`18` trials):
+
+- cooperation:
+  - A: `0.9074`
+  - B: `0.7870`
+- average payoff:
+  - A: `2.5093`
+  - B: `2.9907`
+
+Prompt-variant means:
+
+- `minimal-neutral`
+  - cooperation: `0.9167 / 0.7778`
+- `minimal-neutral-compact`
+  - cooperation: `0.9167 / 0.7500`
+- `minimal-neutral-institutional`
+  - cooperation: `0.8889 / 0.8333`
+
+Interpretation:
+
+- the repaired baseline story is now cross-game again, not only PD-only
+- Chicken remains far more cooperative than repaired PD
+- neutral paraphrase sensitivity is much stronger in PD than in Chicken
+
+### Repaired Stag Hunt baseline now complete
+
+Completed artifact:
+
+- `results/paper_ready_baseline_triplet/paper-baseline-stag_hunt-20260407T175757Z.json`
+
+Aggregate result (`18` trials):
+
+- cooperation:
+  - A: `0.9722`
+  - B: `0.9907`
+- average payoff:
+  - A: `3.9630`
+  - B: `3.9074`
+
+Prompt-variant means:
+
+- `minimal-neutral`
+  - cooperation: `0.9167 / 0.9722`
+- `minimal-neutral-compact`
+  - cooperation: `1.0000 / 1.0000`
+- `minimal-neutral-institutional`
+  - cooperation: `1.0000 / 1.0000`
+
+Interpretation:
+
+- the repaired cross-game baseline replacement table is now complete on the
+  stable triplet cohort
+- the repaired ordering is directly supported: PD < Chicken < Stag Hunt in
+  cooperation
+
+### Repaired benchmark result now restored for the full PD presentation triad
+
+Completed repaired benchmark artifacts:
+
+- `results/paper_ready_benchmark_triplet/paper-benchmark-prisoners_dilemma-canonical-20260407T180145Z.json`
+- `results/paper_ready_benchmark_triplet/paper-benchmark-prisoners_dilemma-resource-20260407T180543Z.json`
+- `results/paper_ready_benchmark_triplet/paper-benchmark-prisoners_dilemma-unnamed-20260407T180147Z.json`
+
+Current repaired comparison:
+
+- canonical
+  - cooperation: `0.2500 / 0.3056`
+- resource disguise
+  - cooperation: `0.5833 / 0.6667`
+- unnamed / isomorphic
+  - cooperation: `0.7500 / 0.8056`
+
+Current repaired delta:
+
+- resource disguise:
+  - A: `+0.3333`
+  - B: `+0.3611`
+  - average payoff:
+    - A: `+0.7500`
+    - B: `+0.6111`
+- unnamed / isomorphic:
+  - cooperation:
+    - A: `+0.5000`
+    - B: `+0.5000`
+  - average payoff:
+    - A: `+1.0278`
+    - B: `+1.0278`
+
+Interpretation:
+
+- the repaired benchmark-disguise result is already back
+- at least for Prisoner's Dilemma, less canonical framing monotonically raises
+  cooperation on the repaired cohort
+- repaired Chicken already shows the opposite direction under the same repaired
+  benchmark pipeline: canonical `0.9167 / 0.7778` versus unnamed
+  `0.4444 / 0.5833`
+- repaired Stag Hunt now also finalizes with canonical `0.9167 / 0.9722`
+  versus unnamed `0.6667 / 0.8333`
+- the repaired benchmark table is now complete across the three core games and
+  shows a genuinely game-dependent presentation effect
+
+### Repaired susceptibility signal now finalized across the three core games
+
+The repaired susceptibility rerun has now finalized:
+
+- `results/paper_ready_susceptibility_triplet/paper-susceptibility-prisoners_dilemma-20260407T180534Z.json`
+- `results/paper_ready_susceptibility_triplet/paper-susceptibility-chicken-20260407T183534Z.json`
+- `results/paper_ready_susceptibility_triplet/paper-susceptibility-stag_hunt-20260407T184144Z.json`
+
+Current repaired cross-game summary:
+
+- Prisoner's Dilemma
+- `competitive`
+  - cooperation: `0.0000 / 0.0000`
+- `cooperative`
+  - cooperation: `1.0000 / 1.0000`
+- `minimal-neutral`
+  - cooperation: `0.2500 / 0.3056`
+- Chicken
+  - `competitive`
+    - cooperation: `0.6389 / 0.3333`
+  - `cooperative`
+    - cooperation: `1.0000 / 1.0000`
+  - `minimal-neutral`
+    - cooperation: `0.9167 / 0.7778`
+- Stag Hunt
+  - `competitive`
+    - cooperation: `0.4167 / 0.3056`
+  - `cooperative`
+    - cooperation: `1.0000 / 1.0000`
+  - `minimal-neutral`
+    - cooperation: `0.9167 / 0.9722`
+
+This repaired susceptibility battery now matches the strongest directional
+claim from the older pilot and sharpens it: prompt framing can push the same
+game toward opposite extremes, but the size of that shift depends strongly on
+the game structure.
 
 ## Key Findings
 
@@ -147,101 +376,49 @@ Interpretation:
 
 ### 5. Society-preserving outcomes are not the same as “cooperative” prompts
 
-Pooled Part 2 society prompt comparison:
+Part 2 society prompt comparison:
 
 - task-only:
-  - `n = 7`
-  - survival rate: `1.0000`
-  - final survival rate: `1.0000`
-  - average trade volume: `0.2143`
-  - average gini: `0.1281`
-  - commons health: `0.2758`
-  - alliance count: `0.1429`
+  - survival rate: `1.000`
+  - final survival rate: `1.000`
 - competitive:
-  - `n = 7`
-  - survival rate: `0.9792`
-  - final survival rate: `0.9286`
-  - average trade volume: `2.3333`
-  - average gini: `0.1134`
-  - commons health: `0.2589`
-  - alliance count: `0.0000`
+  - survival rate: `0.9375`
+  - final survival rate: `0.875`
 - cooperative:
-  - `n = 7`
-  - survival rate: `0.8214`
-  - final survival rate: `0.5893`
-  - average trade volume: `5.1429`
-  - average gini: `0.4722`
-  - commons health: `0.6057`
-  - alliance count: `6.4286`
+  - survival rate: `0.8125`
+  - final survival rate: `0.500`
 
 Interpretation:
 
-- the best society-preserving outcome still came from the task-only prompt
-- explicitly cooperative framing remained the worst survival condition even after replication
-- this is no longer a one-off pilot anomaly; it persisted across `7` prompt-condition trials per prompt variant
-- the cooperative condition produced the most trade, the most alliances, and the healthiest commons, but also the highest inequality and the worst survival
-- “more prosocial language” still did not equal “more resilient society”
+- the best society-preserving outcome came from the task-only prompt
+- explicitly cooperative framing produced the worst final survival in this run
+- “more prosocial language” did not equal “more resilient society”
 
-### 6. Reputation improved some prompt conditions, but competitive was strongest
+### 6. Reputation did not rescue the cooperative prompt
 
-Pooled Part 3 reputation prompt comparison:
+Part 3 reputation prompt comparison:
 
 - task-only:
-  - `n = 5`
-  - survival rate: `0.9625`
-  - final survival rate: `0.9000`
-  - average trade volume: `1.1333`
-  - average gini: `0.2306`
-  - commons health: `0.3049`
-  - alliance count: `1.2000`
+  - survival rate: `1.000`
+  - final survival rate: `1.000`
+  - average trade volume: `0.0`
+  - alliance count: `0.0`
 - competitive:
-  - `n = 5`
-  - survival rate: `0.9958`
-  - final survival rate: `0.9750`
-  - average trade volume: `1.0667`
-  - average gini: `0.1417`
-  - commons health: `0.2535`
-  - alliance count: `0.0000`
+  - survival rate: `1.000`
+  - final survival rate: `1.000`
+  - average trade volume: `1.5`
+  - alliance count: `0.0`
 - cooperative:
-  - `n = 5`
-  - survival rate: `0.8917`
-  - final survival rate: `0.7750`
-  - average trade volume: `3.3000`
-  - average gini: `0.4533`
-  - commons health: `0.5917`
-  - alliance count: `3.6000`
+  - survival rate: `0.8333`
+  - final survival rate: `0.625`
+  - average trade volume: `5.3333`
+  - alliance count: `6.0`
 
 Interpretation:
 
-- reputation improved the cooperative condition relative to the non-reputation pooled society baseline
-- reputation also improved the competitive condition slightly and made it the strongest survival condition overall
-- task-only remained strong, but it was no longer perfect once replicated under reputation
-- public reputation increased visible social activity under the cooperative prompt, but that condition still produced the weakest survival and the highest inequality
-- visible prosocial signaling and alliance formation still did not guarantee better group preservation
-
-### 7. Observation changed behavior, but not in one simple “more watching is better” direction
-
-Pooled reputation-minus-society deltas:
-
-- task-only:
-  - survival rate: `-0.0375`
-  - final survival rate: `-0.1000`
-  - average trade volume: `+0.9190`
-- cooperative:
-  - survival rate: `+0.0703`
-  - final survival rate: `+0.1857`
-  - average trade volume: `-1.8429`
-- competitive:
-  - survival rate: `+0.0166`
-  - final survival rate: `+0.0464`
-  - average trade volume: `-1.2666`
-
-Interpretation:
-
-- observation helped the cooperative and competitive conditions on survival
-- observation modestly hurt the task-only condition on survival while increasing visible social activity
-- the main paper-quality conclusion is not that reputation makes everyone prosocial
-- the stronger conclusion is that reputation interacts with prompt framing, and that interaction is asymmetrical
+- public reputation increased visible social activity under the cooperative prompt
+- but that condition still produced worse survival than task-only and competitive
+- visible prosocial signaling and alliance formation did not guarantee better group preservation
 
 ## Provisional Paper Claims Supported By Current Results
 
@@ -251,8 +428,7 @@ These results support the following claims:
 2. Benchmark familiarity can materially distort game-theoretic measurements.
 3. Prompt framing strongly steers strategic behavior, often dramatically.
 4. Society-preserving outcomes cannot be inferred directly from prosocial prompt framing.
-5. Reputation can improve some prompt conditions without making them dominant.
-6. Visible coordination and alliance formation do not necessarily improve collective survival.
+5. Reputation and visible coordination do not necessarily improve collective survival.
 
 ## Important Caveats
 
@@ -262,15 +438,13 @@ These results support the following claims:
   - cross-game baseline differences
   - benchmark-disguise effects
   - prompt-susceptibility effects
-- Part 2 and Part 3 are now materially stronger than the original pilot because:
-  - society results are pooled across `7` prompt-condition trials per prompt variant
-  - reputation results are pooled across `5` prompt-condition trials per prompt variant
 
-### What still needs strengthening if we want a larger follow-on paper
+### What still needs strengthening
 
-- all live results still come from one main four-model cohort
-- the multi-agent environments are still short-horizon (`6` timesteps) and small-population (`8` agents) tests
-- mechanism claims about why alliances, trade, and commons preservation dissociate from survival still need more targeted follow-up
+- Part 2 and Part 3 are stochastic and were run with limited repetitions in the
+  completed fast batch
+- they are strong pilot results, but more replications are desirable before making
+  the strongest causal claims about survival and reputation
 
 ### Methodology fixes that matter
 
@@ -282,22 +456,16 @@ Two important fixes were applied during experimentation:
 This means:
 
 - part 1 fast-batch results are on solid footing
-- society/reputation claims should prioritize the corrected reruns and pooled replication summaries
+- society/reputation claims should prioritize corrected reruns and no-cache replications
 
 ## Recommended Next Paper Steps
 
-1. Turn `summary_with_replications.md` into manuscript figures and tables.
-2. Draft the Results section directly from:
+1. Finish the post-fix society/reputation replication block.
+2. Aggregate society/reputation results across multiple runs per prompt condition.
+3. Turn `summary_final.md` into manuscript figures and tables.
+4. Draft the Results section directly from:
    - baseline cross-game table
    - benchmark-presentation delta table
    - prompt-susceptibility table
-   - pooled society prompt-comparison table
-   - pooled reputation prompt-comparison table
-   - pooled society-vs-reputation delta table
-3. Add a short methods subsection explicitly documenting:
-   - access preflight
-   - temperature-0-only cache reuse
-   - self-transfer blocking
-   - retry/backoff and resumable long-run behavior
-4. Produce publication-ready figures from the pooled multi-agent summaries.
-5. If time permits, add one external validation cohort; this would strengthen generality, but it is no longer required to have paper-ready core results.
+   - society/reputation survival table
+5. Add a short methods subsection explicitly documenting the cache and self-transfer fixes.

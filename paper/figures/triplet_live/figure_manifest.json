@@ -1,0 +1,9 @@
+{
+  "source_results": [
+    "results/paper_ready_baseline_triplet"
+  ],
+  "experiment_count": 3,
+  "figures": [
+    "baseline_prompt_variants_cooperation.png"
+  ]
+}

@@ -16,9 +16,7 @@ from src.experiments.access import (
     spec_selector,
 )
 from src.experiments.config import ModelSpec
-from src.experiments.runner import apply_model_max_token_floor
 from src.providers import LLMResponse, RateLimitProviderError, UsageInfo
-from src.providers.nvidia_provider import NVIDIAProvider
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -162,75 +160,6 @@ def test_probe_model_experiment_readiness_rejects_ambiguous_action_output(monkey
     assert not result.ready
     assert result.parsed_action is None
     assert result.status == "ambiguous action output"
-
-
-def test_probe_model_experiment_readiness_accepts_decision_key(monkeypatch):
-    """Some providers emit `decision` instead of `action`; accept that when explicit."""
-    monkeypatch.setattr("src.experiments.access.load_dotenv", lambda *args, **kwargs: None)
-    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
-    monkeypatch.setenv("OPENAI_BASE_URL", "https://example.com/v1")
-
-    class DummyProvider:
-        async def complete(self, **_kwargs):
-            return LLMResponse(
-                content='{"decision":"defect"}',
-                model="gpt-4o",
-                provider="openai",
-                usage=UsageInfo(),
-                latency_ms=1.0,
-                cost_usd=0.0,
-            )
-
-        async def close(self):
-            return None
-
-    monkeypatch.setattr("src.experiments.access.get_provider", lambda *args, **kwargs: DummyProvider())
-
-    result = asyncio.run(
-        probe_model_experiment_readiness(ModelSpec(model="gpt-4o", provider="openai"))
-    )
-
-    assert result.ready
-    assert result.parsed_action == "defect"
-
-
-def test_nvidia_role_restricted_models_normalize_messages():
-    provider = NVIDIAProvider(model="google/gemma-3-1b-it", api_key="test-key")
-
-    normalized = provider._normalize_role_restricted_messages(
-        [
-            {"role": "system", "content": "System instructions"},
-            {"role": "user", "content": "History block"},
-            {"role": "user", "content": "Current prompt"},
-        ]
-    )
-
-    assert normalized == [
-        {"role": "user", "content": "System instructions\n\nHistory block\n\nCurrent prompt"},
-    ]
-
-
-def test_nvidia_chatqa_models_preserve_context_role():
-    provider = NVIDIAProvider(model="nvidia/llama3-chatqa-1.5-8b", api_key="test-key")
-
-    normalized = provider._normalize_role_restricted_messages(
-        [
-            {"role": "system", "content": "System instructions"},
-            {"role": "user", "content": "History block"},
-            {"role": "user", "content": "Current prompt"},
-        ]
-    )
-
-    assert normalized == [
-        {"role": "context", "content": "System instructions"},
-        {"role": "user", "content": "History block\n\nCurrent prompt"},
-    ]
-
-
-def test_model_max_token_floor_applies_to_verbose_reasoning_models():
-    assert apply_model_max_token_floor("z-ai/glm4.7", 300) == 768
-    assert apply_model_max_token_floor("moonshotai/kimi-k2-thinking", 300) == 1024
-    assert apply_model_max_token_floor("deepseek-ai/deepseek-v3.2", 300) == 300
 
 
 def test_probe_accessible_model_catalog_filters_out_inaccessible_models(monkeypatch):

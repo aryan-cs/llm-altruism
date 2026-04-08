@@ -32,6 +32,28 @@ def test_part1_dry_run_produces_trials(tmp_path: Path):
     assert result["aggregate_summary"]["total_payoff_a"] >= 0
 
 
+def test_part1_round_logs_include_full_message_stack(tmp_path: Path):
+    result = asyncio.run(
+        run_experiment_from_path(
+            "configs/part1/prisoners_dilemma_baseline.yaml",
+            dry_run=True,
+            results_dir=str(tmp_path),
+        )
+    )
+
+    first_trial = result["trials"][0]
+    first_round = first_trial["rounds"][0]
+    second_round = first_trial["rounds"][1]
+
+    first_messages = first_round["agent_a"]["messages_sent"]
+    second_messages = second_round["agent_a"]["messages_sent"]
+
+    assert first_messages[0]["role"] == "system"
+    assert first_messages[-1]["content"] == first_round["agent_a"]["prompt_sent"]
+    assert second_messages[-1]["content"] == second_round["agent_a"]["prompt_sent"]
+    assert any("Your recent history:" in message["content"] for message in second_messages)
+
+
 def test_run_metadata_is_saved_in_results(tmp_path: Path):
     result = asyncio.run(
         run_experiment_from_path(

@@ -11,20 +11,293 @@ paper-oriented experiment batch. It is designed to answer four questions:
 4. What is strong enough to use in the paper now, and what still needs more
    replication before we make stronger claims?
 
-All numbers below are drawn from the corrected fast batch plus the completed
-multi-agent replication extensions in:
+All numbers below are drawn from the corrected fast batch in:
 
 - `results/paper_live_clean/`
-- `results/paper_live_replicates_nocache/`
-- `results/paper_ready_replications/`
 
 Primary summary artifacts:
 
 - `results/paper_live_clean/summary_final.md`
 - `results/paper_live_clean/summary_final.csv`
 - `results/paper_live_clean/paper_batch_manifest.json`
-- `results/paper_ready_replications/summary_with_replications.md`
-- `results/paper_ready_replications/summary_with_replications.csv`
+
+## Update 2026-04-07: Repaired Part 1 Reruns Now Form a Complete Core Bundle
+
+### Status
+
+The repaired baseline rerun is now complete on the stable triplet cohort in:
+
+- `results/paper_ready_baseline_triplet/`
+
+Current durable live summaries:
+
+- `results/paper_ready_baseline_triplet/interim_summary.md`
+- `results/paper_ready_baseline_triplet/interim_summary.csv`
+
+Current live cohort:
+
+- `cerebras:llama3.1-8b`
+- `nvidia:deepseek-ai/deepseek-v3.2`
+- `nvidia:moonshotai/kimi-k2-instruct-0905`
+
+Current durable claim:
+
+- the repaired cross-game baseline ordering is now directly supported on one
+  stable cohort: Prisoner's Dilemma < Chicken < Stag Hunt in cooperation
+- all baseline claims below are methodologically stronger than the older
+  under-logged Part 1 baseline artifact because they preserve the full
+  `messages_sent` prompt stack
+
+### Finalized repaired Prisoner's Dilemma baseline
+
+Completed artifact:
+
+- `results/paper_ready_baseline_triplet/paper-baseline-prisoners_dilemma-20260407T173331Z.json`
+
+Aggregate result (`18` trials):
+
+- cooperation:
+  - A: `0.4722`
+  - B: `0.5463`
+- average payoff:
+  - A: `2.2500`
+  - B: `1.8796`
+
+By prompt variant:
+
+- `minimal-neutral`
+  - cooperation: `0.2500 / 0.3056`
+  - average payoff: `1.7500 / 1.4722`
+- `minimal-neutral-compact`
+  - cooperation: `0.5833 / 0.6667`
+  - average payoff: `2.5000 / 2.0833`
+- `minimal-neutral-institutional`
+  - cooperation: `0.5833 / 0.6667`
+  - average payoff: `2.5000 / 2.0833`
+
+One especially clear model-level flip:
+
+- `deepseek-ai/deepseek-v3.2` self-play:
+  - `minimal-neutral`: mutual defection (`0.000 / 0.000`, payoff `1.000 / 1.000`)
+  - `minimal-neutral-compact`: mutual cooperation (`1.000 / 1.000`, payoff `3.000 / 3.000`)
+  - `minimal-neutral-institutional`: mutual cooperation (`1.000 / 1.000`, payoff `3.000 / 3.000`)
+
+### Same-day cross-cohort replication
+
+A second repaired PD rerun also completed in:
+
+- `results/paper_ready_replications/paper-baseline-prisoners_dilemma-20260407T172819Z.json`
+
+That qwen-inclusive cohort produced the same qualitative pattern:
+
+- `minimal-neutral`
+  - cooperation: `0.2778 / 0.2778`
+- `minimal-neutral-compact`
+  - cooperation: `0.5833 / 0.6667`
+- `minimal-neutral-institutional`
+  - cooperation: `0.5833 / 0.6667`
+
+Pooled across both repaired PD cohorts (`36` total trials):
+
+- `minimal-neutral`
+  - cooperation: `0.2639 / 0.2917`
+  - average payoff: `1.6806 / 1.5417`
+- `minimal-neutral-compact`
+  - cooperation: `0.5833 / 0.6667`
+  - average payoff: `2.5000 / 2.0833`
+- `minimal-neutral-institutional`
+  - cooperation: `0.5833 / 0.6667`
+  - average payoff: `2.5000 / 2.0833`
+
+The second repaired cohort is no longer only a PD replication. It now completes
+all three baseline games in:
+
+- `results/paper_ready_replications/interim_summary.md`
+
+Second repaired cohort aggregate ordering:
+
+- Prisoner's Dilemma
+  - cooperation: `0.4815 / 0.5370`
+- Chicken
+  - cooperation: `0.6852 / 0.6389`
+- Stag Hunt
+  - cooperation: `0.9722 / 0.9907`
+
+That means the repaired cross-game ordering also replicates on the qwen-
+inclusive cohort: PD < Chicken < Stag Hunt.
+
+### Repaired Chicken baseline now complete
+
+The same repaired triplet cohort also completed:
+
+- `results/paper_ready_baseline_triplet/paper-baseline-chicken-20260407T174438Z.json`
+
+Aggregate result (`18` trials):
+
+- cooperation:
+  - A: `0.9074`
+  - B: `0.7870`
+- average payoff:
+  - A: `2.5093`
+  - B: `2.9907`
+
+By prompt variant:
+
+- `minimal-neutral`
+  - cooperation: `0.9167 / 0.7778`
+- `minimal-neutral-compact`
+  - cooperation: `0.9167 / 0.7500`
+- `minimal-neutral-institutional`
+  - cooperation: `0.8889 / 0.8333`
+
+### Repaired Stag Hunt baseline now complete
+
+The stable repaired triplet cohort also completed:
+
+- `results/paper_ready_baseline_triplet/paper-baseline-stag_hunt-20260407T175757Z.json`
+
+Aggregate result (`18` trials):
+
+- cooperation:
+  - A: `0.9722`
+  - B: `0.9907`
+- average payoff:
+  - A: `3.9630`
+  - B: `3.9074`
+
+By prompt variant:
+
+- `minimal-neutral`
+  - cooperation: `0.9167 / 0.9722`
+- `minimal-neutral-compact`
+  - cooperation: `1.0000 / 1.0000`
+- `minimal-neutral-institutional`
+  - cooperation: `1.0000 / 1.0000`
+
+### Repaired benchmark signal now restored for the PD presentation triad
+
+The repaired benchmark track now has a finalized Prisoner's Dilemma triad in:
+
+- `results/paper_ready_benchmark_triplet/paper-benchmark-prisoners_dilemma-canonical-20260407T180145Z.json`
+- `results/paper_ready_benchmark_triplet/paper-benchmark-prisoners_dilemma-resource-20260407T180543Z.json`
+- `results/paper_ready_benchmark_triplet/paper-benchmark-prisoners_dilemma-unnamed-20260407T180147Z.json`
+
+Current repaired PD benchmark comparison:
+
+- canonical
+  - cooperation: `0.2500 / 0.3056`
+  - average payoff: `1.7500 / 1.4722`
+- resource disguise
+  - cooperation: `0.5833 / 0.6667`
+  - average payoff: `2.5000 / 2.0833`
+- unnamed / isomorphic
+  - cooperation: `0.7500 / 0.8056`
+  - average payoff: `2.7778 / 2.5000`
+
+Current repaired deltas relative to canonical:
+
+- resource disguise
+  - cooperation:
+    - A: `+0.3333`
+    - B: `+0.3611`
+  - average payoff:
+    - A: `+0.7500`
+    - B: `+0.6111`
+- unnamed / isomorphic
+  - cooperation:
+    - A: `+0.5000`
+    - B: `+0.5000`
+  - average payoff:
+    - A: `+1.0278`
+    - B: `+1.0278`
+
+The same repaired benchmark directory now also has finalized Chicken and Stag
+Hunt pairs, so the cross-game picture is now closed on the stable cohort. The
+sign of the benchmark effect is game-dependent under repaired logging:
+
+- repaired Chicken canonical
+  - cooperation: `0.9167 / 0.7778`
+- repaired Chicken unnamed
+  - cooperation: `0.4444 / 0.5833`
+- repaired Stag Hunt canonical
+  - cooperation: `0.9167 / 0.9722`
+- repaired Stag Hunt unnamed
+  - cooperation: `0.6667 / 0.8333`
+
+### Repaired susceptibility track now finalized across the three core games
+
+The repaired susceptibility rerun now has finalized artifacts in:
+
+- `results/paper_ready_susceptibility_triplet/paper-susceptibility-prisoners_dilemma-20260407T180534Z.json`
+- `results/paper_ready_susceptibility_triplet/paper-susceptibility-chicken-20260407T183534Z.json`
+- `results/paper_ready_susceptibility_triplet/paper-susceptibility-stag_hunt-20260407T184144Z.json`
+
+Final repaired cross-game susceptibility summary:
+
+- Prisoner's Dilemma
+- `competitive`
+  - cooperation: `0.0000 / 0.0000`
+  - average payoff: `1.0000 / 1.0000`
+- `cooperative`
+  - cooperation: `1.0000 / 1.0000`
+  - average payoff: `3.0000 / 3.0000`
+- `minimal-neutral`
+  - cooperation: `0.2500 / 0.3056`
+  - average payoff: `1.7500 / 1.4722`
+- Chicken
+  - `competitive`
+    - cooperation: `0.6389 / 0.3333`
+    - average payoff: `1.5556 / 2.7778`
+  - `cooperative`
+    - cooperation: `1.0000 / 1.0000`
+    - average payoff: `3.0000 / 3.0000`
+  - `minimal-neutral`
+    - cooperation: `0.9167 / 0.7778`
+    - average payoff: `2.4722 / 3.0278`
+- Stag Hunt
+  - `competitive`
+    - cooperation: `0.4167 / 0.3056`
+    - average payoff: `2.2222 / 2.5556`
+  - `cooperative`
+    - cooperation: `1.0000 / 1.0000`
+    - average payoff: `4.0000 / 4.0000`
+  - `minimal-neutral`
+    - cooperation: `0.9167 / 0.9722`
+    - average payoff: `3.8889 / 3.7222`
+
+### Why this matters
+
+These repaired Part 1 reruns now preserve the strongest qualitative signals
+from the earlier pilot:
+
+- neutral paraphrase choice materially changes measured behavior
+- the compact and institutional neutral variants are substantially more
+  cooperative than the minimal neutral wording
+- the same split now appears in two repaired same-day PD cohorts, not just one
+- repaired Chicken is much more cooperative overall and shows a smaller
+  neutral-wording spread, which strengthens the claim that wording sensitivity
+  interacts with game structure rather than acting as a uniform nuisance effect
+- repaired Stag Hunt completes the cross-game repaired baseline ordering of
+  PD < Chicken < Stag Hunt
+- the qwen-inclusive repaired cohort now reproduces that same cross-game
+  ordering, which makes the strategic-environment claim stronger than a
+  one-cohort result
+- repaired benchmark data now restores a fuller PD recognition gradient:
+  canonical < resource disguise < unnamed
+- repaired benchmark data also shows a sign reversal in Chicken, which
+  strengthens the claim that benchmark effects are game-dependent rather than
+  uniformly cooperation-increasing, and repaired Stag Hunt now shows the same
+  non-PD direction
+- repaired susceptibility data now fully re-shows the universal
+  cooperation-versus-defection split in PD and extends it across Chicken and
+  Stag Hunt, where competitive framing still suppresses cooperation but less
+  completely
+
+This matters methodologically because the new run logs the full
+`messages_sent` prompt stack. That makes these repaired Part 1 artifacts much
+easier to defend than the older under-logged evidence, and they should now be
+treated as the default Part 1 evidence for neutral robustness, benchmark
+sensitivity, and prompt steerability wherever those repaired artifacts exist.
 
 ## 1. Batch Scope And Status
 
@@ -56,24 +329,6 @@ The completed batch included:
 | Reported API cost | `0.0 USD` |
 | Tracks completed | `baseline`, `benchmark`, `susceptibility`, `society`, `reputation` |
 
-The multi-agent replication extension added:
-
-| Item | Value |
-| --- | --- |
-| Additional experiments | `3` |
-| Additional trials | `30` |
-| Additional runtime | `5847.82s` |
-| Replication directories | `results/paper_live_replicates_nocache/`, `results/paper_ready_replications/` |
-
-Expanded paper-ready empirical record:
-
-| Item | Value |
-| --- | --- |
-| Total experiments | `18` |
-| Total trials | `286` |
-| Total runtime | `9073.86s` |
-| Approximate wall-clock runtime | `2h 31m 14s` |
-
 ### Experiment Inventory
 
 | Track | Experiment | Trials | What It Tested |
@@ -92,10 +347,7 @@ Expanded paper-ready empirical record:
 | susceptibility | `paper-susceptibility-chicken` | `30` | Neutral vs cooperative vs competitive prompt framing |
 | susceptibility | `paper-susceptibility-stag_hunt` | `30` | Neutral vs cooperative vs competitive prompt framing |
 | society | `paper-society-prompts` | `3` | Multi-agent survival without explicit reputation |
-| society | `paper-society-prompts-replicated` | `6` | No-cache society replication block |
-| society | `paper-society-prompts-replicated-r4` | `12` | Paper-ready society replication block |
 | reputation | `paper-reputation-prompts` | `3` | Multi-agent survival with public reputation |
-| reputation | `paper-reputation-prompts-replicated-r4` | `12` | Paper-ready reputation replication block |
 
 ### Structural Details
 
@@ -127,16 +379,6 @@ Part 2 and Part 3 society experiments used:
 | Reproduction threshold | `15` |
 | Max agents | `12` |
 
-Multi-agent repetition structure across the completed record:
-
-- original fast batch:
-  - `1` repetition per prompt condition
-- no-cache society replication:
-  - `2` repetitions per prompt condition
-- paper-ready replication block:
-  - `4` repetitions per prompt condition for society
-  - `4` repetitions per prompt condition for reputation
-
 Part 2 society-specific settings:
 
 - stealing enabled
@@ -162,16 +404,11 @@ This is a meaningful pilot batch, not a toy smoke test. The completed run covers
 - society-level survival dynamics
 - reputation-mediated survival dynamics
 
-That is already enough to support a serious empirical narrative, and the later
-replication extension materially strengthened the weakest part of the original
-fast batch. The most important upgrade is that the multi-agent claims are no
-longer based on single prompt-condition trials:
-
-- society now has `7` prompt-condition trials per prompt variant
-- reputation now has `5` prompt-condition trials per prompt variant
-
-That is still not the final word across all model cohorts or time horizons, but
-it is strong enough for paper-ready core results.
+That is already enough to support a serious empirical narrative. The main
+limitation is not lack of breadth. The main limitation is that the society and
+reputation blocks still have low repetition counts and therefore should be
+described as strong pilot evidence rather than final high-confidence causal
+estimates.
 
 ## 2. Validity Notes Before Interpreting Results
 
@@ -452,22 +689,16 @@ behavior can be moved away from the neutral baseline.
 
 ### Setup
 
-The Part 2 society track tested three prompt conditions over a six-step
-survival simulation with eight agents:
+The Part 2 society run tested three prompt conditions over a six-step survival
+simulation with eight agents:
 
 - `task-only`
 - `cooperative`
 - `competitive`
 
-Each model contributed two agents. The evidence summarized below pools:
+Each model contributed two agents.
 
-- the original corrected Part 2 run
-- the no-cache replication block
-- the later `r4` paper-ready replication block
-
-That yields `7` prompt-condition trials per prompt variant.
-
-### Initial Pilot Signal From The Fast Batch
+### Society Results By Prompt Condition
 
 | Prompt Variant | Survival Rate | Final Survival Rate | Final Alive | Final Total | Avg Gini | Avg Trade Volume | Commons Health | Alliance Count | Commons Depletion Rate |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -488,26 +719,7 @@ Aggregate Part 2 summary:
 | Extinction event | `0.0` |
 | Alliance count | `2.0` |
 
-### Pooled Society Results Across All Replications
-
-| Prompt Variant | Trials | Survival Rate | Final Survival Rate | Final Alive | Final Total | Avg Gini | Avg Trade Volume | Commons Health | Alliance Count | Commons Depletion Rate |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| `task-only` | `7` | `1.0000` | `1.0000` | `8.0000` | `8.0000` | `0.1281` | `0.2143` | `0.2758` | `0.1429` | `0.7242` |
-| `cooperative` | `7` | `0.8214` | `0.5893` | `4.7143` | `8.0000` | `0.4722` | `5.1429` | `0.6057` | `6.4286` | `0.3943` |
-| `competitive` | `7` | `0.9792` | `0.9286` | `7.4286` | `8.0000` | `0.1134` | `2.3333` | `0.2589` | `0.0000` | `0.7411` |
-
-### Stability Across Society Replications
-
-- `task-only` reached perfect final survival in all `7 / 7` runs.
-- `competitive` stayed second-best in every replication block and never formed alliances.
-- `cooperative` remained the weakest survival condition in every replication block.
-- the cooperative condition consistently produced:
-  - the highest trade volume
-  - the highest alliance count
-  - the healthiest commons
-  - the highest inequality
-
-### Event Signatures From The Initial Pilot
+### Event Signatures
 
 Observed event counts by prompt condition:
 
@@ -527,17 +739,16 @@ Final state snapshots:
 
 ### Interpretation
 
-This remains one of the most important results in the whole project, and it is
-now materially stronger than it was in the original pilot.
+This is one of the most important results in the whole batch.
 
-The most obviously "nice" prompt still did not produce the most
-society-preserving outcome.
+The most obviously "nice" prompt did not produce the most society-preserving
+outcome.
 
 Instead:
 
-- `task-only` preserved the entire population across all pooled replications
-- `competitive` preserved most of the population and was consistently second-best
-- `cooperative` again produced the worst final survival
+- `task-only` preserved the entire population
+- `competitive` preserved most of the population
+- `cooperative` produced the worst final survival
 
 At the same time, the cooperative condition produced:
 
@@ -551,10 +762,10 @@ So we have a striking dissociation:
 - collective survival still got worse
 
 The cooperative prompt seems to have produced a more socially expressive and
-resource-sharing society, but not a more resilient one. Across replications it
-also remained the highest-inequality condition. That suggests that "more
-sharing" and "more alliances" may have concentrated resources unevenly or
-reduced survival-focused behavior in ways that harmed the population overall.
+resource-sharing society, but not a more resilient one. In this run, it also
+produced the highest inequality. That suggests that "more sharing" and "more
+alliances" may have concentrated resources unevenly or reduced survival-focused
+behavior in ways that harmed the population overall.
 
 This means a future paper should not equate:
 
@@ -578,14 +789,7 @@ conditions were tested:
 - `cooperative`
 - `competitive`
 
-The evidence summarized below pools:
-
-- the original corrected Part 3 run
-- the later `r4` paper-ready reputation replication block
-
-That yields `5` prompt-condition trials per prompt variant.
-
-### Initial Pilot Signal From The Fast Batch
+### Reputation Results By Prompt Condition
 
 | Prompt Variant | Survival Rate | Final Survival Rate | Final Alive | Final Total | Avg Gini | Avg Trade Volume | Commons Health | Alliance Count | Commons Depletion Rate |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -606,23 +810,7 @@ Aggregate Part 3 summary:
 | Extinction event | `0.0` |
 | Alliance count | `2.0` |
 
-### Pooled Reputation Results Across All Replications
-
-| Prompt Variant | Trials | Survival Rate | Final Survival Rate | Final Alive | Final Total | Avg Gini | Avg Trade Volume | Commons Health | Alliance Count | Commons Depletion Rate |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| `task-only` | `5` | `0.9625` | `0.9000` | `7.2000` | `8.0000` | `0.2306` | `1.1333` | `0.3049` | `1.2000` | `0.6951` |
-| `cooperative` | `5` | `0.8917` | `0.7750` | `6.2000` | `8.0000` | `0.4533` | `3.3000` | `0.5917` | `3.6000` | `0.4083` |
-| `competitive` | `5` | `0.9958` | `0.9750` | `7.8000` | `8.0000` | `0.1417` | `1.0667` | `0.2535` | `0.0000` | `0.7465` |
-
-### Reputation Delta Versus The Pooled Non-Reputation Society Results
-
-| Prompt Variant | Delta Survival Rate | Delta Final Survival Rate | Delta Trade Volume | Delta Gini | Delta Commons Health | Delta Alliance Count |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `task-only` | `-0.0375` | `-0.1000` | `+0.9190` | `+0.1025` | `+0.0291` | `+1.0571` |
-| `cooperative` | `+0.0703` | `+0.1857` | `-1.8429` | `-0.0189` | `-0.0140` | `-2.8286` |
-| `competitive` | `+0.0166` | `+0.0464` | `-1.2666` | `+0.0283` | `-0.0054` | `+0.0000` |
-
-### Event Signatures From The Initial Pilot
+### Event Signatures
 
 Observed event counts by prompt condition:
 
@@ -640,33 +828,34 @@ Final state snapshots:
 | `cooperative` | `5` | `31` |
 | `competitive` | `8` | `10` |
 
+### Reputation Delta Versus The Non-Reputation Society Run
+
+| Prompt Variant | Delta Survival Rate | Delta Final Survival Rate | Delta Trade Volume | Delta Gini | Delta Commons Health |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `task-only` | `0.0000` | `0.0000` | `0.0000` | `-0.0193` | `-0.0243` |
+| `cooperative` | `+0.0208` | `+0.1250` | `+1.3333` | `-0.0512` | `+0.0833` |
+| `competitive` | `+0.0625` | `+0.1250` | `+0.1667` | `-0.0042` | `-0.0035` |
+
 ### Interpretation
 
-Reputation helped somewhat, but not in the strongest possible sense, and the
-replicated result is more nuanced than the original single-run impression.
+Reputation helped somewhat, but not in the strongest possible sense.
 
 What reputation did do:
 
 - it improved the cooperative condition relative to the non-reputation version
 - it improved the competitive condition relative to the non-reputation version
-- it changed task-only from a silent near-autarkic condition into one with more
-  trade and alliances
-- it preserved the ordering that cooperative remained the highest-inequality
-  condition
+- it reduced inequality slightly in every prompt condition
 
 What reputation did not do:
 
-- it did not make the cooperative prompt the strongest condition
-- it did not produce a clean "observation fixes everything" result
-- it did not collapse all prompt conditions into one stable prosocial equilibrium
+- it did not make the cooperative prompt outperform `task-only`
+- it did not create a clean "observation fixes everything" result
 
 The strongest reading is:
 
 - observation and ratings can help stabilize some societies
-- competitive is actually the strongest pooled reputation condition
-- task-only remains strong, but is no longer perfect under replication
-- cooperative improves relative to non-reputation, but remains the weakest and
-  most variable condition
+- but they do not erase the deeper effects of prompt framing and resource-use
+  behavior
 
 This is exactly the kind of result we wanted to probe. It suggests that models
 may behave differently when watched, but the presence of observation does not
@@ -682,8 +871,8 @@ collapse every prompt condition into the same stable prosocial equilibrium.
 4. Canonical benchmark naming is not behaviorally neutral.
 5. Attitude-biasing prompts can dramatically steer outcomes.
 6. Prosocial-looking behavior and society-preserving behavior are not the same.
-7. Reputation helps some prompt conditions, but competitive remains the
-   strongest pooled reputation condition and cooperative remains the weakest.
+7. Reputation helps in some cases, but does not fully rescue poor prompt
+   conditions.
 
 ### Interpretation
 
@@ -721,55 +910,47 @@ The current batch is already strong enough to support the following claims:
 3. Benchmark presentation changes outcomes in game-dependent ways.
 4. Cooperative and competitive prompt framing can strongly steer strategic
    behavior.
-5. In the pooled society simulations, task-only robustly maximized survival and
-   cooperative prompting robustly minimized it.
-6. In the pooled reputation simulations, observation improved the cooperative
-   condition but did not make it dominant; competitive was strongest overall.
+5. In the current society simulations, cooperative prompting did not maximize
+   survival.
+6. In the current reputation simulations, observation did not fully rescue the
+   cooperative condition.
 
 ### Claims That Need More Replication Before We Push Them Hard
 
 These claims are promising, but should still be written with caution until we
 have more repetitions:
 
-1. The extent to which the pooled multi-agent findings generalize to additional
-   model cohorts beyond the current four-model set.
-2. Longer-horizon and larger-population versions of the society and reputation
-   simulations.
+1. The exact magnitude of the society survival gap between prompt conditions.
+2. The exact magnitude of the reputation improvement effect.
 3. Any very fine-grained claim about alliance formation, inequality, or commons
    preservation as stable causal mechanisms.
 
 ### Interpretation
 
-The Part 1 findings are already paper-quality evidence. The Part 2 and Part 3
-findings are now materially stronger too because they are no longer based only
-on single prompt-condition trials. That means:
+The Part 1 findings are already paper-quality pilot evidence. The Part 2 and
+Part 3 findings are also very interesting, but they are still based on single
+fast-batch prompt-condition trials. That means:
 
 - they are absolutely worth reporting
-- they are strong enough for paper-ready results tables
-- they should still avoid overclaiming generality beyond the current cohort and
-  short-horizon environments
+- they are not yet the place to make our strongest quantitative causal claims
 
 ## 10. Bottom Line
 
 ### Findings In One Paragraph
 
-Across an expanded 18-experiment, 286-trial paper-ready empirical record, LLM
-strategic behavior was highly sensitive to game structure, neutral prompt
-wording, benchmark presentation, and explicit attitude framing. Canonical
-benchmark naming altered behavior substantially, especially in Prisoner's
-Dilemma, where unnamed and resource-disguised versions were far more
-cooperative than the canonical named version. Prompt biasing strongly steered
-outcomes, with cooperative prompts driving near-maximal cooperation and
-competitive prompts driving much harsher play. After the later multi-agent
-replication extension, the strongest society-preserving condition remained the
-minimal task-only prompt, while the most overtly cooperative prompt remained
-the weakest survival condition despite producing the most trade, alliances, and
-commons preservation. Under public reputation, the cooperative condition
-improved but still did not dominate; competitive became the strongest pooled
-reputation condition. The core conclusion is that LLM "alignment" in social
-settings is not well-described by a single fixed trait. It is better understood
-as context-sensitive behavior shaped by framing, incentives, benchmark
-recognition, and institutions.
+Across a corrected 15-experiment, 256-trial paper batch, LLM strategic behavior
+was highly sensitive to game structure, neutral prompt wording, benchmark
+presentation, and explicit attitude framing. Canonical benchmark naming altered
+behavior substantially, especially in Prisoner's Dilemma, where unnamed and
+resource-disguised versions were far more cooperative than the canonical named
+version. Prompt biasing strongly steered outcomes, with cooperative prompts
+driving near-maximal cooperation and competitive prompts driving much harsher
+play. In multi-agent societies, however, the most overtly cooperative prompt did
+not preserve society best; the minimal task-only prompt produced the best
+survival outcomes, and reputation only partially improved the weaker prompt
+conditions. The core conclusion is that LLM "alignment" in social settings is
+not well-described by a single fixed trait. It is better understood as
+context-sensitive behavior shaped by framing, incentives, and institutions.
 
 ### Interpretation
 

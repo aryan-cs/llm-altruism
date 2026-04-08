@@ -2,15 +2,9 @@
 
 from __future__ import annotations
 
-import os
 import textwrap
 from itertools import combinations
-import json
 from pathlib import Path
-from urllib.error import URLError
-from urllib.request import urlopen
-
-from dotenv import load_dotenv
 
 from .config import ExperimentSettings, ModelSpec, PopulationSpec, load_experiment_config
 
@@ -69,24 +63,11 @@ KNOWN_MODELS_BY_PROVIDER: dict[str, tuple[str, ...]] = {
         "zai-glm-4.7",
     ),
     "nvidia": (
-        "mistralai/mistral-small-24b-instruct",
-        "mistralai/magistral-small-2506",
-        "tiiuae/falcon3-7b-instruct",
-        "rakuten/rakutenai-7b-instruct",
         "z-ai/glm4.7",
-        "z-ai/glm5",
-        "google/gemma-3-1b-it",
-        "google/gemma-3-27b-it",
-        "bytedance/seed-oss-36b-instruct",
         "nvidia/nemotron-content-safety-reasoning-4b",
-        "nvidia/nemotron-3-nano-30b-a3b",
-        "nvidia/nemotron-3-super-120b-a12b",
         "deepseek-ai/deepseek-v3.2",
-        "moonshotai/kimi-k2-instruct",
-        "moonshotai/kimi-k2-instruct-0905",
         "moonshotai/kimi-k2-thinking",
         "nvidia/llama-3.1-nemotron-safety-guard-8b-v3",
-        "stepfun-ai/step-3-5-flash",
     ),
     "openrouter": (
         "nvidia/nemotron-3-nano-30b-a3b:free",
@@ -103,33 +84,6 @@ KNOWN_MODELS_BY_PROVIDER: dict[str, tuple[str, ...]] = {
     ),
     "ollama": ("llama3.2:3b",),
 }
-
-
-def discover_ollama_models() -> tuple[str, ...]:
-    """Return locally installed Ollama models when the local endpoint is available."""
-    load_dotenv(ROOT / ".env", override=False)
-    base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
-    static_models = KNOWN_MODELS_BY_PROVIDER["ollama"]
-
-    try:
-        with urlopen(f"{base_url}/api/tags", timeout=3.0) as response:
-            payload = json.loads(response.read().decode("utf-8"))
-    except (OSError, URLError, TimeoutError, ValueError, json.JSONDecodeError):
-        return static_models
-
-    dynamic_models = [
-        item.get("name", "").strip()
-        for item in payload.get("models", [])
-        if isinstance(item, dict) and item.get("name")
-    ]
-    merged = []
-    seen: set[str] = set()
-    for model in [*dynamic_models, *static_models]:
-        if not model or model in seen:
-            continue
-        seen.add(model)
-        merged.append(model)
-    return tuple(merged) if merged else static_models
 
 
 def list_experiment_templates() -> list[Path]:
@@ -215,8 +169,6 @@ def known_model_specs() -> list[ModelSpec]:
     """Return the flattened interactive catalog of known models."""
     specs: list[ModelSpec] = []
     for provider, models in KNOWN_MODELS_BY_PROVIDER.items():
-        if provider == "ollama":
-            models = discover_ollama_models()
         for model in models:
             specs.append(ModelSpec(model=model, provider=provider))
     return specs

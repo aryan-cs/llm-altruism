@@ -786,151 +786,296 @@ Two important fixes were applied and are reflected in the corrected paper batch:
 4. Keep using `uv`.
 5. Keep committing and pushing after every tested checkpoint.
 
-## Update 2026-04-07: Replicated Society And Reputation Pass Completed
+## Update 2026-04-07: Paper-Readiness Push
 
-### Tooling added before the live rerun
+### Infrastructure / validity work completed
 
-- Extended `scripts/run_paper_batch.py` with:
-  - `--multiagent-repetitions`
-  - `--multiagent-concurrency`
-  - `--name-suffix`
-- Extended `scripts/paper_summary.py` to compute pooled prompt-variant summaries
-  across multiple result files and write:
-  - `summary_with_replications.md`
-  - `summary_with_replications.csv`
-- Added and passed focused tests:
-  - `uv run pytest -q tests/test_paper_batch.py tests/test_paper_summary.py`
-  - result: `6 passed`
+- Pulled the latest GitHub repo into the workspace and preserved the local
+  in-progress changes on top of upstream.
+- Confirmed the biggest remaining Part 1 validity issue from the handoff:
+  logs previously preserved only `prompt_sent`, not the full effective prompt
+  stack.
+- Fixed Part 1 logging so round records now also store:
+  - `messages_sent`
+  This captures the full system + framing + persona + memory + user prompt
+  message list actually sent to the model.
+- Added regression coverage for the prompt-stack logging change.
+- Expanded `scripts/paper_summary.py` so pooled prompt-condition summaries now
+  also compute bootstrap-style mean confidence intervals.
+- Added paper-summary regression tests for the new CI path.
 
-### Live replication commands completed
+### Verification completed
 
-- Society and reputation replication batch:
-  - `uv run python scripts/run_paper_batch.py --track society --track reputation --fast --multiagent-repetitions 4 --multiagent-concurrency 4 --name-suffix replicated-r4 --results-dir results/paper_ready_replications`
-- Pooled paper summary refresh:
-  - `uv run python scripts/paper_summary.py results/paper_live_clean/*.json results/paper_live_replicates_nocache/paper-society-prompts-replicated-*.json results/paper_ready_replications/paper-society-prompts-replicated-r4-*.json results/paper_ready_replications/paper-reputation-prompts-replicated-r4-*.json --markdown results/paper_ready_replications/summary_with_replications.md --csv results/paper_ready_replications/summary_with_replications.csv`
+- `uv run pytest -q tests/test_experiments.py tests/test_agents.py tests/test_selection.py`
+  passed.
+- `uv run pytest -q tests/test_paper_summary.py tests/test_experiments.py`
+  passed.
+- `uv run pytest -q tests --ignore=tests/test_readiness.py`
+  passed.
 
-### Operational observation: overnight resilience worked
+### Live environment state observed
 
-- The live batch encountered real transient failures:
-  - Cerebras `429` queue-limit responses
-  - transient NVIDIA network/provider failures
-- The retry and backoff logic handled these correctly.
-- The batch continued to completion instead of dying mid-run.
+Configured providers in this workspace now include:
 
-This is important for future paper work because it means the current experiment
-stack is now demonstrating the long-run behavior we wanted:
+- Google
+- Cerebras
+- OpenRouter
+- NVIDIA
 
-- resumable batches
-- rate-limit tolerance
-- transient-failure tolerance
+Observed live status:
 
-### New result artifacts
+- `cerebras:llama3.1-8b`
+  - reachable
+  - experiment-ready
+- `cerebras:qwen-3-235b-a22b-instruct-2507`
+  - experiment-ready in the startup probe
+  - but heavily queue/rate-limited during the live baseline batch
+- `nvidia:deepseek-ai/deepseek-v3.2`
+  - reachable
+  - experiment-ready
+- `nvidia:moonshotai/kimi-k2-instruct`
+  - experiment-ready
+- `nvidia:moonshotai/kimi-k2-instruct-0905`
+  - experiment-ready
+- `nvidia:z-ai/glm4.7`
+  - reachable
+  - not experiment-ready (`ambiguous action output`)
+- `nvidia:moonshotai/kimi-k2-thinking`
+  - not experiment-ready (`ambiguous action output`)
+- `nvidia:bytedance/seed-oss-36b-instruct`
+  - not experiment-ready (`ambiguous action output`)
+- OpenRouter and Google:
+  - reachable
+  - currently rate-limited in smoke tests
 
-- `results/paper_ready_replications/paper-society-prompts-replicated-r4-20260407T011033Z.json`
-- `results/paper_ready_replications/paper-reputation-prompts-replicated-r4-20260407T014505Z.json`
-- `results/paper_ready_replications/summary_with_replications.md`
-- `results/paper_ready_replications/summary_with_replications.csv`
+### Empirical runs started
 
-### Pooled society result after replication
+#### 1. qwen-inclusive baseline batch
 
-Evidence base:
+Started:
 
-- original corrected society run
-- no-cache society replication block
-- `r4` society replication block
+- `results/paper_ready_replications/`
 
-This yields `7` society prompt-condition trials per prompt variant.
+Batch:
 
-Pooled means:
+- `uv run python scripts/run_paper_batch.py --track baseline --model cerebras:llama3.1-8b --model cerebras:qwen-3-235b-a22b-instruct-2507 --model nvidia:deepseek-ai/deepseek-v3.2 --results-dir results/paper_ready_replications`
 
-- `task-only`
-  - survival rate: `1.0000`
-  - final survival rate: `1.0000`
-  - trade volume: `0.2143`
-  - gini: `0.1281`
-  - commons health: `0.2758`
-  - alliances: `0.1429`
-- `cooperative`
-  - survival rate: `0.8214`
-  - final survival rate: `0.5893`
-  - trade volume: `5.1429`
-  - gini: `0.4722`
-  - commons health: `0.6057`
-  - alliances: `6.4286`
-- `competitive`
-  - survival rate: `0.9792`
-  - final survival rate: `0.9286`
-  - trade volume: `2.3333`
-  - gini: `0.1134`
-  - commons health: `0.2589`
-  - alliances: `0.0000`
+Observed issue:
 
-Interpretation:
-
-- the original Part 2 pilot finding held up under replication
-- `task-only` is the most robust society-preserving condition
-- `competitive` is second-best
-- `cooperative` remains clearly worst on survival despite producing the most
-  trade, the most alliances, and the healthiest commons
-
-### Pooled reputation result after replication
-
-Evidence base:
-
-- original corrected reputation run
-- `r4` reputation replication block
-
-This yields `5` reputation prompt-condition trials per prompt variant.
-
-Pooled means:
-
-- `task-only`
-  - survival rate: `0.9625`
-  - final survival rate: `0.9000`
-  - trade volume: `1.1333`
-  - gini: `0.2306`
-  - commons health: `0.3049`
-  - alliances: `1.2000`
-- `cooperative`
-  - survival rate: `0.8917`
-  - final survival rate: `0.7750`
-  - trade volume: `3.3000`
-  - gini: `0.4533`
-  - commons health: `0.5917`
-  - alliances: `3.6000`
-- `competitive`
-  - survival rate: `0.9958`
-  - final survival rate: `0.9750`
-  - trade volume: `1.0667`
-  - gini: `0.1417`
-  - commons health: `0.2535`
-  - alliances: `0.0000`
+- the run started correctly and produced:
+  - `paper-baseline-prisoners_dilemma-20260407T172819Z.jsonl`
+- however, `cerebras:qwen-3-235b-a22b-instruct-2507` quickly became the main
+  bottleneck due repeated queue/rate-limit backoff.
 
 Interpretation:
 
-- reputation improves the cooperative condition relative to the non-reputation
-  pooled society baseline
-- reputation slightly improves the competitive condition and makes it the
-  strongest overall reputation condition
-- task-only remains strong, but is no longer perfect once replicated under
-  observation
-- the best-supported reputation claim is now:
-  observation changes behavior, but does not collapse all prompt conditions into
-  the same stable prosocial equilibrium
+- keep this run alive if possible, but do not depend on it as the only path to
+  paper-ready baseline results.
 
-### Current paper-ready record
+#### 2. triplet fallback baseline batch
 
-Use these as the canonical sources now:
+Started:
 
-- `agent/FINDINGS.md`
-- `agent/PAPERRESULTS.md`
-- `results/paper_ready_replications/summary_with_replications.md`
+- `results/paper_ready_baseline_triplet/`
 
-### Current resume point
+Batch:
 
-If continuing from here:
+- `uv run python scripts/run_paper_batch.py --track baseline --model cerebras:llama3.1-8b --model nvidia:deepseek-ai/deepseek-v3.2 --model nvidia:moonshotai/kimi-k2-instruct-0905 --results-dir results/paper_ready_baseline_triplet`
 
-1. read `results/paper_ready_replications/summary_with_replications.md`
-2. draft manuscript figures and the Results section from the pooled tables
-3. keep using `uv`
-4. keep committing and pushing after every checkpoint
+Why:
+
+- same validity-repair objective
+- still preserves self-play + cross-play
+- avoids the qwen Cerebras queue bottleneck
+
+Observed status:
+
+- this run is actively writing
+  - `paper-baseline-prisoners_dilemma-20260407T173331Z.jsonl`
+- early signs are much healthier than the qwen-inclusive run
+
+### Paper-prep work completed
+
+- Added a related-work / novelty map:
+  - `agent/LITERATURE.md`
+
+This document now records the core prior-work spine for the paper, including:
+
+- Lorè & Heydari (2024)
+- repeated-games work
+- dictator/social-preference benchmark work
+- public-goods / multi-agent cooperation work
+- multi-agent evaluation / society papers
+
+and states the clearest paper gap:
+
+- neutral baseline vs prompt susceptibility vs benchmark recognition vs
+  institution-mediated behavior should be separated rather than conflated.
+
+### Best current resume point
+
+1. Let `results/paper_ready_baseline_triplet/` continue and prioritize it over
+   the qwen-inclusive batch if time is limited.
+2. Once the triplet baseline batch finishes:
+   - run `scripts/paper_summary.py`
+   - update `agent/FINDINGS.md`
+   - update `agent/PAPERRESULTS.md`
+3. Then launch the next strongest paper tracks with the same working cohort:
+   - benchmark
+   - susceptibility
+4. Only after that, return to society / reputation replications with the best
+   available stable cohort.
+
+### Later 2026-04-07 update: finalized repaired PD + summary fix
+
+- The triplet repaired baseline rerun completed:
+  - `results/paper_ready_baseline_triplet/paper-baseline-prisoners_dilemma-20260407T173331Z.json`
+- Final repaired PD aggregate:
+  - cooperation rate A: `0.4722`
+  - cooperation rate B: `0.5463`
+  - average payoff A: `2.2500`
+  - average payoff B: `1.8796`
+- Final repaired PD prompt-variant means:
+  - `minimal-neutral`
+    - cooperation: `0.2500 / 0.3056`
+  - `minimal-neutral-compact`
+    - cooperation: `0.5833 / 0.6667`
+  - `minimal-neutral-institutional`
+    - cooperation: `0.5833 / 0.6667`
+- This confirms that the neutral-paraphrase sensitivity signal survives the
+  prompt-stack logging repair.
+- Found and fixed a summary-path bug in `scripts/paper_summary.py`:
+  directories containing both a finalized experiment `.json` and its source
+  `.jsonl` were double-counting the same experiment.
+- The summary tool now prefers finalized `.json` over partial `.jsonl` for the
+  same logical experiment name, and later completed reruns over earlier ones,
+  which keeps live paper summaries and figures correct across interrupted
+  retries.
+- Added regression coverage for this de-duplication behavior.
+- Verification:
+  - `uv run pytest -q tests/test_paper_summary.py`
+    passed.
+- Refreshed:
+  - `results/paper_ready_baseline_triplet/interim_summary.md`
+  - `results/paper_ready_baseline_triplet/interim_summary.csv`
+- Also observed that the qwen-inclusive repaired baseline path completed its
+  own PD rerun:
+  - `results/paper_ready_replications/paper-baseline-prisoners_dilemma-20260407T172819Z.json`
+- qwen-inclusive repaired PD aggregate:
+  - cooperation rate A: `0.4815`
+  - cooperation rate B: `0.5370`
+- qwen-inclusive repaired PD prompt-variant means:
+  - `minimal-neutral`
+    - cooperation: `0.2778 / 0.2778`
+  - `minimal-neutral-compact`
+    - cooperation: `0.5833 / 0.6667`
+  - `minimal-neutral-institutional`
+    - cooperation: `0.5833 / 0.6667`
+- Pooled across both repaired PD cohorts:
+  - `minimal-neutral`
+    - cooperation: `0.2639 / 0.2917`
+  - `minimal-neutral-compact`
+    - cooperation: `0.5833 / 0.6667`
+  - `minimal-neutral-institutional`
+    - cooperation: `0.5833 / 0.6667`
+- This is now a same-day repaired replication of the key neutral-paraphrase
+  result across two distinct three-model cohorts.
+- Added paper-figure generation:
+  - `scripts/paper_figures.py`
+- Added plotting regression coverage:
+  - `tests/test_paper_figures.py`
+- Generated repaired-PD figure artifacts:
+  - `paper/figures/repaired_pd/baseline_prompt_variants_cooperation.png`
+  - `paper/figures/repaired_pd_replications/baseline_prompt_variants_cooperation.png`
+- Generated static qwen-inclusive repaired PD summaries:
+  - `results/paper_ready_replications/paper-baseline-prisoners_dilemma-20260407T172819Z.summary.md`
+  - `results/paper_ready_replications/paper-baseline-prisoners_dilemma-20260407T172819Z.summary.csv`
+- Current triplet-batch state after the repaired PD finish:
+  - Chicken completed in:
+    - `results/paper_ready_baseline_triplet/paper-baseline-chicken-20260407T174438Z.json`
+  - Stag Hunt also completed in:
+    - `results/paper_ready_baseline_triplet/paper-baseline-stag_hunt-20260407T175757Z.json`
+- repaired Chicken aggregate:
+  - cooperation rate A: `0.9074`
+  - cooperation rate B: `0.7870`
+  - average payoff A: `2.5093`
+  - average payoff B: `2.9907`
+- repaired Chicken prompt-variant means:
+  - `minimal-neutral`
+    - cooperation: `0.9167 / 0.7778`
+  - `minimal-neutral-compact`
+    - cooperation: `0.9167 / 0.7500`
+  - `minimal-neutral-institutional`
+    - cooperation: `0.8889 / 0.8333`
+- This is useful paper evidence because it shows the repaired baseline story is
+  not “prompts always dominate everything in the same way.”
+  Prisoner's Dilemma is strongly neutral-wording-sensitive, while Chicken stays
+  highly cooperative across all three neutral variants.
+- Generated a live cross-game baseline figure:
+  - `paper/figures/triplet_live/baseline_prompt_variants_cooperation.png`
+- Started repaired benchmark rerun on the same stable triplet cohort:
+  - `results/paper_ready_benchmark_triplet/`
+- Repaired benchmark progress:
+  - canonical PD completed in
+    - `paper-benchmark-prisoners_dilemma-canonical-20260407T180145Z.json`
+  - resource-disguise PD completed in
+    - `paper-benchmark-prisoners_dilemma-resource-20260407T180543Z.json`
+  - unnamed PD completed in
+    - `paper-benchmark-prisoners_dilemma-unnamed-20260407T180147Z.json`
+  - canonical Chicken completed in
+    - `paper-benchmark-chicken-canonical-20260407T180951Z.json`
+  - unnamed Chicken completed in
+    - `paper-benchmark-chicken-unnamed-20260407T180952Z.json`
+  - canonical Stag Hunt completed in
+    - `paper-benchmark-stag_hunt-canonical-20260407T181612Z.json`
+  - unnamed Stag Hunt completed in
+    - `paper-benchmark-stag_hunt-unnamed-20260407T183502Z.json`
+- Current repaired PD benchmark comparison:
+  - canonical cooperation: `0.2500 / 0.3056`
+  - resource cooperation: `0.5833 / 0.6667`
+  - unnamed cooperation: `0.7500 / 0.8056`
+  - canonical -> resource delta: `+0.3333 / +0.3611`
+  - canonical -> unnamed delta: `+0.5000 / +0.5000`
+- Current repaired Chicken benchmark comparison:
+  - canonical cooperation: `0.9167 / 0.7778`
+  - unnamed cooperation: `0.4444 / 0.5833`
+- Current repaired Stag Hunt benchmark comparison:
+  - canonical cooperation: `0.9167 / 0.9722`
+  - unnamed cooperation: `0.6667 / 0.8333`
+- This means the strongest benchmark-recognition result from the pilot already
+  survives the repaired rerun, and the final repaired benchmark table is now
+  visibly game-dependent across all three core games.
+- Generated current live benchmark figure:
+  - `paper/figures/benchmark_live/benchmark_presentations_cooperation.png`
+- Started repaired susceptibility rerun on the same stable triplet cohort:
+  - `results/paper_ready_susceptibility_triplet/`
+- Repaired PD susceptibility finalized in
+  - `paper-susceptibility-prisoners_dilemma-20260407T180534Z.json`
+- Repaired PD susceptibility summary:
+  - `competitive`: `0.0000 / 0.0000`
+  - `cooperative`: `1.0000 / 1.0000`
+  - `minimal-neutral`: `0.2500 / 0.3056`
+- Repaired Chicken susceptibility finalized in
+  - `paper-susceptibility-chicken-20260407T183534Z.json`
+- Repaired Stag Hunt susceptibility finalized in
+  - `paper-susceptibility-stag_hunt-20260407T184144Z.json`
+- Repaired Chicken susceptibility summary:
+  - `competitive`: `0.6389 / 0.3333`
+  - `cooperative`: `1.0000 / 1.0000`
+  - `minimal-neutral`: `0.9167 / 0.7778`
+- Repaired Stag Hunt susceptibility summary:
+  - `competitive`: `0.4167 / 0.3056`
+  - `cooperative`: `1.0000 / 1.0000`
+  - `minimal-neutral`: `0.9167 / 0.9722`
+- This means the repaired prompt-steerability track is now finalized across the
+  three core games, and its magnitude is clearly game-dependent rather than
+  uniform.
+- Updated resume point:
+  1. Use the repaired triplet baseline table, not the older under-logged PD
+     table, for all neutral-paraphrase paper claims.
+  2. Use the repaired benchmark and repaired susceptibility triplets as the
+     default Part 1 evidence wherever those repaired artifacts exist.
+  3. Note that the qwen-inclusive repaired baseline path also completed Stag
+     Hunt, so the cross-game ordering now replicates across two cohorts.
+  4. Promote the completed repaired benchmark and susceptibility tables into
+     the manuscript bundle.

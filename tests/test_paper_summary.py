@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
 import sys
 
@@ -67,6 +68,19 @@ def test_pooled_prompt_variant_frame_aggregates_raw_trial_rows():
     assert task_only["trial_count"] == 2
     assert task_only["survival_rate"] == 0.875
     assert task_only["final_survival_rate"] == 0.75
+    assert "survival_rate_ci95_low" in task_only.index
+    assert "survival_rate_ci95_high" in task_only.index
+
+
+def test_bootstrap_mean_ci_collapses_to_point_for_single_observation():
+    """A single observation should yield a degenerate confidence interval."""
+    module = _load_paper_summary_module()
+
+    mean, ci_low, ci_high = module.bootstrap_mean_ci([0.875])
+
+    assert mean == 0.875
+    assert ci_low == 0.875
+    assert ci_high == 0.875
 
 
 def test_render_markdown_includes_pooled_prompt_section():
@@ -85,6 +99,10 @@ def test_render_markdown_includes_pooled_prompt_section():
                 "trial_count": 4,
                 "survival_rate": 1.0,
                 "final_survival_rate": 0.875,
+                "survival_rate_ci95_low": 0.75,
+                "survival_rate_ci95_high": 1.0,
+                "final_survival_rate_ci95_low": 0.5,
+                "final_survival_rate_ci95_high": 1.0,
             }
         ]
     )
@@ -93,3 +111,310 @@ def test_render_markdown_includes_pooled_prompt_section():
 
     assert "## Pooled Prompt Variant Summary" in markdown
     assert "task-only" in markdown
+    assert "1.0000 [0.7500, 1.0000]" in markdown
+
+
+def test_load_partial_jsonl_summary_recovers_trial_metadata(tmp_path: Path):
+    """Active JSONL logs should be convertible into partial experiment summaries."""
+    module = _load_paper_summary_module()
+    log_path = tmp_path / "partial.jsonl"
+    log_path.write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "type": "experiment_start",
+                        "experiment_id": "paper-baseline-prisoners_dilemma-20260407T000000Z",
+                        "config": {
+                            "experiment": {
+                                "name": "paper-baseline-prisoners_dilemma",
+                                "part": 1,
+                                "game": "prisoners_dilemma",
+                                "repetitions": 1,
+                                "prompt_variants": [
+                                    {"name": "minimal-neutral"},
+                                    {"name": "minimal-neutral-compact"},
+                                ],
+                                "parameters": {"temperature": [0.0]},
+                            },
+                            "run_metadata": {"track": "baseline", "presentation": "canonical"},
+                        },
+                    }
+                ),
+                json.dumps(
+                    {
+                        "type": "trial_summary",
+                        "trial_id": 0,
+                        "summary": {
+                            "average_payoff_a": 1.0,
+                            "average_payoff_b": 2.0,
+                            "cooperation_rate_a": 0.0,
+                            "cooperation_rate_b": 0.5,
+                        },
+                    }
+                ),
+                json.dumps(
+                    {
+                        "type": "trial_summary",
+                        "trial_id": 1,
+                        "summary": {
+                            "average_payoff_a": 3.0,
+                            "average_payoff_b": 3.0,
+                            "cooperation_rate_a": 1.0,
+                            "cooperation_rate_b": 1.0,
+                        },
+                    }
+                ),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    summary = module.load_partial_jsonl_summary(log_path)
+
+    assert summary is not None
+    assert summary["experiment_id"] == "paper-baseline-prisoners_dilemma-20260407T000000Z"
+    assert summary["trials"][0]["prompt_variant"] == "minimal-neutral"
+    assert summary["trials"][1]["prompt_variant"] == "minimal-neutral-compact"
+    assert summary["aggregate_summary"]["average_payoff_a"] == 2.0
+
+
+def test_collect_unique_summaries_prefers_final_json_over_partial_jsonl(tmp_path: Path):
+    """Directory summaries should not double count a finalized experiment."""
+    module = _load_paper_summary_module()
+    experiment_id = "paper-baseline-prisoners_dilemma-20260407T000000Z"
+
+    final_path = tmp_path / f"{experiment_id}.json"
+    final_path.write_text(
+        json.dumps(
+            {
+                "experiment_id": experiment_id,
+                "config": {
+                    "experiment": {
+                        "name": "paper-baseline-prisoners_dilemma",
+                        "part": 1,
+                        "game": "prisoners_dilemma",
+                    },
+                    "run_metadata": {
+                        "track": "baseline",
+                        "presentation": "canonical",
+                    },
+                },
+                "trials": [
+                    {
+                        "trial_id": 0,
+                        "prompt_variant": "minimal-neutral",
+                        "repetition": 0,
+                        "summary": {
+                            "cooperation_rate_a": 0.0,
+                            "cooperation_rate_b": 0.5,
+                        },
+                    },
+                    {
+                        "trial_id": 1,
+                        "prompt_variant": "minimal-neutral-compact",
+                        "repetition": 0,
+                        "summary": {
+                            "cooperation_rate_a": 1.0,
+                            "cooperation_rate_b": 1.0,
+                        },
+                    },
+                ],
+                "aggregate_summary": {
+                    "cooperation_rate_a": 0.5,
+                    "cooperation_rate_b": 0.75,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    partial_path = tmp_path / f"{experiment_id}.jsonl"
+    partial_path.write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "type": "experiment_start",
+                        "experiment_id": experiment_id,
+                        "config": {
+                            "experiment": {
+                                "name": "paper-baseline-prisoners_dilemma",
+                                "part": 1,
+                                "game": "prisoners_dilemma",
+                                "repetitions": 1,
+                                "prompt_variants": [
+                                    {"name": "minimal-neutral"},
+                                    {"name": "minimal-neutral-compact"},
+                                ],
+                                "parameters": {"temperature": [0.0]},
+                            },
+                            "run_metadata": {
+                                "track": "baseline",
+                                "presentation": "canonical",
+                            },
+                        },
+                    }
+                ),
+                json.dumps(
+                    {
+                        "type": "trial_summary",
+                        "trial_id": 0,
+                        "summary": {
+                            "cooperation_rate_a": 0.0,
+                            "cooperation_rate_b": 0.5,
+                        },
+                    }
+                ),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    summaries = module.collect_unique_summaries([tmp_path])
+
+    assert len(summaries) == 1
+    assert summaries[0]["experiment_id"] == experiment_id
+    assert len(summaries[0]["trials"]) == 2
+
+
+def test_collect_unique_summaries_prefers_completed_json_over_newer_partial_retry(
+    tmp_path: Path,
+):
+    """A newer partial retry should not displace the latest completed result for the same name."""
+    module = _load_paper_summary_module()
+    experiment_name = "paper-benchmark-stag_hunt-unnamed"
+    completed_id = f"{experiment_name}-20260407T183502Z"
+    partial_retry_id = f"{experiment_name}-20260407T184144Z"
+
+    (tmp_path / f"{completed_id}.json").write_text(
+        json.dumps(
+            {
+                "experiment_id": completed_id,
+                "config": {
+                    "experiment": {
+                        "name": experiment_name,
+                        "part": 1,
+                        "game": "stag_hunt",
+                    },
+                    "run_metadata": {
+                        "track": "benchmark",
+                        "presentation": "unnamed",
+                    },
+                },
+                "trials": [
+                    {
+                        "trial_id": 0,
+                        "prompt_variant": "minimal-neutral",
+                        "repetition": 0,
+                        "summary": {
+                            "cooperation_rate_a": 0.5,
+                            "cooperation_rate_b": 0.5,
+                        },
+                    }
+                ],
+                "aggregate_summary": {
+                    "cooperation_rate_a": 0.5,
+                    "cooperation_rate_b": 0.5,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    (tmp_path / f"{partial_retry_id}.jsonl").write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "type": "experiment_start",
+                        "experiment_id": partial_retry_id,
+                        "config": {
+                            "experiment": {
+                                "name": experiment_name,
+                                "part": 1,
+                                "game": "stag_hunt",
+                                "repetitions": 1,
+                                "prompt_variants": [{"name": "minimal-neutral"}],
+                                "parameters": {"temperature": [0.0]},
+                            },
+                            "run_metadata": {
+                                "track": "benchmark",
+                                "presentation": "unnamed",
+                            },
+                        },
+                    }
+                ),
+                json.dumps(
+                    {
+                        "type": "trial_summary",
+                        "trial_id": 0,
+                        "summary": {
+                            "cooperation_rate_a": 1.0,
+                            "cooperation_rate_b": 1.0,
+                        },
+                    }
+                ),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    summaries = module.collect_unique_summaries([tmp_path])
+
+    assert len(summaries) == 1
+    assert summaries[0]["experiment_id"] == completed_id
+    assert summaries[0]["aggregate_summary"]["cooperation_rate_a"] == 0.5
+
+
+def test_collect_unique_summaries_prefers_latest_completed_json_for_same_name(tmp_path: Path):
+    """Multiple completed reruns should collapse to the latest experiment id for one name."""
+    module = _load_paper_summary_module()
+    experiment_name = "paper-susceptibility-stag_hunt"
+    older_id = f"{experiment_name}-20260407T183735Z"
+    newer_id = f"{experiment_name}-20260407T184144Z"
+
+    for experiment_id, cooperation_rate in [(older_id, 0.5), (newer_id, 0.75)]:
+        (tmp_path / f"{experiment_id}.json").write_text(
+            json.dumps(
+                {
+                    "experiment_id": experiment_id,
+                    "config": {
+                        "experiment": {
+                            "name": experiment_name,
+                            "part": 1,
+                            "game": "stag_hunt",
+                        },
+                        "run_metadata": {
+                            "track": "susceptibility",
+                            "presentation": "canonical",
+                        },
+                    },
+                    "trials": [
+                        {
+                            "trial_id": 0,
+                            "prompt_variant": "minimal-neutral",
+                            "repetition": 0,
+                            "summary": {
+                                "cooperation_rate_a": cooperation_rate,
+                                "cooperation_rate_b": cooperation_rate,
+                            },
+                        }
+                    ],
+                    "aggregate_summary": {
+                        "cooperation_rate_a": cooperation_rate,
+                        "cooperation_rate_b": cooperation_rate,
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    summaries = module.collect_unique_summaries([tmp_path])
+
+    assert len(summaries) == 1
+    assert summaries[0]["experiment_id"] == newer_id
+    assert summaries[0]["aggregate_summary"]["cooperation_rate_a"] == 0.75

@@ -111,3 +111,25 @@ def test_build_experiment_plan_applies_multiagent_overrides():
     assert reputation.repetitions == 4
     assert society.parameters.concurrency == 3
     assert reputation.parameters.concurrency == 3
+
+
+def test_paper_batch_configs_use_finite_rate_limit_retries():
+    """Paper batch configs should eventually skip a persistently congested model."""
+    module = _load_paper_batch_module()
+    models = [
+        ModelSpec(model="llama3.1-8b", provider="cerebras"),
+        ModelSpec(model="deepseek-ai/deepseek-v3.2", provider="nvidia"),
+    ]
+
+    plan = module.build_experiment_plan(
+        models,
+        fast=True,
+        multiagent_repetitions=1,
+        multiagent_concurrency=2,
+        name_suffix="",
+    )
+
+    for _track, config, _meta in plan:
+        assert config.parameters.max_rate_limit_retries == (
+            module.DEFAULT_PAPER_BATCH_MAX_RATE_LIMIT_RETRIES
+        )
