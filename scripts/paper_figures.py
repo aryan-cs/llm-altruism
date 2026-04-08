@@ -371,6 +371,134 @@ def summarize_round_metric_frame(
     return pd.DataFrame(rows)
 
 
+def summarize_society_phase_frame(
+    round_frame: pd.DataFrame,
+    *,
+    summary_module: Any | None = None,
+) -> pd.DataFrame:
+    """Aggregate collapse-window and plateau-window means across society trials."""
+    required = {
+        "track",
+        "prompt_variant",
+        "trial_id",
+        "timestep",
+        "alive_count",
+        "total_agents",
+        "public_food",
+        "public_water",
+        "average_health",
+        "average_energy",
+        "death_count",
+    }
+    if round_frame.empty or not required.issubset(set(round_frame.columns)):
+        return pd.DataFrame()
+
+    if summary_module is None:
+        summary_module = load_paper_summary_module()
+
+    subset = round_frame[round_frame.get("track").isin(["society", "reputation"])].copy()
+    if subset.empty:
+        return pd.DataFrame()
+
+    metric_names = [
+        "alive_count",
+        "public_food",
+        "public_water",
+        "average_health",
+        "average_energy",
+    ]
+    trial_phase_rows: list[dict[str, Any]] = []
+
+    for (track, prompt_variant, trial_id), group in subset.groupby(
+        ["track", "prompt_variant", "trial_id"],
+        dropna=False,
+    ):
+        trial_frame = group.sort_values("timestep").copy()
+        latest_alive = trial_frame["alive_count"].iloc[-1]
+        first_loss_timestep = next(
+            (
+                int(row.timestep)
+                for row in trial_frame.itertuples()
+                if pd.notna(row.alive_count)
+                and pd.notna(row.total_agents)
+                and float(row.alive_count) < float(row.total_agents)
+            ),
+            None,
+        )
+        last_death_timestep = next(
+            (
+                int(row.timestep)
+                for row in reversed(list(trial_frame.itertuples()))
+                if pd.notna(row.death_count) and float(row.death_count) > 0
+            ),
+            None,
+        )
+        stability_start_timestep = next(
+            (
+                int(row.timestep) + 1
+                for row in reversed(list(trial_frame.itertuples()))
+                if pd.notna(row.alive_count) and float(row.alive_count) != float(latest_alive)
+            ),
+            int(trial_frame["timestep"].iloc[0]),
+        )
+        stabilized_post_collapse = bool(
+            last_death_timestep is not None
+            and int(trial_frame["timestep"].iloc[-1]) - int(last_death_timestep) >= 5
+            and stability_start_timestep == last_death_timestep
+        )
+
+        phase_specs: list[tuple[str, pd.DataFrame]] = []
+        if first_loss_timestep is not None and last_death_timestep is not None:
+            collapse_frame = trial_frame[
+                (trial_frame["timestep"] >= first_loss_timestep)
+                & (trial_frame["timestep"] <= last_death_timestep)
+            ].copy()
+            if not collapse_frame.empty:
+                phase_specs.append(("collapse", collapse_frame))
+        if stabilized_post_collapse:
+            plateau_frame = trial_frame[trial_frame["timestep"] >= stability_start_timestep].copy()
+            if not plateau_frame.empty:
+                phase_specs.append(("plateau", plateau_frame))
+
+        for phase, phase_frame in phase_specs:
+            row: dict[str, Any] = {
+                "track": track,
+                "prompt_variant": prompt_variant,
+                "trial_id": trial_id,
+                "phase": phase,
+                "phase_rounds": int(len(phase_frame)),
+            }
+            for metric_name in metric_names:
+                row[metric_name] = float(phase_frame[metric_name].mean())
+            trial_phase_rows.append(row)
+
+    if not trial_phase_rows:
+        return pd.DataFrame()
+
+    trial_phase_frame = pd.DataFrame(trial_phase_rows)
+    rows: list[dict[str, Any]] = []
+    for (track, prompt_variant, phase), group in trial_phase_frame.groupby(
+        ["track", "prompt_variant", "phase"],
+        dropna=False,
+    ):
+        row: dict[str, Any] = {
+            "track": track,
+            "prompt_variant": prompt_variant,
+            "phase": phase,
+        }
+        for metric_name in ["phase_rounds", *metric_names]:
+            values = group[metric_name].dropna().tolist()
+            if not values:
+                continue
+            mean, ci_low, ci_high = summary_module.bootstrap_mean_ci(values)
+            row[metric_name] = mean
+            row[f"{metric_name}_ci95_low"] = ci_low
+            row[f"{metric_name}_ci95_high"] = ci_high
+        rows.append(row)
+
+    return pd.DataFrame(rows)
+
+
 def build_event_mix_frame(event_frame: pd.DataFrame) -> pd.DataFrame:
     if event_frame.empty or "event_kind" not in event_frame.columns or "track" not in event_frame.columns:
         return pd.DataFrame()
@@ -1166,6 +1294,95 @@ def save_society_model_vitals_timeline_figure(
     return output_path
 
 
+def save_society_phase_window_figure(
+    round_frame: pd.DataFrame,
+    *,
+    output_path: Path,
+    title: str,
+) -> Path | None:
+    summary_frame = summarize_society_phase_frame(round_frame)
+    if summary_frame.empty:
+        return None
+
+    metrics = [
+        ("phase_rounds", "Phase duration"),
+        ("alive_count", "Alive agents"),
+        ("public_food", "Public food"),
+        ("public_water", "Public water"),
+        ("average_health", "Average health"),
+        ("average_energy", "Average energy"),
+    ]
+    phase_order = ["collapse", "plateau"]
+    phase_colors = {"collapse": "#d62828", "plateau": "#2a9d8f"}
+    group_rows = sorted(
+        {
+            (str(track), str(prompt_variant))
+            for track, prompt_variant in summary_frame[["track", "prompt_variant"]].itertuples(index=False, name=None)
+        },
+        key=lambda item: (
+            {"society": 0, "reputation": 1}.get(item[0], 99),
+            {name: idx for idx, name in enumerate(SOCIETY_VARIANT_ORDER)}.get(item[1], 99),
+            item,
+        ),
+    )
+
+    configure_plot_style()
+    fig, axes = plt.subplots(
+        len(group_rows),
+        len(metrics),
+        figsize=(4.1 * len(metrics), 4.8 * len(group_rows)),
+        squeeze=False,
+    )
+
+    for row_index, (track, prompt_variant) in enumerate(group_rows):
+        panel = summary_frame[
+            (summary_frame["track"] == track)
+            & (summary_frame["prompt_variant"] == prompt_variant)
+        ].copy()
+        for col_index, (metric_name, metric_label) in enumerate(metrics):
+            ax = axes[row_index][col_index]
+            metric_panel = panel[panel[metric_name].notna()].copy()
+            if metric_panel.empty:
+                ax.axis("off")
+                continue
+            metric_panel["phase"] = pd.Categorical(metric_panel["phase"], categories=phase_order, ordered=True)
+            metric_panel = metric_panel.sort_values("phase")
+            x_positions = list(range(len(metric_panel)))
+            values = metric_panel[metric_name].tolist()
+            ci_lows = metric_panel[f"{metric_name}_ci95_low"].tolist()
+            ci_highs = metric_panel[f"{metric_name}_ci95_high"].tolist()
+            errors = [
+                [value - low for value, low in zip(values, ci_lows, strict=False)],
+                [high - value for value, high in zip(values, ci_highs, strict=False)],
+            ]
+            ax.bar(
+                x_positions,
+                values,
+                color=[phase_colors.get(str(phase), "#6c757d") for phase in metric_panel["phase"].tolist()],
+                yerr=errors,
+                capsize=4,
+                zorder=3,
+            )
+            ax.set_xticks(x_positions)
+            ax.set_xticklabels([prettify_slug(str(phase)).replace("\n", " ") for phase in metric_panel["phase"].tolist()])
+            ax.set_title(
+                f"{track.title()}: {prettify_slug(prompt_variant).replace(chr(10), ' ')}"
+                if col_index == 0
+                else metric_label,
+                fontsize=13,
+            )
+            ax.set_ylabel(metric_label if col_index == 0 else "")
+            ax.set_xlabel("")
+            upper = max(ci_highs) if ci_highs else max(values)
+            ax.set_ylim(0, max(1.0, float(upper) * 1.15))
+
+    fig.suptitle(title, fontsize=18, y=1.02)
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=FIGURE_DPI, bbox_inches="tight")
+    plt.close(fig)
+    return output_path
+
+
 def main() -> int:
     args = parse_args()
     output_dir = Path(args.output_dir)
@@ -1307,6 +1524,11 @@ def main() -> int:
             society_agent_frame,
             output_path=output_dir / "society_reputation_model_vitals_over_time.png",
             title="Model-level vital trajectories in the LLM societies",
+        ),
+        save_society_phase_window_figure(
+            society_round_frame,
+            output_path=output_dir / "society_reputation_phase_window_summary.png",
+            title="Collapse and plateau phase summary in the LLM societies",
         ),
     ]:
         if maybe_path is not None:

@@ -20,6 +20,7 @@ Primary artifacts:
 - `results/live_ecology_20260408/live_status.json`
 - `results/live_ecology_20260408/monitoring_figures/society_reputation_survivor_vitals_heatmap.png`
 - `results/live_ecology_20260408/monitoring_figures/society_reputation_model_vitals_over_time.png`
+- `results/live_ecology_20260408/monitoring_figures/society_reputation_phase_window_summary.png`
 
 Main claim supported:
 
@@ -36,6 +37,9 @@ Main claim supported:
 - the live status packet now also separates collapse-window and plateau-window
   resource/vital means, which makes the partial baseline easier to interpret
   before the full suite completes
+- the phase-window summary figure turns that same split into a paper-facing
+  visual, showing the short high-loss collapse window against the much longer
+  stable plateau
 
 ## 1. Scarcity Society
 

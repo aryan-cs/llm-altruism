@@ -213,3 +213,5 @@ uv run python scripts/run_paper_batch.py --track society --track reputation
   `rounds_since_last_death`
 - live status also includes phase windows and means for the collapse phase and
   the stable plateau phase
+- live figure packet now includes
+  `results/live_ecology_20260408/monitoring_figures/society_reputation_phase_window_summary.png`

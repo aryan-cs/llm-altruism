@@ -189,3 +189,6 @@ These remain important across sessions.
 - the same status packet now exposes phase-level metrics for the loss window
   versus the stable plateau, so the heartbeat view can distinguish the
   collapse phase (`12..26`) from the plateau phase (`26..101`)
+- `scripts/paper_figures.py` now emits a phase-window summary figure for live
+  ecology runs, so the collapse-versus-plateau split is visible without
+  reading the raw JSON or status packet

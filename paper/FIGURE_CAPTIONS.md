@@ -199,3 +199,18 @@ Suggested caption:
 > mechanism-level diagnostic for whether population persistence is driven by
 > systematically better resource stocks or by late-stage stabilization after
 > earlier losses.
+
+## Appendix Candidate: Collapse Versus Plateau Phase Summary
+
+File:
+
+- `results/live_ecology_20260408/monitoring_figures/society_reputation_phase_window_summary.png`
+
+Suggested caption:
+
+> Phase-window summary for the canonical long-horizon ecology refresh. The
+> figure compares the short collapse window against the subsequent stable
+> plateau, showing phase duration together with mean alive population, public
+> food, public water, health, and energy. It makes the current baseline legible
+> as rapid culling followed by durable stabilization rather than continuous
+> decline.
