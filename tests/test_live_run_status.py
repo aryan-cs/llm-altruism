@@ -396,6 +396,14 @@ def test_summarize_jsonl_log_scopes_phase_diagnostics_to_latest_trial(tmp_path: 
     assert summary["population_regime"] == "no_losses_yet"
     assert summary["collapse_start_round_num"] is None
     assert summary["plateau_duration_rounds"] is None
+    assert len(summary["trial_status_rows"]) == 2
+    assert summary["trial_status_rows"][0]["trial_id"] == 0
+    assert summary["trial_status_rows"][0]["completed"] is True
+    assert summary["trial_status_rows"][0]["prompt_variant"] == "task-only"
+    assert summary["trial_status_rows"][1]["trial_id"] == 1
+    assert summary["trial_status_rows"][1]["completed"] is False
+    assert summary["trial_status_rows"][1]["prompt_variant"] == "cooperative"
+    assert summary["trial_status_rows"][1]["population_regime"] == "no_losses_yet"
 
 
 def test_expand_inputs_reads_jsonl_files_from_directories(tmp_path: Path):

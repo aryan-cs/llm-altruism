@@ -98,6 +98,51 @@ def alive_models_from_round(round_payload: dict[str, Any]) -> dict[str, int]:
     return dict(sorted(counts.items(), key=lambda item: (-item[1], item[0])))
 
 
+def summarize_trial_records(
+    experiment: dict[str, Any],
+    round_records: list[dict[str, Any]],
+    trial_summary_records: dict[int, dict[str, Any]],
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    grouped_rounds: dict[int, list[dict[str, Any]]] = {}
+    for record in round_records:
+        trial_id = int(record.get("trial_id", 0))
+        grouped_rounds.setdefault(trial_id, []).append(record)
+
+    observed_trial_ids = sorted(set(grouped_rounds) | set(trial_summary_records))
+    for trial_id in observed_trial_ids:
+        records = grouped_rounds.get(trial_id, [])
+        latest_round = records[-1] if records else None
+        latest_payload = latest_round.get("data", {}) if latest_round is not None else {}
+        diagnostics = collapse_diagnostics(records)
+        phase_metrics = phase_diagnostics(records, diagnostics)
+        prompt_info = decode_trial_metadata(experiment, trial_id)
+        summary_payload = trial_summary_records.get(trial_id, {})
+        alive_count = latest_payload.get("alive_count")
+        total_agents = latest_payload.get("total_agents")
+        alive_fraction = None
+        if isinstance(alive_count, (int, float)) and isinstance(total_agents, (int, float)) and total_agents:
+            alive_fraction = float(alive_count) / float(total_agents)
+
+        row = {
+            "trial_id": trial_id,
+            "prompt_variant": prompt_info["prompt_variant"],
+            "repetition": prompt_info["repetition"],
+            "completed": trial_id in trial_summary_records,
+            "latest_round_num": latest_round.get("round_num") if latest_round is not None else None,
+            "alive_count": alive_count,
+            "total_agents": total_agents,
+            "alive_fraction": alive_fraction,
+            "alive_models": alive_models_from_round(latest_payload),
+            "final_survival_rate": summary_payload.get("final_survival_rate"),
+            "survival_rate": summary_payload.get("survival_rate"),
+            **diagnostics,
+            **phase_metrics,
+        }
+        rows.append(row)
+    return rows
+
+
 def collapse_diagnostics(rounds: list[dict[str, Any]]) -> dict[str, Any]:
     if not rounds:
         return {
@@ -275,6 +320,7 @@ def summarize_jsonl_log(
     trial_summary_count = 0
     provider_retry_count = 0
     round_records: list[dict[str, Any]] = []
+    trial_summary_records: dict[int, dict[str, Any]] = {}
 
     with path.open(encoding="utf-8") as handle:
         for raw_line in handle:
@@ -291,6 +337,7 @@ def summarize_jsonl_log(
                 round_records.append(record)
             if record_type == "trial_summary":
                 trial_summary_count += 1
+                trial_summary_records[int(record.get("trial_id", 0))] = record.get("summary", {}) or {}
             if record_type == "provider_retry":
                 provider_retry_count += 1
                 last_retry = record
@@ -344,6 +391,7 @@ def summarize_jsonl_log(
 
     diagnostics = collapse_diagnostics(active_round_records)
     phase_metrics = phase_diagnostics(active_round_records, diagnostics)
+    trial_status_rows = summarize_trial_records(experiment, round_records, trial_summary_records)
 
     return {
         "path": str(path),
@@ -372,6 +420,7 @@ def summarize_jsonl_log(
         "latest_event_timestamp": latest_event_timestamp,
         "minutes_since_latest_event": minutes_since_latest_event,
         "state": state,
+        "trial_status_rows": trial_status_rows,
         **diagnostics,
         **phase_metrics,
     }
@@ -422,6 +471,19 @@ def format_status(summary: dict[str, Any]) -> str:
                 f"plateau_rounds={summary.get('plateau_duration_rounds')}"
             )
         )
+    trial_rows = summary.get("trial_status_rows") or []
+    if trial_rows:
+        trial_parts = []
+        for row in trial_rows:
+            completed_flag = "done" if row.get("completed") else "live"
+            alive_text = "n/a"
+            if row.get("alive_count") is not None and row.get("total_agents") is not None:
+                alive_text = f"{row['alive_count']}/{row['total_agents']}"
+            trial_parts.append(
+                f"{row.get('trial_id')}:{row.get('prompt_variant')}:{completed_flag}:"
+                f"round={row.get('latest_round_num')}:alive={alive_text}"
+            )
+        lines.append(f"  trials={' ; '.join(trial_parts)}")
     return "\n".join(lines)
 
 

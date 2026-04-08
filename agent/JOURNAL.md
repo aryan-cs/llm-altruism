@@ -169,10 +169,10 @@ These remain important across sessions.
   `results/live_ecology_20260408/society-baseline-20260408T171454Z.jsonl`
 - the first `task-only` trial is complete with `10/24` agents alive at round
   `120`
-- the active live trial is now `cooperative`, currently at round `31` with
+- the active live trial is now `cooperative`, currently at round `36` with
   `18/24` agents alive
 - the `cooperative` trial has also entered a stable post-collapse plateau,
-  with first loss at round `7`, last death at round `11`, and `20` rounds
+  with first loss at round `7`, last death at round `11`, and `25` rounds
   since the last death
 - current `cooperative` survivor mix is `deepseek-ai/deepseek-v3.2: 8`,
   `moonshotai/kimi-k2-instruct-0905: 8`, and `llama3.1-8b: 2`
@@ -197,3 +197,6 @@ These remain important across sessions.
 - `scripts/paper_figures.py` now emits a phase-window summary figure for live
   ecology runs, so the collapse-versus-plateau split is visible without
   reading the raw JSON or status packet
+- `scripts/refresh_live_ecology_packet.py` now emits a multi-trial heartbeat
+  snapshot in markdown and CSV so completed and in-progress trials can be
+  audited side by side from the same live log

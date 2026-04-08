@@ -44,3 +44,57 @@ def test_packet_paths_use_logical_casebook_name(tmp_path: Path):
     assert outputs["figures_dir"] == tmp_path / "monitoring_figures"
     assert outputs["casebook_markdown"] == tmp_path / "society-baseline-casebook.md"
     assert outputs["status_json"] == tmp_path / "live_status.json"
+    assert outputs["trial_snapshot_markdown"] == tmp_path / "live_trial_snapshot.md"
+    assert outputs["trial_snapshot_csv"] == tmp_path / "live_trial_snapshot.csv"
+
+
+def test_write_trial_snapshot_emits_markdown_and_csv(tmp_path: Path):
+    module = _load_refresh_module()
+    outputs = {
+        "trial_snapshot_markdown": tmp_path / "live_trial_snapshot.md",
+        "trial_snapshot_csv": tmp_path / "live_trial_snapshot.csv",
+    }
+    live_status = {
+        "trial_status_rows": [
+            {
+                "trial_id": 0,
+                "prompt_variant": "task-only",
+                "completed": True,
+                "latest_round_num": 120,
+                "alive_count": 10,
+                "total_agents": 24,
+                "population_regime": "stable_post_collapse",
+                "last_death_round_num": 26,
+                "plateau_duration_rounds": 95,
+                "final_survival_rate": 0.4167,
+                "alive_models": {"deepseek-ai/deepseek-v3.2": 8, "llama3.1-8b": 2},
+            },
+            {
+                "trial_id": 1,
+                "prompt_variant": "cooperative",
+                "completed": False,
+                "latest_round_num": 32,
+                "alive_count": 18,
+                "total_agents": 24,
+                "population_regime": "stable_post_collapse",
+                "last_death_round_num": 11,
+                "plateau_duration_rounds": 22,
+                "final_survival_rate": None,
+                "alive_models": {
+                    "deepseek-ai/deepseek-v3.2": 8,
+                    "moonshotai/kimi-k2-instruct-0905": 8,
+                    "llama3.1-8b": 2,
+                },
+            },
+        ]
+    }
+
+    module.write_trial_snapshot(outputs, live_status)
+
+    markdown = outputs["trial_snapshot_markdown"].read_text(encoding="utf-8")
+    csv_text = outputs["trial_snapshot_csv"].read_text(encoding="utf-8")
+    assert "# Live Trial Snapshot" in markdown
+    assert "| 0 | task-only | completed | 120 | 10/24 | stable_post_collapse | 26 | 95 | 0.4167 |" in markdown
+    assert "| 1 | cooperative | active | 32 | 18/24 | stable_post_collapse | 11 | 22 |  |" in markdown
+    assert "trial_id,prompt_variant,repetition,completed,latest_round_num" in csv_text
+    assert "0,task-only,,True,120,10,24" in csv_text
