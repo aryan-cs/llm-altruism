@@ -440,6 +440,18 @@ set provide quantitative status checks for in-progress ecology runs, while the
 casebook provides a compact qualitative audit trail with milestone snapshots
 for start state, first loss, largest death shock, and latest observed state.
 
+Launch the full canonical ecology evidence bundle:
+
+```bash
+.venv/bin/python scripts/run_canonical_ecology_suite.py
+```
+
+Resume the canonical suite from the reputation stage after a baseline run has finished:
+
+```bash
+.venv/bin/python scripts/run_canonical_ecology_suite.py --from-run reputation
+```
+
 Build the anonymous ICML-style submission PDF:
 
 ```bash

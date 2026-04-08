@@ -74,6 +74,9 @@ Current canonical direction:
   and compact ecology diagnostics, including first-loss timing, death shocks,
   alive-by-model composition, dominant behavior category, and a latest-state
   survivor-vitals heatmap
+- the canonical follow-on runs can now be launched with
+  `scripts/run_canonical_ecology_suite.py`, which standardizes the baseline,
+  reputation, and event-stress sequence on the stable triplet cohort
 - latest observed partial result on the first baseline trial:
   - round `29`
   - alive agents `10 / 24`
@@ -156,6 +159,7 @@ Useful commands:
 ```bash
 uv run pytest -q
 uv run scripts/run_experiment.py
+uv run scripts/run_canonical_ecology_suite.py
 uv run python scripts/run_paper_batch.py --track society --track reputation
 .venv/bin/python scripts/live_run_status.py results/live_ecology_20260408
 .venv/bin/python scripts/ecology_casebook.py results/live_ecology_20260408/society-baseline-20260408T171454Z.jsonl

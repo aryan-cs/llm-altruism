@@ -39,6 +39,12 @@ uv run scripts/run_experiment.py --config configs/part3/society_reputation.yaml
 # separate stress-test template with optional exogenous shocks enabled
 uv run scripts/run_experiment.py --config configs/part2/society_event_stress.yaml
 
+# launch the full canonical ecology suite with one command
+uv run scripts/run_canonical_ecology_suite.py
+
+# resume the canonical suite from the reputation stage
+uv run scripts/run_canonical_ecology_suite.py --from-run reputation
+
 # small smoke configs used for quick iteration and CI
 uv run scripts/run_experiment.py --config configs/part2/society_smoke.yaml --dry-run
 uv run scripts/run_experiment.py --config configs/part3/society_reputation_smoke.yaml --dry-run

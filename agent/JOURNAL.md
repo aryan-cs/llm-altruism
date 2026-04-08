@@ -58,6 +58,9 @@ It should answer:
 - added a latest-state survivor-vitals heatmap to the monitoring figure
   pipeline so the live ecology bundle now shows per-agent `food`, `water`,
   `energy`, and `health` for the surviving population
+- added `scripts/run_canonical_ecology_suite.py` so the baseline, reputation,
+  and event-stress long-horizon ecology runs can be launched as one
+  standardized suite instead of by hand
 - current live baseline status:
   - `society-baseline-20260408T171454Z`
   - first `task-only` trial has completed round `36`
