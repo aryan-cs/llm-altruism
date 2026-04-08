@@ -67,6 +67,9 @@ Current canonical direction:
   running in `results/live_ecology_20260408/`
 - the CLI launch path was fixed so scripted runs now probe only the selected
   models, which removes the old full-catalog startup bottleneck
+- the summary and figure pipeline now understands in-progress ecology JSONL
+  logs, so live monitoring figures and interim markdown summaries can be
+  generated before a full trial finishes
 - until those reruns finish, the paper is not honestly back to a
   manuscript-ready state
 

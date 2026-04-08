@@ -180,6 +180,83 @@ def test_load_partial_jsonl_summary_recovers_trial_metadata(tmp_path: Path):
     assert summary["aggregate_summary"]["average_payoff_a"] == 2.0
 
 
+def test_load_partial_jsonl_summary_recovers_in_progress_society_rounds(tmp_path: Path):
+    """Live society JSONL logs should yield partial trials from round records alone."""
+    module = _load_paper_summary_module()
+    log_path = tmp_path / "society-live.jsonl"
+    log_path.write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "type": "experiment_start",
+                        "experiment_id": "society-baseline-20260408T171454Z",
+                        "config": {
+                            "experiment": {
+                                "name": "society-baseline",
+                                "part": 2,
+                                "rounds": 120,
+                                "repetitions": 1,
+                                "prompt_variants": [
+                                    {"name": "task-only"},
+                                    {"name": "cooperative"},
+                                    {"name": "competitive"},
+                                ],
+                                "parameters": {"temperature": [0.3]},
+                                "world": {
+                                    "max_public_food": 160,
+                                    "max_public_water": 220,
+                                },
+                            }
+                        },
+                    }
+                ),
+                json.dumps(
+                    {
+                        "type": "round",
+                        "trial_id": 0,
+                        "round_num": 1,
+                        "data": {
+                            "timestep": 1,
+                            "alive_count": 24,
+                            "total_agents": 24,
+                            "public_food": 120,
+                            "public_water": 160,
+                            "public_resources": 280,
+                            "trade_volume": 0,
+                            "average_health": 11.0,
+                            "average_energy": 9.0,
+                            "agent_resources": {"agent-0": 26, "agent-1": 26},
+                            "agent_vitals": {
+                                "agent-0": {"food": 4, "water": 2},
+                                "agent-1": {"food": 4, "water": 2},
+                            },
+                            "events": [],
+                            "spawned_agents": [],
+                            "newly_dead": [],
+                        },
+                    }
+                ),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    summary = module.load_partial_jsonl_summary(log_path)
+    flattened = module.flatten_summary(summary)
+    trial_rows = module.flatten_trial_rows(summary)
+
+    assert summary is not None
+    assert summary["trials"][0]["prompt_variant"] == "task-only"
+    assert len(summary["trials"][0]["rounds"]) == 1
+    assert summary["aggregate_summary"]["final_survival_rate"] == 1.0
+    assert flattened["track"] == "society"
+    assert flattened["presentation"] == "prompt_comparison"
+    assert trial_rows[0]["track"] == "society"
+    assert trial_rows[0]["final_survival_rate"] == 1.0
+
+
 def test_collect_unique_summaries_prefers_final_json_over_partial_jsonl(tmp_path: Path):
     """Directory summaries should not double count a finalized experiment."""
     module = _load_paper_summary_module()

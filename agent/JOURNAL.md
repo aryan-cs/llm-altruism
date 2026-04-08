@@ -29,6 +29,30 @@ It should answer:
 - restarted the live baseline ecology rerun with the new setup in
   `results/live_ecology_20260408/`
 
+### Live ecology monitoring pipeline
+
+- upgraded `scripts/paper_summary.py` so in-progress JSONL runs with round
+  records but no completed trial summaries still produce partial society
+  summaries
+- upgraded `scripts/paper_figures.py` so standalone Part 2 / Part 3 runs infer
+  `society` / `reputation` tracks even without paper-batch metadata
+- added direct ecology monitoring figures for:
+  - population
+  - public resources
+  - public food
+  - public water
+  - average health
+  - average energy
+  - births
+  - deaths
+  - behavior mix
+- current live baseline status:
+  - `society-baseline-20260408T171454Z`
+  - `task-only` has completed round `2`
+  - alive agents remain `24 / 24`
+  - interim monitoring artifacts are written under
+    `results/live_ecology_20260408/monitoring_figures/`
+
 ### Society-first paper reframing
 
 - rewrote the internal project docs so the main paper question is now society

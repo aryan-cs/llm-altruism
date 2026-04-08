@@ -46,12 +46,14 @@ TRACK_COLORS = {
     "reputation": "#bc4749",
 }
 SOCIETY_VARIANT_ORDER = ["task-only", "cooperative", "competitive"]
-EVENT_CATEGORY_ORDER = ["gather", "share", "steal", "communicate", "system"]
+EVENT_CATEGORY_ORDER = ["gather", "share", "steal", "communicate", "rest", "reproduce", "system"]
 EVENT_CATEGORY_COLORS = {
     "gather": "#577590",
     "share": "#2a9d8f",
     "steal": "#d62828",
     "communicate": "#e9c46a",
+    "rest": "#6d597a",
+    "reproduce": "#f28482",
     "system": "#adb5bd",
 }
 FIGURE_DPI = 300
@@ -118,14 +120,27 @@ def summary_run_metadata(summary: dict[str, Any]) -> dict[str, Any]:
     return summary.get("run_metadata") or summary.get("config", {}).get("run_metadata", {})
 
 
+def summary_track(summary: dict[str, Any]) -> str | None:
+    experiment = summary.get("config", {}).get("experiment", summary.get("config", {}))
+    run_metadata = summary_run_metadata(summary)
+    track = run_metadata.get("track")
+    if isinstance(track, str) and track:
+        return track
+    part = experiment.get("part")
+    if part == 2:
+        return "society"
+    if part == 3:
+        return "reputation"
+    return None
+
+
 def flatten_society_round_rows(summaries: list[dict[str, Any]]) -> tuple[pd.DataFrame, pd.DataFrame]:
     round_rows: list[dict[str, Any]] = []
     event_rows: list[dict[str, Any]] = []
 
     for summary in summaries:
         experiment = summary.get("config", {}).get("experiment", summary.get("config", {}))
-        run_metadata = summary_run_metadata(summary)
-        track = run_metadata.get("track")
+        track = summary_track(summary)
         if track not in {"society", "reputation"}:
             continue
 
@@ -146,8 +161,12 @@ def flatten_society_round_rows(summaries: list[dict[str, Any]]) -> tuple[pd.Data
                         "timestep": round_payload.get("timestep"),
                         "alive_count": round_payload.get("alive_count"),
                         "total_agents": round_payload.get("total_agents"),
+                        "public_food": round_payload.get("public_food"),
+                        "public_water": round_payload.get("public_water"),
                         "public_resources": round_payload.get("public_resources"),
                         "trade_volume": round_payload.get("trade_volume"),
+                        "average_health": round_payload.get("average_health"),
+                        "average_energy": round_payload.get("average_energy"),
                         "birth_count": len(round_payload.get("spawned_agents", []) or []),
                         "death_count": len(round_payload.get("newly_dead", []) or []),
                         "event_count": len(events),
@@ -222,8 +241,16 @@ def event_category(kind: str | None) -> str:
     normalized = str(kind or "unknown")
     if normalized in {"broadcast", "whisper", "message"}:
         return "communicate"
-    if normalized in {"gather", "share", "steal"}:
-        return normalized
+    if normalized in {"gather", "forage_food", "draw_water"}:
+        return "gather"
+    if normalized in {"share", "offer_trade", "accept_trade", "trade_completed"}:
+        return "share"
+    if normalized in {"steal"}:
+        return "steal"
+    if normalized in {"sleep"}:
+        return "rest"
+    if normalized in {"reproduce"}:
+        return "reproduce"
     return "system"
 
 
@@ -750,10 +777,52 @@ def main() -> int:
         ),
         save_society_timeline_figure(
             society_round_frame,
+            metric_root="public_food",
+            output_path=output_dir / "society_reputation_public_food_over_time.png",
+            title="Public food over time in the LLM societies",
+            y_label="Public food",
+        ),
+        save_society_timeline_figure(
+            society_round_frame,
+            metric_root="public_water",
+            output_path=output_dir / "society_reputation_public_water_over_time.png",
+            title="Public water over time in the LLM societies",
+            y_label="Public water",
+        ),
+        save_society_timeline_figure(
+            society_round_frame,
             metric_root="trade_volume",
             output_path=output_dir / "society_reputation_trade_volume_over_time.png",
             title="Trade intensity over time in the LLM societies",
             y_label="Trade volume per round",
+        ),
+        save_society_timeline_figure(
+            society_round_frame,
+            metric_root="average_health",
+            output_path=output_dir / "society_reputation_health_over_time.png",
+            title="Average health over time in the LLM societies",
+            y_label="Average health",
+        ),
+        save_society_timeline_figure(
+            society_round_frame,
+            metric_root="average_energy",
+            output_path=output_dir / "society_reputation_energy_over_time.png",
+            title="Average energy over time in the LLM societies",
+            y_label="Average energy",
+        ),
+        save_society_timeline_figure(
+            society_round_frame,
+            metric_root="birth_count",
+            output_path=output_dir / "society_reputation_births_over_time.png",
+            title="Birth events over time in the LLM societies",
+            y_label="Births per round",
+        ),
+        save_society_timeline_figure(
+            society_round_frame,
+            metric_root="death_count",
+            output_path=output_dir / "society_reputation_deaths_over_time.png",
+            title="Death events over time in the LLM societies",
+            y_label="Deaths per round",
         ),
         save_society_event_mix_figure(
             society_event_frame,

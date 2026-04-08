@@ -163,8 +163,12 @@ def test_flatten_society_round_rows_extracts_round_metrics_and_events():
                             "timestep": 1,
                             "alive_count": 6,
                             "total_agents": 6,
+                            "public_food": 10,
+                            "public_water": 14,
                             "public_resources": 24,
                             "trade_volume": 0,
+                            "average_health": 9.5,
+                            "average_energy": 8.0,
                             "spawned_agents": [],
                             "newly_dead": ["agent-5"],
                             "events": [
@@ -185,8 +189,53 @@ def test_flatten_society_round_rows_extracts_round_metrics_and_events():
     assert round_frame.iloc[0]["birth_count"] == 0
     assert round_frame.iloc[0]["death_count"] == 1
     assert round_frame.iloc[0]["event_count"] == 2
+    assert round_frame.iloc[0]["public_food"] == 10
+    assert round_frame.iloc[0]["public_water"] == 14
+    assert round_frame.iloc[0]["average_health"] == 9.5
+    assert round_frame.iloc[0]["average_energy"] == 8.0
     assert len(event_frame) == 2
     assert set(event_frame["event_kind"].tolist()) == {"gather", "share"}
+
+
+def test_flatten_society_round_rows_infers_track_from_part_when_run_metadata_missing():
+    """Standalone society runs should still feed the timeline figures."""
+    module = _load_paper_figures_module()
+    summaries = [
+        {
+            "experiment_id": "society-baseline-20260408T171454Z",
+            "config": {"experiment": {"name": "society-baseline", "part": 2}},
+            "trials": [
+                {
+                    "trial_id": 0,
+                    "prompt_variant": "task-only",
+                    "repetition": 0,
+                    "rounds": [
+                        {
+                            "timestep": 1,
+                            "alive_count": 24,
+                            "total_agents": 24,
+                            "public_food": 67,
+                            "public_water": 166,
+                            "public_resources": 233,
+                            "trade_volume": 0,
+                            "average_health": 11.0,
+                            "average_energy": 9.0,
+                            "spawned_agents": [],
+                            "newly_dead": [],
+                            "events": [],
+                        }
+                    ],
+                }
+            ],
+        }
+    ]
+
+    round_frame, event_frame = module.flatten_society_round_rows(summaries)
+
+    assert len(round_frame) == 1
+    assert round_frame.iloc[0]["track"] == "society"
+    assert round_frame.iloc[0]["alive_count"] == 24
+    assert event_frame.empty
 
 
 def test_save_society_timeline_figure_writes_png(tmp_path: Path):
@@ -243,6 +292,17 @@ def test_save_society_event_mix_figure_writes_png(tmp_path: Path):
     assert written == output_path
     assert output_path.exists()
     assert output_path.stat().st_size > 0
+
+
+def test_event_category_handles_new_ecology_actions():
+    """Behavior-mix categories should reflect the richer ecology action set."""
+    module = _load_paper_figures_module()
+
+    assert module.event_category("forage_food") == "gather"
+    assert module.event_category("draw_water") == "gather"
+    assert module.event_category("offer_trade") == "share"
+    assert module.event_category("sleep") == "rest"
+    assert module.event_category("reproduce") == "reproduce"
 
 
 def test_build_frames_collapses_stale_retries_by_experiment_name(tmp_path: Path):

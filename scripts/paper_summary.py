@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from src.analysis import summarize_society  # noqa: E402
 from src.analysis.report import load_result_artifact  # noqa: E402
 
 
@@ -66,6 +67,44 @@ def aggregate_trial_summaries(trials: list[dict[str, Any]]) -> dict[str, Any]:
     return aggregate
 
 
+def summary_run_metadata(summary: dict[str, Any]) -> dict[str, Any]:
+    """Return persisted run metadata regardless of artifact layout."""
+    return summary.get("run_metadata") or summary.get("config", {}).get("run_metadata", {})
+
+
+def infer_track_from_experiment(experiment: dict[str, Any], run_metadata: dict[str, Any]) -> str | None:
+    """Infer the logical paper track when run metadata is absent."""
+    if isinstance(run_metadata.get("track"), str) and run_metadata.get("track"):
+        return str(run_metadata["track"])
+
+    part = experiment.get("part")
+    if part == 2:
+        return "society"
+    if part == 3:
+        return "reputation"
+    return None
+
+
+def infer_presentation_from_experiment(
+    experiment: dict[str, Any],
+    run_metadata: dict[str, Any],
+) -> str | None:
+    """Infer a presentation label for society runs launched outside paper batches."""
+    if isinstance(run_metadata.get("presentation"), str) and run_metadata.get("presentation"):
+        return str(run_metadata["presentation"])
+
+    part = experiment.get("part")
+    if part in {2, 3}:
+        return "prompt_comparison"
+    return None
+
+
+def max_public_resources_from_experiment(experiment: dict[str, Any]) -> float:
+    """Return the ecology capacity used for commons-health summaries."""
+    world = experiment.get("world", {}) or {}
+    return float(world.get("max_public_food", 0.0)) + float(world.get("max_public_water", 0.0))
+
+
 def decode_trial_metadata(experiment: dict[str, Any], trial_id: int) -> dict[str, Any]:
     """Reconstruct prompt/repetition metadata from deterministic trial ordering."""
     prompt_variants = experiment.get("prompt_variants", []) or []
@@ -101,23 +140,51 @@ def load_partial_jsonl_summary(path: Path) -> dict[str, Any] | None:
 
     config = start.get("config", {})
     experiment = config.get("experiment", config)
+    round_lines = sorted(
+        (item for item in lines if item.get("type") == "round"),
+        key=lambda item: (item.get("trial_id", 0), item.get("round_num", 0)),
+    )
     trial_summary_lines = sorted(
         (item for item in lines if item.get("type") == "trial_summary"),
         key=lambda item: item.get("trial_id", 0),
     )
-    if not trial_summary_lines:
+    if not trial_summary_lines and not round_lines:
+        return None
+
+    rounds_by_trial_id: dict[int, list[dict[str, Any]]] = {}
+    for item in round_lines:
+        trial_id = int(item.get("trial_id", 0))
+        round_payload = item.get("data")
+        if isinstance(round_payload, dict):
+            rounds_by_trial_id.setdefault(trial_id, []).append(round_payload)
+
+    summaries_by_trial_id = {
+        int(item.get("trial_id", 0)): item.get("summary", {})
+        for item in trial_summary_lines
+        if isinstance(item.get("summary"), dict)
+    }
+
+    observed_trial_ids = sorted(set(rounds_by_trial_id) | set(summaries_by_trial_id))
+    if not observed_trial_ids:
         return None
 
     trials: list[dict[str, Any]] = []
-    for item in trial_summary_lines:
-        trial_id = int(item.get("trial_id", 0))
+    for trial_id in observed_trial_ids:
         metadata = decode_trial_metadata(experiment, trial_id)
+        rounds = rounds_by_trial_id.get(trial_id, [])
+        summary = summaries_by_trial_id.get(trial_id)
+        if summary is None and rounds and experiment.get("part") in {2, 3}:
+            summary = summarize_society(
+                rounds,
+                max_public_resources=max_public_resources_from_experiment(experiment),
+            )
         trials.append(
             {
                 "trial_id": trial_id,
                 "prompt_variant": metadata["prompt_variant"],
                 "repetition": metadata["repetition"],
-                "summary": item.get("summary", {}),
+                "rounds": rounds,
+                "summary": summary or {},
             }
         )
 
@@ -206,14 +273,14 @@ def collect_unique_summaries(paths: list[Path]) -> list[dict[str, Any]]:
 
 def flatten_summary(summary: dict[str, Any]) -> dict[str, Any]:
     experiment = summary.get("config", {}).get("experiment", summary.get("config", {}))
-    run_metadata = summary.get("run_metadata", {})
+    run_metadata = summary_run_metadata(summary)
     row = {
         "experiment_id": summary.get("experiment_id"),
         "name": experiment.get("name"),
         "part": experiment.get("part"),
         "game": experiment.get("game"),
-        "track": run_metadata.get("track"),
-        "presentation": run_metadata.get("presentation"),
+        "track": infer_track_from_experiment(experiment, run_metadata),
+        "presentation": infer_presentation_from_experiment(experiment, run_metadata),
         "trial_count": len(summary.get("trials", [])),
         "total_cost_usd": summary.get("total_cost_usd", 0.0),
         "total_duration_seconds": summary.get("total_duration_seconds", 0.0),
@@ -231,7 +298,7 @@ def flatten_summary(summary: dict[str, Any]) -> dict[str, Any]:
 def flatten_prompt_variant_rows(summary: dict[str, Any]) -> list[dict[str, Any]]:
     """Aggregate trial summaries by prompt variant for a single experiment."""
     experiment = summary.get("config", {}).get("experiment", summary.get("config", {}))
-    run_metadata = summary.get("run_metadata", {})
+    run_metadata = summary_run_metadata(summary)
     grouped: dict[str, list[dict[str, Any]]] = {}
     for trial in summary.get("trials", []):
         prompt_variant = trial.get("prompt_variant")
@@ -246,8 +313,8 @@ def flatten_prompt_variant_rows(summary: dict[str, Any]) -> list[dict[str, Any]]
             "name": experiment.get("name"),
             "part": experiment.get("part"),
             "game": experiment.get("game"),
-            "track": run_metadata.get("track"),
-            "presentation": run_metadata.get("presentation"),
+            "track": infer_track_from_experiment(experiment, run_metadata),
+            "presentation": infer_presentation_from_experiment(experiment, run_metadata),
             "prompt_variant": prompt_variant,
             "trial_count": len(trial_summaries),
         }
@@ -271,7 +338,7 @@ def flatten_prompt_variant_rows(summary: dict[str, Any]) -> list[dict[str, Any]]
 def flatten_trial_rows(summary: dict[str, Any]) -> list[dict[str, Any]]:
     """Flatten raw per-trial metrics for cross-experiment pooling."""
     experiment = summary.get("config", {}).get("experiment", summary.get("config", {}))
-    run_metadata = summary.get("run_metadata", {})
+    run_metadata = summary_run_metadata(summary)
     rows: list[dict[str, Any]] = []
     for trial in summary.get("trials", []):
         trial_summary = trial.get("summary")
@@ -283,8 +350,8 @@ def flatten_trial_rows(summary: dict[str, Any]) -> list[dict[str, Any]]:
             "name": experiment.get("name"),
             "part": experiment.get("part"),
             "game": experiment.get("game"),
-            "track": run_metadata.get("track"),
-            "presentation": run_metadata.get("presentation"),
+            "track": infer_track_from_experiment(experiment, run_metadata),
+            "presentation": infer_presentation_from_experiment(experiment, run_metadata),
             "prompt_variant": prompt_variant,
             "trial_id": trial.get("trial_id"),
             "repetition": trial.get("repetition"),
