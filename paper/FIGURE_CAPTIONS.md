@@ -75,3 +75,42 @@ Suggested caption:
 > `0.6389 / 0.3333` and Stag Hunt at `0.4167 / 0.3056`. The repaired
 > susceptibility battery is now complete across the core games and shows that
 > prompt steerability is itself game-dependent.
+
+## Figure 6: Corrected Institutional Final Survival
+
+File:
+
+- `paper/figures/society_reputation_live/society_reputation_final_survival.png`
+
+Suggested caption:
+
+> Corrected institutional reruns for the completed `task-only` and
+> `cooperative` slices. In the plain scarcity society, `cooperative` lowers
+> final survival relative to `task-only`, whereas in the public-reputation
+> society both conditions currently preserve `1.0000` final survival.
+
+## Figure 7: Corrected Institutional Trade Volume
+
+File:
+
+- `paper/figures/society_reputation_live/society_reputation_trade_volume.png`
+
+Suggested caption:
+
+> Corrected institutional trade-volume comparison. `Task-only` remains
+> essentially inactive in both institutions, while `cooperative` increases
+> resource exchange strongly in both. This makes the survival contrast harder
+> to dismiss as merely “more or less sociality.”
+
+## Figure 8: Corrected Institutional Alliances
+
+File:
+
+- `paper/figures/society_reputation_live/society_reputation_alliance_count.png`
+
+Suggested caption:
+
+> Corrected institutional alliance comparison. `Cooperative` prompting induces
+> visible alliance formation in both institutions, but only the non-reputation
+> scarcity society currently shows a survival penalty. Public reputation may
+> therefore buffer the cost of highly social cooperative behavior.

@@ -162,3 +162,39 @@ Interpretation:
   framing suppresses cooperation most sharply in Prisoner's Dilemma
 - the magnitude of prompt steering is therefore game-dependent rather than
   uniform
+
+## Table 8. Corrected Scarcity Society: Task-Only vs Cooperative
+
+Source:
+
+- `results/paper_ready_society_triplet/interim_summary.md`
+
+| Prompt Variant | Trials | Survival Rate | Final Survival Rate | Average Trade Volume | Average Gini | Commons Health | Alliance Count |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `task-only` | `3` | `1.0000` | `1.0000` | `0.0000` | `0.1279` | `0.2969` | `0.0000` |
+| `cooperative` | `3` | `0.9583` | `0.8889` | `2.1667` | `0.3253` | `0.5321` | `2.0000` |
+
+Interpretation:
+
+- corrected scarcity-society evidence now supports the task-only versus
+  cooperative contrast directly rather than relying on the older pilot
+- cooperative prompting produces more trade, alliances, commons health, and
+  inequality, but worse final survival than task-only
+
+## Table 9. Corrected Reputation Society: Task-Only vs Cooperative
+
+Source:
+
+- `results/paper_ready_reputation_triplet/interim_summary.md`
+
+| Prompt Variant | Trials | Survival Rate | Final Survival Rate | Average Trade Volume | Average Gini | Commons Health | Alliance Count |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `task-only` | `3` | `1.0000` | `1.0000` | `0.0000` | `0.0942` | `0.2960` | `0.0000` |
+| `cooperative` | `3` | `1.0000` | `1.0000` | `1.6667` | `0.2724` | `0.6128` | `2.3333` |
+
+Interpretation:
+
+- corrected reputation evidence now shows a different pattern from the plain
+  scarcity society
+- under public reputation, cooperative prompting still increases visible social
+  activity, but it no longer reduces survival in the completed corrected slice

@@ -1079,3 +1079,33 @@ and states the clearest paper gap:
      Hunt, so the cross-game ordering now replicates across two cohorts.
   4. Promote the completed repaired benchmark and susceptibility tables into
      the manuscript bundle.
+
+April 8 institutional update:
+
+- Corrected `task-only` and `cooperative` institutional reruns are now complete
+  for both `results/paper_ready_society_triplet/` and
+  `results/paper_ready_reputation_triplet/`
+- Generated corrected live institutional summaries:
+  - `results/paper_ready_society_triplet/interim_summary.md`
+  - `results/paper_ready_reputation_triplet/interim_summary.md`
+- Generated corrected live institutional figures:
+  - `paper/figures/society_reputation_live/society_reputation_final_survival.png`
+  - `paper/figures/society_reputation_live/society_reputation_trade_volume.png`
+  - `paper/figures/society_reputation_live/society_reputation_alliance_count.png`
+- Corrected scarcity-society task-only vs cooperative:
+  - task-only final survival: `1.0000`
+  - cooperative final survival: `0.8889`
+  - task-only trade / alliances: `0.0000 / 0.0000`
+  - cooperative trade / alliances: `2.1667 / 2.0000`
+- Corrected reputation-society task-only vs cooperative:
+  - task-only final survival: `1.0000`
+  - cooperative final survival: `1.0000`
+  - task-only trade / alliances: `0.0000 / 0.0000`
+  - cooperative trade / alliances: `1.6667 / 2.3333`
+- This materially updates the old pilot interpretation:
+  - the scarcity society still supports the “visible prosociality is not the
+    same thing as society preservation” claim
+  - the reputation society now suggests a buffering effect, where cooperative
+    social activity survives without the same survival penalty
+- Remaining live blocker:
+  - corrected `competitive` institutional reruns are still in progress

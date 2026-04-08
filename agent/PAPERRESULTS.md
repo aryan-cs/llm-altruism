@@ -469,3 +469,62 @@ This means:
    - prompt-susceptibility table
    - society/reputation survival table
 5. Add a short methods subsection explicitly documenting the cache and self-transfer fixes.
+
+## April 8 Corrected Institutional Update
+
+The corrected post-fix institutional reruns now close the `task-only` and
+`cooperative` comparison for both Part 2 and Part 3.
+
+Part 2 corrected scarcity society prompt comparison:
+
+- task-only:
+  - survival rate: `1.0000`
+  - final survival rate: `1.0000`
+  - average trade volume: `0.0000`
+  - average gini: `0.1279`
+  - commons health: `0.2969`
+  - alliance count: `0.0000`
+- cooperative:
+  - survival rate: `0.9583`
+  - final survival rate: `0.8889`
+  - average trade volume: `2.1667`
+  - average gini: `0.3253`
+  - commons health: `0.5321`
+  - alliance count: `2.0000`
+
+Interpretation:
+
+- corrected scarcity-society evidence now supports the core pilot direction on
+  a stronger footing
+- cooperative prompting increases visible social activity but reduces final
+  survival relative to task-only
+
+Part 3 corrected reputation prompt comparison:
+
+- task-only:
+  - survival rate: `1.0000`
+  - final survival rate: `1.0000`
+  - average trade volume: `0.0000`
+  - average gini: `0.0942`
+  - commons health: `0.2960`
+  - alliance count: `0.0000`
+- cooperative:
+  - survival rate: `1.0000`
+  - final survival rate: `1.0000`
+  - average trade volume: `1.6667`
+  - average gini: `0.2724`
+  - commons health: `0.6128`
+  - alliance count: `2.3333`
+
+Interpretation:
+
+- corrected reputation evidence now differs from the plain scarcity society
+- cooperative prompting still increases visible social activity, but it no
+  longer reduces survival in the completed corrected slice
+- this is a more interesting institutional result than the older pilot because
+  it supports a reputation-buffering interpretation rather than a simple
+  “reputation did not help” story
+
+Remaining caveat:
+
+- corrected `competitive` institutional reruns are still running

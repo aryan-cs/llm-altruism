@@ -965,3 +965,53 @@ That conclusion gives us a coherent paper. The strongest novel angle is not just
   behaviors
 
 That is the empirical story these results support right now.
+
+## 11. April 8 Corrected Institutional Update
+
+The corrected institutional reruns now complete the `task-only` and
+`cooperative` conditions for both the scarcity society and the public-
+reputation society.
+
+Corrected scarcity society summary:
+
+- `task-only`
+  - survival rate: `1.0000`
+  - final survival rate: `1.0000`
+  - average trade volume: `0.0000`
+  - average gini: `0.1279`
+  - commons health: `0.2969`
+  - alliance count: `0.0000`
+- `cooperative`
+  - survival rate: `0.9583`
+  - final survival rate: `0.8889`
+  - average trade volume: `2.1667`
+  - average gini: `0.3253`
+  - commons health: `0.5321`
+  - alliance count: `2.0000`
+
+Corrected reputation society summary:
+
+- `task-only`
+  - survival rate: `1.0000`
+  - final survival rate: `1.0000`
+  - average trade volume: `0.0000`
+  - average gini: `0.0942`
+  - commons health: `0.2960`
+  - alliance count: `0.0000`
+- `cooperative`
+  - survival rate: `1.0000`
+  - final survival rate: `1.0000`
+  - average trade volume: `1.6667`
+  - average gini: `0.2724`
+  - commons health: `0.6128`
+  - alliance count: `2.3333`
+
+Updated interpretation:
+
+- the older pilot claim that prosocial-looking behavior can diverge from
+  society-preserving behavior now has corrected support in the plain scarcity
+  society
+- public reputation appears to buffer that survival penalty in the completed
+  corrected slice
+- the corrected `competitive` institutional reruns are still in progress, so
+  the full three-prompt institutional battery is not closed yet

@@ -326,17 +326,27 @@ real behavioral confound, but not a monotonic one.
 
 ### 6.5 Society-preserving behavior is not the same as prosocial wording
 
-In the current pilot, task-only prompting yielded the strongest survival in the
-scarcity society, while explicitly cooperative prompting produced more visible
-social activity but worse final survival. This is one of the most interesting
-paper-level results because it separates “looking cooperative” from preserving
-collective function.
+The corrected scarcity-society rerun now reproduces this claim on a stronger
+footing than the original pilot. Across three corrected repetitions each,
+`task-only` yields `1.0000` final survival with `0.0000` trade volume and
+`0.0000` alliances, while `cooperative` drops to `0.8889` final survival but
+raises trade volume to `2.1667`, alliance count to `2.0000`, inequality to
+`0.3253`, and commons health to `0.5321`. The paper-safe claim is now much
+sharper: in the plain scarcity society, visibly cooperative behavior is not
+the same thing as society-preserving behavior.
 
 ### 6.6 Reputation changes behavior asymmetrically
 
-Public accountability changed behavior, but did not collapse all conditions
-toward a common cooperative equilibrium. That asymmetry is more interesting
-than a simple “reputation fixes cooperation” story.
+The corrected reputation rerun also now closes the `task-only`/`cooperative`
+slice. `Task-only` again yields `1.0000` final survival with no trade and no
+alliances, but `cooperative` now preserves `1.0000` final survival while
+raising trade volume to `1.6667`, alliance count to `2.3333`, and commons
+health to `0.6128`. Relative to the non-reputation scarcity society, public
+reputation appears to preserve the high-social-activity cooperative regime
+without the survival drop. This is already more interesting than a simple
+“reputation fixes cooperation” story, because it suggests a specifically
+institution-mediated buffering effect. The corrected `competitive` reruns are
+still in progress.
 
 ## 7. What Still Needs To Be True Before Submission
 
@@ -358,10 +368,11 @@ cross-game artifacts into the main Part 1 tables and treat older under-logged
 benchmark and susceptibility outputs as background context rather than primary
 evidence.
 
-### 7.3 Stronger replications are needed
+### 7.3 Stronger replications are still needed
 
-Part 2 and Part 3 need additional repetitions so the results section can report
-uncertainty with more confidence.
+Part 2 and Part 3 are now much stronger than the original pilot for the
+`task-only`/`cooperative` comparison, but the institutional battery is not
+fully closed until the corrected `competitive` reruns finish.
 
 ### 7.4 Statistics and uncertainty must be first-class
 

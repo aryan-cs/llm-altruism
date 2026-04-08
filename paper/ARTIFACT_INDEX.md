@@ -163,7 +163,45 @@ Status:
 - repaired susceptibility is now finalized across all three core games
 - prompt-steerability magnitude is clearly game-dependent under repaired logging
 
-## 6. Older Pilot Results Still Useful
+## 6. Corrected Institutional Reruns
+
+Current corrected institutional summaries:
+
+- `results/paper_ready_society_triplet/interim_summary.md`
+- `results/paper_ready_society_triplet/interim_summary.csv`
+- `results/paper_ready_reputation_triplet/interim_summary.md`
+- `results/paper_ready_reputation_triplet/interim_summary.csv`
+
+Current corrected institutional figures:
+
+- `paper/figures/society_reputation_live/society_reputation_final_survival.png`
+- `paper/figures/society_reputation_live/society_reputation_trade_volume.png`
+- `paper/figures/society_reputation_live/society_reputation_alliance_count.png`
+
+Current strongest corrected institutional signal:
+
+- scarcity society
+  - `task-only`: final survival `1.0000`, trade `0.0000`, alliances `0.0000`
+  - `cooperative`: final survival `0.8889`, trade `2.1667`, alliances `2.0000`
+- reputation society
+  - `task-only`: final survival `1.0000`, trade `0.0000`, alliances `0.0000`
+  - `cooperative`: final survival `1.0000`, trade `1.6667`, alliances `2.3333`
+
+Main claim supported:
+
+- the corrected institutional reruns now support a paper-safe task-only versus
+  cooperative contrast
+- cooperative prompting increases visible social activity in both institutions,
+  but only the plain scarcity society currently shows a survival penalty
+- public reputation appears to buffer that survival penalty in the completed
+  corrected slice
+
+Status:
+
+- corrected `task-only` and `cooperative` institutional conditions are complete
+- corrected `competitive` institutional reruns are still in progress
+
+## 7. Older Pilot Results Still Useful
 
 The corrected fast-batch pilot remains useful for broader story-building,
 especially for:
@@ -183,7 +221,7 @@ These pilot artifacts remain helpful for manuscript framing, but repaired Part 1
 claims should replace older under-logged Part 1 evidence whenever the repaired
 artifacts exist.
 
-## 7. Current Best Paper-Safe Claims
+## 8. Current Best Paper-Safe Claims
 
 These claims are now on the strongest footing:
 
@@ -204,8 +242,14 @@ These claims are now on the strongest footing:
 9. Repaired prompt susceptibility is also game-dependent: competitive framing
    collapses Prisoner's Dilemma most strongly but leaves much higher residual
    cooperation in Chicken and Stag Hunt.
+10. In the corrected scarcity society, `cooperative` prompting increases trade,
+    alliances, commons health, and inequality, but lowers final survival
+    relative to `task-only`.
+11. In the corrected reputation society, `cooperative` also increases visible
+    social activity, but currently preserves `1.0000` final survival across the
+    completed corrected slice.
 
 These claims are promising but still in-progress for repaired evidence:
 
-1. society-preserving outcomes diverge from overtly cooperative prompting under
-   stronger repetition counts
+1. the full three-prompt institutional battery, including corrected
+   `competitive` results

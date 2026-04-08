@@ -217,14 +217,26 @@ with the strategic schema a model activates for a particular game.
 
 ### 4.5 Multi-agent institutions remain the next empirical frontier
 
-The project also includes scarcity and public-reputation simulations meant to
-test whether micro-level strategic tendencies predict macro-level social
-resilience. Earlier pilot evidence suggests that overtly cooperative prompting
-may increase visible social activity without improving survival, but those
-larger-society claims should rest on corrected reruns rather than older
-pre-repair outputs. The current paper package therefore treats repaired Part 1
-as the submission-grade empirical core, while corrected multi-agent reruns are
-being folded in as the next revision of the artifact bundle.
+The corrected multi-agent reruns now complete the `task-only` and
+`cooperative` conditions for both the scarcity society and the public-
+reputation society. In the scarcity society, `task-only` is perfectly stable
+across three repetitions (`1.0000` final survival, zero trade, zero
+alliances), while `cooperative` increases social activity and commons health
+but lowers final survival to `0.8889 [0.8333, 1.0000]`. The same cooperative
+condition raises average trade volume from `0.0000` to `2.1667`, average
+inequality from `0.1279` to `0.3253`, commons health from `0.2969` to
+`0.5321`, and alliance count from `0.0000` to `2.0000`.
+
+In the reputation society, `task-only` is again perfectly stable across three
+repetitions, but `cooperative` no longer incurs a survival penalty: both
+survival and final survival remain `1.0000`, while trade volume rises to
+`1.6667`, alliance count to `2.3333`, and commons health to `0.6128`. These
+corrected reruns therefore already support a narrower institutional claim than
+the older pilot: public reputation may preserve highly social cooperative
+behavior that is less survival-preserving in the plain scarcity environment.
+The `competitive` institutional reruns are still in progress, so the full
+three-prompt institutional battery remains a next-step artifact rather than a
+closed table.
 
 ## 5. Discussion
 
@@ -239,29 +251,33 @@ LLM social evaluation. Canonical task names can change behavior enough to alter
 the substantive interpretation of a result.
 
 Together, these findings argue for a behavioral evaluation agenda that
-decomposes baseline policy, steerability, and recognizability rather than
-collapsing them. A model can look cooperative in one canonical benchmark, yet
-defect under a different neutral paraphrase, or become far more cooperative
-once the benchmark label is removed. Those are not minor nuisance effects.
-They change what the experiment is measuring.
+decomposes baseline policy, steerability, recognizability, and institutional
+mediation rather than collapsing them. A model can look cooperative in one
+canonical benchmark, yet defect under a different neutral paraphrase, become
+far more cooperative once the benchmark label is removed, or sustain visibly
+cooperative behavior only under public accountability. Those are not minor
+nuisance effects. They change what the experiment is measuring.
 
 ## 6. Limitations
 
 This manuscript has four important limitations.
 
-First, the strongest repaired claims currently come from Part 1 rather than the
+First, the strongest repaired claims still come from Part 1 rather than the
 full micro-to-macro program. Second, the repaired baselines use a small but
 stable model cohort chosen by provider access and action-readiness constraints.
 Third, the repaired runs use fast-batch settings, which improves throughput but
-limits the number of rounds and repetitions per condition. Fourth, larger
-multi-agent claims about scarcity and reputation should rely on corrected
-reruns rather than older pilot outputs.
+limits the number of rounds and repetitions per condition. Fourth, the
+institutional reruns are currently strongest for the `task-only` versus
+`cooperative` comparison, while the `competitive` prompt family is still being
+collected.
 
 These limitations do not undercut the main contribution. The Part 1 repaired
 bundle already supports a publishable methodological and empirical paper on
 baseline instability, prompt steerability, and benchmark recognition in LLM
-social dilemmas. They do, however, bound the claims that should be made about
-institutional adaptation until more multi-agent replications are complete.
+social dilemmas, and the corrected institutional reruns now add a concrete
+task-only/cooperative contrast under scarcity and public reputation. They do,
+however, bound the claims that should be made about the full prompt family
+until the remaining competitive institutional runs are complete.
 
 ## 7. Conclusion
 
