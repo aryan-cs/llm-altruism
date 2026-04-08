@@ -351,57 +351,54 @@ differences without collapsing prompt-induced coordination styles. That is
 more interesting than a simple “reputation fixes cooperation” story, because
 it points to a specifically institution-mediated buffering effect.
 
-## 7. What Still Needs To Be True Before Submission
+## 7. Remaining Upgrades Before Submission
 
-The paper is not submission-ready yet, even though the story is already strong.
+The main empirical blockers are now closed. What remains is mostly packaging,
+venue formatting, and extra robustness if we want a stronger final version.
 
-### 7.1 Repaired baseline evidence should replace older Part 1 baseline tables
+### 7.1 Repaired Part 1 evidence should remain the canonical record
 
-The repaired cross-game baseline is now complete on the stable triplet cohort,
-and repaired Prisoner’s Dilemma also has a same-day replication on a second
-cohort. The paper should therefore treat these repaired baseline artifacts as
-the default Part 1 baseline evidence rather than relying on older under-logged
-baseline tables.
+The repaired baseline, benchmark, and susceptibility tracks should stay as the
+default Part 1 evidence in any submission version. Older under-logged artifacts
+are now background context, not the paper record.
 
-### 7.2 Repaired benchmark and susceptibility tracks should replace older Part 1 tables
+### 7.2 Venue-formatting is now a packaging task
 
-The repaired benchmark and susceptibility tracks now finish the planned
-three-game core battery. The manuscript should therefore promote these repaired
-cross-game artifacts into the main Part 1 tables and treat older under-logged
-benchmark and susceptibility outputs as background context rather than primary
-evidence.
+The remaining structural work is mostly to move the current manuscript bundle
+into the exact template of the chosen venue and normalize references, captions,
+and appendix formatting.
 
-### 7.3 Stronger replications are still needed
+### 7.3 Stronger institutional replications would still help
 
-Part 2 and Part 3 are now much stronger than the original pilot for the
-full three-prompt comparison, but only at three repetitions per condition.
-Additional reruns would tighten the institutional confidence intervals and make
-the society-level claims more publication-hardened.
+Part 2 and Part 3 are now closed across all three prompt families, but only at
+three repetitions per condition. Additional reruns would tighten the
+institutional confidence intervals and make the society-level claims more
+publication-hardened.
 
-### 7.4 Statistics and uncertainty must be first-class
+### 7.4 Statistics and uncertainty should remain first-class
 
-The final paper should include confidence intervals and uncertainty-aware
-tables/figures, not just point estimates.
+Confidence intervals are already in the pooled summaries. The final venue
+version should preserve that uncertainty-aware presentation rather than
+collapsing back to point estimates only.
 
-### 7.5 The related-work section needs a cleaner novelty claim
+### 7.5 The novelty claim should stay narrow and defensible
 
-The paper should be framed around the decomposition of behavioral measurement
+The paper should stay framed around the decomposition of behavioral measurement
 targets plus the micro-to-macro bridge, not around generic claims that LLMs can
 act socially.
 
 ## 8. Immediate Next Steps
 
-1. Promote the now-complete repaired benchmark and susceptibility tables into
-   the main manuscript text and captions.
-2. Promote the now-complete qwen-inclusive repaired triplet replication into
-   secondary manuscript tables and appendix artifacts.
-3. Keep promoting repaired Part 1 artifacts into manuscript tables and figures.
-4. After the Part 1 refresh is stable, launch stronger Part 2 / Part 3
-   replications.
+1. Convert the manuscript bundle into the exact conference template of the
+   target venue.
+2. Keep the repaired Part 1 and institutional artifacts as the canonical paper
+   record.
+3. Run deeper Part 2 / Part 3 replications if tighter intervals are needed.
+4. Normalize bibliography formatting for the chosen venue.
 
 ## 9. Positioning Sentence
 
-If the empirical refresh succeeds, the cleanest one-sentence positioning is:
+The cleanest one-sentence positioning is:
 
 > We show that LLM social behavior cannot be summarized by a single
 > cooperation score because it depends jointly on neutral-prompt robustness,

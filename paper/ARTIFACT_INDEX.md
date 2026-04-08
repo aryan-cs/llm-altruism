@@ -178,6 +178,11 @@ Final corrected institutional figures:
 - `paper/figures/society_reputation_live/society_reputation_trade_volume.png`
 - `paper/figures/society_reputation_live/society_reputation_alliance_count.png`
 
+Submission packet support files:
+
+- `paper/APPENDIX.md`
+- `paper/SUBMISSION_CHECKLIST.md`
+
 Final corrected institutional comparison:
 
 - scarcity society
