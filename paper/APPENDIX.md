@@ -24,6 +24,7 @@ Current canonical ecology refresh artifacts:
 - `results/live_ecology_20260408/interim_summary.md`
 - `results/live_ecology_20260408/monitoring_figures/`
 - `results/live_ecology_20260408/society-baseline-casebook.md`
+- `results/live_ecology_20260408/live_status.json`
 
 Primary precursor result summaries:
 
@@ -433,12 +434,17 @@ Generate live-monitoring artifacts for an in-progress ecology run:
 .venv/bin/python scripts/ecology_casebook.py \
   results/live_ecology_20260408/society-baseline-20260408T171454Z.jsonl \
   --output results/live_ecology_20260408/society-baseline-casebook.md
+
+.venv/bin/python scripts/refresh_live_ecology_packet.py \
+  results/live_ecology_20260408
 ```
 
 The live-monitoring bundle serves two purposes. The interim summary and figure
 set provide quantitative status checks for in-progress ecology runs, while the
 casebook provides a compact qualitative audit trail with milestone snapshots
 for start state, first loss, largest death shock, and latest observed state.
+The `live_status.json` artifact is the machine-readable heartbeat record for
+the same run.
 
 Launch the full canonical ecology evidence bundle:
 

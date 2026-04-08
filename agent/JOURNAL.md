@@ -64,6 +64,9 @@ It should answer:
 - added `scripts/run_canonical_ecology_suite.py` so the baseline, reputation,
   and event-stress long-horizon ecology runs can be launched as one
   standardized suite instead of by hand
+- added `scripts/refresh_live_ecology_packet.py` so a live ecology directory
+  can regenerate its interim summary, monitoring figures, casebook, and
+  `live_status.json` in one command
 - current live baseline status:
   - `society-baseline-20260408T171454Z`
   - first `task-only` trial has completed round `48`

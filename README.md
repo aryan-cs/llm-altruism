@@ -45,6 +45,9 @@ uv run scripts/run_canonical_ecology_suite.py
 # resume the canonical suite from the reputation stage
 uv run scripts/run_canonical_ecology_suite.py --from-run reputation
 
+# refresh the full local evidence packet for a live ecology run
+uv run scripts/refresh_live_ecology_packet.py results/live_ecology_20260408
+
 # small smoke configs used for quick iteration and CI
 uv run scripts/run_experiment.py --config configs/part2/society_smoke.yaml --dry-run
 uv run scripts/run_experiment.py --config configs/part3/society_reputation_smoke.yaml --dry-run
