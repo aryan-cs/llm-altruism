@@ -88,6 +88,15 @@ def decode_trial_metadata(experiment: dict[str, Any], trial_id: int | None) -> d
     }
 
 
+def expected_trial_count(experiment: dict[str, Any]) -> int:
+    prompt_variants = experiment.get("prompt_variants", []) or []
+    temperatures = experiment.get("parameters", {}).get("temperature", [0.0]) or [0.0]
+    repetitions = int(experiment.get("repetitions", 1) or 1)
+    prompt_count = max(1, len(prompt_variants))
+    temp_count = max(1, len(temperatures))
+    return prompt_count * temp_count * repetitions
+
+
 def alive_models_from_round(round_payload: dict[str, Any]) -> dict[str, int]:
     counts: dict[str, int] = {}
     for vital in (round_payload.get("agent_vitals") or {}).values():
@@ -397,6 +406,19 @@ def summarize_jsonl_log(
     diagnostics = collapse_diagnostics(active_round_records)
     phase_metrics = phase_diagnostics(active_round_records, diagnostics)
     trial_status_rows = summarize_trial_records(experiment, round_records, trial_summary_records)
+    total_expected_trials = expected_trial_count(experiment)
+    completed_trials = sum(1 for row in trial_status_rows if row.get("completed"))
+    active_trials = sum(
+        1
+        for row in trial_status_rows
+        if not row.get("completed") and row.get("latest_round_num") is not None
+    )
+    remaining_trials = max(0, int(total_expected_trials) - int(completed_trials))
+    completion_fraction = (
+        float(completed_trials) / float(total_expected_trials)
+        if total_expected_trials
+        else None
+    )
 
     return {
         "path": str(path),
@@ -425,6 +447,11 @@ def summarize_jsonl_log(
         "latest_event_timestamp": latest_event_timestamp,
         "minutes_since_latest_event": minutes_since_latest_event,
         "state": state,
+        "total_expected_trials": total_expected_trials,
+        "completed_trials": completed_trials,
+        "active_trials": active_trials,
+        "remaining_trials": remaining_trials,
+        "completion_fraction": completion_fraction,
         "trial_status_rows": trial_status_rows,
         **diagnostics,
         **phase_metrics,
@@ -457,6 +484,10 @@ def format_status(summary: dict[str, Any]) -> str:
             f"provider_retries={summary.get('provider_retry_count')} "
             f"latest_event={summary.get('latest_event_type')}@{summary.get('latest_event_timestamp')} "
             f"minutes_since_latest={minutes_text}"
+        ),
+        (
+            f"  progress=completed {summary.get('completed_trials')}/{summary.get('total_expected_trials')} "
+            f"active={summary.get('active_trials')} remaining={summary.get('remaining_trials')}"
         ),
         (
             f"  regime={summary.get('population_regime')} "

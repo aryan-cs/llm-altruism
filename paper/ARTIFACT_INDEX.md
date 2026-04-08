@@ -57,6 +57,9 @@ Main claim supported:
 - the live trial comparison note turns the same snapshot into an explicit delta
   table, including alive fraction, plateau duration, collapse deaths, and
   current resource/vital differences
+- the live status packet now also exposes baseline-suite progress directly,
+  which makes the current evidence state easier to audit while the remaining
+  prompt conditions are still running
 - the phase-window summary figure turns that same split into a paper-facing
   visual, showing the short high-loss collapse window against the much longer
   stable plateau

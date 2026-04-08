@@ -99,6 +99,11 @@ def test_summarize_jsonl_log_extracts_society_state(tmp_path: Path):
     assert summary["provider_retry_count"] == 1
     assert summary["last_retry_model"] == "deepseek-ai/deepseek-v3.2"
     assert summary["state"] == "active"
+    assert summary["total_expected_trials"] == 1
+    assert summary["completed_trials"] == 0
+    assert summary["active_trials"] == 1
+    assert summary["remaining_trials"] == 1
+    assert summary["completion_fraction"] == 0.0
     assert summary["first_loss_round_num"] == 30
     assert summary["first_death_round_num"] is None
     assert summary["last_death_round_num"] is None
@@ -421,6 +426,11 @@ def test_summarize_jsonl_log_scopes_phase_diagnostics_to_latest_trial(tmp_path: 
     assert summary["latest_trial_id"] == 1
     assert summary["prompt_variant"] == "cooperative"
     assert summary["trial_summary_count"] == 1
+    assert summary["total_expected_trials"] == 2
+    assert summary["completed_trials"] == 1
+    assert summary["active_trials"] == 1
+    assert summary["remaining_trials"] == 1
+    assert summary["completion_fraction"] == 0.5
     assert summary["first_loss_round_num"] is None
     assert summary["last_death_round_num"] is None
     assert summary["population_regime"] == "no_losses_yet"

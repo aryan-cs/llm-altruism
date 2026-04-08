@@ -206,3 +206,6 @@ These remain important across sessions.
 - the live packet now also emits `live_trial_comparison.md`, which states the
   current cross-trial deltas directly instead of requiring manual comparison of
   the snapshot table
+- `scripts/live_run_status.py` now exposes suite progress explicitly, so the
+  heartbeat can report completed, active, and remaining trial counts for the
+  current live batch

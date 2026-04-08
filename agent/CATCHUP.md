@@ -229,3 +229,5 @@ uv run python scripts/run_paper_batch.py --track society --track reputation
   `results/live_ecology_20260408/live_trial_snapshot.png`
 - live packet now also includes
   `results/live_ecology_20260408/live_trial_comparison.md`
+- live heartbeat now reports suite progress directly:
+  completed `1/3`, active `1`, remaining `2`
