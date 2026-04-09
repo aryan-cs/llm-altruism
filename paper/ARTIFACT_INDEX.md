@@ -25,6 +25,7 @@ Primary artifacts:
 - `results/live_ecology_20260408_resume/live_trial_snapshot.csv`
 - `results/live_ecology_20260408_resume/live_trial_snapshot.png`
 - `results/live_ecology_20260408_resume/live_trial_comparison.md`
+- `results/live_ecology_20260408_followon/watch_status.json`
 - `results/live_ecology_20260408_resume/monitoring_figures/society_reputation_survivor_vitals_heatmap.png`
 - `results/live_ecology_20260408_resume/monitoring_figures/society_reputation_model_vitals_over_time.png`
 
@@ -34,6 +35,9 @@ Main claim supported:
 - stalled suite work is now recoverable without discarding completed trials,
   because the continuation log reuses completed trial summaries after strict
   config matching
+- the queued follow-on suite is now auditable while it waits, because the
+  watcher writes a machine-readable status file with the current baseline
+  summary and the pending continuation command
 - the current baseline trajectory already exposes concrete collapse milestones,
   model-level survivor composition, a gather-dominated behavior regime, and
   the resource/vital profile of the surviving agents

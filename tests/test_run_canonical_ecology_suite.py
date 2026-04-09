@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
 import sys
 
@@ -132,3 +133,34 @@ def test_continue_module_builds_refresh_command():
         "scripts/refresh_live_ecology_packet.py",
         "results/live_ecology_20260408_resume",
     ]
+
+
+def test_continue_module_writes_watcher_status(tmp_path: Path):
+    module = _load_continue_module()
+    summary = {
+        "completed_trials": 1,
+        "total_expected_trials": 3,
+        "prompt_variant": "cooperative",
+        "latest_round_num": 12,
+    }
+    command = [
+        sys.executable,
+        "scripts/run_canonical_ecology_suite.py",
+        "--from-run",
+        "reputation",
+    ]
+
+    output_path = module.write_watcher_status(
+        results_root=tmp_path,
+        baseline_results="results/live_ecology_20260408_resume",
+        summary=summary,
+        followon_command=command,
+        watcher_state="waiting",
+    )
+
+    assert output_path == tmp_path / "watch_status.json"
+    payload = json.loads(output_path.read_text(encoding="utf-8"))
+    assert payload["watcher_state"] == "waiting"
+    assert payload["baseline_results"] == "results/live_ecology_20260408_resume"
+    assert payload["followon_command"] == command
+    assert payload["baseline_summary"]["prompt_variant"] == "cooperative"

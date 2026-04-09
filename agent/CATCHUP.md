@@ -235,3 +235,5 @@ uv run python scripts/run_paper_batch.py --track society --track reputation
   while it waits for baseline completion
 - active follow-on watcher target:
   `results/live_ecology_20260408_followon/`
+- active follow-on watcher heartbeat:
+  `results/live_ecology_20260408_followon/watch_status.json`

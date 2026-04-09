@@ -5,9 +5,11 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
+import json
 import subprocess
 import sys
 import time
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -142,6 +144,31 @@ def build_refresh_command(results_dir: str | Path) -> list[str]:
     ]
 
 
+def watcher_status_path(results_root: str | Path) -> Path:
+    return Path(results_root) / "watch_status.json"
+
+
+def write_watcher_status(
+    *,
+    results_root: str | Path,
+    baseline_results: str | Path,
+    summary: dict[str, Any],
+    followon_command: list[str],
+    watcher_state: str,
+) -> Path:
+    payload = {
+        "updated_at": datetime.now(UTC).isoformat(),
+        "watcher_state": watcher_state,
+        "baseline_results": str(baseline_results),
+        "followon_command": followon_command,
+        "baseline_summary": summary,
+    }
+    output_path = watcher_status_path(results_root)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    return output_path
+
+
 def refresh_packet(results_dir: str | Path) -> None:
     completed = subprocess.run(build_refresh_command(results_dir), cwd=ROOT, check=False)
     if completed.returncode != 0:
@@ -153,6 +180,8 @@ def refresh_packet(results_dir: str | Path) -> None:
 def wait_for_baseline_completion(
     baseline_results: str | Path,
     *,
+    results_root: str | Path,
+    followon_command: list[str],
     poll_seconds: float,
     stale_minutes: float,
     refresh_results_packet: bool,
@@ -161,6 +190,18 @@ def wait_for_baseline_completion(
         summary = summarize_baseline(baseline_results, stale_minutes=stale_minutes)
         if refresh_results_packet:
             refresh_packet(baseline_results)
+        watcher_state = "waiting"
+        if baseline_is_complete(summary):
+            watcher_state = "baseline_complete"
+        elif summary.get("state") == "stale":
+            watcher_state = "baseline_stale"
+        write_watcher_status(
+            results_root=results_root,
+            baseline_results=baseline_results,
+            summary=summary,
+            followon_command=followon_command,
+            watcher_state=watcher_state,
+        )
         if baseline_is_complete(summary):
             return summary
         if summary.get("state") == "stale":
@@ -196,6 +237,8 @@ def main() -> int:
 
     summary = wait_for_baseline_completion(
         args.baseline_results,
+        results_root=args.results_root,
+        followon_command=command,
         poll_seconds=args.poll_seconds,
         stale_minutes=args.stale_minutes,
         refresh_results_packet=args.refresh_packet,
@@ -205,6 +248,13 @@ def main() -> int:
         f"completed={summary.get('completed_trials')}/{summary.get('total_expected_trials')} "
         f"latest_trial={summary.get('latest_trial_id')}",
         flush=True,
+    )
+    write_watcher_status(
+        results_root=args.results_root,
+        baseline_results=args.baseline_results,
+        summary=summary,
+        followon_command=command,
+        watcher_state="launching_followon",
     )
     completed = subprocess.run(command, cwd=ROOT, check=False)
     return completed.returncode

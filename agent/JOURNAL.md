@@ -193,6 +193,10 @@ These remain important across sessions.
 - the watcher now supports `--refresh-packet`, so the waiting process can keep
   the local baseline packet current and write line-buffered audit output for
   `nohup`-style background runs
+- the watcher now also writes
+  `results/live_ecology_20260408_followon/watch_status.json`, which records
+  the current baseline summary, watcher state, and the queued follow-on
+  command
 
 ### Monitoring artifacts
 
