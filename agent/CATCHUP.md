@@ -168,6 +168,7 @@ Useful commands:
 uv run pytest -q
 uv run scripts/run_experiment.py
 uv run scripts/run_canonical_ecology_suite.py
+uv run scripts/continue_canonical_ecology_suite.py results/live_ecology_20260408_resume --results-root results/live_ecology_20260408_followon --from-run reputation
 uv run scripts/refresh_live_ecology_packet.py results/live_ecology_20260408
 uv run scripts/refresh_live_ecology_packet.py results/live_ecology_20260408_resume
 uv run python scripts/run_paper_batch.py --track society --track reputation
@@ -208,8 +209,8 @@ uv run python scripts/run_paper_batch.py --track society --track reputation
   reused the completed `task-only` summary from the stale log and relaunched
   the incomplete baseline slots into a fresh results directory
 - current continuation state:
-  `cooperative`, round `1`, `24/24` alive, `public_food=98`,
-  `public_water=166`, `average_health=11.0`, `average_energy=9.0`
+  `cooperative`, round `8`, `23/24` alive, `public_food=62`,
+  `public_water=113`, `average_health=8.8261`, `average_energy=11.0`
 - current heartbeat artifact:
   `results/live_ecology_20260408_resume/live_status.json`
 - current qualitative artifact:
@@ -224,3 +225,9 @@ uv run python scripts/run_paper_batch.py --track society --track reputation
   `scripts/run_experiment.py --resume-log ...` is now the supported recovery
   path for stalled Part 2/3 suite runs when at least one trial summary already
   exists
+- follow-on note:
+  `scripts/continue_canonical_ecology_suite.py` is now the supported way to
+  watch the resumed baseline and then launch `reputation` plus `event-stress`
+  automatically once baseline reaches `3/3` completed trials
+- active follow-on watcher target:
+  `results/live_ecology_20260408_followon/`

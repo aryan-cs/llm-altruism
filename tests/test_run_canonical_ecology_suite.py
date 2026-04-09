@@ -19,6 +19,16 @@ def _load_suite_module():
     return module
 
 
+def _load_continue_module():
+    module_path = ROOT / "scripts" / "continue_canonical_ecology_suite.py"
+    spec = importlib.util.spec_from_file_location("continue_canonical_ecology_suite_module", module_path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
 def test_suite_runs_cover_baseline_reputation_and_event_stress():
     module = _load_suite_module()
 
@@ -81,3 +91,32 @@ def test_build_command_can_forward_resume_log():
 
     assert "--resume-log" in command
     assert "results/live_ecology_20260408/society-baseline-20260408T171454Z.jsonl" in command
+
+
+def test_continue_module_detects_completed_baseline():
+    module = _load_continue_module()
+
+    assert module.baseline_is_complete({"total_expected_trials": 3, "completed_trials": 3}) is True
+    assert module.baseline_is_complete({"total_expected_trials": 3, "completed_trials": 2}) is False
+
+
+def test_continue_module_builds_followon_command():
+    module = _load_continue_module()
+
+    command = module.build_followon_command(
+        results_root="results/followon",
+        from_run="reputation",
+        models=["cerebras:llama3.1-8b", "nvidia:deepseek-ai/deepseek-v3.2"],
+        dry_run=True,
+    )
+
+    assert command[:5] == [
+        sys.executable,
+        "scripts/run_canonical_ecology_suite.py",
+        "--from-run",
+        "reputation",
+        "--results-root",
+    ]
+    assert "results/followon" in command
+    assert command.count("--model") == 2
+    assert "--dry-run" in command

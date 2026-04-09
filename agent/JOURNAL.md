@@ -182,6 +182,14 @@ These remain important across sessions.
 - first resumed live round landed at `2026-04-08T23:56:01Z` with `24/24`
   agents alive, `public_food=98`, `public_water=166`, `average_health=11.0`,
   and `average_energy=9.0`
+- the resumed baseline remains active; latest observed state is
+  `2026-04-08T23:59:51Z`, `cooperative`, round `8`, `23/24` alive, with the
+  first resumed death landing at round `8`
+- a follow-on watcher is now active through
+  `scripts/continue_canonical_ecology_suite.py`; it will launch the remaining
+  canonical suite stages from `reputation` into
+  `results/live_ecology_20260408_followon/` once the resumed baseline reaches
+  `3/3` completed trials
 
 ### Monitoring artifacts
 
@@ -218,3 +226,6 @@ These remain important across sessions.
 - `scripts/run_experiment.py` now accepts `--resume-log`, and Part 2/3 runs
   now reuse completed trial summaries from a prior JSONL after strict config
   matching instead of discarding finished work from a stalled suite
+- `scripts/continue_canonical_ecology_suite.py` now provides a versioned
+  watcher path for launching `reputation` and `event-stress` only after the
+  monitored baseline finishes, instead of relying on a manual follow-up
