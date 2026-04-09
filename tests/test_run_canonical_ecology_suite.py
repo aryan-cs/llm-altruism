@@ -120,3 +120,15 @@ def test_continue_module_builds_followon_command():
     assert "results/followon" in command
     assert command.count("--model") == 2
     assert "--dry-run" in command
+
+
+def test_continue_module_builds_refresh_command():
+    module = _load_continue_module()
+
+    command = module.build_refresh_command("results/live_ecology_20260408_resume")
+
+    assert command == [
+        sys.executable,
+        "scripts/refresh_live_ecology_packet.py",
+        "results/live_ecology_20260408_resume",
+    ]

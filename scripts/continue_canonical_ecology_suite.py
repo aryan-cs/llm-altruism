@@ -65,6 +65,14 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Print the command that would be launched and exit.",
     )
+    parser.add_argument(
+        "--refresh-packet",
+        action="store_true",
+        help=(
+            "Refresh the monitored baseline's local summary/figure packet on each poll "
+            "using scripts/refresh_live_ecology_packet.py."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -126,14 +134,33 @@ def build_followon_command(
     return command
 
 
+def build_refresh_command(results_dir: str | Path) -> list[str]:
+    return [
+        sys.executable,
+        "scripts/refresh_live_ecology_packet.py",
+        str(results_dir),
+    ]
+
+
+def refresh_packet(results_dir: str | Path) -> None:
+    completed = subprocess.run(build_refresh_command(results_dir), cwd=ROOT, check=False)
+    if completed.returncode != 0:
+        raise RuntimeError(
+            f"Packet refresh failed for {results_dir} with exit code {completed.returncode}"
+        )
+
+
 def wait_for_baseline_completion(
     baseline_results: str | Path,
     *,
     poll_seconds: float,
     stale_minutes: float,
+    refresh_results_packet: bool,
 ) -> dict[str, Any]:
     while True:
         summary = summarize_baseline(baseline_results, stale_minutes=stale_minutes)
+        if refresh_results_packet:
+            refresh_packet(baseline_results)
         if baseline_is_complete(summary):
             return summary
         if summary.get("state") == "stale":
@@ -147,13 +174,15 @@ def wait_for_baseline_completion(
             f"completed={summary.get('completed_trials')}/{summary.get('total_expected_trials')} "
             f"trial={summary.get('latest_trial_id')} "
             f"prompt={summary.get('prompt_variant')} "
-            f"round={summary.get('latest_round_num')}"
+            f"round={summary.get('latest_round_num')}",
+            flush=True,
         )
-        sys.stdout.flush()
         time.sleep(max(1.0, poll_seconds))
 
 
 def main() -> int:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(line_buffering=True)
     args = parse_args()
     command = build_followon_command(
         results_root=args.results_root,
@@ -161,7 +190,7 @@ def main() -> int:
         models=args.model,
         dry_run=args.dry_run,
     )
-    print(f"[followon] {' '.join(command)}")
+    print(f"[followon] {' '.join(command)}", flush=True)
     if args.print_only:
         return 0
 
@@ -169,11 +198,13 @@ def main() -> int:
         args.baseline_results,
         poll_seconds=args.poll_seconds,
         stale_minutes=args.stale_minutes,
+        refresh_results_packet=args.refresh_packet,
     )
     print(
         "baseline complete: "
         f"completed={summary.get('completed_trials')}/{summary.get('total_expected_trials')} "
-        f"latest_trial={summary.get('latest_trial_id')}"
+        f"latest_trial={summary.get('latest_trial_id')}",
+        flush=True,
     )
     completed = subprocess.run(command, cwd=ROOT, check=False)
     return completed.returncode

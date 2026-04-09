@@ -229,5 +229,9 @@ uv run python scripts/run_paper_batch.py --track society --track reputation
   `scripts/continue_canonical_ecology_suite.py` is now the supported way to
   watch the resumed baseline and then launch `reputation` plus `event-stress`
   automatically once baseline reaches `3/3` completed trials
+- watcher detail:
+  add `--refresh-packet` when you want the watcher to keep
+  `interim_summary.md`, `live_status.json`, and the monitoring figures current
+  while it waits for baseline completion
 - active follow-on watcher target:
   `results/live_ecology_20260408_followon/`

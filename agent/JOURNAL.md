@@ -190,6 +190,9 @@ These remain important across sessions.
   canonical suite stages from `reputation` into
   `results/live_ecology_20260408_followon/` once the resumed baseline reaches
   `3/3` completed trials
+- the watcher now supports `--refresh-packet`, so the waiting process can keep
+  the local baseline packet current and write line-buffered audit output for
+  `nohup`-style background runs
 
 ### Monitoring artifacts
 
