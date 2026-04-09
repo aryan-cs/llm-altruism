@@ -22,18 +22,15 @@ Current honest answer:
 
 Current live baseline signal:
 
-- the recovered long-horizon baseline is now in the `cooperative` trial at
-  round `34`
-- survival is currently `17 / 24`
-- cumulative deaths in the active trial are `7`
-- survivors are currently split as:
-  - `deepseek-ai/deepseek-v3.2`: `7`
-  - `moonshotai/kimi-k2-instruct-0905`: `7`
-  - `llama3.1-8b`: `3`
-- the current regime is `stable_post_collapse`
-- the plateau began at round `11` and has now lasted `24` rounds
+- the recovered long-horizon baseline is currently in the `cooperative` trial
+  of the baseline suite
+- the active run is in a `stable_post_collapse` regime after an early collapse
+  window
+- recent checks have held near `17 / 24` surviving agents
 - relative to the completed `task-only` baseline (`10 / 24` alive), the live
-  `cooperative` trial is materially stronger so far
+  `cooperative` trial remains materially stronger so far
+- the exact live snapshot should be read from
+  `results/society-baseline_20260409T021942Z/live_status.json`
 
 How to use this:
 

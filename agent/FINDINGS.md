@@ -28,17 +28,16 @@ Current answer:
 
 Current non-final live signal from the first canonical baseline trial:
 
-- the recovered canonical baseline is currently in the `cooperative` trial at
-  round `34`
-- the society is holding at `17 / 24` surviving agents
-- cumulative deaths in the active trial are `7`
-- survivors are currently split as:
-  - `deepseek-ai/deepseek-v3.2`: `7`
-  - `moonshotai/kimi-k2-instruct-0905`: `7`
-  - `llama3.1-8b`: `3`
-- the active run has been in a stable post-collapse plateau since round `11`
-- the plateau is already materially stronger than the completed `task-only`
-  baseline on alive count (`17 / 24` versus `10 / 24`)
+- the recovered canonical baseline is currently in the `cooperative` trial of
+  the baseline suite
+- the active society has entered a stable post-collapse plateau after an early
+  loss window
+- recent checks have held near `17 / 24` surviving agents, which is materially
+  stronger than the completed `task-only` baseline (`10 / 24`)
+- the surviving population currently includes all three models rather than
+  collapsing to a single-model remnant
+- the exact live snapshot should be read from
+  `results/society-baseline_20260409T021942Z/live_status.json`
 
 Interpretation:
 
