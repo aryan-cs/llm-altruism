@@ -196,6 +196,44 @@ def test_continue_module_writes_watcher_status(tmp_path: Path):
     assert payload["baseline_summary"]["prompt_variant"] == "cooperative"
 
 
+def test_continue_module_waits_for_first_log(monkeypatch, tmp_path: Path):
+    module = _load_continue_module()
+    followon_command = [module.project_python(), "scripts/run_canonical_ecology_suite.py"]
+    calls: list[str] = []
+    summaries = iter(
+        [
+            FileNotFoundError("No JSONL experiment logs found."),
+            {"total_expected_trials": 1, "completed_trials": 1, "latest_trial_id": 0},
+        ]
+    )
+
+    def fake_summarize(*args, **kwargs):
+        value = next(summaries)
+        if isinstance(value, Exception):
+            raise value
+        return value
+
+    def fake_write_watcher_status(**kwargs):
+        calls.append(kwargs["watcher_state"])
+        return tmp_path / "watch_status.json"
+
+    monkeypatch.setattr(module, "summarize_baseline", fake_summarize)
+    monkeypatch.setattr(module, "write_watcher_status", fake_write_watcher_status)
+    monkeypatch.setattr(module.time, "sleep", lambda *_args, **_kwargs: None)
+
+    summary = module.wait_for_baseline_completion(
+        "results/new_baseline",
+        results_root=tmp_path,
+        followon_command=followon_command,
+        poll_seconds=0.0,
+        stale_minutes=15.0,
+        refresh_results_packet=False,
+    )
+
+    assert calls == ["waiting_for_log", "baseline_complete"]
+    assert summary["completed_trials"] == 1
+
+
 def test_recover_module_detects_needing_recovery():
     module = _load_recover_module()
 

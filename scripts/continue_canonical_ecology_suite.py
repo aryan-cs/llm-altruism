@@ -194,7 +194,19 @@ def wait_for_baseline_completion(
     refresh_results_packet: bool,
 ) -> dict[str, Any]:
     while True:
-        summary = summarize_baseline(baseline_results, stale_minutes=stale_minutes)
+        try:
+            summary = summarize_baseline(baseline_results, stale_minutes=stale_minutes)
+        except FileNotFoundError:
+            write_watcher_status(
+                results_root=results_root,
+                baseline_results=baseline_results,
+                summary={},
+                followon_command=followon_command,
+                watcher_state="waiting_for_log",
+            )
+            print(f"waiting_for_log: baseline_results={baseline_results}", flush=True)
+            time.sleep(max(1.0, poll_seconds))
+            continue
         if refresh_results_packet:
             refresh_packet(baseline_results)
         watcher_state = "waiting"
