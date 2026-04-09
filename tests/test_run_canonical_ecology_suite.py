@@ -284,3 +284,24 @@ def test_maintain_module_writes_status_file(tmp_path: Path):
     assert payload["recovery_needed"] is False
     assert payload["recovery_command"] == command
     assert payload["baseline_summary"]["state"] == "active"
+
+
+def test_maintain_module_parses_loop_arguments(monkeypatch):
+    module = _load_maintain_module()
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "maintain_canonical_ecology_suite.py",
+            "results/live",
+            "--loop",
+            "--poll-seconds",
+            "90",
+        ],
+    )
+
+    args = module.parse_args()
+
+    assert args.baseline_results == "results/live"
+    assert args.loop is True
+    assert args.poll_seconds == 90.0

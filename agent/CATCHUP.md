@@ -245,3 +245,7 @@ uv run python scripts/run_paper_batch.py --track society --track reputation
   `scripts/maintain_canonical_ecology_suite.py` writes
   `results/live_ecology_20260408_followon/maintenance_status.json`, which
   records whether recovery is currently needed and the exact recovery command
+- active maintenance daemon:
+  detached supervisor process is now running against
+  `results/live_ecology_20260408_resume` and appends to
+  `results/live_ecology_20260408_followon/maintenance.log`

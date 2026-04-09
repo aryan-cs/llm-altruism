@@ -205,6 +205,9 @@ These remain important across sessions.
   supervisor path: inspect the active baseline, emit a maintenance heartbeat,
   and trigger the recovery script only if the monitored run has actually gone
   stale before completion
+- the maintenance supervisor is now running as a detached loop against the
+  resumed baseline, writing `maintenance_status.json` and `maintenance.log`
+  under `results/live_ecology_20260408_followon/`
 
 ### Monitoring artifacts
 

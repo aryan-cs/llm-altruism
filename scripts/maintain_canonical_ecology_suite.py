@@ -8,6 +8,7 @@ import importlib.util
 import json
 import subprocess
 import sys
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -67,6 +68,20 @@ def parse_args() -> argparse.Namespace:
         "--print-only",
         action="store_true",
         help="Print the recovery command without launching it.",
+    )
+    parser.add_argument(
+        "--loop",
+        action="store_true",
+        help=(
+            "Keep supervising the baseline instead of performing a single check. "
+            "If recovery is launched, the supervisor exits after that handoff."
+        ),
+    )
+    parser.add_argument(
+        "--poll-seconds",
+        type=float,
+        default=180.0,
+        help="Sleep interval between maintenance checks when --loop is enabled.",
     )
     return parser.parse_args()
 
@@ -153,45 +168,49 @@ def write_status(
 
 
 def main() -> int:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(line_buffering=True)
     args = parse_args()
-    summary = summarize_baseline(args.baseline_results, stale_minutes=args.stale_minutes)
-
     recover_module = _load_module(
         "recover_canonical_ecology_baseline.py",
         "recover_canonical_ecology_baseline_module",
     )
-    recovery_needed = bool(recover_module.needs_recovery(summary))
-    command = build_recovery_command(
-        baseline_results=args.baseline_results,
-        followon_root=args.followon_root,
-        results_parent=args.results_parent,
-        config_path=args.config,
-        models=args.model,
-        stale_minutes=args.stale_minutes,
-        dry_run=args.dry_run,
-    )
-
-    recovery_returncode: int | None = None
-    if recovery_needed:
-        print(f"[recover] {' '.join(command)}")
-        if not args.print_only:
-            completed = subprocess.run(command, cwd=ROOT, check=False)
-            recovery_returncode = int(completed.returncode)
-    else:
-        print(
-            "no recovery needed: "
-            f"state={summary.get('state')} "
-            f"completed={summary.get('completed_trials')}/{summary.get('total_expected_trials')}"
+    while True:
+        summary = summarize_baseline(args.baseline_results, stale_minutes=args.stale_minutes)
+        recovery_needed = bool(recover_module.needs_recovery(summary))
+        command = build_recovery_command(
+            baseline_results=args.baseline_results,
+            followon_root=args.followon_root,
+            results_parent=args.results_parent,
+            config_path=args.config,
+            models=args.model,
+            stale_minutes=args.stale_minutes,
+            dry_run=args.dry_run,
         )
 
-    write_status(
-        path=status_path(args),
-        baseline_summary=summary,
-        recovery_needed=recovery_needed,
-        recovery_command=command,
-        recovery_returncode=recovery_returncode,
-    )
-    return 0 if recovery_returncode in {None, 0} else recovery_returncode
+        recovery_returncode: int | None = None
+        if recovery_needed:
+            print(f"[recover] {' '.join(command)}")
+            if not args.print_only:
+                completed = subprocess.run(command, cwd=ROOT, check=False)
+                recovery_returncode = int(completed.returncode)
+        else:
+            print(
+                "no recovery needed: "
+                f"state={summary.get('state')} "
+                f"completed={summary.get('completed_trials')}/{summary.get('total_expected_trials')}"
+            )
+
+        write_status(
+            path=status_path(args),
+            baseline_summary=summary,
+            recovery_needed=recovery_needed,
+            recovery_command=command,
+            recovery_returncode=recovery_returncode,
+        )
+        if recovery_needed or not args.loop:
+            return 0 if recovery_returncode in {None, 0} else recovery_returncode
+        time.sleep(max(1.0, float(args.poll_seconds)))
 
 
 if __name__ == "__main__":
