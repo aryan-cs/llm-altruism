@@ -22,23 +22,25 @@ Current honest answer:
 
 Current live baseline signal:
 
-- the first long-horizon baseline trial has reached round `48`
-- survival has fallen to `10 / 24`
-- cumulative deaths are `14`
+- the recovered long-horizon baseline is now in the `cooperative` trial at
+  round `34`
+- survival is currently `17 / 24`
+- cumulative deaths in the active trial are `7`
 - survivors are currently split as:
-  - `deepseek-ai/deepseek-v3.2`: `8`
-  - `llama3.1-8b`: `2`
-  - `moonshotai/kimi-k2-instruct-0905`: `0`
-- the dominant logged behavior category is `gather (97%)`
-- the population has remained flat since round `26`
-- there have been no deaths for `22` rounds
+  - `deepseek-ai/deepseek-v3.2`: `7`
+  - `moonshotai/kimi-k2-instruct-0905`: `7`
+  - `llama3.1-8b`: `3`
+- the current regime is `stable_post_collapse`
+- the plateau began at round `11` and has now lasted `24` rounds
+- relative to the completed `task-only` baseline (`10 / 24` alive), the live
+  `cooperative` trial is materially stronger so far
 
 How to use this:
 
 - as an in-progress indication that the new ecology is materially harder than
   the predecessor institutional setup
-- as early evidence that the baseline may converge to a smaller stable society
-  rather than only to monotone extinction
+- as early evidence that the richer ecology may still admit prompt-dependent
+  viable societies rather than only harsh uniform collapse
 - not yet as a final manuscript claim, because the full baseline and follow-on
   conditions are incomplete
 

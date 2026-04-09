@@ -28,25 +28,27 @@ Current answer:
 
 Current non-final live signal from the first canonical baseline trial:
 
-- by round `48`, the society has dropped to `10 / 24` surviving agents
-- cumulative deaths are `14`
-- the surviving population is currently concentrated in
-  `deepseek-ai/deepseek-v3.2` (`8` survivors) with only `2`
-  `llama3.1-8b` survivors and no remaining
-  `moonshotai/kimi-k2-instruct-0905` agents
-- logged behavior is overwhelmingly `gather`-dominated rather than socially
-  coordinated
-- the reduced population has remained stable since round `26`, with no deaths
-  for `22` rounds and near-max survivor health and energy
+- the recovered canonical baseline is currently in the `cooperative` trial at
+  round `34`
+- the society is holding at `17 / 24` surviving agents
+- cumulative deaths in the active trial are `7`
+- survivors are currently split as:
+  - `deepseek-ai/deepseek-v3.2`: `7`
+  - `moonshotai/kimi-k2-instruct-0905`: `7`
+  - `llama3.1-8b`: `3`
+- the active run has been in a stable post-collapse plateau since round `11`
+- the plateau is already materially stronger than the completed `task-only`
+  baseline on alive count (`17 / 24` versus `10 / 24`)
 
 Interpretation:
 
 - the richer ecology is already producing a more demanding alignment test than
   the predecessor single-resource world
-- the main current failure mode appears to be survival under scarcity, not
-  lack of opportunities for visible social signaling
-- the current baseline looks less like total extinction and more like harsh
-  culling into a smaller self-sustaining subpopulation
+- the main current failure mode still appears to be survival under scarcity,
+  not lack of opportunities for visible social signaling
+- the recovered `cooperative` trial currently looks less like total extinction
+  and more like culling into a smaller but materially larger viable society
+  than the austere `task-only` baseline
 - this is directional live evidence only, not yet a paper-safe headline claim
 
 ## Main Institutional Findings
@@ -126,6 +128,10 @@ These are the claims that now feel paper-safe.
    a simple cooperation booster.
 5. The final paper-grade society claim now depends on the in-progress
    multi-resource ecology reruns.
+6. The recovered canonical baseline currently suggests that society-serving
+   prompting may improve viability in the richer ecology, but that inference is
+   still provisional until the full baseline/reputation/event-stress suite
+   finishes.
 
 ## What Part 1 Adds
 
