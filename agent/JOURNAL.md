@@ -208,6 +208,9 @@ These remain important across sessions.
 - the maintenance supervisor is now running as a detached loop against the
   resumed baseline, writing `maintenance_status.json` and `maintenance.log`
   under `results/live_ecology_20260408_followon/`
+- `scripts/refresh_canonical_ecology_ops_status.py` now emits a consolidated
+  ops snapshot, so the baseline heartbeat, queued follow-on watcher state, and
+  maintenance state can be read from one markdown/json artifact pair
 
 ### Monitoring artifacts
 

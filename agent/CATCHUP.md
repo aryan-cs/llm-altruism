@@ -249,3 +249,7 @@ uv run python scripts/run_paper_batch.py --track society --track reputation
   detached supervisor process is now running against
   `results/live_ecology_20260408_resume` and appends to
   `results/live_ecology_20260408_followon/maintenance.log`
+- consolidated ops snapshot:
+  `scripts/refresh_canonical_ecology_ops_status.py` writes
+  `results/live_ecology_20260408_followon/ops_status.json` and
+  `results/live_ecology_20260408_followon/ops_status.md`

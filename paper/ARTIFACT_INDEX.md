@@ -28,6 +28,8 @@ Primary artifacts:
 - `results/live_ecology_20260408_followon/watch_status.json`
 - `results/live_ecology_20260408_followon/maintenance_status.json`
 - `results/live_ecology_20260408_followon/maintenance.log`
+- `results/live_ecology_20260408_followon/ops_status.json`
+- `results/live_ecology_20260408_followon/ops_status.md`
 - `results/live_ecology_20260408_resume/monitoring_figures/society_reputation_survivor_vitals_heatmap.png`
 - `results/live_ecology_20260408_resume/monitoring_figures/society_reputation_model_vitals_over_time.png`
 
@@ -47,6 +49,9 @@ Main claim supported:
   recovery command should be launched
 - the same baseline now has a detached maintenance daemon writing a textual
   log, so the recovery layer is not only versioned but also actively running
+- the queue and maintenance state are also available as one consolidated ops
+  snapshot, which is the fastest way to audit whether baseline, watcher, and
+  supervisor agree on the current canonical-suite state
 - the current baseline trajectory already exposes concrete collapse milestones,
   model-level survivor composition, a gather-dominated behavior regime, and
   the resource/vital profile of the surviving agents

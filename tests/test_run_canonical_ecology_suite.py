@@ -50,6 +50,16 @@ def _load_maintain_module():
     return module
 
 
+def _load_ops_module():
+    module_path = ROOT / "scripts" / "refresh_canonical_ecology_ops_status.py"
+    spec = importlib.util.spec_from_file_location("refresh_canonical_ecology_ops_status_module", module_path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
 def test_suite_runs_cover_baseline_reputation_and_event_stress():
     module = _load_suite_module()
 
@@ -305,3 +315,28 @@ def test_maintain_module_parses_loop_arguments(monkeypatch):
     assert args.baseline_results == "results/live"
     assert args.loop is True
     assert args.poll_seconds == 90.0
+
+
+def test_ops_module_builds_payload_and_markdown():
+    module = _load_ops_module()
+    payload = module.build_payload(
+        baseline_summary={"state": "active", "prompt_variant": "cooperative", "latest_round_num": 12, "alive_count": 18, "total_agents": 24, "completed_trials": 1, "total_expected_trials": 3, "provider_retry_count": 9},
+        watch_status={"watcher_state": "waiting", "baseline_results": "results/live"},
+        maintenance_status={"recovery_needed": False, "recovery_returncode": None},
+    )
+
+    markdown = module.build_markdown(payload)
+
+    assert payload["baseline"]["prompt_variant"] == "cooperative"
+    assert "# Canonical Ecology Ops Status" in markdown
+    assert "`cooperative`" in markdown
+    assert "`18/24`" in markdown
+
+
+def test_ops_module_default_output_paths():
+    module = _load_ops_module()
+
+    json_path, markdown_path = module.default_output_paths("results/followon")
+
+    assert json_path == Path("results/followon/ops_status.json")
+    assert markdown_path == Path("results/followon/ops_status.md")
