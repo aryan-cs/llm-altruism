@@ -142,6 +142,20 @@ def build_recovery_command(
     return command
 
 
+def build_ops_refresh_command(
+    *,
+    baseline_results: str | Path,
+    followon_root: str | Path,
+) -> list[str]:
+    return [
+        sys.executable,
+        "scripts/refresh_canonical_ecology_ops_status.py",
+        str(baseline_results),
+        "--followon-root",
+        str(followon_root),
+    ]
+
+
 def status_path(args: argparse.Namespace) -> Path:
     if args.status_file:
         return Path(args.status_file)
@@ -165,6 +179,15 @@ def write_status(
     }
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+def refresh_ops_snapshot(*, baseline_results: str | Path, followon_root: str | Path) -> int:
+    command = build_ops_refresh_command(
+        baseline_results=baseline_results,
+        followon_root=followon_root,
+    )
+    completed = subprocess.run(command, cwd=ROOT, check=False)
+    return int(completed.returncode)
 
 
 def main() -> int:
@@ -208,6 +231,12 @@ def main() -> int:
             recovery_command=command,
             recovery_returncode=recovery_returncode,
         )
+        ops_returncode = refresh_ops_snapshot(
+            baseline_results=args.baseline_results,
+            followon_root=args.followon_root,
+        )
+        if ops_returncode != 0:
+            return ops_returncode
         if recovery_needed or not args.loop:
             return 0 if recovery_returncode in {None, 0} else recovery_returncode
         time.sleep(max(1.0, float(args.poll_seconds)))

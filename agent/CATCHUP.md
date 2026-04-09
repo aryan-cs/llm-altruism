@@ -253,3 +253,4 @@ uv run python scripts/run_paper_batch.py --track society --track reputation
   `scripts/refresh_canonical_ecology_ops_status.py` writes
   `results/live_ecology_20260408_followon/ops_status.json` and
   `results/live_ecology_20260408_followon/ops_status.md`
+  and the maintenance daemon now refreshes those automatically on each poll

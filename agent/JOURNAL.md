@@ -211,6 +211,9 @@ These remain important across sessions.
 - `scripts/refresh_canonical_ecology_ops_status.py` now emits a consolidated
   ops snapshot, so the baseline heartbeat, queued follow-on watcher state, and
   maintenance state can be read from one markdown/json artifact pair
+- the maintenance daemon now refreshes that ops snapshot on each poll, so the
+  single-page ops view stays aligned with the live baseline without manual
+  intervention
 
 ### Monitoring artifacts
 

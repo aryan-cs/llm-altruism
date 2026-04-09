@@ -52,6 +52,8 @@ Main claim supported:
 - the queue and maintenance state are also available as one consolidated ops
   snapshot, which is the fastest way to audit whether baseline, watcher, and
   supervisor agree on the current canonical-suite state
+- that ops snapshot is now refreshed automatically by the detached maintenance
+  daemon, so it is a live operations artifact rather than a manual export
 - the current baseline trajectory already exposes concrete collapse milestones,
   model-level survivor composition, a gather-dominated behavior regime, and
   the resource/vital profile of the surviving agents

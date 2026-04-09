@@ -276,6 +276,23 @@ def test_maintain_module_builds_recovery_command():
     assert "--model" in command
 
 
+def test_maintain_module_builds_ops_refresh_command():
+    module = _load_maintain_module()
+
+    command = module.build_ops_refresh_command(
+        baseline_results="results/live_ecology_20260408_resume",
+        followon_root="results/live_ecology_20260408_followon",
+    )
+
+    assert command == [
+        sys.executable,
+        "scripts/refresh_canonical_ecology_ops_status.py",
+        "results/live_ecology_20260408_resume",
+        "--followon-root",
+        "results/live_ecology_20260408_followon",
+    ]
+
+
 def test_maintain_module_writes_status_file(tmp_path: Path):
     module = _load_maintain_module()
     summary = {"state": "active", "completed_trials": 1, "total_expected_trials": 3}
