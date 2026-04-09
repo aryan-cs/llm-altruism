@@ -19,6 +19,13 @@ DEFAULT_MODEL_SELECTORS = [
 ]
 
 
+def project_python() -> str:
+    candidate = ROOT / ".venv" / "bin" / "python"
+    if candidate.exists():
+        return str(candidate)
+    return sys.executable
+
+
 @dataclass(frozen=True)
 class SuiteRun:
     name: str
@@ -105,7 +112,7 @@ def build_command(
     resume_log: str | None = None,
 ) -> list[str]:
     command = [
-        sys.executable,
+        project_python(),
         "scripts/run_experiment.py",
         "--config",
         run.config_path,

@@ -19,6 +19,13 @@ DEFAULT_MODEL_SELECTORS = [
 ]
 
 
+def project_python() -> str:
+    candidate = ROOT / ".venv" / "bin" / "python"
+    if candidate.exists():
+        return str(candidate)
+    return sys.executable
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
@@ -126,7 +133,7 @@ def build_resume_command(
     dry_run: bool,
 ) -> list[str]:
     command = [
-        sys.executable,
+        project_python(),
         "scripts/run_experiment.py",
         "--config",
         config_path,
@@ -150,7 +157,7 @@ def build_followon_watcher_command(
     dry_run: bool,
 ) -> list[str]:
     command = [
-        sys.executable,
+        project_python(),
         "scripts/continue_canonical_ecology_suite.py",
         str(baseline_results),
         "--results-root",

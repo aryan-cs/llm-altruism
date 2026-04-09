@@ -16,6 +16,13 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def project_python() -> str:
+    candidate = ROOT / ".venv" / "bin" / "python"
+    if candidate.exists():
+        return str(candidate)
+    return sys.executable
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
@@ -123,7 +130,7 @@ def build_recovery_command(
     dry_run: bool,
 ) -> list[str]:
     command = [
-        sys.executable,
+        project_python(),
         "scripts/recover_canonical_ecology_baseline.py",
         str(baseline_results),
         "--followon-root",
@@ -148,7 +155,7 @@ def build_ops_refresh_command(
     followon_root: str | Path,
 ) -> list[str]:
     return [
-        sys.executable,
+        project_python(),
         "scripts/refresh_canonical_ecology_ops_status.py",
         str(baseline_results),
         "--followon-root",

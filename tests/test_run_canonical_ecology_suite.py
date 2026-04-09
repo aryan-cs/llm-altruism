@@ -94,7 +94,7 @@ def test_build_command_includes_models_results_dir_and_dry_run():
     )
 
     assert command[:5] == [
-        sys.executable,
+        module.project_python(),
         "scripts/run_experiment.py",
         "--config",
         "configs/part2/society_baseline.yaml",
@@ -142,7 +142,7 @@ def test_continue_module_builds_followon_command():
     )
 
     assert command[:5] == [
-        sys.executable,
+        module.project_python(),
         "scripts/run_canonical_ecology_suite.py",
         "--from-run",
         "reputation",
@@ -159,7 +159,7 @@ def test_continue_module_builds_refresh_command():
     command = module.build_refresh_command("results/live_ecology_20260408_resume")
 
     assert command == [
-        sys.executable,
+        module.project_python(),
         "scripts/refresh_live_ecology_packet.py",
         "results/live_ecology_20260408_resume",
     ]
@@ -174,7 +174,7 @@ def test_continue_module_writes_watcher_status(tmp_path: Path):
         "latest_round_num": 12,
     }
     command = [
-        sys.executable,
+        module.project_python(),
         "scripts/run_canonical_ecology_suite.py",
         "--from-run",
         "reputation",
@@ -231,7 +231,7 @@ def test_recover_module_builds_resume_and_watcher_commands():
     assert "results/recovered_run" in resume_command
     assert "--dry-run" in resume_command
     assert watcher_command[:5] == [
-        sys.executable,
+        module.project_python(),
         "scripts/continue_canonical_ecology_suite.py",
         "results/recovered_run",
         "--results-root",
@@ -266,7 +266,7 @@ def test_maintain_module_builds_recovery_command():
     )
 
     assert command[:5] == [
-        sys.executable,
+        module.project_python(),
         "scripts/recover_canonical_ecology_baseline.py",
         "results/live_ecology_20260408_resume",
         "--followon-root",
@@ -285,7 +285,7 @@ def test_maintain_module_builds_ops_refresh_command():
     )
 
     assert command == [
-        sys.executable,
+        module.project_python(),
         "scripts/refresh_canonical_ecology_ops_status.py",
         "results/live_ecology_20260408_resume",
         "--followon-root",
@@ -318,7 +318,7 @@ def test_maintain_module_builds_watcher_command():
     )
 
     assert command[:5] == [
-        sys.executable,
+        module.project_python(),
         "scripts/continue_canonical_ecology_suite.py",
         "results/live_ecology_20260408_resume",
         "--results-root",
@@ -343,7 +343,7 @@ def test_maintain_module_detects_followon_started(tmp_path: Path):
 def test_maintain_module_writes_status_file(tmp_path: Path):
     module = _load_maintain_module()
     summary = {"state": "active", "completed_trials": 1, "total_expected_trials": 3}
-    command = [sys.executable, "scripts/recover_canonical_ecology_baseline.py", "results/live"]
+    command = [module.project_python(), "scripts/recover_canonical_ecology_baseline.py", "results/live"]
     path = tmp_path / "maintenance_status.json"
 
     module.write_status(
