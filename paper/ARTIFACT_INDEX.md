@@ -26,6 +26,7 @@ Primary artifacts:
 - `results/live_ecology_20260408_resume/live_trial_snapshot.png`
 - `results/live_ecology_20260408_resume/live_trial_comparison.md`
 - `results/live_ecology_20260408_followon/watch_status.json`
+- `results/live_ecology_20260408_followon/maintenance_status.json`
 - `results/live_ecology_20260408_resume/monitoring_figures/society_reputation_survivor_vitals_heatmap.png`
 - `results/live_ecology_20260408_resume/monitoring_figures/society_reputation_model_vitals_over_time.png`
 
@@ -40,6 +41,9 @@ Main claim supported:
   summary and the pending continuation command
 - stale canonical baseline runs are now recoverable with a versioned
   continuation script rather than an ad hoc manual restart
+- the canonical baseline also has a machine-readable maintenance heartbeat that
+  states whether recovery is currently needed and, if so, exactly which
+  recovery command should be launched
 - the current baseline trajectory already exposes concrete collapse milestones,
   model-level survivor composition, a gather-dominated behavior regime, and
   the resource/vital profile of the surviving agents

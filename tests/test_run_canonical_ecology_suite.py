@@ -40,6 +40,16 @@ def _load_recover_module():
     return module
 
 
+def _load_maintain_module():
+    module_path = ROOT / "scripts" / "maintain_canonical_ecology_suite.py"
+    spec = importlib.util.spec_from_file_location("maintain_canonical_ecology_suite_module", module_path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
 def test_suite_runs_cover_baseline_reputation_and_event_stress():
     module = _load_suite_module()
 
@@ -230,3 +240,47 @@ def test_recover_module_makes_rollover_results_dir():
     )
 
     assert path == Path("results/society-baseline_20260409T001000Z")
+
+
+def test_maintain_module_builds_recovery_command():
+    module = _load_maintain_module()
+
+    command = module.build_recovery_command(
+        baseline_results="results/live_ecology_20260408_resume",
+        followon_root="results/followon",
+        results_parent="results",
+        config_path="configs/part2/society_baseline.yaml",
+        models=["cerebras:llama3.1-8b"],
+        stale_minutes=15.0,
+        dry_run=True,
+    )
+
+    assert command[:5] == [
+        sys.executable,
+        "scripts/recover_canonical_ecology_baseline.py",
+        "results/live_ecology_20260408_resume",
+        "--followon-root",
+        "results/followon",
+    ]
+    assert "--dry-run" in command
+    assert "--model" in command
+
+
+def test_maintain_module_writes_status_file(tmp_path: Path):
+    module = _load_maintain_module()
+    summary = {"state": "active", "completed_trials": 1, "total_expected_trials": 3}
+    command = [sys.executable, "scripts/recover_canonical_ecology_baseline.py", "results/live"]
+    path = tmp_path / "maintenance_status.json"
+
+    module.write_status(
+        path=path,
+        baseline_summary=summary,
+        recovery_needed=False,
+        recovery_command=command,
+        recovery_returncode=None,
+    )
+
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    assert payload["recovery_needed"] is False
+    assert payload["recovery_command"] == command
+    assert payload["baseline_summary"]["state"] == "active"

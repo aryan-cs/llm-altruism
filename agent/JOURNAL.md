@@ -201,6 +201,10 @@ These remain important across sessions.
   stale-run recovery path for the canonical baseline: detect stale/incomplete,
   relaunch into a fresh continuation directory with `--resume-log`, and attach
   a new follow-on watcher
+- `scripts/maintain_canonical_ecology_suite.py` now provides a higher-level
+  supervisor path: inspect the active baseline, emit a maintenance heartbeat,
+  and trigger the recovery script only if the monitored run has actually gone
+  stale before completion
 
 ### Monitoring artifacts
 
