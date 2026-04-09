@@ -254,3 +254,8 @@ uv run python scripts/run_paper_batch.py --track society --track reputation
   `results/live_ecology_20260408_followon/ops_status.json` and
   `results/live_ecology_20260408_followon/ops_status.md`
   and the maintenance daemon now refreshes those automatically on each poll
+- watcher supervision:
+  the maintenance daemon now also checks whether
+  `scripts/continue_canonical_ecology_suite.py` is still alive for the active
+  baseline/follow-on pair and will relaunch it if it disappears before the
+  follow-on suite has started

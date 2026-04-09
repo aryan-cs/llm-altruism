@@ -54,6 +54,9 @@ Main claim supported:
   supervisor agree on the current canonical-suite state
 - that ops snapshot is now refreshed automatically by the detached maintenance
   daemon, so it is a live operations artifact rather than a manual export
+- the same maintenance layer now supervises watcher liveness, so a dropped
+  queued-continuation process is restarted automatically instead of silently
+  leaving the suite stranded after baseline completion
 - the current baseline trajectory already exposes concrete collapse milestones,
   model-level survivor composition, a gather-dominated behavior regime, and
   the resource/vital profile of the surviving agents

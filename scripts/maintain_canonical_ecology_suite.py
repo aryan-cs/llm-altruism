@@ -169,6 +169,7 @@ def write_status(
     recovery_needed: bool,
     recovery_command: list[str],
     recovery_returncode: int | None,
+    watcher_status: dict[str, Any],
 ) -> None:
     payload = {
         "updated_at": datetime.now(UTC).isoformat(),
@@ -176,6 +177,7 @@ def write_status(
         "recovery_command": recovery_command,
         "recovery_returncode": recovery_returncode,
         "baseline_summary": baseline_summary,
+        "watcher": watcher_status,
     }
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
@@ -190,6 +192,114 @@ def refresh_ops_snapshot(*, baseline_results: str | Path, followon_root: str | P
     return int(completed.returncode)
 
 
+def configured_models(args: argparse.Namespace, recover_module: Any) -> list[str]:
+    return list(args.model or getattr(recover_module, "DEFAULT_MODEL_SELECTORS", []))
+
+
+def build_watcher_command(
+    *,
+    baseline_results: str | Path,
+    followon_root: str | Path,
+    models: list[str],
+    dry_run: bool,
+    recover_module: Any,
+) -> list[str]:
+    return recover_module.build_followon_watcher_command(
+        baseline_results=baseline_results,
+        followon_root=followon_root,
+        models=models,
+        dry_run=dry_run,
+    )
+
+
+def followon_has_started(followon_root: str | Path) -> bool:
+    root = Path(followon_root)
+    for stage in ("reputation", "event_stress"):
+        stage_dir = root / stage
+        if any(stage_dir.glob("*.jsonl")):
+            return True
+    return False
+
+
+def find_running_command_pid(required_fragments: list[str]) -> int | None:
+    completed = subprocess.run(
+        ["ps", "-eo", "pid=,args="],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if completed.returncode != 0:
+        return None
+    for raw_line in completed.stdout.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        parts = line.split(None, 1)
+        if len(parts) != 2:
+            continue
+        pid_text, argv_text = parts
+        if all(fragment in argv_text for fragment in required_fragments):
+            try:
+                return int(pid_text)
+            except ValueError:
+                continue
+    return None
+
+
+def watcher_match_fragments(
+    baseline_results: str | Path,
+    followon_root: str | Path,
+) -> list[str]:
+    return [
+        "scripts/continue_canonical_ecology_suite.py",
+        str(baseline_results),
+        "--results-root",
+        str(followon_root),
+        "--from-run",
+        "reputation",
+    ]
+
+
+def ensure_watcher(
+    *,
+    baseline_results: str | Path,
+    followon_root: str | Path,
+    watcher_command: list[str],
+    dry_run: bool,
+    print_only: bool,
+    recover_module: Any,
+) -> dict[str, Any]:
+    followon_started = followon_has_started(followon_root)
+    watcher_needed = not followon_started
+    watcher_pid = None
+    watcher_started_now = False
+
+    if watcher_needed:
+        watcher_pid = find_running_command_pid(
+            watcher_match_fragments(baseline_results, followon_root)
+        )
+        if watcher_pid is None and not (dry_run or print_only):
+            watcher_pid = int(
+                recover_module.spawn_background(
+                    watcher_command,
+                    log_path=Path(followon_root) / "watch.log",
+                )
+            )
+            watcher_started_now = True
+            print(f"[watcher] started pid={watcher_pid}", flush=True)
+        elif watcher_pid is None and print_only:
+            print(f"[watcher] {' '.join(watcher_command)}", flush=True)
+
+    return {
+        "needed": watcher_needed,
+        "running": watcher_pid is not None,
+        "pid": watcher_pid,
+        "started_now": watcher_started_now,
+        "followon_started": followon_started,
+        "watcher_command": watcher_command,
+    }
+
+
 def main() -> int:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(line_buffering=True)
@@ -198,6 +308,7 @@ def main() -> int:
         "recover_canonical_ecology_baseline.py",
         "recover_canonical_ecology_baseline_module",
     )
+    models = configured_models(args, recover_module)
     while True:
         summary = summarize_baseline(args.baseline_results, stale_minutes=args.stale_minutes)
         recovery_needed = bool(recover_module.needs_recovery(summary))
@@ -206,9 +317,24 @@ def main() -> int:
             followon_root=args.followon_root,
             results_parent=args.results_parent,
             config_path=args.config,
-            models=args.model,
+            models=models,
             stale_minutes=args.stale_minutes,
             dry_run=args.dry_run,
+        )
+        watcher_command = build_watcher_command(
+            baseline_results=args.baseline_results,
+            followon_root=args.followon_root,
+            models=models,
+            dry_run=args.dry_run,
+            recover_module=recover_module,
+        )
+        watcher_status = ensure_watcher(
+            baseline_results=args.baseline_results,
+            followon_root=args.followon_root,
+            watcher_command=watcher_command,
+            dry_run=args.dry_run,
+            print_only=args.print_only,
+            recover_module=recover_module,
         )
 
         recovery_returncode: int | None = None
@@ -230,6 +356,7 @@ def main() -> int:
             recovery_needed=recovery_needed,
             recovery_command=command,
             recovery_returncode=recovery_returncode,
+            watcher_status=watcher_status,
         )
         ops_returncode = refresh_ops_snapshot(
             baseline_results=args.baseline_results,

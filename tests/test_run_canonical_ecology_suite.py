@@ -293,6 +293,53 @@ def test_maintain_module_builds_ops_refresh_command():
     ]
 
 
+def test_maintain_module_uses_default_models_for_watcher():
+    module = _load_maintain_module()
+    recover_module = _load_recover_module()
+
+    class Args:
+        model: list[str] = []
+
+    models = module.configured_models(Args(), recover_module)
+
+    assert models == list(recover_module.DEFAULT_MODEL_SELECTORS)
+
+
+def test_maintain_module_builds_watcher_command():
+    module = _load_maintain_module()
+    recover_module = _load_recover_module()
+
+    command = module.build_watcher_command(
+        baseline_results="results/live_ecology_20260408_resume",
+        followon_root="results/live_ecology_20260408_followon",
+        models=["cerebras:llama3.1-8b"],
+        dry_run=True,
+        recover_module=recover_module,
+    )
+
+    assert command[:5] == [
+        sys.executable,
+        "scripts/continue_canonical_ecology_suite.py",
+        "results/live_ecology_20260408_resume",
+        "--results-root",
+        "results/live_ecology_20260408_followon",
+    ]
+    assert "--refresh-packet" in command
+    assert "--dry-run" in command
+
+
+def test_maintain_module_detects_followon_started(tmp_path: Path):
+    module = _load_maintain_module()
+    reputation_dir = tmp_path / "reputation"
+    reputation_dir.mkdir(parents=True)
+
+    assert module.followon_has_started(tmp_path) is False
+
+    (reputation_dir / "run.jsonl").write_text("{}", encoding="utf-8")
+
+    assert module.followon_has_started(tmp_path) is True
+
+
 def test_maintain_module_writes_status_file(tmp_path: Path):
     module = _load_maintain_module()
     summary = {"state": "active", "completed_trials": 1, "total_expected_trials": 3}
@@ -305,12 +352,14 @@ def test_maintain_module_writes_status_file(tmp_path: Path):
         recovery_needed=False,
         recovery_command=command,
         recovery_returncode=None,
+        watcher_status={"needed": True, "running": True, "pid": 1234},
     )
 
     payload = json.loads(path.read_text(encoding="utf-8"))
     assert payload["recovery_needed"] is False
     assert payload["recovery_command"] == command
     assert payload["baseline_summary"]["state"] == "active"
+    assert payload["watcher"]["pid"] == 1234
 
 
 def test_maintain_module_parses_loop_arguments(monkeypatch):
@@ -339,7 +388,7 @@ def test_ops_module_builds_payload_and_markdown():
     payload = module.build_payload(
         baseline_summary={"state": "active", "prompt_variant": "cooperative", "latest_round_num": 12, "alive_count": 18, "total_agents": 24, "completed_trials": 1, "total_expected_trials": 3, "provider_retry_count": 9},
         watch_status={"watcher_state": "waiting", "baseline_results": "results/live"},
-        maintenance_status={"recovery_needed": False, "recovery_returncode": None},
+        maintenance_status={"recovery_needed": False, "recovery_returncode": None, "watcher": {"needed": True, "running": True, "pid": 4321, "followon_started": False}},
     )
 
     markdown = module.build_markdown(payload)
@@ -348,6 +397,7 @@ def test_ops_module_builds_payload_and_markdown():
     assert "# Canonical Ecology Ops Status" in markdown
     assert "`cooperative`" in markdown
     assert "`18/24`" in markdown
+    assert "`4321`" in markdown
 
 
 def test_ops_module_default_output_paths():

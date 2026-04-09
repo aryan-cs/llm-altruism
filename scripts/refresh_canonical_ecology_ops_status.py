@@ -99,6 +99,7 @@ def build_markdown(payload: dict[str, Any]) -> str:
     baseline = payload.get("baseline") or {}
     watch_status = payload.get("watch_status") or {}
     maintenance_status = payload.get("maintenance_status") or {}
+    watcher = maintenance_status.get("watcher") or {}
     baseline_alive = ""
     if baseline.get("alive_count") is not None and baseline.get("total_agents") is not None:
         baseline_alive = f"{baseline['alive_count']}/{baseline['total_agents']}"
@@ -120,6 +121,10 @@ def build_markdown(payload: dict[str, Any]) -> str:
         "",
         f"- watcher_state: `{watch_status.get('watcher_state')}`",
         f"- baseline_results: `{watch_status.get('baseline_results')}`",
+        f"- watcher_needed: `{watcher.get('needed')}`",
+        f"- watcher_running: `{watcher.get('running')}`",
+        f"- watcher_pid: `{watcher.get('pid')}`",
+        f"- followon_started: `{watcher.get('followon_started')}`",
         "",
         "## Maintenance",
         "",

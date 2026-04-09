@@ -214,6 +214,10 @@ These remain important across sessions.
 - the maintenance daemon now refreshes that ops snapshot on each poll, so the
   single-page ops view stays aligned with the live baseline without manual
   intervention
+- the maintenance daemon now also supervises watcher liveness, so a dropped
+  `continue_canonical_ecology_suite.py` process is restarted automatically
+  before baseline completion can strand the queued `reputation` and
+  `event-stress` stages
 
 ### Monitoring artifacts
 
