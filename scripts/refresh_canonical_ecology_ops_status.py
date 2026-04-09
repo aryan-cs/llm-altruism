@@ -103,6 +103,10 @@ def build_markdown(payload: dict[str, Any]) -> str:
     baseline_alive = ""
     if baseline.get("alive_count") is not None and baseline.get("total_agents") is not None:
         baseline_alive = f"{baseline['alive_count']}/{baseline['total_agents']}"
+    trial_eta = baseline.get("estimated_minutes_remaining_in_trial")
+    trial_eta_text = f"{trial_eta:.1f}" if isinstance(trial_eta, (int, float)) else "n/a"
+    suite_eta = baseline.get("naive_minutes_remaining_in_baseline_suite")
+    suite_eta_text = f"{suite_eta:.1f}" if isinstance(suite_eta, (int, float)) else "n/a"
     lines = [
         "# Canonical Ecology Ops Status",
         "",
@@ -116,6 +120,8 @@ def build_markdown(payload: dict[str, Any]) -> str:
         f"- alive: `{baseline_alive}`",
         f"- progress: `{baseline.get('completed_trials')}/{baseline.get('total_expected_trials')}` completed",
         f"- provider_retries: `{baseline.get('provider_retry_count')}`",
+        f"- trial_eta_minutes: `{trial_eta_text}`",
+        f"- baseline_suite_eta_minutes: `{suite_eta_text}`",
         "",
         "## Follow-on Watcher",
         "",

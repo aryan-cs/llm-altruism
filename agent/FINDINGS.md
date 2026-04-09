@@ -222,3 +222,22 @@ It should not read as:
 - a paper mainly about Prisoner's Dilemma cooperation rates
 - a generic claim that LLMs are cooperative or altruistic
 - a paper where Parts 2 and 3 are an afterthought to Part 1
+
+## Live Canonical Ecology Refresh
+
+Current canonical baseline result:
+
+- completed multi-resource baseline final survival is
+  `task-only = 10/24 (0.4167)`,
+  `cooperative = 7/24 (0.2917)`,
+  `competitive = 3/24 (0.1250)`
+
+Interpretation:
+
+- the long-horizon society result is now stronger than the predecessor
+  single-resource bundle because all three prompt families completed in the
+  same ecology and the ordering is clear
+- in this baseline world, more overtly prosocial prompting did not improve
+  survival; it reduced it relative to the bare task condition
+- the next evidence gap is no longer baseline completion; it is completion of
+  the follow-on `reputation` and `event-stress` legs under the same ecology

@@ -449,7 +449,7 @@ def test_maintain_module_parses_loop_arguments(monkeypatch):
 def test_ops_module_builds_payload_and_markdown():
     module = _load_ops_module()
     payload = module.build_payload(
-        baseline_summary={"state": "active", "prompt_variant": "cooperative", "latest_round_num": 12, "alive_count": 18, "total_agents": 24, "completed_trials": 1, "total_expected_trials": 3, "provider_retry_count": 9},
+        baseline_summary={"state": "active", "prompt_variant": "cooperative", "latest_round_num": 12, "alive_count": 18, "total_agents": 24, "completed_trials": 1, "total_expected_trials": 3, "provider_retry_count": 9, "estimated_minutes_remaining_in_trial": 12.5, "naive_minutes_remaining_in_baseline_suite": 25.0},
         watch_status={"watcher_state": "waiting", "baseline_results": "results/live"},
         maintenance_status={"recovery_needed": False, "recovery_returncode": None, "watcher": {"needed": True, "running": True, "pid": 4321, "followon_started": False}},
     )
@@ -461,6 +461,7 @@ def test_ops_module_builds_payload_and_markdown():
     assert "`cooperative`" in markdown
     assert "`18/24`" in markdown
     assert "`4321`" in markdown
+    assert "`12.5`" in markdown
 
 
 def test_ops_module_default_output_paths():

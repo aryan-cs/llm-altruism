@@ -95,6 +95,25 @@ def test_save_prompt_variant_track_figure_writes_png(tmp_path: Path):
     assert output_path.stat().st_size > 0
 
 
+def test_save_prompt_variant_track_figure_returns_none_for_empty_frame(tmp_path: Path):
+    """Empty prompt-variant frames should be skipped instead of crashing live refreshes."""
+    module = _load_paper_figures_module()
+    output_path = tmp_path / "empty.png"
+
+    written = module.save_prompt_variant_track_figure(
+        pd.DataFrame(),
+        track="society",
+        metric_root="final_survival_rate",
+        output_path=output_path,
+        title="Society survival",
+        y_label="Final survival",
+        limit=(0, 1),
+    )
+
+    assert written is None
+    assert not output_path.exists()
+
+
 def test_save_society_metric_figure_writes_png(tmp_path: Path):
     """The society/reputation metric helper should emit a non-empty PNG."""
     module = _load_paper_figures_module()

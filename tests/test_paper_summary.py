@@ -440,15 +440,106 @@ def test_load_partial_jsonl_summary_recovers_in_progress_society_rounds(tmp_path
     summary = module.load_partial_jsonl_summary(log_path)
     flattened = module.flatten_summary(summary)
     trial_rows = module.flatten_trial_rows(summary)
+    prompt_rows = module.flatten_prompt_variant_rows(summary)
 
     assert summary is not None
     assert summary["trials"][0]["prompt_variant"] == "task-only"
+    assert summary["trials"][0]["completed"] is False
     assert len(summary["trials"][0]["rounds"]) == 1
-    assert summary["aggregate_summary"]["final_survival_rate"] == 1.0
+    assert summary["aggregate_summary"] == {}
     assert flattened["track"] == "society"
     assert flattened["presentation"] == "prompt_comparison"
-    assert trial_rows[0]["track"] == "society"
-    assert trial_rows[0]["final_survival_rate"] == 1.0
+    assert "final_survival_rate" not in flattened
+    assert trial_rows == []
+    assert prompt_rows == []
+
+
+def test_partial_society_trials_stay_in_diagnostics_but_out_of_final_tables(tmp_path: Path):
+    """Active society trials should not appear as completed rows in paper-facing tables."""
+    module = _load_paper_summary_module()
+    log_path = tmp_path / "society-mixed.jsonl"
+    log_path.write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "type": "experiment_start",
+                        "experiment_id": "society-baseline-20260409T000000Z",
+                        "config": {
+                            "experiment": {
+                                "name": "society-baseline",
+                                "part": 2,
+                                "rounds": 120,
+                                "repetitions": 1,
+                                "prompt_variants": [
+                                    {"name": "task-only"},
+                                    {"name": "cooperative"},
+                                ],
+                                "parameters": {"temperature": [0.3]},
+                                "world": {
+                                    "max_public_food": 160,
+                                    "max_public_water": 220,
+                                },
+                            }
+                        },
+                    }
+                ),
+                json.dumps(
+                    {
+                        "type": "trial_summary",
+                        "trial_id": 0,
+                        "summary": {
+                            "survival_rate": 0.5,
+                            "final_survival_rate": 0.25,
+                            "trade_volume": 3.0,
+                        },
+                    }
+                ),
+                json.dumps(
+                    {
+                        "type": "round",
+                        "trial_id": 1,
+                        "round_num": 1,
+                        "data": {
+                            "timestep": 1,
+                            "alive_count": 18,
+                            "total_agents": 24,
+                            "public_food": 50,
+                            "public_water": 90,
+                            "public_resources": 140,
+                            "trade_volume": 1,
+                            "average_health": 10.5,
+                            "average_energy": 11.0,
+                            "agent_resources": {},
+                            "agent_vitals": {},
+                            "events": [],
+                            "spawned_agents": [],
+                            "newly_dead": [],
+                        },
+                    }
+                ),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    summary = module.load_partial_jsonl_summary(log_path)
+    prompt_rows = module.flatten_prompt_variant_rows(summary)
+    trial_rows = module.flatten_trial_rows(summary)
+    diagnostic_rows = module.ecology_diagnostic_rows([summary])
+
+    assert summary is not None
+    assert [trial["completed"] for trial in summary["trials"]] == [True, False]
+    assert summary["aggregate_summary"]["final_survival_rate"] == 0.25
+    assert len(prompt_rows) == 1
+    assert prompt_rows[0]["prompt_variant"] == "task-only"
+    assert prompt_rows[0]["final_survival_rate"] == 0.25
+    assert len(trial_rows) == 1
+    assert trial_rows[0]["prompt_variant"] == "task-only"
+    assert len(diagnostic_rows) == 1
+    assert diagnostic_rows[0]["prompt_variant"] == "cooperative"
+    assert diagnostic_rows[0]["alive"] == "18/24"
 
 
 def test_collect_unique_summaries_prefers_final_json_over_partial_jsonl(tmp_path: Path):

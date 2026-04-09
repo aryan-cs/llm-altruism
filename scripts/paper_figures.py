@@ -645,6 +645,8 @@ def save_prompt_variant_track_figure(
     y_label: str,
     limit: tuple[float, float] | None = None,
 ) -> Path | None:
+    if frame.empty or "track" not in frame.columns:
+        return None
     subset = frame[frame.get("track") == track].copy()
     subset = side_average_metric_frame(subset, metric_root)
     if subset.empty or "game" not in subset.columns or "prompt_variant" not in subset.columns:

@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -95,6 +95,15 @@ def expected_trial_count(experiment: dict[str, Any]) -> int:
     prompt_count = max(1, len(prompt_variants))
     temp_count = max(1, len(temperatures))
     return prompt_count * temp_count * repetitions
+
+
+def expected_round_count(experiment: dict[str, Any]) -> int | None:
+    rounds = experiment.get("rounds")
+    if isinstance(rounds, int):
+        return rounds
+    if isinstance(rounds, float):
+        return int(rounds)
+    return None
 
 
 def alive_models_from_round(round_payload: dict[str, Any]) -> dict[str, int]:
@@ -326,6 +335,66 @@ def phase_diagnostics(rounds: list[dict[str, Any]], diagnostics: dict[str, Any])
     return result
 
 
+def pace_estimates(
+    rounds: list[dict[str, Any]],
+    *,
+    expected_rounds: int | None,
+) -> dict[str, Any]:
+    result = {
+        "expected_rounds_per_trial": expected_rounds,
+        "remaining_rounds_in_trial": None,
+        "observed_rounds_per_minute": None,
+        "estimated_minutes_remaining_in_trial": None,
+        "estimated_trial_completion_timestamp": None,
+        "naive_minutes_remaining_in_baseline_suite": None,
+    }
+    if not rounds:
+        return result
+
+    latest_round = rounds[-1]
+    latest_round_num = latest_round.get("round_num")
+    latest_timestamp = parse_timestamp(latest_round.get("timestamp"))
+    if latest_timestamp is None:
+        return result
+
+    if isinstance(expected_rounds, int) and isinstance(latest_round_num, (int, float)):
+        remaining_rounds = max(0, int(expected_rounds) - int(latest_round_num))
+        result["remaining_rounds_in_trial"] = remaining_rounds
+    else:
+        remaining_rounds = None
+
+    first_round = None
+    for record in rounds:
+        record_timestamp = parse_timestamp(record.get("timestamp"))
+        record_round_num = record.get("round_num")
+        if record_timestamp is None or not isinstance(record_round_num, (int, float)):
+            continue
+        first_round = record
+        break
+    if first_round is None:
+        return result
+
+    first_timestamp = parse_timestamp(first_round.get("timestamp"))
+    first_round_num = first_round.get("round_num")
+    if first_timestamp is None or not isinstance(first_round_num, (int, float)):
+        return result
+
+    elapsed_minutes = (latest_timestamp - first_timestamp).total_seconds() / 60.0
+    elapsed_rounds = int(latest_round_num) - int(first_round_num)
+    if elapsed_minutes <= 0 or elapsed_rounds <= 0:
+        return result
+
+    rounds_per_minute = float(elapsed_rounds) / float(elapsed_minutes)
+    result["observed_rounds_per_minute"] = rounds_per_minute
+    if remaining_rounds is not None and rounds_per_minute > 0:
+        eta_minutes = float(remaining_rounds) / rounds_per_minute
+        result["estimated_minutes_remaining_in_trial"] = eta_minutes
+        result["estimated_trial_completion_timestamp"] = (
+            latest_timestamp + timedelta(minutes=eta_minutes)
+        ).isoformat()
+    return result
+
+
 def summarize_jsonl_log(
     path: Path,
     *,
@@ -415,6 +484,8 @@ def summarize_jsonl_log(
 
     diagnostics = collapse_diagnostics(active_round_records)
     phase_metrics = phase_diagnostics(active_round_records, diagnostics)
+    expected_rounds = expected_round_count(experiment)
+    pace_metrics = pace_estimates(active_round_records, expected_rounds=expected_rounds)
     trial_status_rows = summarize_trial_records(experiment, round_records, trial_summary_records)
     total_expected_trials = expected_trial_count(experiment)
     completed_trials = sum(1 for row in trial_status_rows if row.get("completed"))
@@ -429,6 +500,13 @@ def summarize_jsonl_log(
         if total_expected_trials
         else None
     )
+    if (
+        isinstance(pace_metrics.get("estimated_minutes_remaining_in_trial"), (int, float))
+        and isinstance(remaining_trials, int)
+    ):
+        pace_metrics["naive_minutes_remaining_in_baseline_suite"] = (
+            float(pace_metrics["estimated_minutes_remaining_in_trial"]) * float(remaining_trials)
+        )
 
     return {
         "path": str(path),
@@ -463,6 +541,7 @@ def summarize_jsonl_log(
         "remaining_trials": remaining_trials,
         "completion_fraction": completion_fraction,
         "trial_status_rows": trial_status_rows,
+        **pace_metrics,
         **diagnostics,
         **phase_metrics,
     }
@@ -476,6 +555,16 @@ def format_status(summary: dict[str, Any]) -> str:
     alive_models_text = ", ".join(f"{model}: {count}" for model, count in alive_models.items())
     minutes = summary.get("minutes_since_latest_event")
     minutes_text = f"{minutes:.1f}" if isinstance(minutes, (int, float)) else "n/a"
+    rounds_per_minute = summary.get("observed_rounds_per_minute")
+    rounds_per_minute_text = (
+        f"{rounds_per_minute:.2f}" if isinstance(rounds_per_minute, (int, float)) else "n/a"
+    )
+    eta_minutes = summary.get("estimated_minutes_remaining_in_trial")
+    eta_minutes_text = f"{eta_minutes:.1f}" if isinstance(eta_minutes, (int, float)) else "n/a"
+    suite_eta_minutes = summary.get("naive_minutes_remaining_in_baseline_suite")
+    suite_eta_minutes_text = (
+        f"{suite_eta_minutes:.1f}" if isinstance(suite_eta_minutes, (int, float)) else "n/a"
+    )
 
     lines = [
         str(summary["path"]),
@@ -498,6 +587,11 @@ def format_status(summary: dict[str, Any]) -> str:
         (
             f"  progress=completed {summary.get('completed_trials')}/{summary.get('total_expected_trials')} "
             f"active={summary.get('active_trials')} remaining={summary.get('remaining_trials')}"
+        ),
+        (
+            f"  pace=rounds_per_minute={rounds_per_minute_text} "
+            f"trial_eta_minutes={eta_minutes_text} "
+            f"baseline_suite_eta_minutes={suite_eta_minutes_text}"
         ),
         (
             f"  regime={summary.get('population_regime')} "

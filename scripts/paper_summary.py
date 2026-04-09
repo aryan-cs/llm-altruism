@@ -52,7 +52,11 @@ def expand_paths(inputs: list[str]) -> list[Path]:
 
 def aggregate_trial_summaries(trials: list[dict[str, Any]]) -> dict[str, Any]:
     """Average numeric trial-summary fields across completed trials."""
-    summaries = [trial.get("summary", {}) for trial in trials if isinstance(trial.get("summary"), dict)]
+    summaries = [
+        trial.get("summary", {})
+        for trial in trials
+        if trial.get("completed", True) is True and isinstance(trial.get("summary"), dict)
+    ]
     numeric_keys = {
         key
         for summary in summaries
@@ -190,6 +194,7 @@ def load_partial_jsonl_summary(path: Path) -> dict[str, Any] | None:
     for trial_id in observed_trial_ids:
         metadata = decode_trial_metadata(experiment, trial_id)
         rounds = rounds_by_trial_id.get(trial_id, [])
+        completed = trial_id in summaries_by_trial_id
         summary = summaries_by_trial_id.get(trial_id)
         if summary is None and rounds and experiment.get("part") in {2, 3}:
             summary = summarize_society(
@@ -202,6 +207,7 @@ def load_partial_jsonl_summary(path: Path) -> dict[str, Any] | None:
                 "prompt_variant": metadata["prompt_variant"],
                 "repetition": metadata["repetition"],
                 "rounds": rounds,
+                "completed": completed,
                 "summary": summary or {},
             }
         )
@@ -320,7 +326,7 @@ def flatten_prompt_variant_rows(summary: dict[str, Any]) -> list[dict[str, Any]]
     grouped: dict[str, list[dict[str, Any]]] = {}
     for trial in summary.get("trials", []):
         prompt_variant = trial.get("prompt_variant")
-        if not prompt_variant or "summary" not in trial:
+        if not prompt_variant or trial.get("completed", True) is not True or "summary" not in trial:
             continue
         grouped.setdefault(prompt_variant, []).append(trial["summary"])
 
@@ -361,7 +367,11 @@ def flatten_trial_rows(summary: dict[str, Any]) -> list[dict[str, Any]]:
     for trial in summary.get("trials", []):
         trial_summary = trial.get("summary")
         prompt_variant = trial.get("prompt_variant")
-        if not prompt_variant or not isinstance(trial_summary, dict):
+        if (
+            not prompt_variant
+            or trial.get("completed", True) is not True
+            or not isinstance(trial_summary, dict)
+        ):
             continue
         row: dict[str, Any] = {
             "experiment_id": summary.get("experiment_id"),

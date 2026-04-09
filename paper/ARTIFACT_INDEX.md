@@ -206,3 +206,23 @@ Main claim supported:
 
 - the paper's figures, tables, prompt text, payoff matrices, citations, and
   PDF are reproducible from versioned sources
+
+## 7. Live Canonical Ecology Refresh
+
+Primary artifacts:
+
+- `results/society-baseline_20260409T021942Z/interim_summary.md`
+- `results/society-baseline_20260409T021942Z/live_trial_snapshot.md`
+- `results/society-baseline_20260409T021942Z/live_trial_comparison.md`
+- `results/live_ecology_20260408_followon/reputation/`
+- `results/live_ecology_20260408_followon/ops_status.md`
+
+Main claims currently supported:
+
+- the canonical multi-resource baseline is now complete and the final survival
+  ordering is `task-only > cooperative > competitive`
+- the completed baseline now exposes a stronger safety signal than the older
+  predecessor society bundle, because all three prompt families were run in the
+  same long-horizon ecology
+- the follow-on `reputation` leg has launched automatically, so the remaining
+  blocker is empirical completion of the rest of the canonical ecology suite

@@ -115,6 +115,76 @@ def test_summarize_jsonl_log_extracts_society_state(tmp_path: Path):
     assert summary["plateau_duration_rounds"] is None
 
 
+def test_summarize_jsonl_log_estimates_trial_eta(tmp_path: Path):
+    module = _load_live_run_status_module()
+    log_path = tmp_path / "eta.jsonl"
+    log_path.write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "type": "experiment_start",
+                        "timestamp": "2026-04-08T17:00:00+00:00",
+                        "experiment_id": "society-eta",
+                        "config": {
+                            "experiment": {
+                                "name": "society-eta",
+                                "part": 2,
+                                "rounds": 5,
+                                "repetitions": 1,
+                                "prompt_variants": [{"name": "task-only"}, {"name": "cooperative"}],
+                                "parameters": {"temperature": [0.0]},
+                            }
+                        },
+                    }
+                ),
+                json.dumps(
+                    {
+                        "type": "trial_summary",
+                        "timestamp": "2026-04-08T17:00:30+00:00",
+                        "trial_id": 0,
+                        "summary": {"final_survival_rate": 0.5},
+                    }
+                ),
+                json.dumps(
+                    {
+                        "type": "round",
+                        "timestamp": "2026-04-08T17:01:00+00:00",
+                        "trial_id": 1,
+                        "round_num": 1,
+                        "data": {"alive_count": 4, "total_agents": 4, "agent_vitals": {}},
+                    }
+                ),
+                json.dumps(
+                    {
+                        "type": "round",
+                        "timestamp": "2026-04-08T17:03:00+00:00",
+                        "trial_id": 1,
+                        "round_num": 3,
+                        "data": {"alive_count": 4, "total_agents": 4, "agent_vitals": {}},
+                    }
+                ),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    summary = module.summarize_jsonl_log(
+        log_path,
+        stale_minutes=15.0,
+        now=datetime(2026, 4, 8, 17, 3, 30, tzinfo=UTC),
+    )
+
+    assert summary is not None
+    assert summary["expected_rounds_per_trial"] == 5
+    assert summary["remaining_rounds_in_trial"] == 2
+    assert summary["observed_rounds_per_minute"] == pytest.approx(1.0)
+    assert summary["estimated_minutes_remaining_in_trial"] == pytest.approx(2.0)
+    assert summary["naive_minutes_remaining_in_baseline_suite"] == pytest.approx(2.0)
+    assert summary["estimated_trial_completion_timestamp"] == "2026-04-08T17:05:00+00:00"
+
+
 def test_summarize_jsonl_log_marks_stale_runs(tmp_path: Path):
     module = _load_live_run_status_module()
     log_path = tmp_path / "stale.jsonl"

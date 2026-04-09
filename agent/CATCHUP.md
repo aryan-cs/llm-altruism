@@ -261,3 +261,15 @@ uv run python scripts/run_paper_batch.py --track society --track reputation
   `scripts/continue_canonical_ecology_suite.py` is still alive for the active
   baseline/follow-on pair and will relaunch it if it disappears before the
   follow-on suite has started
+- current canonical status:
+  the recovered baseline at `results/society-baseline_20260409T021942Z/`
+  finished all `3/3` prompt variants with final survival
+  `task-only = 10/24`, `cooperative = 7/24`, `competitive = 3/24`
+- current follow-on status:
+  the watcher launched `results/live_ecology_20260408_followon/reputation/`
+  and the run is live, but still at `experiment_start` with no completed
+  rounds yet
+- summary integrity note:
+  `scripts/paper_summary.py` now treats only explicit
+  `completed = False` trials as in-progress, so live ecology packet refreshes
+  no longer leak active trials into paper-facing prompt summary tables

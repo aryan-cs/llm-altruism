@@ -143,3 +143,18 @@ sociality and survival can diverge, while the repeated-game diagnostics still
 show why macro interpretation requires prompt and benchmark robustness. The
 missing step is to replace the predecessor single-resource society evidence
 with completed long-horizon reruns from the new multi-resource ecology.
+
+## Canonical Multi-Resource Baseline
+
+- `task-only`: `10/24 = 0.4167`
+- `cooperative`: `7/24 = 0.2917`
+- `competitive`: `3/24 = 0.1250`
+
+Use:
+
+- the baseline leg is now complete, so the paper can stop treating the
+  multi-resource ecology as a purely in-progress refresh
+- the main unresolved empirical step is the follow-on `reputation` and
+  `event-stress` suite, not the baseline itself
+- the paper-facing summary code now excludes active ecology trials from final
+  prompt tables, so live interim summaries no longer overstate unfinished legs

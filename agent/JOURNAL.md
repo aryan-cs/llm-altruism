@@ -257,3 +257,21 @@ These remain important across sessions.
 - `scripts/continue_canonical_ecology_suite.py` now provides a versioned
   watcher path for launching `reputation` and `event-stress` only after the
   monitored baseline finishes, instead of relying on a manual follow-up
+
+### 2026-04-09: canonical baseline completed; follow-on reputation launched
+
+- canonical multi-resource baseline is now complete in
+  `results/society-baseline_20260409T021942Z/`
+- completed baseline final survival ordering is:
+  `task-only = 10/24 (0.4167)`,
+  `cooperative = 7/24 (0.2917)`,
+  `competitive = 3/24 (0.1250)`
+- the watcher launched the follow-on reputation run automatically at
+  `results/live_ecology_20260408_followon/reputation/`
+- `scripts/paper_summary.py` now marks JSONL trials with explicit
+  `completed` state and excludes `completed = False` trials from paper-facing
+  experiment, prompt-variant, and pooled tables while still keeping them in
+  ecology diagnostics
+- `scripts/paper_figures.py` now skips empty prompt-variant frames cleanly, so
+  refreshing a live ecology packet no longer crashes when a run has no
+  completed prompt rows yet
