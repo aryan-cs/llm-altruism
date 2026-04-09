@@ -237,3 +237,7 @@ uv run python scripts/run_paper_batch.py --track society --track reputation
   `results/live_ecology_20260408_followon/`
 - active follow-on watcher heartbeat:
   `results/live_ecology_20260408_followon/watch_status.json`
+- stale-run recovery path:
+  `scripts/recover_canonical_ecology_baseline.py` can relaunch a stale,
+  incomplete baseline into a fresh continuation directory and attach a new
+  follow-on watcher in one command

@@ -197,6 +197,10 @@ These remain important across sessions.
   `results/live_ecology_20260408_followon/watch_status.json`, which records
   the current baseline summary, watcher state, and the queued follow-on
   command
+- `scripts/recover_canonical_ecology_baseline.py` now provides a single-step
+  stale-run recovery path for the canonical baseline: detect stale/incomplete,
+  relaunch into a fresh continuation directory with `--resume-log`, and attach
+  a new follow-on watcher
 
 ### Monitoring artifacts
 

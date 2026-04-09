@@ -38,6 +38,8 @@ Main claim supported:
 - the queued follow-on suite is now auditable while it waits, because the
   watcher writes a machine-readable status file with the current baseline
   summary and the pending continuation command
+- stale canonical baseline runs are now recoverable with a versioned
+  continuation script rather than an ad hoc manual restart
 - the current baseline trajectory already exposes concrete collapse milestones,
   model-level survivor composition, a gather-dominated behavior regime, and
   the resource/vital profile of the surviving agents

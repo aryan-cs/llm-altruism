@@ -30,6 +30,16 @@ def _load_continue_module():
     return module
 
 
+def _load_recover_module():
+    module_path = ROOT / "scripts" / "recover_canonical_ecology_baseline.py"
+    spec = importlib.util.spec_from_file_location("recover_canonical_ecology_baseline_module", module_path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
 def test_suite_runs_cover_baseline_reputation_and_event_stress():
     module = _load_suite_module()
 
@@ -164,3 +174,59 @@ def test_continue_module_writes_watcher_status(tmp_path: Path):
     assert payload["baseline_results"] == "results/live_ecology_20260408_resume"
     assert payload["followon_command"] == command
     assert payload["baseline_summary"]["prompt_variant"] == "cooperative"
+
+
+def test_recover_module_detects_needing_recovery():
+    module = _load_recover_module()
+
+    assert module.needs_recovery(
+        {"state": "stale", "completed_trials": 1, "total_expected_trials": 3}
+    ) is True
+    assert module.needs_recovery(
+        {"state": "active", "completed_trials": 1, "total_expected_trials": 3}
+    ) is False
+    assert module.needs_recovery(
+        {"state": "stale", "completed_trials": 3, "total_expected_trials": 3}
+    ) is False
+
+
+def test_recover_module_builds_resume_and_watcher_commands():
+    module = _load_recover_module()
+
+    resume_command = module.build_resume_command(
+        config_path="configs/part2/society_baseline.yaml",
+        results_dir="results/recovered_run",
+        resume_log="results/live_ecology_20260408_resume/society-baseline-20260408T235541Z.jsonl",
+        models=["cerebras:llama3.1-8b"],
+        dry_run=True,
+    )
+    watcher_command = module.build_followon_watcher_command(
+        baseline_results="results/recovered_run",
+        followon_root="results/followon",
+        models=["cerebras:llama3.1-8b"],
+        dry_run=True,
+    )
+
+    assert "--resume-log" in resume_command
+    assert "results/recovered_run" in resume_command
+    assert "--dry-run" in resume_command
+    assert watcher_command[:5] == [
+        sys.executable,
+        "scripts/continue_canonical_ecology_suite.py",
+        "results/recovered_run",
+        "--results-root",
+        "results/followon",
+    ]
+    assert "--refresh-packet" in watcher_command
+    assert "--dry-run" in watcher_command
+
+
+def test_recover_module_makes_rollover_results_dir():
+    module = _load_recover_module()
+    path = module.make_rollover_results_dir(
+        "results",
+        name="society-baseline",
+        now=module.datetime(2026, 4, 9, 0, 10, 0, tzinfo=module.UTC),
+    )
+
+    assert path == Path("results/society-baseline_20260409T001000Z")
