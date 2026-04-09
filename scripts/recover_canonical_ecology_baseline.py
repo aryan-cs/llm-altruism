@@ -175,6 +175,39 @@ def build_followon_watcher_command(
     return command
 
 
+def build_maintenance_command(
+    *,
+    baseline_results: str | Path,
+    followon_root: str | Path,
+    results_parent: str | Path,
+    config_path: str,
+    models: list[str],
+    stale_minutes: float,
+    dry_run: bool,
+) -> list[str]:
+    command = [
+        project_python(),
+        "scripts/maintain_canonical_ecology_suite.py",
+        str(baseline_results),
+        "--followon-root",
+        str(followon_root),
+        "--results-parent",
+        str(results_parent),
+        "--config",
+        config_path,
+        "--stale-minutes",
+        str(stale_minutes),
+        "--loop",
+        "--poll-seconds",
+        "120",
+    ]
+    for selector in models:
+        command.extend(["--model", selector])
+    if dry_run:
+        command.append("--dry-run")
+    return command
+
+
 def format_command(command: list[str]) -> str:
     return " ".join(shlex.quote(part) for part in command)
 
@@ -220,9 +253,19 @@ def main() -> int:
         models=models,
         dry_run=args.dry_run,
     )
+    maintenance_command = build_maintenance_command(
+        baseline_results=results_dir,
+        followon_root=args.followon_root,
+        results_parent=args.results_parent,
+        config_path=args.config,
+        models=models,
+        stale_minutes=args.stale_minutes,
+        dry_run=args.dry_run,
+    )
 
     print(f"[resume] {format_command(resume_command)}")
     print(f"[watcher] {format_command(watcher_command)}")
+    print(f"[maintenance] {format_command(maintenance_command)}")
     if args.print_only:
         return 0
 
@@ -231,9 +274,13 @@ def main() -> int:
         watcher_command,
         log_path=Path(args.followon_root) / "watch.log",
     )
+    maintenance_pid = spawn_background(
+        maintenance_command,
+        log_path=Path(args.followon_root) / "maintenance.log",
+    )
     print(
         "launched: "
-        f"runner_pid={runner_pid} watcher_pid={watcher_pid} "
+        f"runner_pid={runner_pid} watcher_pid={watcher_pid} maintenance_pid={maintenance_pid} "
         f"results_dir={results_dir}"
     )
     return 0

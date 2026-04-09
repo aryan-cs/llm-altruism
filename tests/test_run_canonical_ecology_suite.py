@@ -279,6 +279,31 @@ def test_recover_module_builds_resume_and_watcher_commands():
     assert "--dry-run" in watcher_command
 
 
+def test_recover_module_builds_maintenance_command():
+    module = _load_recover_module()
+
+    command = module.build_maintenance_command(
+        baseline_results="results/recovered_run",
+        followon_root="results/followon",
+        results_parent="results",
+        config_path="configs/part2/society_baseline.yaml",
+        models=["cerebras:llama3.1-8b"],
+        stale_minutes=15.0,
+        dry_run=True,
+    )
+
+    assert command[:5] == [
+        module.project_python(),
+        "scripts/maintain_canonical_ecology_suite.py",
+        "results/recovered_run",
+        "--followon-root",
+        "results/followon",
+    ]
+    assert "--loop" in command
+    assert "--poll-seconds" in command
+    assert "--dry-run" in command
+
+
 def test_recover_module_makes_rollover_results_dir():
     module = _load_recover_module()
     path = module.make_rollover_results_dir(
