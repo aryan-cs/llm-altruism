@@ -8,8 +8,10 @@ Status note:
 
 - the original live baseline under `results/live_ecology_20260408/` stalled
   after completing `task-only` and partially running `cooperative`
-- the canonical active monitoring packet is now the continuation run under
-  `results/live_ecology_20260408_resume/`
+- the first continuation under `results/live_ecology_20260408_resume/` also
+  stalled before finishing the baseline suite
+- the canonical active monitoring packet is now the recovered continuation
+  under `results/society-baseline_20260409T021942Z/`
 - these artifacts are monitoring and audit artifacts, not final pooled paper
   tables yet
 
@@ -17,21 +19,22 @@ Primary artifacts:
 
 - `results/live_ecology_20260408/society-baseline-20260408T171454Z.jsonl`
 - `results/live_ecology_20260408_resume/society-baseline-20260408T235541Z.jsonl`
-- `results/live_ecology_20260408_resume/interim_summary.md`
-- `results/live_ecology_20260408_resume/monitoring_figures/`
-- `results/live_ecology_20260408_resume/society-baseline-casebook.md`
-- `results/live_ecology_20260408_resume/live_status.json`
-- `results/live_ecology_20260408_resume/live_trial_snapshot.md`
-- `results/live_ecology_20260408_resume/live_trial_snapshot.csv`
-- `results/live_ecology_20260408_resume/live_trial_snapshot.png`
-- `results/live_ecology_20260408_resume/live_trial_comparison.md`
+- `results/society-baseline_20260409T021942Z/society-baseline-20260409T022010Z.jsonl`
+- `results/society-baseline_20260409T021942Z/interim_summary.md`
+- `results/society-baseline_20260409T021942Z/monitoring_figures/`
+- `results/society-baseline_20260409T021942Z/society-baseline-casebook.md`
+- `results/society-baseline_20260409T021942Z/live_status.json`
+- `results/society-baseline_20260409T021942Z/live_trial_snapshot.md`
+- `results/society-baseline_20260409T021942Z/live_trial_snapshot.csv`
+- `results/society-baseline_20260409T021942Z/live_trial_snapshot.png`
+- `results/society-baseline_20260409T021942Z/live_trial_comparison.md`
 - `results/live_ecology_20260408_followon/watch_status.json`
 - `results/live_ecology_20260408_followon/maintenance_status.json`
 - `results/live_ecology_20260408_followon/maintenance.log`
 - `results/live_ecology_20260408_followon/ops_status.json`
 - `results/live_ecology_20260408_followon/ops_status.md`
-- `results/live_ecology_20260408_resume/monitoring_figures/society_reputation_survivor_vitals_heatmap.png`
-- `results/live_ecology_20260408_resume/monitoring_figures/society_reputation_model_vitals_over_time.png`
+- `results/society-baseline_20260409T021942Z/monitoring_figures/society_reputation_survivor_vitals_heatmap.png`
+- `results/society-baseline_20260409T021942Z/monitoring_figures/society_reputation_model_vitals_over_time.png`
 
 Main claim supported:
 
@@ -60,6 +63,10 @@ Main claim supported:
 - the current baseline trajectory already exposes concrete collapse milestones,
   model-level survivor composition, a gather-dominated behavior regime, and
   the resource/vital profile of the surviving agents
+- the recovered `cooperative` baseline is currently materially stronger than
+  the completed `task-only` trial on alive count (`17/24` vs `10/24`), so the
+  live packet now contains a stronger within-suite contrast than the stalled
+  predecessor continuation
 - the first completed `task-only` trial now sits beside an active
   `cooperative` trial, so the live packet already contains an early
   within-suite contrast rather than only a single trajectory

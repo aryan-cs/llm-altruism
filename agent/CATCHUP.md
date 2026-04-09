@@ -203,24 +203,26 @@ uv run python scripts/run_paper_batch.py --track society --track reputation
 - stale predecessor status:
   last event `2026-04-08T21:49:31Z`, completed `task-only`, stalled
   `cooperative` at round `87`, `1/3` complete
-- canonical continuation artifact:
+- stale continuation artifact:
   `results/live_ecology_20260408_resume/society-baseline-20260408T235541Z.jsonl`
+- canonical recovered continuation artifact:
+  `results/society-baseline_20260409T021942Z/society-baseline-20260409T022010Z.jsonl`
 - continuation behavior:
   reused the completed `task-only` summary from the stale log and relaunched
-  the incomplete baseline slots into a fresh results directory
+  the incomplete baseline slots into a fresh continuation directory
 - current continuation state:
-  `cooperative`, round `8`, `23/24` alive, `public_food=62`,
-  `public_water=113`, `average_health=8.8261`, `average_energy=11.0`
+  `cooperative`, round `30`, `17/24` alive, `public_food=44`,
+  `public_water=79`, `average_health=11.0588`, `average_energy=11.8824`
 - current heartbeat artifact:
-  `results/live_ecology_20260408_resume/live_status.json`
+  `results/society-baseline_20260409T021942Z/live_status.json`
 - current qualitative artifact:
-  `results/live_ecology_20260408_resume/society-baseline-casebook.md`
+  `results/society-baseline_20260409T021942Z/society-baseline-casebook.md`
 - current live packet:
-  `results/live_ecology_20260408_resume/interim_summary.md`,
-  `results/live_ecology_20260408_resume/live_trial_snapshot.md`,
-  `results/live_ecology_20260408_resume/live_trial_snapshot.csv`,
-  `results/live_ecology_20260408_resume/live_trial_snapshot.png`, and
-  `results/live_ecology_20260408_resume/live_trial_comparison.md`
+  `results/society-baseline_20260409T021942Z/interim_summary.md`,
+  `results/society-baseline_20260409T021942Z/live_trial_snapshot.md`,
+  `results/society-baseline_20260409T021942Z/live_trial_snapshot.csv`,
+  `results/society-baseline_20260409T021942Z/live_trial_snapshot.png`, and
+  `results/society-baseline_20260409T021942Z/live_trial_comparison.md`
 - runner note:
   `scripts/run_experiment.py --resume-log ...` is now the supported recovery
   path for stalled Part 2/3 suite runs when at least one trial summary already
@@ -247,7 +249,7 @@ uv run python scripts/run_paper_batch.py --track society --track reputation
   records whether recovery is currently needed and the exact recovery command
 - active maintenance daemon:
   detached supervisor process is now running against
-  `results/live_ecology_20260408_resume` and appends to
+  `results/society-baseline_20260409T021942Z` and appends to
   `results/live_ecology_20260408_followon/maintenance.log`
 - consolidated ops snapshot:
   `scripts/refresh_canonical_ecology_ops_status.py` writes

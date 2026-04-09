@@ -173,18 +173,18 @@ These remain important across sessions.
   with `12/24` agents alive
 - there was no live runner process by `2026-04-08T23:49:35Z`, so the run was
   not merely slow; it had stopped
-- the canonical continuation is now
+- the first continuation under
   `results/live_ecology_20260408_resume/society-baseline-20260408T235541Z.jsonl`
+  also stalled before finishing the baseline suite
+- the current canonical continuation is now
+  `results/society-baseline_20260409T021942Z/society-baseline-20260409T022010Z.jsonl`
 - continuation logic now reuses completed trial summaries from the stale log
-  and reruns only the incomplete trial slots
-- the resumed log imported the completed `task-only` trial summary at
-  `2026-04-08T23:55:41Z` and started a fresh `cooperative` trial
-- first resumed live round landed at `2026-04-08T23:56:01Z` with `24/24`
-  agents alive, `public_food=98`, `public_water=166`, `average_health=11.0`,
-  and `average_energy=9.0`
-- the resumed baseline remains active; latest observed state is
-  `2026-04-08T23:59:51Z`, `cooperative`, round `8`, `23/24` alive, with the
-  first resumed death landing at round `8`
+  and reruns only the incomplete trial slots in a fresh continuation
+  directory
+- the recovered continuation currently has a materially stronger `cooperative`
+  trajectory than the stalled predecessor: latest observed state is
+  `2026-04-09T02:51:43Z`, `cooperative`, round `30`, `17/24` alive, with a
+  stable post-collapse plateau beginning at round `11`
 - a follow-on watcher is now active through
   `scripts/continue_canonical_ecology_suite.py`; it will launch the remaining
   canonical suite stages from `reputation` into
@@ -200,13 +200,13 @@ These remain important across sessions.
 - `scripts/recover_canonical_ecology_baseline.py` now provides a single-step
   stale-run recovery path for the canonical baseline: detect stale/incomplete,
   relaunch into a fresh continuation directory with `--resume-log`, and attach
-  a new follow-on watcher
+  a new follow-on watcher plus maintenance supervisor
 - `scripts/maintain_canonical_ecology_suite.py` now provides a higher-level
   supervisor path: inspect the active baseline, emit a maintenance heartbeat,
   and trigger the recovery script only if the monitored run has actually gone
   stale before completion
 - the maintenance supervisor is now running as a detached loop against the
-  resumed baseline, writing `maintenance_status.json` and `maintenance.log`
+  recovered baseline, writing `maintenance_status.json` and `maintenance.log`
   under `results/live_ecology_20260408_followon/`
 - `scripts/refresh_canonical_ecology_ops_status.py` now emits a consolidated
   ops snapshot, so the baseline heartbeat, queued follow-on watcher state, and
