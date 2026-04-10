@@ -75,6 +75,8 @@ llm-altruism/
 │   ├── agent_0.py
 │   ├── agent_1.py
 │   ├── agent_2.py
+│   ├── agent_config.json
+│   ├── agent_config.py
 │   └── base_agent.py
 ├── experiments/
 │   ├── __init__.py
@@ -114,7 +116,13 @@ this entire project uses `uv`. make sure to use that.
 
 getting started from scratch:
 
-1. install `uv` if you do not already have it. use the official install guide: [docs.astral.sh/uv/getting-started/installation](https://docs.astral.sh/uv/getting-started/installation/).
+1. install `uv` if you do not already have it. official docs: [docs.astral.sh/uv/getting-started/installation](https://docs.astral.sh/uv/getting-started/installation/).
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+export PATH="$HOME/.local/bin:$PATH"
+```
+
 2. from the repo root, install the project dependencies:
 
 ```bash
@@ -150,7 +158,12 @@ where to get each provider credential:
 - openai: create an API key from the [OpenAI API platform](https://platform.openai.com/api-keys). docs: [OpenAI quickstart](https://platform.openai.com/docs/quickstart). put it in `OPENAI_API_KEY=...`.
 - nvidia: sign in at [build.nvidia.com](https://build.nvidia.com/), generate an API key there, and keep `NVIDIA_BASE_URL` at its default unless you intentionally need a different NVIDIA endpoint. docs: [NVIDIA API quickstart](https://docs.api.nvidia.com/nim/docs/api-quickstart). put the key in `NVIDIA_API_KEY=...`.
 - cerebras: create a key from the [Cerebras inference platform](https://cloud.cerebras.ai/) or follow the [Cerebras quickstart](https://inference-docs.cerebras.ai/quickstart). put it in `CEREBRAS_API_KEY=...`.
-- ollama: local ollama use does not need an API key in this repo. install ollama from [ollama.com](https://ollama.com/download) or the [Ollama quickstart](https://docs.ollama.com/quickstart), make sure the server is running, and leave `OLLAMA_BASE_URL=http://localhost:11434` unless you are pointing at a different host.
+- ollama: local ollama use does not need an API key in this repo. install the Ollama runtime with the command below, then start the server and leave `OLLAMA_BASE_URL=http://localhost:11434` unless you are pointing at a different host. docs: [Ollama Linux](https://docs.ollama.com/linux), [Ollama quickstart](https://docs.ollama.com/quickstart).
+
+```bash
+curl -fsSL https://ollama.com/install.sh | sh
+ollama serve
+```
 - openrouter: create an account at [OpenRouter](https://openrouter.ai/), add credits if needed, then create an API key. docs: [OpenRouter API keys](https://openrouter.ai/docs/api-keys). put it in `OPENROUTER_API_KEY=...`. `OPENROUTER_HTTP_REFERER` and `OPENROUTER_APP_NAME` can usually stay as-is unless you want custom attribution headers.
 - groq: create an API key at [console.groq.com/keys](https://console.groq.com/keys). docs: [Groq libraries and setup](https://console.groq.com/docs/libraries). put it in `GROQ_API_KEY=...`.
 - xai: create an account in the [xAI Console](https://console.x.ai/), generate an API key, and leave `XAI_API_HOST=api.x.ai` unless you have a specific reason to change it. docs: [xAI API guides](https://docs.x.ai/docs/guides). put it in `XAI_API_KEY=...`.
@@ -182,7 +195,11 @@ run tests:
 uv run pytest
 ```
 
+each experiment now runs the test suite automatically before execution. if you choose an ollama model that is not already present locally, the experiment preflight will pull it before the run starts.
+
 when you launch an experiment, a startup wizard lets you choose the provider and model for that run.
+the wizard model lists now come from `agents/agent_config.json`. comment out any full model line in the relevant `part_0`, `part_1`, or `part_2` section to hide it from that experiment's wizard.
+the interactive selection menus use the keyboard: `↑` / `↓` to move, `Enter` to confirm, and for part 0 multi-select menus, `Space` toggles an item on or off.
 you can skip either stage with optional CLI args:
 
 ```bash
@@ -190,12 +207,14 @@ uv run python -m experiments.part_1 --provider openai
 uv run python -m experiments.part_1 --provider openai --model gpt-4.1-mini
 ```
 
-for part 0, the wizard asks you to choose one or more benchmark models. if you want to skip that wizard, pass one or more `--benchmark provider:model` entries:
+for part 0, the wizard asks you to choose one or more benchmark models and which languages to run. if you want to skip those prompts, pass one or more `--benchmark provider:model` entries and one or more `--language` entries:
 
 ```bash
-uv run python -m experiments.part_0 --benchmark openai:gpt-4.1-mini
-uv run python -m experiments.part_0 --benchmark openai:gpt-4.1-mini --benchmark anthropic:claude-sonnet-4-5 --benchmark ollama:gpt-oss:20b
+uv run python -m experiments.part_0 --benchmark openai:gpt-4.1-mini --language english
+uv run python -m experiments.part_0 --benchmark openai:gpt-4.1-mini --benchmark anthropic:claude-sonnet-4-5 --language english --language spanish
 ```
+
+part 0 now loads its benchmark prompts from every CSV in `data/raw/part_0`. each CSV must include a `prompt` column, and each row in that column is treated as one prompt.
 
 for part 1, the wizard also asks whether to use a direct or indirect prompt framing. you can skip that prompt with:
 

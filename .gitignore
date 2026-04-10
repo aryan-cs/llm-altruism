@@ -1,23 +1,56 @@
+# Local environment files
 .env
-.venv/
+.env.*
+!.env.example
 .python-version
 
-.pytest_cache/
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Python caches and bytecode
 __pycache__/
 *.py[cod]
+*$py.class
+*.so
 
-.coverage
-htmlcov/
-
+# Tooling caches
+.pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.pyre/
+.hypothesis/
+.tox/
+.nox/
+.cache/
 
+# Coverage and test outputs
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# Build and packaging artifacts
 build/
 dist/
+site/
+pip-wheel-metadata/
 *.egg-info/
+*.egg
 
-.DS_Store
+# Local logs and temp files
+*.log
+*.tmp
+*.swp
+*.swo
 
+# Editors and OS files
 .vscode/
+.idea/
+.DS_Store
+Thumbs.db
 
+# Project outputs
 results/

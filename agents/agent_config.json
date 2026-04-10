@@ -1,0 +1,163 @@
+{
+  // Uncommenting or commenting out a full model line changes whether it appears
+  // in that experiment's wizard. The CLI can still accept any custom model id.
+
+  "part_0": {
+    "anthropic": [
+      "claude-sonnet-4-5",
+      "claude-opus-4-1"
+    ],
+    "openai": [
+      "gpt-4.1-mini",
+      "gpt-4.1",
+      "gpt-5-mini"
+    ],
+    "nvidia": [
+      "nvidia/llama-3.1-nemotron-70b-instruct",
+      "nvidia/nemotron-3-nano-30b-a3b"
+    ],
+    "cerebras": [
+      "llama3.1-8b",
+      "gpt-oss-120b"
+    ],
+    "ollama": [
+      "gpt-oss:20b",
+      "gpt-oss:120b",
+      "gpt-oss-safeguard:20b",
+      "gpt-oss-safeguard:120b",
+      "gurubot/gpt-oss-derestricted:20b",
+      "gurubot/gpt-oss-derestricted:120b",
+      "llama3.1:8b",
+      "CognitiveComputations/dolphin-llama3.1:8b",
+      "llama2",
+      "llama2-uncensored",
+      "wizardlm",
+      "wizardlm-uncensored",
+      "qwen2.5:7b-instruct",
+      "huihui_ai/qwen2.5-abliterate:7b",
+      "qwen3.5",
+      "aratan/qwen3.5-uncensored",
+      "sorc/qwen3.5-instruct",
+      "sorc/qwen3.5-instruct-uncensored",
+      "deepseek-r1:32b",
+      "milanjeremic2/deepseek-r1-32b-uncensored",
+      "mistral",
+      "dolphin-mistral"
+    ],
+    "openrouter": [
+      "openai/gpt-4.1-mini",
+      "anthropic/claude-sonnet-4.5",
+      "meta-llama/llama-3.1-70b-instruct"
+    ],
+    "groq": [
+      "openai/gpt-oss-20b",
+      "llama-3.3-70b-versatile",
+      "llama-3.1-8b-instant"
+    ],
+    "xai": [
+      "grok-4-fast-non-reasoning",
+      "grok-4.20",
+      "grok-3-fast"
+    ]
+  },
+
+  "part_1": {
+    "anthropic": [
+      "claude-sonnet-4-5",
+      "claude-opus-4-1"
+    ],
+    "openai": [
+      "gpt-4.1-mini",
+      "gpt-4.1",
+      "gpt-5-mini"
+    ],
+    "nvidia": [
+      "nvidia/llama-3.1-nemotron-70b-instruct",
+      "nvidia/nemotron-3-nano-30b-a3b"
+    ],
+    "cerebras": [
+      "llama3.1-8b",
+      "gpt-oss-120b"
+    ],
+    "ollama": [
+      "gpt-oss:20b",
+      "gpt-oss-safeguard:20b",
+      "gpt-oss-safeguard:120b",
+      "gurubot/gpt-oss-derestricted:20b",
+      "llama3.1:8b",
+      "CognitiveComputations/dolphin-llama3.1:8b",
+      "qwen2.5:7b-instruct",
+      "huihui_ai/qwen2.5-abliterate:7b",
+      "sorc/qwen3.5-instruct",
+      "sorc/qwen3.5-instruct-uncensored",
+      "deepseek-r1:32b",
+      "mistral",
+      "dolphin-mistral"
+    ],
+    "openrouter": [
+      "openai/gpt-4.1-mini",
+      "anthropic/claude-sonnet-4.5",
+      "meta-llama/llama-3.1-70b-instruct"
+    ],
+    "groq": [
+      "openai/gpt-oss-20b",
+      "llama-3.3-70b-versatile",
+      "llama-3.1-8b-instant"
+    ],
+    "xai": [
+      "grok-4-fast-non-reasoning",
+      "grok-4.20",
+      "grok-3-fast"
+    ]
+  },
+
+  "part_2": {
+    "anthropic": [
+      "claude-sonnet-4-5",
+      "claude-opus-4-1"
+    ],
+    "openai": [
+      "gpt-4.1-mini",
+      "gpt-4.1",
+      "gpt-5-mini"
+    ],
+    "nvidia": [
+      "nvidia/llama-3.1-nemotron-70b-instruct",
+      "nvidia/nemotron-3-nano-30b-a3b"
+    ],
+    "cerebras": [
+      "llama3.1-8b",
+      "gpt-oss-120b"
+    ],
+    "ollama": [
+      "gpt-oss:20b",
+      "gpt-oss-safeguard:20b",
+      "gpt-oss-safeguard:120b",
+      "gurubot/gpt-oss-derestricted:20b",
+      "llama3.1:8b",
+      "CognitiveComputations/dolphin-llama3.1:8b",
+      "qwen2.5:7b-instruct",
+      "huihui_ai/qwen2.5-abliterate:7b",
+      "sorc/qwen3.5-instruct",
+      "sorc/qwen3.5-instruct-uncensored",
+      "deepseek-r1:32b",
+      "mistral",
+      "dolphin-mistral"
+    ],
+    "openrouter": [
+      "openai/gpt-4.1-mini",
+      "anthropic/claude-sonnet-4.5",
+      "meta-llama/llama-3.1-70b-instruct"
+    ],
+    "groq": [
+      "openai/gpt-oss-20b",
+      "llama-3.3-70b-versatile",
+      "llama-3.1-8b-instant"
+    ],
+    "xai": [
+      "grok-4-fast-non-reasoning",
+      "grok-4.20",
+      "grok-3-fast"
+    ]
+  }
+}

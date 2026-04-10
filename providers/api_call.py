@@ -2,7 +2,7 @@ print("[API CALL] Hello, World!")
 
 import json
 import os
-from typing import Any
+from typing import Any, Callable
 
 from dotenv import load_dotenv
 from pydantic import BaseModel
@@ -14,6 +14,13 @@ OPENROUTER_SITE_URL = "https://openrouter.ai"
 OPENROUTER_APP_NAME = "llm-altruism"
 OLLAMA_BASE_URL = "http://localhost:11434"
 XAI_API_HOST = "api.x.ai"
+
+
+class OllamaConnectionError(RuntimeError):
+    pass
+
+
+OllamaProgressCallback = Callable[[str], None]
 
 
 def api_call(
@@ -134,6 +141,99 @@ def _ensure_env(var_name: str) -> str:
     if not value:
         raise EnvironmentError(f"Missing required environment variable: {var_name}")
     return value
+
+
+def _build_ollama_client() -> Any:
+    from ollama import Client
+
+    client_kwargs: dict[str, Any] = {
+        "host": os.getenv("OLLAMA_BASE_URL", OLLAMA_BASE_URL),
+    }
+    api_key = os.getenv("OLLAMA_API_KEY", "").strip()
+    if api_key:
+        client_kwargs["headers"] = {"Authorization": f"Bearer {api_key}"}
+    return Client(**client_kwargs)
+
+
+def _raise_ollama_connection_error(error: Exception) -> None:
+    host = os.getenv("OLLAMA_BASE_URL", OLLAMA_BASE_URL)
+    raise OllamaConnectionError(
+        "Could not connect to Ollama at "
+        f"{host}. Start the Ollama server, then rerun the experiment. "
+        "Example: `ollama serve`."
+    ) from error
+
+
+def _is_ollama_not_found_error(error: Exception) -> bool:
+    status_code = getattr(error, "status_code", None)
+    if status_code == 404:
+        return True
+
+    error_text = str(error).lower()
+    return "404" in error_text or "not found" in error_text
+
+
+def _format_ollama_progress(update: Any) -> str:
+    status = getattr(update, "status", None) or "pulling"
+    completed = getattr(update, "completed", None)
+    total = getattr(update, "total", None)
+    if isinstance(completed, int) and isinstance(total, int) and total > 0:
+        percent = completed / total * 100
+        return f"{status} ({percent:.1f}% | {completed / (1024 ** 3):.1f} / {total / (1024 ** 3):.1f} GiB)"
+    return status
+
+
+def _pull_ollama_model(
+    client: Any,
+    model: str,
+    progress_callback: OllamaProgressCallback | None = None,
+) -> None:
+    try:
+        progress_stream = client.pull(model, stream=True)
+        for update in progress_stream:
+            if progress_callback is not None:
+                progress_callback(_format_ollama_progress(update))
+    except TypeError:
+        client.pull(model)
+
+
+def _ensure_ollama_model_with_client(
+    client: Any,
+    model: str,
+    progress_callback: OllamaProgressCallback | None = None,
+) -> None:
+    try:
+        client.show(model)
+    except Exception as error:
+        if isinstance(error, ConnectionError):
+            _raise_ollama_connection_error(error)
+        if not _is_ollama_not_found_error(error):
+            raise
+        try:
+            _pull_ollama_model(
+                client,
+                model,
+                progress_callback=progress_callback,
+            )
+        except Exception as pull_error:
+            if isinstance(pull_error, ConnectionError):
+                _raise_ollama_connection_error(pull_error)
+            raise
+
+
+def ensure_ollama_model_available(
+    model: str,
+    progress_callback: OllamaProgressCallback | None = None,
+) -> None:
+    normalized_model = model.strip()
+    if not normalized_model:
+        raise ValueError("Ollama model must be a non-empty string.")
+    client = _build_ollama_client()
+    _ensure_ollama_model_with_client(
+        client,
+        normalized_model,
+        progress_callback=progress_callback,
+    )
 
 
 def _extract_content(value: Any) -> str:
@@ -375,9 +475,8 @@ def _query_ollama(
     temperature: float | None,
     timeout: float | None,
 ) -> str:
-    from ollama import Client
-
-    client = Client(host=os.getenv("OLLAMA_BASE_URL", OLLAMA_BASE_URL))
+    client = _build_ollama_client()
+    _ensure_ollama_model_with_client(client, model)
 
     payload: dict[str, Any] = {
         "model": model,
@@ -399,7 +498,20 @@ def _query_ollama(
     if timeout is not None:
         payload["keep_alive"] = f"{int(timeout)}s"
 
-    response = client.chat(**payload)
+    try:
+        response = client.chat(**payload)
+    except Exception as error:
+        if isinstance(error, ConnectionError):
+            _raise_ollama_connection_error(error)
+        if not _is_ollama_not_found_error(error):
+            raise
+        try:
+            _pull_ollama_model(client, model)
+        except Exception as pull_error:
+            if isinstance(pull_error, ConnectionError):
+                _raise_ollama_connection_error(pull_error)
+            raise
+        response = client.chat(**payload)
     text = _extract_content(response.get("message", {}).get("content"))
     return _finalize_text("ollama", model, text)
 

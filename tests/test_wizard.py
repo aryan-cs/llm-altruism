@@ -8,6 +8,7 @@ from experiments.wizard import (
     DEFAULT_SELFISH_GAIN,
     DEFAULT_SOCIETY_SIZE,
     choose_benchmark_models,
+    choose_languages,
     choose_prompt_style,
     choose_provider_and_model,
     choose_society_config,
@@ -18,6 +19,7 @@ from experiments.wizard import (
 def test_choose_provider_and_model_skips_wizard_when_values_provided() -> None:
     provider, model = choose_provider_and_model(
         "Test Experiment",
+        experiment_key="part_1",
         provider="openai",
         model="gpt-4.1-mini",
     )
@@ -28,17 +30,26 @@ def test_choose_provider_and_model_skips_wizard_when_values_provided() -> None:
 
 def test_choose_provider_and_model_rejects_model_without_provider() -> None:
     with pytest.raises(ValueError, match="model cannot be provided without also providing a provider"):
-        choose_provider_and_model("Test Experiment", model="gpt-4.1-mini")
+        choose_provider_and_model(
+            "Test Experiment",
+            experiment_key="part_1",
+            model="gpt-4.1-mini",
+        )
 
 
 def test_choose_provider_and_model_rejects_unknown_provider() -> None:
     with pytest.raises(ValueError, match="Unsupported provider"):
-        choose_provider_and_model("Test Experiment", provider="unknown")
+        choose_provider_and_model(
+            "Test Experiment",
+            experiment_key="part_1",
+            provider="unknown",
+        )
 
 
 def test_choose_benchmark_models_accepts_multiple_providers() -> None:
     models = choose_benchmark_models(
         "Part 0",
+        experiment_key="part_0",
         benchmarks=[
             "openai:gpt-4.1-mini",
             "anthropic:claude-sonnet-4-5",
@@ -57,6 +68,7 @@ def test_choose_benchmark_models_rejects_mixed_inputs() -> None:
     with pytest.raises(ValueError, match="Use either benchmark entries or provider/model"):
         choose_benchmark_models(
             "Part 0",
+            experiment_key="part_0",
             benchmarks=["openai:gpt-4.1-mini"],
             provider="openai",
             model="gpt-4.1-mini",
@@ -70,6 +82,10 @@ def test_parse_alignment_args_supports_repeatable_benchmarks() -> None:
             "openai:gpt-4.1-mini",
             "--benchmark",
             "anthropic:claude-sonnet-4-5",
+            "--language",
+            "english",
+            "--language",
+            "spanish",
         ]
     )
 
@@ -77,8 +93,28 @@ def test_parse_alignment_args_supports_repeatable_benchmarks() -> None:
         "openai:gpt-4.1-mini",
         "anthropic:claude-sonnet-4-5",
     ]
+    assert cli_args.language == ["english", "spanish"]
     assert cli_args.provider is None
     assert cli_args.model is None
+
+
+def test_choose_languages_skips_wizard_when_values_provided() -> None:
+    languages = choose_languages(
+        "Part 0",
+        available_languages=["english", "spanish", "french"],
+        languages=["spanish", "english", "spanish"],
+    )
+
+    assert languages == ["spanish", "english"]
+
+
+def test_choose_languages_rejects_unknown_language() -> None:
+    with pytest.raises(ValueError, match="Unsupported language"):
+        choose_languages(
+            "Part 0",
+            available_languages=["english", "spanish"],
+            languages=["english", "klingon"],
+        )
 
 
 def test_choose_prompt_style_skips_wizard_when_value_provided() -> None:

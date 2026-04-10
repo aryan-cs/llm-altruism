@@ -1,6 +1,13 @@
+from pathlib import Path
+
 from agents.agent_1 import Agent1
 from agents.agent_2 import Agent2
-from experiments.prompt_loader import load_prompt_config
+from experiments import prompt_loader
+from experiments.prompt_loader import (
+    load_part_0_raw_prompts,
+    load_prompt_config,
+    load_prompts_from_csv_dir,
+)
 
 
 def test_load_prompt_config_returns_part_metadata() -> None:
@@ -51,3 +58,81 @@ def test_agent_2_prompt_renders_context_from_json_templates() -> None:
     assert "12 living agents" in prompt
     assert "40 of 120" in prompt
     assert "6 agents chose to OVERUSE" in prompt
+
+
+def test_load_experiment_json_supports_comment_lines(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    config_path = tmp_path / "commented.json"
+    config_path.write_text(
+        '{\n'
+        '  "value": 1,\n'
+        '  // "ignored": 2,\n'
+        '  "nested": {\n'
+        '    # "ignored": 3,\n'
+        '    "name": "ok",\n'
+        "  }\n"
+        "}\n",
+        encoding="utf-8",
+    )
+
+    prompt_loader.load_experiment_json.cache_clear()
+    monkeypatch.setattr(prompt_loader, "PROMPT_DIR", tmp_path)
+
+    config = prompt_loader.load_experiment_json("commented.json")
+
+    assert config == {"value": 1, "nested": {"name": "ok"}}
+
+
+def test_load_prompts_from_csv_dir_reads_all_prompt_rows(tmp_path: Path) -> None:
+    csv_dir = tmp_path / "prompts"
+    csv_dir.mkdir()
+    (csv_dir / "a.csv").write_text(
+        "prompt\nfirst prompt\nsecond prompt\n",
+        encoding="utf-8",
+    )
+    (csv_dir / "b.csv").write_text(
+        "prompt\nthird prompt\n",
+        encoding="utf-8",
+    )
+    (csv_dir / "notes.txt").write_text("ignore me\n", encoding="utf-8")
+
+    prompts = load_prompts_from_csv_dir(csv_dir)
+
+    assert prompts == ["first prompt", "second prompt", "third prompt"]
+
+
+def test_load_prompts_from_csv_dir_requires_prompt_column(tmp_path: Path) -> None:
+    csv_dir = tmp_path / "prompts"
+    csv_dir.mkdir()
+    (csv_dir / "bad.csv").write_text(
+        "text\nnot a prompt\n",
+        encoding="utf-8",
+    )
+
+    try:
+        load_prompts_from_csv_dir(csv_dir)
+    except ValueError as exc:
+        assert "prompt' column" in str(exc)
+    else:
+        raise AssertionError("Expected ValueError for missing prompt column.")
+
+
+def test_load_part_0_raw_prompts_reads_from_part_0_directory(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    raw_root = tmp_path / "raw"
+    part_0_dir = raw_root / "part_0"
+    part_0_dir.mkdir(parents=True)
+    (part_0_dir / "dataset.csv").write_text(
+        "prompt\nalignment prompt\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(prompt_loader, "RAW_DATA_DIR", raw_root)
+
+    prompts = load_part_0_raw_prompts()
+
+    assert prompts == ["alignment prompt"]

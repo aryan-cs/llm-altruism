@@ -132,9 +132,23 @@ def _install_openrouter_module(monkeypatch: pytest.MonkeyPatch) -> list[dict]:
 def _install_ollama_module(monkeypatch: pytest.MonkeyPatch) -> list[dict]:
     calls: list[dict] = []
 
+    class FakeResponseError(Exception):
+        def __init__(self, error: str, status_code: int = -1):
+            super().__init__(error)
+            self.error = error
+            self.status_code = status_code
+
     class FakeOllamaClient:
         def __init__(self, **kwargs):
             self.kwargs = kwargs
+
+        def show(self, model: str):
+            calls.append({"client": dict(self.kwargs), "show": model})
+            return {"model": model}
+
+        def pull(self, model: str):
+            calls.append({"client": dict(self.kwargs), "pull": model})
+            return {"status": "success"}
 
         def chat(self, **kwargs):
             calls.append({"client": dict(self.kwargs), "request": kwargs})
@@ -142,6 +156,7 @@ def _install_ollama_module(monkeypatch: pytest.MonkeyPatch) -> list[dict]:
 
     module = ModuleType("ollama")
     module.Client = FakeOllamaClient
+    module.ResponseError = FakeResponseError
     monkeypatch.setitem(sys.modules, "ollama", module)
     return calls
 
@@ -329,3 +344,171 @@ def test_base_agent_forwards_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
     assert captured["kwargs"]["json_schema"] is EchoSchema
     assert captured["kwargs"]["temperature"] == 0.2
     assert captured["kwargs"]["timeout"] == 15
+
+
+def test_ensure_ollama_model_available_pulls_missing_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict] = []
+
+    class FakeResponseError(Exception):
+        def __init__(self, error: str, status_code: int = -1):
+            super().__init__(error)
+            self.error = error
+            self.status_code = status_code
+
+    class FakeOllamaClient:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+        def show(self, model: str):
+            calls.append({"show": model, "client": dict(self.kwargs)})
+            raise FakeResponseError("model not found", 404)
+
+        def pull(self, model: str, *, stream: bool = False):
+            calls.append({"pull": model, "stream": stream, "client": dict(self.kwargs)})
+            if stream:
+                return iter(
+                    [
+                        SimpleNamespace(status="pulling manifest"),
+                        SimpleNamespace(status="downloading", completed=50, total=100),
+                    ]
+                )
+            return {"status": "success"}
+
+    module = ModuleType("ollama")
+    module.Client = FakeOllamaClient
+    module.ResponseError = FakeResponseError
+    monkeypatch.setitem(sys.modules, "ollama", module)
+
+    api_call_module.ensure_ollama_model_available("llama3.1:8b")
+
+    assert calls == [
+        {"show": "llama3.1:8b", "client": {"host": api_call_module.OLLAMA_BASE_URL}},
+        {
+            "pull": "llama3.1:8b",
+            "stream": True,
+            "client": {"host": api_call_module.OLLAMA_BASE_URL},
+        },
+    ]
+
+
+def test_api_call_ollama_pulls_missing_model_before_chat(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict] = []
+
+    class FakeResponseError(Exception):
+        def __init__(self, error: str, status_code: int = -1):
+            super().__init__(error)
+            self.error = error
+            self.status_code = status_code
+
+    class FakeOllamaClient:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+        def show(self, model: str):
+            calls.append({"show": model, "client": dict(self.kwargs)})
+            raise FakeResponseError("model not found", 404)
+
+        def pull(self, model: str, *, stream: bool = False):
+            calls.append({"pull": model, "stream": stream, "client": dict(self.kwargs)})
+            if stream:
+                return iter([SimpleNamespace(status="downloading", completed=100, total=100)])
+            return {"status": "success"}
+
+        def chat(self, **kwargs):
+            calls.append({"request": kwargs, "client": dict(self.kwargs)})
+            return {"message": {"content": '{"value":"ok"}'}}
+
+    module = ModuleType("ollama")
+    module.Client = FakeOllamaClient
+    module.ResponseError = FakeResponseError
+    monkeypatch.setitem(sys.modules, "ollama", module)
+
+    result = api_call_module.api_call("ollama", "llama3.1:8b", "sys", "query")
+
+    assert json.loads(result) == {"value": "ok"}
+    assert calls == [
+        {"show": "llama3.1:8b", "client": {"host": api_call_module.OLLAMA_BASE_URL}},
+        {
+            "pull": "llama3.1:8b",
+            "stream": True,
+            "client": {"host": api_call_module.OLLAMA_BASE_URL},
+        },
+        {
+            "request": {
+                "model": "llama3.1:8b",
+                "messages": [
+                    {"role": "system", "content": "sys"},
+                    {"role": "user", "content": "query"},
+                ],
+            },
+            "client": {"host": api_call_module.OLLAMA_BASE_URL},
+        },
+    ]
+
+
+def test_ensure_ollama_model_available_raises_clear_error_when_server_is_down(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeOllamaClient:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+        def show(self, model: str):
+            del model
+            raise ConnectionError("server down")
+
+    module = ModuleType("ollama")
+    module.Client = FakeOllamaClient
+    monkeypatch.setitem(sys.modules, "ollama", module)
+
+    with pytest.raises(api_call_module.OllamaConnectionError, match="Could not connect to Ollama"):
+        api_call_module.ensure_ollama_model_available("llama3.1:8b")
+
+
+def test_ensure_ollama_model_available_emits_pull_progress(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    progress_messages: list[str] = []
+
+    class FakeResponseError(Exception):
+        def __init__(self, error: str, status_code: int = -1):
+            super().__init__(error)
+            self.error = error
+            self.status_code = status_code
+
+    class FakeOllamaClient:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+        def show(self, model: str):
+            del model
+            raise FakeResponseError("model not found", 404)
+
+        def pull(self, model: str, *, stream: bool = False):
+            del model
+            assert stream is True
+            return iter(
+                [
+                    SimpleNamespace(status="pulling manifest"),
+                    SimpleNamespace(status="downloading", completed=25, total=100),
+                ]
+            )
+
+    module = ModuleType("ollama")
+    module.Client = FakeOllamaClient
+    module.ResponseError = FakeResponseError
+    monkeypatch.setitem(sys.modules, "ollama", module)
+
+    api_call_module.ensure_ollama_model_available(
+        "llama3.1:8b",
+        progress_callback=progress_messages.append,
+    )
+
+    assert progress_messages == [
+        "pulling manifest",
+        "downloading (25.0% | 0.0 / 0.0 GiB)",
+    ]

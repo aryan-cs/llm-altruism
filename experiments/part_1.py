@@ -6,6 +6,7 @@ import json
 from datetime import datetime
 
 from agents.agent_1 import Agent1
+from experiments.preflight import run_experiment_preflight
 from experiments.prompt_loader import load_prompt_config
 from experiments.wizard import (
     choose_prompt_style,
@@ -41,6 +42,7 @@ def run_part_1(
     if provider is None or model is None:
         provider, model = choose_provider_and_model(
             EXPERIMENT_NAME,
+            experiment_key="part_1",
             provider=provider,
             model=model,
         )
@@ -48,6 +50,7 @@ def run_part_1(
         EXPERIMENT_NAME,
         prompt_style=prompt_style,
     )
+    run_experiment_preflight(EXPERIMENT_NAME, [(provider, model)])
 
     agent_a = Agent1(id_="A", provider_=provider, model_=model)
     agent_b = Agent1(id_="B", provider_=provider, model_=model)

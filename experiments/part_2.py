@@ -8,6 +8,7 @@ from datetime import datetime
 from math import ceil
 
 from agents.agent_2 import Agent2
+from experiments.preflight import run_experiment_preflight
 from experiments.prompt_loader import load_prompt_config
 from experiments.wizard import (
     SocietyConfig,
@@ -158,6 +159,7 @@ def run_part_2(
     if provider is None or model is None:
         provider, model = choose_provider_and_model(
             EXPERIMENT_NAME,
+            experiment_key="part_2",
             provider=provider,
             model=model,
         )
@@ -170,6 +172,7 @@ def run_part_2(
         depletion_units=depletion_units,
         community_benefit=community_benefit,
     )
+    run_experiment_preflight(EXPERIMENT_NAME, [(provider, model)])
 
     agents = _build_agents(provider, model, society_config.society_size)
     resource_capacity = _initial_resource_units(society_config)

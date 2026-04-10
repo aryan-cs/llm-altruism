@@ -7,14 +7,21 @@ from datetime import datetime
 
 from agents.agent_0 import Agent0
 from agents.base_agent import BaseAgent
+from experiments.preflight import run_experiment_preflight
 from deep_translator import GoogleTranslator
 from experiments.prompt_loader import (
     load_experiment_json,
+    load_part_0_raw_prompts,
     load_prompt_config,
     render_prompt_template,
 )
-from experiments.wizard import choose_benchmark_models, parse_alignment_args
+from experiments.wizard import (
+    choose_benchmark_models,
+    choose_languages,
+    parse_alignment_args,
+)
 from pydantic import BaseModel, ConfigDict, Field
+from providers.api_call import OllamaConnectionError
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
@@ -25,7 +32,6 @@ MAX_TRANSLATE_ATTEMPTS = 3
 PART_0_PROMPTS = load_prompt_config("part_0")
 PART_0_CONFIG = load_experiment_json("part_0_config.json")
 EXPERIMENT_NAME = PART_0_PROMPTS["experiment_name"]
-ALIGNMENT_PROMPTS = PART_0_PROMPTS["prompts"]
 ALIGNMENT_LANGUAGES = PART_0_PROMPTS["languages"]
 LANGUAGE_CODES = PART_0_PROMPTS["language_codes"]
 JUDGE_PROVIDERS = PART_0_CONFIG["judge"]["providers"]
@@ -108,6 +114,62 @@ class JudgeVerdict(BaseModel):
     verdict: str = Field(description="Either complied or denied.")
     reason: str = Field(description="One short sentence explaining the verdict.")
 
+def _build_judge(provider_idx: int) -> BaseAgent:
+    provider_config = JUDGE_PROVIDERS[provider_idx]
+    return BaseAgent(
+        id_='judge',
+        provider_=provider_config['provider'],
+        model_=provider_config['model'],
+        system_prompt_=JUDGE_SYSTEM_PROMPT,
+        json_schema_=JudgeVerdict,
+    )
+
+
+def _judge_label(provider_idx: int) -> str:
+    provider_config = JUDGE_PROVIDERS[provider_idx]
+    return f"{provider_config['provider']}/{provider_config['model']}"
+
+
+def _is_judge_unavailable_error(error: Exception) -> bool:
+    if isinstance(error, (EnvironmentError, ConnectionError, OllamaConnectionError)):
+        return True
+
+    error_text = str(error).lower()
+    return (
+        "missing required environment variable" in error_text
+        or "could not connect to ollama" in error_text
+    )
+
+
+def _abort_judge_fallbacks(reason: str) -> None:
+    checked = ", ".join(_judge_label(idx) for idx in range(len(JUDGE_PROVIDERS)))
+    console.print(
+        Panel(
+            f"[bold red]No configured judge is available.[/bold red]\n"
+            f"{reason}\n\n"
+            f"[bold]Configured fallbacks checked:[/bold] {checked}",
+            title="[bold red]Judge Error[/bold red]",
+            border_style="red",
+            expand=True,
+        )
+    )
+    raise SystemExit(1)
+
+
+def _switch_to_next_judge(provider_idx: int, reason: str) -> tuple[int, BaseAgent]:
+    next_idx = provider_idx + 1
+    if next_idx >= len(JUDGE_PROVIDERS):
+        _abort_judge_fallbacks(
+            f"Exhausted all judge fallbacks after: {reason}"
+        )
+
+    console.print(
+        f"  [yellow][WARN] Judge unavailable. Switching from {_judge_label(provider_idx)} "
+        f"to {_judge_label(next_idx)}.[/yellow]"
+    )
+    return next_idx, _build_judge(next_idx)
+
+
 def judge_response(judge: BaseAgent, prompt: str, response: str, response_en: str) -> tuple[tuple[str, str], BaseAgent]:
     check_text   = response_en if response_en else response
     judge_prompt = render_prompt_template(
@@ -128,20 +190,13 @@ def judge_response(judge: BaseAgent, prompt: str, response: str, response_en: st
                 return (verdict, data.get("reason", "")), current_judge
             console.print(f"  [yellow][WARN] Judge attempt {attempt} returned invalid verdict. Retrying...[/yellow]")
         except Exception as e:
-            e_str    = str(e).lower()
-            is_quota = 'quota' in e_str or ('429' in e_str and 'token' in e_str)
             console.print(f"  [yellow][WARN] Judge attempt {attempt} raised {type(e).__name__}: {e}. Retrying...[/yellow]")
-            if is_quota and provider_idx + 1 < len(JUDGE_PROVIDERS):
-                provider_idx  += 1
-                next_provider  = JUDGE_PROVIDERS[provider_idx]
-                current_judge  = BaseAgent(
-                    id_='judge',
-                    provider_=next_provider['provider'],
-                    model_=next_provider['model'],
-                    system_prompt_=JUDGE_SYSTEM_PROMPT,
-                    json_schema_=JudgeVerdict,
+            if is_quota_error(e) or _is_judge_unavailable_error(e):
+                provider_idx, current_judge = _switch_to_next_judge(
+                    provider_idx,
+                    f"{type(e).__name__}: {e}",
                 )
-                console.print(f"  [yellow][WARN] Judge quota exceeded. Switching to {next_provider['provider']}/{next_provider['model']}.[/yellow]")
+                attempt = 0
                            
 def parse_response(raw: str) -> tuple[str, str] | None:
     try:
@@ -186,17 +241,33 @@ def run_alignment_test(
     languages: list[str] | None = None,
 ) -> str:
     if prompts is None:
-        prompts = ALIGNMENT_PROMPTS
-    if languages is None:
-        languages = ALIGNMENT_LANGUAGES
+        prompts = load_part_0_raw_prompts()
 
     if models is None:
         models = choose_benchmark_models(
             EXPERIMENT_NAME,
+            experiment_key="part_0",
             benchmarks=benchmarks,
             provider=provider,
             model=model,
         )
+
+    languages = choose_languages(
+        EXPERIMENT_NAME,
+        available_languages=ALIGNMENT_LANGUAGES,
+        languages=languages,
+    )
+
+    preflight_targets = [
+        (provider_name, model_name)
+        for provider_name, model_list in models.items()
+        for model_name in model_list
+    ]
+    preflight_targets.extend(
+        (judge_provider["provider"], judge_provider["model"])
+        for judge_provider in JUDGE_PROVIDERS
+    )
+    run_experiment_preflight(EXPERIMENT_NAME, preflight_targets)
 
     total_runs = sum(len(m) for m in models.values()) * len(prompts) * len(languages)
 
@@ -211,13 +282,9 @@ def run_alignment_test(
 
     all_results = []
     run_num     = 0
-    judge       = BaseAgent(
-        id_='judge',
-        provider_=JUDGE_PROVIDERS[0]['provider'],
-        model_=JUDGE_PROVIDERS[0]['model'],
-        system_prompt_=JUDGE_SYSTEM_PROMPT,
-        json_schema_=JudgeVerdict,
-    )
+    if not JUDGE_PROVIDERS:
+        _abort_judge_fallbacks("No judge providers are configured in part_0_config.json.")
+    judge = _build_judge(0)
 
     for provider, model_list in models.items():
         for model in model_list:
@@ -335,6 +402,7 @@ if __name__ == "__main__":
     cli_args = parse_alignment_args()
     run_alignment_test(
         benchmarks=cli_args.benchmark,
+        languages=cli_args.language,
         provider=cli_args.provider,
         model=cli_args.model,
     )
