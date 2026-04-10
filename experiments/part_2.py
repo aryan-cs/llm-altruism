@@ -1,6 +1,5 @@
 print("[PART 2] Hello, World!")
 
-import csv
 import json
 import os
 from dataclasses import dataclass
@@ -10,6 +9,7 @@ from math import ceil
 from agents.agent_2 import Agent2
 from experiments.preflight import run_experiment_preflight
 from experiments.prompt_loader import load_prompt_config
+from experiments.result_writer import IncrementalCsvWriter
 from experiments.wizard import (
     SocietyConfig,
     choose_provider_and_model,
@@ -178,10 +178,13 @@ def run_part_2(
     resource_capacity = _initial_resource_units(society_config)
     resource_units = resource_capacity
     previous_overuse_count: int | None = None
-    decision_rows: list[list[str | int]] = []
     completed_days = 0
     collapse_announced = False
     stop_reason = ""
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    csv_dir = os.path.join("results", "part_2")
+    os.makedirs(csv_dir, exist_ok=True)
+    csv_path = os.path.join(csv_dir, f"{timestamp}.csv")
 
     runtime_label = (
         "until population dies out (Ctrl+C to stop)"
@@ -204,110 +207,127 @@ def run_part_2(
         )
     )
 
-    try:
-        while agents and (society_config.days == 0 or completed_days < society_config.days):
-            day = completed_days + 1
-            console.rule(f"[bold]Day {day}[/bold]")
+    with IncrementalCsvWriter(
+        csv_path,
+        [
+            "day",
+            "agent",
+            "action",
+            "reasoning",
+            "population_start",
+            "population_end",
+            "restrain_count",
+            "overuse_count",
+            "resource_units_remaining",
+            "deaths",
+        ],
+    ) as writer:
+        try:
+            while agents and (society_config.days == 0 or completed_days < society_config.days):
+                day = completed_days + 1
+                console.rule(f"[bold]Day {day}[/bold]")
 
-            population_start = len(agents)
-            daily_decisions: list[dict[str, str]] = []
-            for agent in agents:
-                raw = agent.query(
-                    agent.build_commons_prompt(
-                        resource=society_config.resource,
-                        selfish_gain=society_config.selfish_gain,
-                        depletion_units=society_config.depletion_units,
-                        community_benefit=society_config.community_benefit,
-                        day=day,
-                        living_agents=population_start,
-                        resource_units=resource_units,
-                        resource_capacity=resource_capacity,
-                        previous_overuse_count=previous_overuse_count,
-                    ),
-                    json_mode=True,
+                population_start = len(agents)
+                daily_decisions: list[dict[str, str]] = []
+                for agent in agents:
+                    raw = agent.query(
+                        agent.build_commons_prompt(
+                            resource=society_config.resource,
+                            selfish_gain=society_config.selfish_gain,
+                            depletion_units=society_config.depletion_units,
+                            community_benefit=society_config.community_benefit,
+                            day=day,
+                            living_agents=population_start,
+                            resource_units=resource_units,
+                            resource_capacity=resource_capacity,
+                            previous_overuse_count=previous_overuse_count,
+                        ),
+                        json_mode=True,
+                    )
+                    data = json.loads(raw)
+                    action = _normalize_action(data["action"])
+                    reasoning = data["reasoning"].strip()
+                    daily_decisions.append(
+                        {
+                            "agent": agent.id,
+                            "action": action,
+                            "reasoning": reasoning,
+                        }
+                    )
+
+                overuse_count = sum(
+                    1 for decision in daily_decisions if decision["action"] == "OVERUSE"
                 )
-                data = json.loads(raw)
-                action = _normalize_action(data["action"])
-                reasoning = data["reasoning"].strip()
-                daily_decisions.append(
-                    {
-                        "agent": agent.id,
-                        "action": action,
-                        "reasoning": reasoning,
-                    }
+                restrain_count = population_start - overuse_count
+                resource_units = max(
+                    0,
+                    resource_units - (overuse_count * society_config.depletion_units),
                 )
+                collapsed_today = resource_units == 0 and not collapse_announced
+                if collapsed_today:
+                    collapse_announced = True
+                    _render_collapse_warning(day, society_config.resource)
 
-            overuse_count = sum(
-                1 for decision in daily_decisions if decision["action"] == "OVERUSE"
-            )
-            restrain_count = population_start - overuse_count
-            resource_units = max(
-                0,
-                resource_units - (overuse_count * society_config.depletion_units),
-            )
-            collapsed_today = resource_units == 0 and not collapse_announced
-            if collapsed_today:
-                collapse_announced = True
-                _render_collapse_warning(day, society_config.resource)
+                deaths = _collapse_deaths(population_start, resource_units)
+                if deaths:
+                    agents = agents[: population_start - deaths]
 
-            deaths = _collapse_deaths(population_start, resource_units)
-            if deaths:
-                agents = agents[: population_start - deaths]
+                population_end = len(agents)
+                summary = DaySummary(
+                    day=day,
+                    population_start=population_start,
+                    population_end=population_end,
+                    restrain_count=restrain_count,
+                    overuse_count=overuse_count,
+                    resource_units=resource_units,
+                    resource_capacity=resource_capacity,
+                    deaths=deaths,
+                )
+                _render_day_summary(summary)
 
-            population_end = len(agents)
-            summary = DaySummary(
-                day=day,
-                population_start=population_start,
-                population_end=population_end,
-                restrain_count=restrain_count,
-                overuse_count=overuse_count,
-                resource_units=resource_units,
-                resource_capacity=resource_capacity,
-                deaths=deaths,
-            )
-            _render_day_summary(summary)
+                if _should_show_reasoning_samples(
+                    day=day,
+                    configured_days=society_config.days,
+                    collapsed_today=collapsed_today,
+                ):
+                    _render_reasoning_samples(day, daily_decisions)
 
-            if _should_show_reasoning_samples(
-                day=day,
-                configured_days=society_config.days,
-                collapsed_today=collapsed_today,
-            ):
-                _render_reasoning_samples(day, daily_decisions)
-
-            for decision in daily_decisions:
-                decision_rows.append(
+                writer.write_rows(
                     [
-                        day,
-                        decision["agent"],
-                        decision["action"],
-                        decision["reasoning"],
-                        population_start,
-                        population_end,
-                        restrain_count,
-                        overuse_count,
-                        resource_units,
-                        deaths,
+                        [
+                            day,
+                            decision["agent"],
+                            decision["action"],
+                            decision["reasoning"],
+                            population_start,
+                            population_end,
+                            restrain_count,
+                            overuse_count,
+                            resource_units,
+                            deaths,
+                        ]
+                        for decision in daily_decisions
                     ]
                 )
 
-            previous_overuse_count = overuse_count
-            completed_days += 1
+                previous_overuse_count = overuse_count
+                completed_days += 1
 
-            if not agents:
-                stop_reason = f"Population died out on day {day}."
-                break
-    except KeyboardInterrupt:
-        stop_reason = (
-            f"Simulation interrupted by user after {completed_days} completed day(s)."
-        )
-        console.print(
-            Panel(
-                stop_reason,
-                title="[bold yellow]Simulation Interrupted[/bold yellow]",
-                border_style="yellow",
-                expand=True,
+                if not agents:
+                    stop_reason = f"Population died out on day {day}."
+                    break
+        except KeyboardInterrupt:
+            stop_reason = (
+                f"Simulation interrupted by user after {completed_days} completed day(s)."
             )
-        )
+            console.print(
+                Panel(
+                    stop_reason,
+                    title="[bold yellow]Simulation Interrupted[/bold yellow]",
+                    border_style="yellow",
+                    expand=True,
+                )
+            )
 
     if not stop_reason:
         if society_config.days == 0:
@@ -317,30 +337,6 @@ def run_part_2(
             )
         else:
             stop_reason = f"Reached the configured limit of {society_config.days} day(s)."
-
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    csv_dir = os.path.join("results", "part_2")
-    os.makedirs(csv_dir, exist_ok=True)
-    csv_path = os.path.join(csv_dir, f"{timestamp}.csv")
-
-    with open(csv_path, "w", newline="", encoding="utf-8") as handle:
-        writer = csv.writer(handle)
-        writer.writerow(
-            [
-                "day",
-                "agent",
-                "action",
-                "reasoning",
-                "population_start",
-                "population_end",
-                "restrain_count",
-                "overuse_count",
-                "resource_units_remaining",
-                "deaths",
-            ]
-        )
-        for row in decision_rows:
-            writer.writerow(row)
 
     console.print(
         Panel(

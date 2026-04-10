@@ -33,6 +33,7 @@ def api_call(
     json_schema: dict[str, Any] | type[BaseModel] | None = None,
     temperature: float | None = None,
     timeout: float | None = None,
+    keep_alive: float | str | None = None,
 ) -> str:
     provider_key = _normalize_provider(provider)
 
@@ -58,15 +59,19 @@ def api_call(
     if not query or not query.strip():
         raise ValueError("Query must be a non-empty string.")
 
-    return dispatch[provider_key](
-        model=model,
-        system_prompt=system_prompt,
-        query=query,
-        json_mode=json_mode,
-        json_schema=json_schema,
-        temperature=temperature,
-        timeout=timeout,
-    )
+    request_kwargs = {
+        "model": model,
+        "system_prompt": system_prompt,
+        "query": query,
+        "json_mode": json_mode,
+        "json_schema": json_schema,
+        "temperature": temperature,
+        "timeout": timeout,
+    }
+    if provider_key == "ollama":
+        request_kwargs["keep_alive"] = keep_alive
+
+    return dispatch[provider_key](**request_kwargs)
 
 
 def _normalize_provider(provider: str) -> str:
@@ -197,28 +202,100 @@ def _pull_ollama_model(
         client.pull(model)
 
 
+def _ollama_model_available_locally_with_client(
+    client: Any,
+    model: str,
+) -> bool:
+    try:
+        client.show(model)
+        return True
+    except Exception as error:
+        if isinstance(error, ConnectionError):
+            _raise_ollama_connection_error(error)
+        if _is_ollama_not_found_error(error):
+            return False
+        raise
+
+
+def _list_loaded_ollama_models_with_client(client: Any) -> list[str]:
+    try:
+        response = client.ps()
+    except Exception as error:
+        if isinstance(error, ConnectionError):
+            _raise_ollama_connection_error(error)
+        raise
+
+    loaded_models: list[str] = []
+    seen: set[str] = set()
+    for model_info in getattr(response, "models", []) or []:
+        model_name = getattr(model_info, "model", None) or getattr(model_info, "name", None)
+        if not isinstance(model_name, str):
+            continue
+        normalized_model = model_name.strip()
+        if not normalized_model or normalized_model in seen:
+            continue
+        seen.add(normalized_model)
+        loaded_models.append(normalized_model)
+    return loaded_models
+
+
+def _unload_ollama_model_with_client(
+    client: Any,
+    model: str,
+) -> None:
+    try:
+        client.generate(model=model, keep_alive=0)
+    except Exception as error:
+        if isinstance(error, ConnectionError):
+            _raise_ollama_connection_error(error)
+        if _is_ollama_not_found_error(error):
+            return
+        raise
+
+
+def unload_ollama_model(model: str) -> None:
+    normalized_model = model.strip()
+    if not normalized_model:
+        raise ValueError("Ollama model must be a non-empty string.")
+    client = _build_ollama_client()
+    _unload_ollama_model_with_client(client, normalized_model)
+
+
+def _unload_other_ollama_models_with_client(
+    client: Any,
+    keep_model: str,
+) -> None:
+    for loaded_model in _list_loaded_ollama_models_with_client(client):
+        if loaded_model == keep_model:
+            continue
+        _unload_ollama_model_with_client(client, loaded_model)
+
+
 def _ensure_ollama_model_with_client(
     client: Any,
     model: str,
     progress_callback: OllamaProgressCallback | None = None,
 ) -> None:
+    if _ollama_model_available_locally_with_client(client, model):
+        return
     try:
-        client.show(model)
-    except Exception as error:
-        if isinstance(error, ConnectionError):
-            _raise_ollama_connection_error(error)
-        if not _is_ollama_not_found_error(error):
-            raise
-        try:
-            _pull_ollama_model(
-                client,
-                model,
-                progress_callback=progress_callback,
-            )
-        except Exception as pull_error:
-            if isinstance(pull_error, ConnectionError):
-                _raise_ollama_connection_error(pull_error)
-            raise
+        _pull_ollama_model(
+            client,
+            model,
+            progress_callback=progress_callback,
+        )
+    except Exception as pull_error:
+        if isinstance(pull_error, ConnectionError):
+            _raise_ollama_connection_error(pull_error)
+        raise
+
+
+def ollama_model_available_locally(model: str) -> bool:
+    normalized_model = model.strip()
+    if not normalized_model:
+        raise ValueError("Ollama model must be a non-empty string.")
+    client = _build_ollama_client()
+    return _ollama_model_available_locally_with_client(client, normalized_model)
 
 
 def ensure_ollama_model_available(
@@ -474,13 +551,17 @@ def _query_ollama(
     json_schema: dict[str, Any] | type[BaseModel] | None,
     temperature: float | None,
     timeout: float | None,
+    keep_alive: float | str | None,
 ) -> str:
     client = _build_ollama_client()
+    _unload_other_ollama_models_with_client(client, keep_model=model)
     _ensure_ollama_model_with_client(client, model)
 
     payload: dict[str, Any] = {
         "model": model,
         "messages": _build_messages(system_prompt, query),
+        # Ollama supports keep_alive=0 to unload immediately after the response.
+        "keep_alive": 0 if keep_alive is None else keep_alive,
     }
 
     schema = _resolve_schema(json_schema)
@@ -494,9 +575,6 @@ def _query_ollama(
         options["temperature"] = temperature
     if options:
         payload["options"] = options
-
-    if timeout is not None:
-        payload["keep_alive"] = f"{int(timeout)}s"
 
     try:
         response = client.chat(**payload)

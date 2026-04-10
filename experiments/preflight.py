@@ -11,8 +11,6 @@ from rich import box
 from rich.console import Console
 from rich.panel import Panel
 
-from providers.api_call import OllamaConnectionError, ensure_ollama_model_available
-
 console = Console()
 SKIP_PREFLIGHT_ENV_VAR = "LLM_ALTRUISM_SKIP_PREFLIGHT"
 
@@ -83,67 +81,6 @@ def _run_tests(experiment_name: str) -> None:
     )
 
 
-def _dedupe_ollama_models(targets: Iterable[tuple[str, str]]) -> list[str]:
-    models: list[str] = []
-    seen: set[str] = set()
-    for provider, model in targets:
-        if provider.strip().lower() != "ollama":
-            continue
-        normalized_model = model.strip()
-        if not normalized_model or normalized_model in seen:
-            continue
-        seen.add(normalized_model)
-        models.append(normalized_model)
-    return models
-
-
-def _ensure_ollama_models(targets: Iterable[tuple[str, str]]) -> None:
-    ollama_models = _dedupe_ollama_models(targets)
-    if not ollama_models:
-        return
-
-    console.print(
-        Panel(
-            "\n".join(f"[bold]{model}[/bold]" for model in ollama_models),
-            title="[bold]Ollama Model Check[/bold]",
-            border_style="white",
-            expand=True,
-        )
-    )
-
-    for model in ollama_models:
-        with console.status(
-            f"[bold white]Checking Ollama model:[/bold white] {model}",
-            spinner="dots",
-        ) as status:
-            try:
-                ensure_ollama_model_available(
-                    model,
-                    progress_callback=lambda message, model_name=model: status.update(
-                        f"[bold white]Downloading {model_name}[/bold white]\n{message}"
-                    ),
-                )
-            except OllamaConnectionError as error:
-                console.print(
-                    Panel(
-                        str(error),
-                        title="[bold red]Ollama Unavailable[/bold red]",
-                        border_style="red",
-                        expand=True,
-                    )
-                )
-                raise SystemExit(1) from error
-
-    console.print(
-        Panel(
-            "All required Ollama models are available locally.",
-            title="[bold green]Ollama Ready[/bold green]",
-            border_style="green",
-            expand=True,
-        )
-    )
-
-
 def run_experiment_preflight(
     experiment_name: str,
     targets: Iterable[tuple[str, str]],
@@ -151,5 +88,5 @@ def run_experiment_preflight(
     if _should_skip_preflight():
         return
 
+    del targets
     _run_tests(experiment_name)
-    _ensure_ollama_models(targets)

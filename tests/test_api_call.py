@@ -142,13 +142,21 @@ def _install_ollama_module(monkeypatch: pytest.MonkeyPatch) -> list[dict]:
         def __init__(self, **kwargs):
             self.kwargs = kwargs
 
+        def ps(self):
+            calls.append({"client": dict(self.kwargs), "ps": True})
+            return SimpleNamespace(models=[])
+
         def show(self, model: str):
             calls.append({"client": dict(self.kwargs), "show": model})
             return {"model": model}
 
-        def pull(self, model: str):
-            calls.append({"client": dict(self.kwargs), "pull": model})
+        def pull(self, model: str, *, stream: bool = False):
+            calls.append({"client": dict(self.kwargs), "pull": model, "stream": stream})
             return {"status": "success"}
+
+        def generate(self, **kwargs):
+            calls.append({"client": dict(self.kwargs), "generate": kwargs})
+            return {"response": "", "done": True}
 
         def chat(self, **kwargs):
             calls.append({"client": dict(self.kwargs), "request": kwargs})
@@ -331,6 +339,7 @@ def test_base_agent_forwards_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
         json_schema_=EchoSchema,
         temperature_=0.2,
         timeout_=15,
+        keep_alive_="30m",
     )
 
     result = agent.query("query", json_mode=True)
@@ -344,6 +353,7 @@ def test_base_agent_forwards_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
     assert captured["kwargs"]["json_schema"] is EchoSchema
     assert captured["kwargs"]["temperature"] == 0.2
     assert captured["kwargs"]["timeout"] == 15
+    assert captured["kwargs"]["keep_alive"] == "30m"
 
 
 def test_ensure_ollama_model_available_pulls_missing_model(
@@ -360,6 +370,10 @@ def test_ensure_ollama_model_available_pulls_missing_model(
     class FakeOllamaClient:
         def __init__(self, **kwargs):
             self.kwargs = kwargs
+
+        def ps(self):
+            calls.append({"show": "__ps__", "client": dict(self.kwargs)})
+            return SimpleNamespace(models=[])
 
         def show(self, model: str):
             calls.append({"show": model, "client": dict(self.kwargs)})
@@ -393,6 +407,31 @@ def test_ensure_ollama_model_available_pulls_missing_model(
     ]
 
 
+def test_ollama_model_available_locally_returns_false_for_missing_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeResponseError(Exception):
+        def __init__(self, error: str, status_code: int = -1):
+            super().__init__(error)
+            self.error = error
+            self.status_code = status_code
+
+    class FakeOllamaClient:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+        def show(self, model: str):
+            del model
+            raise FakeResponseError("model not found", 404)
+
+    module = ModuleType("ollama")
+    module.Client = FakeOllamaClient
+    module.ResponseError = FakeResponseError
+    monkeypatch.setitem(sys.modules, "ollama", module)
+
+    assert api_call_module.ollama_model_available_locally("llama3.1:8b") is False
+
+
 def test_api_call_ollama_pulls_missing_model_before_chat(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -407,6 +446,10 @@ def test_api_call_ollama_pulls_missing_model_before_chat(
     class FakeOllamaClient:
         def __init__(self, **kwargs):
             self.kwargs = kwargs
+
+        def ps(self):
+            calls.append({"ps": True, "client": dict(self.kwargs)})
+            return SimpleNamespace(models=[])
 
         def show(self, model: str):
             calls.append({"show": model, "client": dict(self.kwargs)})
@@ -431,6 +474,7 @@ def test_api_call_ollama_pulls_missing_model_before_chat(
 
     assert json.loads(result) == {"value": "ok"}
     assert calls == [
+        {"ps": True, "client": {"host": api_call_module.OLLAMA_BASE_URL}},
         {"show": "llama3.1:8b", "client": {"host": api_call_module.OLLAMA_BASE_URL}},
         {
             "pull": "llama3.1:8b",
@@ -444,6 +488,65 @@ def test_api_call_ollama_pulls_missing_model_before_chat(
                     {"role": "system", "content": "sys"},
                     {"role": "user", "content": "query"},
                 ],
+                "keep_alive": 0,
+            },
+            "client": {"host": api_call_module.OLLAMA_BASE_URL},
+        },
+    ]
+
+
+def test_api_call_ollama_unloads_other_loaded_models_before_chat(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict] = []
+
+    class FakeOllamaClient:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+        def ps(self):
+            calls.append({"ps": True, "client": dict(self.kwargs)})
+            return SimpleNamespace(
+                models=[
+                    SimpleNamespace(model="other-model"),
+                    SimpleNamespace(model="test-model"),
+                ]
+            )
+
+        def generate(self, **kwargs):
+            calls.append({"generate": kwargs, "client": dict(self.kwargs)})
+            return {"response": "", "done": True}
+
+        def show(self, model: str):
+            calls.append({"show": model, "client": dict(self.kwargs)})
+            return {"model": model}
+
+        def chat(self, **kwargs):
+            calls.append({"request": kwargs, "client": dict(self.kwargs)})
+            return {"message": {"content": '{"value":"ok"}'}}
+
+    module = ModuleType("ollama")
+    module.Client = FakeOllamaClient
+    monkeypatch.setitem(sys.modules, "ollama", module)
+
+    result = api_call_module.api_call("ollama", "test-model", "sys", "query")
+
+    assert json.loads(result) == {"value": "ok"}
+    assert calls == [
+        {"ps": True, "client": {"host": api_call_module.OLLAMA_BASE_URL}},
+        {
+            "generate": {"model": "other-model", "keep_alive": 0},
+            "client": {"host": api_call_module.OLLAMA_BASE_URL},
+        },
+        {"show": "test-model", "client": {"host": api_call_module.OLLAMA_BASE_URL}},
+        {
+            "request": {
+                "model": "test-model",
+                "messages": [
+                    {"role": "system", "content": "sys"},
+                    {"role": "user", "content": "query"},
+                ],
+                "keep_alive": 0,
             },
             "client": {"host": api_call_module.OLLAMA_BASE_URL},
         },

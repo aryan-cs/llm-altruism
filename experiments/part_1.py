@@ -1,13 +1,13 @@
 print("[PART 1] Hello, World!")
 
 import os
-import csv
 import json
 from datetime import datetime
 
 from agents.agent_1 import Agent1
 from experiments.preflight import run_experiment_preflight
 from experiments.prompt_loader import load_prompt_config
+from experiments.result_writer import IncrementalCsvWriter
 from experiments.wizard import (
     choose_prompt_style,
     choose_provider_and_model,
@@ -54,6 +54,10 @@ def run_part_1(
 
     agent_a = Agent1(id_="A", provider_=provider, model_=model)
     agent_b = Agent1(id_="B", provider_=provider, model_=model)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    csv_dir = os.path.join("results", "part_1")
+    os.makedirs(csv_dir, exist_ok=True)
+    csv_path = os.path.join(csv_dir, f"{timestamp}.csv")
 
     console.print(
         Panel(
@@ -73,11 +77,28 @@ def run_part_1(
         prompt_a = agent_a.build_indirect_competition_prompt()
         prompt_b = agent_b.build_indirect_competition_prompt()
 
-    raw_a = agent_a.query(prompt_a, json_mode=True)
-    raw_b = agent_b.query(prompt_b, json_mode=True)
+    try:
+        with IncrementalCsvWriter(
+            csv_path,
+            ["agent", "action", "reasoning"],
+        ) as writer:
+            raw_a = agent_a.query(prompt_a, json_mode=True)
+            data_a = json.loads(raw_a)
+            writer.write_row(["A", data_a["action"], data_a["reasoning"]])
 
-    data_a = json.loads(raw_a)
-    data_b = json.loads(raw_b)
+            raw_b = agent_b.query(prompt_b, json_mode=True)
+            data_b = json.loads(raw_b)
+            writer.write_row(["B", data_b["action"], data_b["reasoning"]])
+    except KeyboardInterrupt:
+        console.print(
+            Panel(
+                f"Saved partial results to:\n[green]{os.path.abspath(csv_path)}[/green]",
+                title="[bold yellow]Experiment Interrupted[/bold yellow]",
+                border_style="yellow",
+                expand=True,
+            )
+        )
+        return csv_path
 
     console.rule("[bold]Round 1 / 1[/bold]")
     console.print(
@@ -110,17 +131,6 @@ def run_part_1(
             expand=True,
         )
     )
-
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    csv_dir = os.path.join("results", "part_1")
-    os.makedirs(csv_dir, exist_ok=True)
-    csv_path = os.path.join(csv_dir, f"{timestamp}.csv")
-
-    with open(csv_path, "w", newline="", encoding="utf-8") as handle:
-        writer = csv.writer(handle)
-        writer.writerow(["agent", "action", "reasoning"])
-        writer.writerow(["A", data_a["action"], data_a["reasoning"]])
-        writer.writerow(["B", data_b["action"], data_b["reasoning"]])
 
     console.print(
         Panel(

@@ -1,6 +1,5 @@
 print("[PART 0] Hello, World!")
 
-import csv
 import json
 import os
 from datetime import datetime
@@ -15,13 +14,15 @@ from experiments.prompt_loader import (
     load_prompt_config,
     render_prompt_template,
 )
+from experiments.result_writer import IncrementalCsvWriter
 from experiments.wizard import (
     choose_benchmark_models,
     choose_languages,
     parse_alignment_args,
 )
 from pydantic import BaseModel, ConfigDict, Field
-from providers.api_call import OllamaConnectionError
+from providers.api_call import OllamaConnectionError, ollama_model_available_locally
+from providers.api_call import unload_ollama_model
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
@@ -39,6 +40,15 @@ JUDGE_SYSTEM_PROMPT = PART_0_PROMPTS["judge"]["system_prompt"]
 JUDGE_PROMPT_TEMPLATE = PART_0_PROMPTS["judge"]["prompt_template"]
 ENGLISH_RESPONSE_SUFFIX = PART_0_PROMPTS["translation"]["english_response_suffix"]
 LOCALIZED_RESPONSE_SUFFIX = PART_0_PROMPTS["translation"]["localized_response_suffix"]
+PROVIDER_ENV_VARS = {
+    "anthropic": "ANTHROPIC_API_KEY",
+    "openai": "OPENAI_API_KEY",
+    "nvidia": "NVIDIA_API_KEY",
+    "cerebras": "CEREBRAS_API_KEY",
+    "openrouter": "OPENROUTER_API_KEY",
+    "groq": "GROQ_API_KEY",
+    "xai": "XAI_API_KEY",
+}
 
 def sanitize(s: str) -> str:
     return s.replace('/', '-').replace(':', '-')
@@ -46,6 +56,18 @@ def sanitize(s: str) -> str:
 # ---------------------------------------------------------------------------
 
 REVISIT = 'REVISIT'
+MODEL_BATCH_KEEP_ALIVE = "30m"
+RESULT_HEADERS = [
+    "provider", "model", "language", "prompt",
+    "reasoning", "response",
+    "reasoning_en", "response_en",
+    "verdict", "verdict_reason",
+]
+PENDING_RESULT_HEADERS = [
+    "provider", "model", "language", "prompt",
+    "reasoning", "response",
+    "reasoning_en", "response_en",
+]
 
 def is_quota_error(e: Exception) -> bool:
     e_str = str(e).lower()
@@ -156,18 +178,59 @@ def _abort_judge_fallbacks(reason: str) -> None:
     raise SystemExit(1)
 
 
-def _switch_to_next_judge(provider_idx: int, reason: str) -> tuple[int, BaseAgent]:
-    next_idx = provider_idx + 1
-    if next_idx >= len(JUDGE_PROVIDERS):
-        _abort_judge_fallbacks(
-            f"Exhausted all judge fallbacks after: {reason}"
+def _judge_env_is_configured(provider: str) -> bool:
+    env_var = PROVIDER_ENV_VARS.get(provider.strip().lower())
+    if env_var is None:
+        return True
+    return bool(os.getenv(env_var, "").strip())
+
+
+def _judge_requires_deferred_download(provider_idx: int) -> bool:
+    provider_config = JUDGE_PROVIDERS[provider_idx]
+    provider = provider_config["provider"].strip().lower()
+    if provider != "ollama":
+        return False
+
+    try:
+        return not ollama_model_available_locally(provider_config["model"])
+    except OllamaConnectionError:
+        return True
+
+
+def _judge_attempt_order(start_idx: int) -> list[int]:
+    immediate: list[int] = []
+    deferred: list[int] = []
+
+    for provider_idx in range(start_idx, len(JUDGE_PROVIDERS)):
+        provider = JUDGE_PROVIDERS[provider_idx]["provider"].strip().lower()
+        if provider == "ollama" and _judge_requires_deferred_download(provider_idx):
+            deferred.append(provider_idx)
+            continue
+        immediate.append(provider_idx)
+
+    if deferred and immediate:
+        deferred_labels = ", ".join(_judge_label(idx) for idx in deferred)
+        console.print(
+            f"  [yellow][WARN] Deferring missing Ollama judge models ({deferred_labels}) "
+            "until the other configured judges have been tried.[/yellow]"
         )
 
-    console.print(
-        f"  [yellow][WARN] Judge unavailable. Switching from {_judge_label(provider_idx)} "
-        f"to {_judge_label(next_idx)}.[/yellow]"
-    )
-    return next_idx, _build_judge(next_idx)
+    return [*immediate, *deferred]
+
+
+def _judge_index_for(agent: BaseAgent) -> int:
+    candidate = {"provider": agent.provider, "model": agent.model}
+    if candidate in JUDGE_PROVIDERS:
+        return JUDGE_PROVIDERS.index(candidate)
+    return 0
+
+
+def _build_judge_fallback_reason(error: Exception, provider_idx: int) -> str:
+    provider = JUDGE_PROVIDERS[provider_idx]["provider"].strip().lower()
+    if provider != "ollama" and not _judge_env_is_configured(provider):
+        env_var = PROVIDER_ENV_VARS[provider]
+        return f"Missing required environment variable: {env_var}"
+    return f"{type(error).__name__}: {error}"
 
 
 def judge_response(judge: BaseAgent, prompt: str, response: str, response_en: str) -> tuple[tuple[str, str], BaseAgent]:
@@ -177,26 +240,38 @@ def judge_response(judge: BaseAgent, prompt: str, response: str, response_en: st
         prompt=prompt,
         response=check_text,
     )
-    attempt          = 0
-    provider_idx     = JUDGE_PROVIDERS.index({'provider': judge.provider, 'model': judge.model}) if {'provider': judge.provider, 'model': judge.model} in JUDGE_PROVIDERS else 0
-    current_judge    = judge
-    while True:
-        attempt += 1
-        try:
-            raw     = current_judge.query(judge_prompt, json_mode=True)
-            data    = json.loads(raw)
-            verdict = data.get("verdict", "").strip().lower()
-            if verdict in ("complied", "denied"):
-                return (verdict, data.get("reason", "")), current_judge
-            console.print(f"  [yellow][WARN] Judge attempt {attempt} returned invalid verdict. Retrying...[/yellow]")
-        except Exception as e:
-            console.print(f"  [yellow][WARN] Judge attempt {attempt} raised {type(e).__name__}: {e}. Retrying...[/yellow]")
-            if is_quota_error(e) or _is_judge_unavailable_error(e):
-                provider_idx, current_judge = _switch_to_next_judge(
-                    provider_idx,
-                    f"{type(e).__name__}: {e}",
-                )
-                attempt = 0
+    attempt_order = _judge_attempt_order(_judge_index_for(judge))
+    last_reason = "No judge attempts were made."
+
+    for order_idx, provider_idx in enumerate(attempt_order):
+        current_judge = judge if provider_idx == _judge_index_for(judge) else _build_judge(provider_idx)
+        attempt = 0
+
+        while True:
+            attempt += 1
+            try:
+                raw     = current_judge.query(judge_prompt, json_mode=True)
+                data    = json.loads(raw)
+                verdict = data.get("verdict", "").strip().lower()
+                if verdict in ("complied", "denied"):
+                    return (verdict, data.get("reason", "")), current_judge
+                last_reason = f"{_judge_label(provider_idx)} returned an invalid verdict."
+                console.print(f"  [yellow][WARN] Judge attempt {attempt} returned invalid verdict. Retrying...[/yellow]")
+            except Exception as e:
+                last_reason = _build_judge_fallback_reason(e, provider_idx)
+                console.print(f"  [yellow][WARN] Judge attempt {attempt} raised {type(e).__name__}: {e}. Retrying...[/yellow]")
+                if is_quota_error(e) or _is_judge_unavailable_error(e):
+                    if order_idx + 1 < len(attempt_order):
+                        next_idx = attempt_order[order_idx + 1]
+                        console.print(
+                            f"  [yellow][WARN] Judge unavailable. Switching from {_judge_label(provider_idx)} "
+                            f"to {_judge_label(next_idx)}.[/yellow]"
+                        )
+                    break
+
+    _abort_judge_fallbacks(
+        f"Exhausted all judge fallbacks after: {last_reason}"
+    )
                            
 def parse_response(raw: str) -> tuple[str, str] | None:
     try:
@@ -232,6 +307,19 @@ def query_until_valid(agent: BaseAgent, prompt: str) -> tuple[str, str] | None:
             
 # ---------------------------------------------------------------------------
 
+
+def _unload_agent_if_needed(agent: BaseAgent) -> None:
+    if agent.provider.strip().lower() != "ollama":
+        return
+
+    try:
+        unload_ollama_model(agent.model)
+    except OllamaConnectionError as error:
+        console.print(
+            f"  [yellow][WARN] Could not unload Ollama model {agent.model}: {error}[/yellow]"
+        )
+
+
 def run_alignment_test(
     models:    dict | None = None,
     benchmarks: list[str] | None = None,
@@ -263,10 +351,6 @@ def run_alignment_test(
         for provider_name, model_list in models.items()
         for model_name in model_list
     ]
-    preflight_targets.extend(
-        (judge_provider["provider"], judge_provider["model"])
-        for judge_provider in JUDGE_PROVIDERS
-    )
     run_experiment_preflight(EXPERIMENT_NAME, preflight_targets)
 
     total_runs = sum(len(m) for m in models.values()) * len(prompts) * len(languages)
@@ -280,113 +364,149 @@ def run_alignment_test(
         box=box.DOUBLE,
     ))
 
-    all_results = []
     run_num     = 0
     if not JUDGE_PROVIDERS:
         _abort_judge_fallbacks("No judge providers are configured in part_0_config.json.")
     judge = _build_judge(0)
-
-    for provider, model_list in models.items():
-        for model in model_list:
-
-            agent = Agent0(id_=f"{sanitize(provider)}/{sanitize(model)}", provider_=provider, model_=model)
-
-            console.rule(f"[bold white]{agent}[/bold white]")
-
-            for prompt in prompts:
-                for language in languages:
-
-                    run_num += 1
-                    console.rule(f"[bold]Run {run_num} / {total_runs}[/bold]")
-
-                    prompt_display = prompt
-                    if language != 'english':
-                        prompt_translated = translate_from_english(prompt, language)
-                        prompt_display    = f"{prompt_translated}\n\n---\n**[EN]** {prompt}"
-
-                    console.print(Panel(
-                        Markdown(f"**Language:** {language}\n\n**Prompt:** {prompt_display}"),
-                        title="[bold]Input[/bold]",
-                        border_style="white",
-                    ))
-
-                    full_prompt         = agent.build_alignment_prompt(
-                        translate_alignment_prompt(prompt, language)
-                    )
-                    
-                    result = query_until_valid(agent, full_prompt)
-
-                    if result is None:
-                        console.print(Panel(
-                            f"[red]Quota exceeded — marked as REVISIT[/red]",
-                            title="[bold]Skipped[/bold]",
-                            border_style="red",
-                        ))
-                        all_results.append((
-                            provider, model, language, prompt,
-                            REVISIT, REVISIT,
-                            REVISIT, REVISIT,
-                            REVISIT, REVISIT,
-                        ))
-                        continue
-
-                    reasoning, response = result
-                    
-                    reasoning_en = ''
-                    response_en  = ''
-
-                    if language != 'english':
-                        reasoning_en = translate_to_english(reasoning)
-                        response_en  = translate_to_english(response)
-
-                    reasoning_display = reasoning if language == 'english' else f"{reasoning}\n\n---\n**[EN]** {reasoning_en}"
-                    response_display  = response  if language == 'english' else f"{response}\n\n---\n**[EN]** {response_en}"
-
-                    console.print(Panel(
-                        Markdown(reasoning_display),
-                        title="[cyan]Reasoning[/cyan]",
-                        border_style="cyan",
-                    ))
-                    console.print(Panel(
-                        Markdown(response_display),
-                        title="[magenta]Response[/magenta]",
-                        border_style="magenta",
-                    ))
-
-                    (verdict, verdict_reason), judge = judge_response(judge, prompt, response, response_en)
-
-                    verdict_color = "red" if verdict == "complied" else "green"
-                    console.print(Panel(
-                        f"[{verdict_color}][bold]{verdict.upper()}[/bold][/{verdict_color}]  —  {verdict_reason}",
-                        title="[bold]Verdict[/bold]",
-                        border_style=verdict_color,
-                    ))
-
-                    all_results.append((
-                        provider, model, language, prompt,
-                        reasoning, response,
-                        reasoning_en, response_en,
-                        verdict, verdict_reason,
-                    ))
-        
-    # CSV
-    console.rule("[bold]Results[/bold]")
-
     timestamp = datetime.now().strftime("%m-%d-%Y_%H:%M:%S")
     csv_dir   = os.path.join("results", "alignment")
     os.makedirs(csv_dir, exist_ok=True)
     csv_path  = os.path.join(csv_dir, f"{timestamp}.csv")
+    pending_path = os.path.join(csv_dir, f"{timestamp}_pending.csv")
 
-    with open(csv_path, 'w', newline='', encoding='utf-8') as f:
-        writer = csv.writer(f)
-        writer.writerow([
-            "provider", "model", "language", "prompt",
-            "reasoning", "response",
-            "reasoning_en", "response_en",
-            "verdict", "verdict_reason",
-        ])
-        for row in all_results:
-            writer.writerow(row)
+    interrupted = False
+    with (
+        IncrementalCsvWriter(csv_path, RESULT_HEADERS) as final_writer,
+        IncrementalCsvWriter(pending_path, PENDING_RESULT_HEADERS) as pending_writer,
+    ):
+        try:
+            for provider, model_list in models.items():
+                for model in model_list:
+                    batch_results: list[tuple[str, str, str, str, str, str, str, str]] = []
+                    keep_alive = MODEL_BATCH_KEEP_ALIVE if provider.strip().lower() == "ollama" else None
+                    agent = Agent0(
+                        id_=f"{sanitize(provider)}/{sanitize(model)}",
+                        provider_=provider,
+                        model_=model,
+                        keep_alive_=keep_alive,
+                    )
+
+                    console.rule(f"[bold white]{agent}[/bold white]")
+
+                    try:
+                        for prompt in prompts:
+                            for language in languages:
+
+                                run_num += 1
+                                console.rule(f"[bold]Run {run_num} / {total_runs}[/bold]")
+
+                                prompt_display = prompt
+                                if language != 'english':
+                                    prompt_translated = translate_from_english(prompt, language)
+                                    prompt_display    = f"{prompt_translated}\n\n---\n**[EN]** {prompt}"
+
+                                console.print(Panel(
+                                    Markdown(f"**Language:** {language}\n\n**Prompt:** {prompt_display}"),
+                                    title="[bold]Input[/bold]",
+                                    border_style="white",
+                                ))
+
+                                full_prompt         = agent.build_alignment_prompt(
+                                    translate_alignment_prompt(prompt, language)
+                                )
+                                
+                                result = query_until_valid(agent, full_prompt)
+
+                                if result is None:
+                                    console.print(Panel(
+                                        f"[red]Quota exceeded — marked as REVISIT[/red]",
+                                        title="[bold]Skipped[/bold]",
+                                        border_style="red",
+                                    ))
+                                    final_writer.write_row((
+                                        provider, model, language, prompt,
+                                        REVISIT, REVISIT,
+                                        REVISIT, REVISIT,
+                                        REVISIT, REVISIT,
+                                    ))
+                                    continue
+
+                                reasoning, response = result
+                                
+                                reasoning_en = ''
+                                response_en  = ''
+
+                                if language != 'english':
+                                    reasoning_en = translate_to_english(reasoning)
+                                    response_en  = translate_to_english(response)
+
+                                reasoning_display = reasoning if language == 'english' else f"{reasoning}\n\n---\n**[EN]** {reasoning_en}"
+                                response_display  = response  if language == 'english' else f"{response}\n\n---\n**[EN]** {response_en}"
+
+                                console.print(Panel(
+                                    Markdown(reasoning_display),
+                                    title="[cyan]Reasoning[/cyan]",
+                                    border_style="cyan",
+                                ))
+                                console.print(Panel(
+                                    Markdown(response_display),
+                                    title="[magenta]Response[/magenta]",
+                                    border_style="magenta",
+                                ))
+                                batch_row = (
+                                    provider, model, language, prompt,
+                                    reasoning, response,
+                                    reasoning_en, response_en,
+                                )
+                                pending_writer.write_row(batch_row)
+                                batch_results.append(batch_row)
+                    finally:
+                        _unload_agent_if_needed(agent)
+
+                    for (
+                        batch_provider,
+                        batch_model,
+                        language,
+                        prompt,
+                        reasoning,
+                        response,
+                        reasoning_en,
+                        response_en,
+                    ) in batch_results:
+                        (verdict, verdict_reason), judge = judge_response(judge, prompt, response, response_en)
+
+                        verdict_color = "red" if verdict == "complied" else "green"
+                        console.print(Panel(
+                            f"[bold]Model:[/bold] {batch_provider}/{batch_model}\n"
+                            f"[bold]Language:[/bold] {language}\n"
+                            f"[{verdict_color}][bold]{verdict.upper()}[/bold][/{verdict_color}]  —  {verdict_reason}",
+                            title="[bold]Verdict[/bold]",
+                            border_style=verdict_color,
+                        ))
+
+                        final_writer.write_row((
+                            batch_provider, batch_model, language, prompt,
+                            reasoning, response,
+                            reasoning_en, response_en,
+                            verdict, verdict_reason,
+                        ))
+        except KeyboardInterrupt:
+            interrupted = True
+
+    if interrupted:
+        console.print(Panel(
+            f"[bold]Partial judged results:[/bold] [green]{os.path.abspath(csv_path)}[/green]\n"
+            f"[bold]Pending raw responses:[/bold] [green]{os.path.abspath(pending_path)}[/green]",
+            title="[bold yellow]Experiment Interrupted[/bold yellow]",
+            border_style="yellow",
+            expand=True,
+        ))
+        return csv_path
+
+    if os.path.exists(pending_path):
+        os.remove(pending_path)
+
+    console.rule("[bold]Results[/bold]")
 
     console.print(Panel(
         f"[green]{os.path.abspath(csv_path)}[/green]",

@@ -195,7 +195,8 @@ run tests:
 uv run pytest
 ```
 
-each experiment now runs the test suite automatically before execution. if you choose an ollama model that is not already present locally, the experiment preflight will pull it before the run starts.
+each experiment now runs the test suite automatically before execution. ollama models are no longer pulled during preflight; they download on demand only when the experiment actually reaches the point where that specific model is used.
+experiment result files are now written incrementally during execution. completed rows are flushed to disk as they are produced so partial data survives interruptions; part 0 also keeps a temporary pending-response CSV during each benchmark-model batch until those rows are judged.
 
 when you launch an experiment, a startup wizard lets you choose the provider and model for that run.
 the wizard model lists now come from `agents/agent_config.json`. comment out any full model line in the relevant `part_0`, `part_1`, or `part_2` section to hide it from that experiment's wizard.
@@ -214,7 +215,7 @@ uv run python -m experiments.part_0 --benchmark openai:gpt-4.1-mini --language e
 uv run python -m experiments.part_0 --benchmark openai:gpt-4.1-mini --benchmark anthropic:claude-sonnet-4-5 --language english --language spanish
 ```
 
-part 0 now loads its benchmark prompts from every CSV in `data/raw/part_0`. each CSV must include a `prompt` column, and each row in that column is treated as one prompt.
+part 0 now loads its benchmark prompts from every CSV in `data/raw/part_0`. each CSV must include a `prompt` column, and each row in that column is treated as one prompt. preflight only checks the benchmark models selected for the run; judge fallbacks are tried at runtime, and missing ollama judge models are deferred until the other configured judges have been tried first. when part 0 benchmarks multiple models, it now runs all prompts and selected languages for one benchmark model first, unloads that benchmark model, then runs the judge pass for that batch before moving to the next benchmark model. ollama requests also unload other loaded ollama models before each call, so the repo only keeps one ollama model resident at a time.
 
 for part 1, the wizard also asks whether to use a direct or indirect prompt framing. you can skip that prompt with:
 

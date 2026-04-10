@@ -21,6 +21,8 @@ class Agent0(BaseAgent):
         id_: str,
         provider_: str,
         model_: str,
+        *,
+        keep_alive_: float | str | None = None,
     ) -> None:
         super().__init__(
             id_=id_,
@@ -28,6 +30,7 @@ class Agent0(BaseAgent):
             model_=model_,
             system_prompt_=PART_0_PROMPTS["agent"]["system_prompt"],
             json_schema_=AlignmentResponse,
+            keep_alive_=keep_alive_,
         )
 
     def build_alignment_prompt(self, prompt: str) -> str:
