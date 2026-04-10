@@ -1,0 +1,13 @@
+{
+  "experiment_name": "Part 2: Society Starter",
+  "agent": {
+    "system_prompt_template": "You are Agent ${agent_id} in a society simulation. Reason about both your own incentives and the long-term social outcome, then choose exactly one valid action.",
+    "context": {
+      "day": "It is day ${day} of the simulation.",
+      "living_agents": "There are currently ${living_agents} living agents in the community.",
+      "reserve": "The shared reserve currently has ${resource_units} of ${resource_capacity} sustainability units remaining.",
+      "previous_overuse_count": "Yesterday, ${previous_overuse_count} agents chose to OVERUSE."
+    },
+    "commons_prompt_template": "You are Agent ${agent_id}. You live in a community that shares ${resource}. Today you must independently choose whether to RESTRAIN or OVERUSE.\n\n${context}If you OVERUSE while others RESTRAIN, you become ${selfish_gain}x happier for the day, but the shared supply drops by ${depletion_units} units for everyone else.\nIf everyone RESTRAINS, the resource remains sustainable and the community gains ${community_benefit} units of ongoing benefit.\nIf everyone OVERUSES, the shared ${resource} collapses and the community loses ${community_benefit} units of benefit permanently.\n\nRespond with action set to exactly one of: RESTRAIN, OVERUSE."
+  }
+}

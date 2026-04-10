@@ -78,14 +78,22 @@ llm-altruism/
 │   └── base_agent.py
 ├── experiments/
 │   ├── __init__.py
+│   ├── prompt_loader.py
 │   ├── part_0.py
+│   ├── part_0_config.json
+│   ├── part_0_prompt.json
 │   ├── part_1.py
-│   └── part_2.py
+│   ├── part_1_prompt.json
+│   ├── part_2.py
+│   └── part_2_prompt.json
 ├── providers/
 │   ├── __init__.py
 │   └── api_call.py
 ├── tests/
-│   └── test_api_call.py
+│   ├── test_api_call.py
+│   ├── test_part_2.py
+│   ├── test_prompt_loader.py
+│   └── test_wizard.py
 ├── .env.example
 ├── README.md
 ├── pyproject.toml
@@ -104,11 +112,68 @@ censored models:
 
 this entire project uses `uv`. make sure to use that.
 
-setup:
+getting started from scratch:
+
+1. install `uv` if you do not already have it. use the official install guide: [docs.astral.sh/uv/getting-started/installation](https://docs.astral.sh/uv/getting-started/installation/).
+2. from the repo root, install the project dependencies:
 
 ```bash
 uv sync
+```
+
+3. create your local environment file:
+
+```bash
 cp .env.example .env
+```
+
+4. open `.env` and fill in only the providers you plan to use. you do not need every key. the main variables in this repo are:
+
+```bash
+ANTHROPIC_API_KEY=
+OPENAI_API_KEY=
+NVIDIA_API_KEY=
+NVIDIA_BASE_URL=https://integrate.api.nvidia.com/v1
+CEREBRAS_API_KEY=
+OLLAMA_BASE_URL=http://localhost:11434
+OPENROUTER_API_KEY=
+OPENROUTER_HTTP_REFERER=https://openrouter.ai
+OPENROUTER_APP_NAME=llm-altruism
+GROQ_API_KEY=
+XAI_API_KEY=
+XAI_API_HOST=api.x.ai
+```
+
+where to get each provider credential:
+
+- anthropic: create an account in the [Anthropic Console](https://console.anthropic.com/) and generate an API key. docs: [Anthropic quickstart](https://docs.anthropic.com/en/docs/quickstart). put it in `ANTHROPIC_API_KEY=...`.
+- openai: create an API key from the [OpenAI API platform](https://platform.openai.com/api-keys). docs: [OpenAI quickstart](https://platform.openai.com/docs/quickstart). put it in `OPENAI_API_KEY=...`.
+- nvidia: sign in at [build.nvidia.com](https://build.nvidia.com/), generate an API key there, and keep `NVIDIA_BASE_URL` at its default unless you intentionally need a different NVIDIA endpoint. docs: [NVIDIA API quickstart](https://docs.api.nvidia.com/nim/docs/api-quickstart). put the key in `NVIDIA_API_KEY=...`.
+- cerebras: create a key from the [Cerebras inference platform](https://cloud.cerebras.ai/) or follow the [Cerebras quickstart](https://inference-docs.cerebras.ai/quickstart). put it in `CEREBRAS_API_KEY=...`.
+- ollama: local ollama use does not need an API key in this repo. install ollama from [ollama.com](https://ollama.com/download) or the [Ollama quickstart](https://docs.ollama.com/quickstart), make sure the server is running, and leave `OLLAMA_BASE_URL=http://localhost:11434` unless you are pointing at a different host.
+- openrouter: create an account at [OpenRouter](https://openrouter.ai/), add credits if needed, then create an API key. docs: [OpenRouter API keys](https://openrouter.ai/docs/api-keys). put it in `OPENROUTER_API_KEY=...`. `OPENROUTER_HTTP_REFERER` and `OPENROUTER_APP_NAME` can usually stay as-is unless you want custom attribution headers.
+- groq: create an API key at [console.groq.com/keys](https://console.groq.com/keys). docs: [Groq libraries and setup](https://console.groq.com/docs/libraries). put it in `GROQ_API_KEY=...`.
+- xai: create an account in the [xAI Console](https://console.x.ai/), generate an API key, and leave `XAI_API_HOST=api.x.ai` unless you have a specific reason to change it. docs: [xAI API guides](https://docs.x.ai/docs/guides). put it in `XAI_API_KEY=...`.
+
+if you are only using ollama locally, you can leave the cloud API key variables blank.
+
+5. once your `.env` is filled in, run the tests:
+
+```bash
+uv run pytest
+```
+
+6. then launch an experiment with a provider/model you actually configured, for example:
+
+```bash
+uv run python -m experiments.part_1 --provider openai --model gpt-4.1-mini
+```
+
+setup recap:
+
+```bash
+uv sync
+cp .env.example .env # and then put your API keys in the new .env file
 ```
 
 run tests:
@@ -117,7 +182,42 @@ run tests:
 uv run pytest
 ```
 
-all experiment entrypoints use `rich` for colored, boxed terminal output.
+when you launch an experiment, a startup wizard lets you choose the provider and model for that run.
+you can skip either stage with optional CLI args:
+
+```bash
+uv run python -m experiments.part_1 --provider openai
+uv run python -m experiments.part_1 --provider openai --model gpt-4.1-mini
+```
+
+for part 0, the wizard asks you to choose one or more benchmark models. if you want to skip that wizard, pass one or more `--benchmark provider:model` entries:
+
+```bash
+uv run python -m experiments.part_0 --benchmark openai:gpt-4.1-mini
+uv run python -m experiments.part_0 --benchmark openai:gpt-4.1-mini --benchmark anthropic:claude-sonnet-4-5 --benchmark ollama:gpt-oss:20b
+```
+
+for part 1, the wizard also asks whether to use a direct or indirect prompt framing. you can skip that prompt with:
+
+```bash
+uv run python -m experiments.part_1 --provider openai --model gpt-4.1-mini --prompt-style direct
+```
+
+for part 2, the wizard also asks for the starting number of agents and the society parameters. the starter defaults are:
+- agents: `50`
+- days: `100` (`0` means run until the population dies out)
+- resource: `water`
+- selfish gain: `2`
+- depletion units: `2`
+- community benefit: `5`
+
+you can override any of them from the CLI:
+
+```bash
+uv run python -m experiments.part_2 --provider openai --model gpt-4.1-mini --society-size 50
+uv run python -m experiments.part_2 --provider openai --model gpt-4.1-mini --society-size 80 --days 250 --resource fish --selfish-gain 3 --depletion-units 3 --community-benefit 6
+uv run python -m experiments.part_2 --provider openai --model gpt-4.1-mini --society-size 50 --days 0
+```
 
 part 0:
 

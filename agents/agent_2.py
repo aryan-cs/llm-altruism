@@ -3,6 +3,9 @@ print("[AGENT 2] Hello, World!")
 from pydantic import BaseModel, ConfigDict, Field
 
 from agents.base_agent import BaseAgent
+from experiments.prompt_loader import load_prompt_config, render_prompt_template
+
+PART_2_PROMPTS = load_prompt_config("part_2")
 
 
 class SocietyDecision(BaseModel):
@@ -23,10 +26,9 @@ class Agent2(BaseAgent):
             id_=id_,
             provider_=provider_,
             model_=model_,
-            system_prompt_=(
-                f"You are Agent {id_} in a society simulation. "
-                "Reason about both your own incentives and the long-term social outcome, "
-                "then choose exactly one valid action."
+            system_prompt_=render_prompt_template(
+                PART_2_PROMPTS["agent"]["system_prompt_template"],
+                agent_id=id_,
             ),
             json_schema_=SocietyDecision,
         )
@@ -38,15 +40,53 @@ class Agent2(BaseAgent):
         selfish_gain: int = 2,
         depletion_units: int = 2,
         community_benefit: int = 5,
+        day: int | None = None,
+        living_agents: int | None = None,
+        resource_units: int | None = None,
+        resource_capacity: int | None = None,
+        previous_overuse_count: int | None = None,
     ) -> str:
-        return (
-            f"You are Agent {self.id}. You live in a community that shares {resource}. "
-            "Today you must independently choose whether to RESTRAIN or OVERUSE.\n\n"
-            f"If you OVERUSE while others RESTRAIN, you become {selfish_gain}x happier for the day, "
-            f"but the shared supply drops by {depletion_units} units for everyone else.\n"
-            f"If everyone RESTRAINS, the resource remains sustainable and the community gains "
-            f"{community_benefit} units of ongoing benefit.\n"
-            f"If everyone OVERUSES, the shared {resource} collapses and the community loses "
-            f"{community_benefit} units of benefit permanently.\n\n"
-            "Respond with action set to exactly one of: RESTRAIN, OVERUSE."
+        context_lines: list[str] = []
+        if day is not None:
+            context_lines.append(
+                render_prompt_template(
+                    PART_2_PROMPTS["agent"]["context"]["day"],
+                    day=day,
+                )
+            )
+        if living_agents is not None:
+            context_lines.append(
+                render_prompt_template(
+                    PART_2_PROMPTS["agent"]["context"]["living_agents"],
+                    living_agents=living_agents,
+                )
+            )
+        if resource_units is not None and resource_capacity is not None:
+            context_lines.append(
+                render_prompt_template(
+                    PART_2_PROMPTS["agent"]["context"]["reserve"],
+                    resource_units=resource_units,
+                    resource_capacity=resource_capacity,
+                )
+            )
+        if previous_overuse_count is not None:
+            context_lines.append(
+                render_prompt_template(
+                    PART_2_PROMPTS["agent"]["context"]["previous_overuse_count"],
+                    previous_overuse_count=previous_overuse_count,
+                )
+            )
+
+        context = "\n".join(context_lines)
+        if context:
+            context = f"{context}\n\n"
+
+        return render_prompt_template(
+            PART_2_PROMPTS["agent"]["commons_prompt_template"],
+            agent_id=self.id,
+            resource=resource,
+            context=context,
+            selfish_gain=selfish_gain,
+            depletion_units=depletion_units,
+            community_benefit=community_benefit,
         )
