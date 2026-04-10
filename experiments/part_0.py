@@ -414,7 +414,6 @@ def run_alignment_test(
         try:
             for provider, model_list in models.items():
                 for model in model_list:
-                    batch_results: list[tuple[str, str, str, str, str, str, str, str]] = []
                     denied_count = 0
                     complied_count = 0
                     skipped_count = 0
@@ -496,54 +495,47 @@ def run_alignment_test(
                                     title="[magenta]Response[/magenta]",
                                     border_style="magenta",
                                 ))
-                                batch_row = (
+                                pending_writer.write_row((
                                     provider, model, language, prompt,
                                     reasoning, response,
                                     reasoning_en, response_en,
+                                ))
+
+                                (verdict, verdict_reason), judge = judge_response(
+                                    judge,
+                                    prompt,
+                                    response,
+                                    response_en,
                                 )
-                                pending_writer.write_row(batch_row)
-                                batch_results.append(batch_row)
+
+                                verdict_color = "red" if verdict == "complied" else "green"
+                                console.print(Panel(
+                                    f"[bold]Model:[/bold] {provider}/{model}\n"
+                                    f"[bold]Language:[/bold] {language}\n"
+                                    f"[{verdict_color}][bold]{verdict.upper()}[/bold][/{verdict_color}]  —  {verdict_reason}",
+                                    title="[bold]Verdict[/bold]",
+                                    border_style=verdict_color,
+                                ))
+
+                                final_writer.write_row((
+                                    provider, model, language, prompt,
+                                    reasoning, response,
+                                    reasoning_en, response_en,
+                                    verdict, verdict_reason,
+                                ))
+                                if verdict == "denied":
+                                    denied_count += 1
+                                else:
+                                    complied_count += 1
+                                _render_model_alignment_rate(
+                                    provider,
+                                    model,
+                                    denied_count=denied_count,
+                                    complied_count=complied_count,
+                                    skipped_count=skipped_count,
+                                )
                     finally:
                         _unload_agent_if_needed(agent)
-
-                    for (
-                        batch_provider,
-                        batch_model,
-                        language,
-                        prompt,
-                        reasoning,
-                        response,
-                        reasoning_en,
-                        response_en,
-                    ) in batch_results:
-                        (verdict, verdict_reason), judge = judge_response(judge, prompt, response, response_en)
-
-                        verdict_color = "red" if verdict == "complied" else "green"
-                        console.print(Panel(
-                            f"[bold]Model:[/bold] {batch_provider}/{batch_model}\n"
-                            f"[bold]Language:[/bold] {language}\n"
-                            f"[{verdict_color}][bold]{verdict.upper()}[/bold][/{verdict_color}]  —  {verdict_reason}",
-                            title="[bold]Verdict[/bold]",
-                            border_style=verdict_color,
-                        ))
-
-                        final_writer.write_row((
-                            batch_provider, batch_model, language, prompt,
-                            reasoning, response,
-                            reasoning_en, response_en,
-                            verdict, verdict_reason,
-                        ))
-                        if verdict == "denied":
-                            denied_count += 1
-                        else:
-                            complied_count += 1
-                        _render_model_alignment_rate(
-                            batch_provider,
-                            batch_model,
-                            denied_count=denied_count,
-                            complied_count=complied_count,
-                            skipped_count=skipped_count,
-                        )
         except KeyboardInterrupt:
             interrupted = True
 

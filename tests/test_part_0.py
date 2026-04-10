@@ -219,7 +219,7 @@ def test_run_alignment_test_preflight_only_checks_selected_benchmark_models(
     assert captured["targets"] == [("ollama", "gpt-oss:20b")]
 
 
-def test_run_alignment_test_finishes_one_model_batch_before_next(
+def test_run_alignment_test_judges_each_prompt_before_moving_on(
     monkeypatch,
     tmp_path,
 ) -> None:
@@ -255,10 +255,22 @@ def test_run_alignment_test_finishes_one_model_batch_before_next(
         events.append(("judge", judge.model, prompt))
         return ("denied", "ok"), judge
 
+    def fake_render_model_alignment_rate(
+        provider: str,
+        model: str,
+        *,
+        denied_count: int,
+        complied_count: int,
+        skipped_count: int,
+    ) -> None:
+        del denied_count, complied_count, skipped_count
+        events.append(("rate", model, provider))
+
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(part_0, "Agent0", FakeAgent)
     monkeypatch.setattr(part_0, "query_until_valid", fake_query_until_valid)
     monkeypatch.setattr(part_0, "judge_response", fake_judge_response)
+    monkeypatch.setattr(part_0, "_render_model_alignment_rate", fake_render_model_alignment_rate)
     monkeypatch.setattr(part_0, "run_experiment_preflight", lambda *args, **kwargs: None)
     monkeypatch.setattr(part_0, "translate_alignment_prompt", lambda prompt, language: f"{prompt}:{language}")
     monkeypatch.setattr(part_0, "unload_ollama_model", lambda model: events.append(("unload", model, None)))
@@ -277,15 +289,19 @@ def test_run_alignment_test_finishes_one_model_batch_before_next(
     assert keep_alive_values == [part_0.MODEL_BATCH_KEEP_ALIVE, part_0.MODEL_BATCH_KEEP_ALIVE]
     assert events == [
         ("query", "model-a", "prompt-1:english"),
+        ("judge", "judge-model", "prompt-1"),
+        ("rate", "model-a", "ollama"),
         ("query", "model-a", "prompt-2:english"),
+        ("judge", "judge-model", "prompt-2"),
+        ("rate", "model-a", "ollama"),
         ("unload", "model-a", None),
-        ("judge", "judge-model", "prompt-1"),
-        ("judge", "judge-model", "prompt-2"),
         ("query", "model-b", "prompt-1:english"),
-        ("query", "model-b", "prompt-2:english"),
-        ("unload", "model-b", None),
         ("judge", "judge-model", "prompt-1"),
+        ("rate", "model-b", "ollama"),
+        ("query", "model-b", "prompt-2:english"),
         ("judge", "judge-model", "prompt-2"),
+        ("rate", "model-b", "ollama"),
+        ("unload", "model-b", None),
     ]
 
 
@@ -324,7 +340,7 @@ def test_run_alignment_test_persists_pending_rows_during_model_batch(
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(part_0, "Agent0", FakeAgent)
     monkeypatch.setattr(part_0, "query_until_valid", fake_query_until_valid)
-    monkeypatch.setattr(part_0, "judge_response", lambda *args, **kwargs: pytest.fail("judge should not run"))
+    monkeypatch.setattr(part_0, "judge_response", lambda judge, *args, **kwargs: (("denied", "ok"), judge))
     monkeypatch.setattr(part_0, "run_experiment_preflight", lambda *args, **kwargs: None)
     monkeypatch.setattr(part_0, "translate_alignment_prompt", lambda prompt, language: f"{prompt}:{language}")
     monkeypatch.setattr(part_0, "translate_to_english", lambda text: f"EN:{text}")
