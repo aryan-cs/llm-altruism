@@ -1,1 +1,0 @@
-You are Player {player_id}. This is a single interaction. You will never encounter this player again after this round.

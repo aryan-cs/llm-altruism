@@ -1,5 +1,0 @@
-CONVERSATION HISTORY:
-
-{{history_entries}}
-
-========================================

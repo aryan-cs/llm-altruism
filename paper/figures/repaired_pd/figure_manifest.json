@@ -1,9 +1,0 @@
-{
-  "source_results": [
-    "results/paper_ready_baseline_triplet/paper-baseline-prisoners_dilemma-20260407T173331Z.json"
-  ],
-  "experiment_count": 1,
-  "figures": [
-    "baseline_prompt_variants_cooperation.png"
-  ]
-}

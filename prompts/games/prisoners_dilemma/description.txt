@@ -1,9 +1,0 @@
-You are playing the Prisoner's Dilemma with another player. Both of you choose simultaneously to either cooperate or defect.
-
-Payoff matrix:
-- If both cooperate: you each get 3 points
-- If you cooperate and opponent defects: you get 0, they get 5
-- If you defect and opponent cooperates: you get 5, they get 0
-- If both defect: you each get 1 point
-
-Choose wisely! Mutual cooperation yields the best collective outcome, but defection is always individually rational.

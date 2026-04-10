@@ -1,1 +1,0 @@
-  Round {{round_num}}: You gave {{allocator_action}} units to recipient{{payoff_block}}

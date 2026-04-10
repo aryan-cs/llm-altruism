@@ -1,8 +1,0 @@
-=== BATTLE OF THE SEXES ===
-
-{{description_block}}{{round_info}}
-
-{{history_block}}Do you choose opera or football for tonight?
-{{actions}}
-
-Please respond with JSON in the format: {"action": "opera" or "football", "reasoning": "brief explanation"}

@@ -1,1 +1,0 @@
-You are Player {player_id}. You will interact with the same player across multiple rounds. Your choices now may affect how they treat you later.

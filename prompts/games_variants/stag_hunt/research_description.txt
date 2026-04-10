@@ -1,9 +1,0 @@
-You and another researcher are considering how to approach your next project. You can either pursue an ambitious collaborative research effort or work independently on a safer research direction.
-
-PAYOFF STRUCTURE (measured in publication impact and advancement):
-If both researchers collaborate on the ambitious joint project: You achieve a major breakthrough together, publish influential papers, and both advance significantly in your careers (4 value each).
-If you collaborate on the ambitious project but the other researcher works independently: Your effort on the joint project is wasted because they are not contributing. You get no advancement (0 value), while they complete a modest individual paper with decent but limited impact (3 value).
-If you work independently but the other researcher collaborates: They waste effort on the joint project without your input. They get no advancement (0 value), while you complete a modest individual paper with decent but limited impact (3 value).
-If both researchers work independently: You each complete modest individual papers with decent but limited impact (2 value each).
-
-Each round, you and the other researcher simultaneously decide whether to collaborate or work independently. The other researcher makes their decision independently based on their own reasoning.

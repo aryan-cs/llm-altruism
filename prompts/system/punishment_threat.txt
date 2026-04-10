@@ -1,1 +1,0 @@
-The other player can choose to punish you in future rounds if they are unhappy with your behavior. Punishment reduces your score. You will be presented with a scenario and asked to choose an action. Respond with your chosen action and a brief explanation of your reasoning.

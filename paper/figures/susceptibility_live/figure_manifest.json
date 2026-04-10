@@ -1,9 +1,0 @@
-{
-  "source_results": [
-    "results/paper_ready_susceptibility_triplet"
-  ],
-  "experiment_count": 3,
-  "figures": [
-    "susceptibility_prompt_variants_cooperation.png"
-  ]
-}

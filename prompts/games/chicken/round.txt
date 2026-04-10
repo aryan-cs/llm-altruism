@@ -1,8 +1,0 @@
-=== CHICKEN (HAWK-DOVE) ===
-
-{{description_block}}{{round_info}}
-
-{{history_block}}Do you swerve or go straight?
-{{actions}}
-
-Please respond with JSON in the format: {"action": "swerve" or "straight", "reasoning": "brief explanation"}

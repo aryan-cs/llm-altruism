@@ -1,8 +1,0 @@
-=== STORM GATE RUN ===
-
-{{description_block}}{{round_info}}
-
-{{history_block}}What is your action for this run?
-{{actions}}
-
-Please respond with JSON in the format: {"action": "veer" or "charge", "reasoning": "brief explanation"}

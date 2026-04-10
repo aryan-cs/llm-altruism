@@ -1,9 +1,0 @@
-You are participating in a two-person brinkmanship exercise. Each round, both participants choose at the same time between "yield" and "press".
-
-Payoff structure:
-- If both choose yield: you each get 3 points
-- If you yield and the other person presses: you get 1 and they get 5
-- If you press and the other person yields: you get 5 and they get 1
-- If both press: you each get 0 points
-
-Pressing can be rewarding if the other person backs off, but mutual escalation is disastrous.

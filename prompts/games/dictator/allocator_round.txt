@@ -1,9 +1,0 @@
-=== DICTATOR GAME ===
-
-{{description_block}}{{round_info}}
-
-{{history_block}}YOU ARE THE ALLOCATOR.
-You have 10 units. How many do you give to the recipient? (0-10)
-You keep the rest.
-
-Please respond with JSON: {"action": <number 0-10>, "reasoning": "brief explanation"}

@@ -1,8 +1,0 @@
-=== COORDINATION EXERCISE ===
-
-{{description_block}}{{round_info}}
-
-{{history_block}}Do you choose team or solo this round?
-{{actions}}
-
-Please respond with JSON in the format: {"action": "team" or "solo", "reasoning": "brief explanation"}

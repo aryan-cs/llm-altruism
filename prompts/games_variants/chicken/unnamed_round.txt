@@ -1,8 +1,0 @@
-=== BRINKMANSHIP EXERCISE ===
-
-{{description_block}}{{round_info}}
-
-{{history_block}}Do you yield or press this round?
-{{actions}}
-
-Please respond with JSON in the format: {"action": "yield" or "press", "reasoning": "brief explanation"}

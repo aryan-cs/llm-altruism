@@ -1,8 +1,0 @@
-=== PUBLIC GOODS GAME ===
-
-{{description_block}}{{round_info}}
-
-{{history_block}}How much of your 10 units do you contribute to the public pool? (0-10)
-{{actions}}
-
-Please respond with JSON in the format: {"action": <number 0-10>, "reasoning": "brief explanation"}

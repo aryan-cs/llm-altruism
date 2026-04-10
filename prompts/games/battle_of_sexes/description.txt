@@ -1,8 +1,0 @@
-You are playing Battle of the Sexes with another player. You are a couple deciding how to spend the evening together. One of you prefers opera, the other prefers football. You both want to go together (coordinating), but you disagree on the activity.
-
-Payoff matrix:
-- If both go to opera: opera-lover gets 3, football-lover gets 2
-- If both go to football: football-lover gets 3, opera-lover gets 2
-- If one goes to opera and one to football: you each get 0 (separated!)
-
-The key insight: you both prefer being together to being apart, but each has a favorite activity. Will you compromise or insist?

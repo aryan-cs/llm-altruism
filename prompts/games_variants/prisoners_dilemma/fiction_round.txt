@@ -1,8 +1,0 @@
-=== MOON COLONY SHIELD DECISION ===
-
-{{description_block}}{{round_info}}
-
-{{history_block}}What is your action for this cycle?
-{{actions}}
-
-Please respond with JSON in the format: {"action": "reinforce" or "withhold", "reasoning": "brief explanation"}

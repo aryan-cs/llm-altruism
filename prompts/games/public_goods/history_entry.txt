@@ -1,3 +1,0 @@
-  Round {{round_num}}:
-    You contributed {{action_a}}, opponent contributed {{action_b}}
-    Total pool: {{pool_total}} -> {{multiplied_pool}}{{payoff_block}}

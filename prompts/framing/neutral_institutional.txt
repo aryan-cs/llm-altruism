@@ -1,1 +1,0 @@
-You are Decision-Maker {player_id} in a structured interaction with one other decision-maker. Each of you chooses once per round, and the resulting outcomes depend on both choices.

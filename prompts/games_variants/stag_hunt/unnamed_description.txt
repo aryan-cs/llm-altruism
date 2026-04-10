@@ -1,9 +1,0 @@
-You are participating in a two-person coordination exercise. Each round, both participants choose at the same time between "team" and "solo".
-
-Payoff structure:
-- If both choose team: you each get 4 points
-- If you choose team and the other person chooses solo: you get 0 and they get 3
-- If you choose solo and the other person chooses team: you get 3 and they get 0
-- If both choose solo: you each get 2 points
-
-The team option gives the best joint outcome, but it only works if both people commit to it.

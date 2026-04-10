@@ -1,7 +1,0 @@
-=== FREE-FORM CONVERSATION ===
-
-{{setup_block}}{{turn_info}}
-
-{{history_block}}What do you say next? Speak freely and naturally.
-
-(You may respond with JSON including {'message': '...'} or plain text; the full response will be recorded.)

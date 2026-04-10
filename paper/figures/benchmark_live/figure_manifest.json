@@ -1,9 +1,0 @@
-{
-  "source_results": [
-    "results/paper_ready_benchmark_triplet"
-  ],
-  "experiment_count": 7,
-  "figures": [
-    "benchmark_presentations_cooperation.png"
-  ]
-}

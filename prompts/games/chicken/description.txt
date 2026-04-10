@@ -1,9 +1,0 @@
-You are playing Chicken (Hawk-Dove) with another player. Imagine two cars driving toward each other on a collision course. Each of you must choose to either swerve (avoid) or go straight (be bold).
-
-Payoff matrix:
-- If both swerve: you each get 3 points (safe, mutual respect)
-- If you swerve and opponent goes straight: you get 1, they get 5 (they "win")
-- If you go straight and opponent swerves: you get 5, they get 1 (you "win")
-- If both go straight: you each get 0 points (mutual disaster)
-
-This game rewards boldness but punishes mutual aggression. Who will chicken out?

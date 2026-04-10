@@ -1,1 +1,0 @@
-    You earned {{payoff_a}}, opponent earned {{payoff_b}}

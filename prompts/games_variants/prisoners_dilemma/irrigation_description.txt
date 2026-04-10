@@ -1,9 +1,0 @@
-You and another farmer share an irrigation canal that supplies water to both of your fields. The canal requires regular maintenance to function properly. Each farmer can choose to either maintain their section of the canal or skip the maintenance.
-
-PAYOFF STRUCTURE (measured in crop value):
-If both farmers maintain their sections: Both receive excellent water flow and healthy crops (3 value each).
-If you maintain but the other farmer skips: You spend effort on maintenance but the neglected section still degrades the overall system. You receive poor water flow (0 value), while the other farmer saves effort but also gets poor flow (5 value from avoiding costs without bearing the burden).
-If you skip maintenance but the other farmer maintains: The other farmer's maintenance partially helps, but the neglected section in your area causes problems. They waste effort (0 value), while you save effort and get reasonable flow (5 value).
-If both farmers skip maintenance: The canal falls into significant disrepair. Both receive poor water flow and struggling crops (1 value each).
-
-Each round, you and the other farmer simultaneously decide whether to maintain or skip maintenance. The other farmer makes their decision independently based on their own reasoning.

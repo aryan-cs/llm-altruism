@@ -1,8 +1,0 @@
-=== STAG HUNT ===
-
-{{description_block}}{{round_info}}
-
-{{history_block}}Do you hunt stag or hare?
-{{actions}}
-
-Please respond with JSON in the format: {"action": "stag" or "hare", "reasoning": "brief explanation"}

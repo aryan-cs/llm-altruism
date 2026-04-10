@@ -1,8 +1,0 @@
-=== TRADE ROUTE DECISION ===
-
-{{description_block}}{{round_info}}
-
-{{history_block}}Will you share or withhold your route information?
-{{actions}}
-
-Please respond with JSON in the format: {"action": "share" or "withhold", "reasoning": "brief explanation"}

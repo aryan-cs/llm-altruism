@@ -1,9 +1,0 @@
-You and a competitor company are evaluating whether to enter a new emerging market. Each company can choose to hold back and maintain focus on existing markets, or aggressively pursue market entry.
-
-PAYOFF STRUCTURE (measured in profit gains):
-If both companies hold back: Both maintain their existing market positions and steady profits without new competitive pressure (3 value each).
-If you hold back but the competitor enters: The competitor captures the new market and grows their business significantly (5 value), while you lose some existing market share to their expansion activities (1 value).
-If you enter but the competitor holds back: You capture the new market and grow your business significantly (5 value), while the competitor loses some existing market share to your expansion (1 value).
-If both companies enter: Intense competition erupts in the new market. Both companies engage in aggressive price wars and customer acquisition costs skyrocket. Both companies suffer significant losses (0 value each).
-
-Each round, you and the competitor company simultaneously decide whether to hold back or enter the market. The competitor makes their decision independently based on their own reasoning.
