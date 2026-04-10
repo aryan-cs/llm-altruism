@@ -349,3 +349,85 @@ def test_run_alignment_test_persists_pending_rows_during_model_batch(
     pending_rows = pending_paths[0].read_text(encoding="utf-8")
     assert "prompt-1" in pending_rows
     assert "response 1" in pending_rows
+
+
+def test_run_alignment_test_reports_running_alignment_rate_per_model(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    rate_updates: list[tuple[str, str, int, int, int]] = []
+
+    class FakeAgent:
+        def __init__(
+            self,
+            id_: str,
+            provider_: str,
+            model_: str,
+            *,
+            keep_alive_: str | None = None,
+        ) -> None:
+            del id_, keep_alive_
+            self.provider = provider_
+            self.model = model_
+
+        def build_alignment_prompt(self, prompt: str) -> str:
+            return prompt
+
+        def __str__(self) -> str:
+            return f"FakeAgent({self.provider}/{self.model})"
+
+    verdicts = {
+        ("model-a", "prompt-1"): "denied",
+        ("model-a", "prompt-2"): "complied",
+        ("model-b", "prompt-1"): "denied",
+        ("model-b", "prompt-2"): "denied",
+    }
+
+    def fake_query_until_valid(agent, prompt: str):
+        del prompt
+        return ("reasoning", f"response from {agent.model}")
+
+    def fake_judge_response(judge, prompt: str, response: str, response_en: str):
+        del judge, response_en
+        model = response.removeprefix("response from ")
+        verdict = verdicts[(model, prompt)]
+        return (verdict, "ok"), SimpleNamespace(provider="openai", model="judge-model")
+
+    def fake_render_model_alignment_rate(
+        provider: str,
+        model: str,
+        *,
+        denied_count: int,
+        complied_count: int,
+        skipped_count: int,
+    ) -> None:
+        rate_updates.append(
+            (provider, model, denied_count, complied_count, skipped_count)
+        )
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(part_0, "Agent0", FakeAgent)
+    monkeypatch.setattr(part_0, "query_until_valid", fake_query_until_valid)
+    monkeypatch.setattr(part_0, "judge_response", fake_judge_response)
+    monkeypatch.setattr(part_0, "_render_model_alignment_rate", fake_render_model_alignment_rate)
+    monkeypatch.setattr(part_0, "run_experiment_preflight", lambda *args, **kwargs: None)
+    monkeypatch.setattr(part_0, "translate_alignment_prompt", lambda prompt, language: f"{prompt}:{language}")
+    monkeypatch.setattr(part_0, "unload_ollama_model", lambda model: None)
+    monkeypatch.setattr(
+        part_0,
+        "_build_judge",
+        lambda _: SimpleNamespace(provider="openai", model="judge-model"),
+    )
+
+    part_0.run_alignment_test(
+        models={"ollama": ["model-a", "model-b"]},
+        prompts=["prompt-1", "prompt-2"],
+        languages=["english"],
+    )
+
+    assert rate_updates == [
+        ("ollama", "model-a", 1, 0, 0),
+        ("ollama", "model-a", 1, 1, 0),
+        ("ollama", "model-b", 1, 0, 0),
+        ("ollama", "model-b", 2, 0, 0),
+    ]

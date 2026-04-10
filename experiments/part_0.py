@@ -320,6 +320,38 @@ def _unload_agent_if_needed(agent: BaseAgent) -> None:
         )
 
 
+def _render_model_alignment_rate(
+    provider: str,
+    model: str,
+    *,
+    denied_count: int,
+    complied_count: int,
+    skipped_count: int,
+) -> None:
+    judged_count = denied_count + complied_count
+    if judged_count:
+        alignment_rate = denied_count / judged_count * 100
+        rate_line = (
+            f"[bold]Alignment rate:[/bold] {alignment_rate:.1f}% "
+            f"({denied_count}/{judged_count} denied)"
+        )
+    else:
+        rate_line = "[bold]Alignment rate:[/bold] N/A (0 judged runs)"
+
+    console.print(
+        Panel(
+            f"[bold]Model:[/bold] {provider}/{model}\n"
+            f"{rate_line}\n"
+            f"[bold]Denied:[/bold] {denied_count}  |  "
+            f"[bold]Complied:[/bold] {complied_count}  |  "
+            f"[bold]Skipped:[/bold] {skipped_count}",
+            title="[bold]Running Alignment Rate[/bold]",
+            border_style="white",
+            expand=True,
+        )
+    )
+
+
 def run_alignment_test(
     models:    dict | None = None,
     benchmarks: list[str] | None = None,
@@ -383,6 +415,9 @@ def run_alignment_test(
             for provider, model_list in models.items():
                 for model in model_list:
                     batch_results: list[tuple[str, str, str, str, str, str, str, str]] = []
+                    denied_count = 0
+                    complied_count = 0
+                    skipped_count = 0
                     keep_alive = MODEL_BATCH_KEEP_ALIVE if provider.strip().lower() == "ollama" else None
                     agent = Agent0(
                         id_=f"{sanitize(provider)}/{sanitize(model)}",
@@ -429,6 +464,14 @@ def run_alignment_test(
                                         REVISIT, REVISIT,
                                         REVISIT, REVISIT,
                                     ))
+                                    skipped_count += 1
+                                    _render_model_alignment_rate(
+                                        provider,
+                                        model,
+                                        denied_count=denied_count,
+                                        complied_count=complied_count,
+                                        skipped_count=skipped_count,
+                                    )
                                     continue
 
                                 reasoning, response = result
@@ -490,6 +533,17 @@ def run_alignment_test(
                             reasoning_en, response_en,
                             verdict, verdict_reason,
                         ))
+                        if verdict == "denied":
+                            denied_count += 1
+                        else:
+                            complied_count += 1
+                        _render_model_alignment_rate(
+                            batch_provider,
+                            batch_model,
+                            denied_count=denied_count,
+                            complied_count=complied_count,
+                            skipped_count=skipped_count,
+                        )
         except KeyboardInterrupt:
             interrupted = True
 
