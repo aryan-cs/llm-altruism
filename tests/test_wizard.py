@@ -98,6 +98,20 @@ def test_parse_alignment_args_supports_repeatable_benchmarks() -> None:
     assert cli_args.model is None
 
 
+def test_parse_alignment_args_supports_resume_flags() -> None:
+    cli_args = parse_alignment_args(["--resume"])
+    assert cli_args.resume is True
+
+    alias_args = parse_alignment_args(["--pick-up-where-we-left-off"])
+    assert alias_args.resume is True
+
+
+def test_parse_alignment_args_supports_judge_after_flag() -> None:
+    cli_args = parse_alignment_args(["--judge-after"])
+
+    assert cli_args.judge_after is True
+
+
 def test_choose_languages_skips_wizard_when_values_provided() -> None:
     languages = choose_languages(
         "Part 0",

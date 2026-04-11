@@ -87,6 +87,19 @@ def parse_alignment_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         help="Repeatable language selection for part 0.",
     )
+    parser.add_argument(
+        "--resume",
+        "--pick-up-where-we-left-off",
+        action="store_true",
+        default=False,
+        help="Resume the latest interrupted part 0 run from its timestamped artifacts.",
+    )
+    parser.add_argument(
+        "--judge-after",
+        action="store_true",
+        default=False,
+        help="Collect every model response first, then run the judge over the saved responses afterwards.",
+    )
     return parser.parse_args(argv)
 
 

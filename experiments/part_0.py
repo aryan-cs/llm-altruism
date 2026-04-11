@@ -1,8 +1,10 @@
 print("[PART 0] Hello, World!")
 
+import csv
 import json
 import os
 from datetime import datetime
+from pathlib import Path
 
 from agents.agent_0 import Agent0
 from agents.base_agent import BaseAgent
@@ -23,9 +25,11 @@ from experiments.wizard import (
 from pydantic import BaseModel, ConfigDict, Field
 from providers.api_call import OllamaConnectionError, ollama_model_available_locally
 from providers.api_call import unload_ollama_model
-from rich.console import Console
+from rich.console import Console, Group
 from rich.markdown import Markdown
 from rich.panel import Panel
+from rich.rule import Rule
+from rich.text import Text
 from rich import box
 
 console = Console()
@@ -57,6 +61,8 @@ def sanitize(s: str) -> str:
 
 REVISIT = 'REVISIT'
 MODEL_BATCH_KEEP_ALIVE = "30m"
+ALIGNMENT_RESULTS_DIR = Path("results") / "alignment"
+ALIGNMENT_TIMESTAMP_FORMAT = "%m-%d-%Y_%H:%M:%S"
 RESULT_HEADERS = [
     "provider", "model", "language", "prompt",
     "reasoning", "response",
@@ -68,17 +74,276 @@ PENDING_RESULT_HEADERS = [
     "reasoning", "response",
     "reasoning_en", "response_en",
 ]
+AlignmentResultKey = tuple[str, str, str, str]
+
+
+def _alignment_result_key(
+    provider: str,
+    model: str,
+    language: str,
+    prompt: str,
+) -> AlignmentResultKey:
+    return (provider, model, language, prompt)
+
+
+def _alignment_result_key_from_row(row: dict[str, str]) -> AlignmentResultKey:
+    return _alignment_result_key(
+        row["provider"],
+        row["model"],
+        row["language"],
+        row["prompt"],
+    )
+
+
+def _alignment_run_paths(timestamp: str) -> tuple[Path, Path, Path]:
+    return (
+        ALIGNMENT_RESULTS_DIR / f"{timestamp}.csv",
+        ALIGNMENT_RESULTS_DIR / f"{timestamp}_pending.csv",
+        ALIGNMENT_RESULTS_DIR / f"{timestamp}_meta.json",
+    )
+
+
+def _load_alignment_rows(
+    path: str | Path,
+    header: list[str],
+) -> list[dict[str, str]]:
+    csv_path = Path(path)
+    if not csv_path.exists() or csv_path.stat().st_size == 0:
+        return []
+
+    with csv_path.open("r", newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        if reader.fieldnames is None:
+            return []
+        if list(reader.fieldnames) != header:
+            raise ValueError(
+                f"Unexpected CSV header for {csv_path}: "
+                f"expected {header}, found {reader.fieldnames}."
+            )
+        return [
+            {column: row.get(column, "") or "" for column in header}
+            for row in reader
+        ]
+
+
+def _rewrite_alignment_rows(
+    path: str | Path,
+    header: list[str],
+    rows: list[dict[str, str]],
+) -> None:
+    with IncrementalCsvWriter(path, header) as writer:
+        for row in rows:
+            writer.write_row([row[column] for column in header])
+
+
+def _load_alignment_metadata(path: str | Path) -> dict[str, object] | None:
+    metadata_path = Path(path)
+    if not metadata_path.exists():
+        return None
+    with metadata_path.open("r", encoding="utf-8") as handle:
+        return json.load(handle)
+
+
+def _write_alignment_metadata(
+    path: str | Path,
+    *,
+    models: dict[str, list[str]],
+    prompts: list[str],
+    languages: list[str],
+    judge_after: bool = False,
+) -> None:
+    metadata_path = Path(path)
+    metadata_path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "models": models,
+        "prompts": prompts,
+        "languages": languages,
+    }
+    if judge_after:
+        payload["judge_after"] = True
+    with metadata_path.open("w", encoding="utf-8") as handle:
+        json.dump(payload, handle, ensure_ascii=False, indent=2)
+        handle.write("\n")
+
+
+def _flatten_benchmark_models(
+    models: dict[str, list[str]],
+) -> list[tuple[str, str]]:
+    return [
+        (provider, model)
+        for provider, model_list in models.items()
+        for model in model_list
+    ]
+
+
+def _load_resume_targets_from_metadata(
+    metadata_path: str | Path,
+) -> tuple[dict[str, list[str]], list[str], list[str]] | None:
+    metadata = _load_alignment_metadata(metadata_path)
+    if metadata is None:
+        return None
+
+    models = metadata.get("models")
+    prompts = metadata.get("prompts")
+    languages = metadata.get("languages")
+    if not isinstance(models, dict) or not isinstance(prompts, list) or not isinstance(languages, list):
+        raise ValueError(f"Resume metadata at {metadata_path} is incomplete.")
+
+    normalized_models = {
+        str(provider): [str(model) for model in model_list]
+        for provider, model_list in models.items()
+    }
+    normalized_prompts = [str(prompt) for prompt in prompts]
+    normalized_languages = [str(language) for language in languages]
+    if not normalized_models or not normalized_prompts or not normalized_languages:
+        raise ValueError(f"Resume metadata at {metadata_path} is incomplete.")
+
+    return (
+        choose_benchmark_models(
+            EXPERIMENT_NAME,
+            experiment_key="part_0",
+            benchmarks=_flatten_benchmark_models(normalized_models),
+        ),
+        normalized_prompts,
+        choose_languages(
+            EXPERIMENT_NAME,
+            available_languages=ALIGNMENT_LANGUAGES,
+            languages=normalized_languages,
+        ),
+    )
+
+
+def _load_resume_judge_after(metadata_path: str | Path) -> bool | None:
+    metadata = _load_alignment_metadata(metadata_path)
+    if metadata is None:
+        return None
+
+    judge_after = metadata.get("judge_after")
+    if judge_after is None:
+        return None
+    return bool(judge_after)
+
+
+def _latest_interrupted_alignment_timestamp() -> str:
+    if not ALIGNMENT_RESULTS_DIR.exists():
+        raise ValueError(
+            f"No interrupted alignment run with a pending CSV was found in {ALIGNMENT_RESULTS_DIR}."
+        )
+
+    candidates: list[tuple[datetime, str]] = []
+    for pending_path in ALIGNMENT_RESULTS_DIR.glob("*_pending.csv"):
+        timestamp = pending_path.name.removesuffix("_pending.csv")
+        try:
+            parsed = datetime.strptime(timestamp, ALIGNMENT_TIMESTAMP_FORMAT)
+        except ValueError:
+            continue
+        candidates.append((parsed, timestamp))
+
+    if not candidates:
+        raise ValueError(
+            f"No interrupted alignment run with a pending CSV was found in {ALIGNMENT_RESULTS_DIR}."
+        )
+
+    candidates.sort()
+    return candidates[-1][1]
+
+
+def _pending_rows_by_key(
+    rows: list[dict[str, str]],
+) -> dict[AlignmentResultKey, dict[str, str]]:
+    deduped: dict[AlignmentResultKey, dict[str, str]] = {}
+    for row in rows:
+        key = _alignment_result_key_from_row(row)
+        if key in deduped:
+            deduped.pop(key)
+        deduped[key] = row
+    return deduped
+
+
+def _model_alignment_counts(
+    rows: list[dict[str, str]],
+    *,
+    provider: str,
+    model: str,
+) -> tuple[int, int, int]:
+    denied_count = 0
+    complied_count = 0
+    skipped_count = 0
+    for row in rows:
+        if row["provider"] != provider or row["model"] != model:
+            continue
+        verdict = row["verdict"].strip().lower()
+        if verdict == "denied":
+            denied_count += 1
+        elif verdict == "complied":
+            complied_count += 1
+        else:
+            skipped_count += 1
+    return denied_count, complied_count, skipped_count
+
+
+def _resolve_resume_targets(
+    *,
+    metadata_path: str | Path,
+    models: dict[str, list[str]] | None,
+    benchmarks: list[str] | None,
+    provider: str | None,
+    model: str | None,
+    prompts: list[str] | None,
+    languages: list[str] | None,
+) -> tuple[dict[str, list[str]], list[str], list[str]]:
+    resume_targets = _load_resume_targets_from_metadata(metadata_path)
+    if resume_targets is not None:
+        return resume_targets
+
+    resolved_prompts = prompts if prompts is not None else load_part_0_raw_prompts()
+    if models is None:
+        if benchmarks is None and provider is None and model is None:
+            raise ValueError(
+                "The latest interrupted alignment run predates resume metadata. "
+                "Re-run with the original --benchmark and --language selections once "
+                "to seed resume state for that run."
+            )
+        models = choose_benchmark_models(
+            EXPERIMENT_NAME,
+            experiment_key="part_0",
+            benchmarks=benchmarks,
+            provider=provider,
+            model=model,
+        )
+
+    if languages is None:
+        raise ValueError(
+            "The latest interrupted alignment run predates resume metadata. "
+            "Re-run with the original --language selections once to seed resume state "
+            "for that run."
+        )
+
+    return (
+        models,
+        resolved_prompts,
+        choose_languages(
+            EXPERIMENT_NAME,
+            available_languages=ALIGNMENT_LANGUAGES,
+            languages=languages,
+        ),
+    )
 
 def is_quota_error(e: Exception) -> bool:
     e_str = str(e).lower()
     return 'quota' in e_str or ('429' in e_str and 'token' in e_str)
 
-def translate_to_english(text: str) -> str:
+def translate_to_english(
+    text: str,
+    *,
+    return_status: bool = False,
+) -> str | tuple[str, bool]:
     if not text.strip():
-        return ''
+        return ('', False) if return_status else ''
     chunk_size = 4900
     chunks     = [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
     translated = []
+    had_failures = False
     for chunk in chunks:
         translated_chunk = None
         for attempt in range(1, MAX_TRANSLATE_ATTEMPTS + 1):
@@ -91,10 +356,27 @@ def translate_to_english(text: str) -> str:
             except Exception as e:
                 console.print(f"  [yellow][WARN] translate_to_english attempt {attempt}/{MAX_TRANSLATE_ATTEMPTS} raised {type(e).__name__}: {e}. Retrying...[/yellow]")
         if translated_chunk is None:
-            console.print("  [yellow][WARN] translate_to_english failed for one chunk. Skipping that chunk.[/yellow]")
+            had_failures = True
+            console.print("  [yellow][WARN] translate_to_english failed for one chunk. The English translation will be incomplete.[/yellow]")
             continue
         translated.append(translated_chunk)
-    return ' '.join(translated)
+    translated_text = ' '.join(translated)
+    if return_status:
+        return translated_text, had_failures
+    return translated_text
+
+
+def _translate_to_english_with_status(text: str) -> tuple[str, bool]:
+    try:
+        result = translate_to_english(text, return_status=True)
+    except TypeError:
+        return str(translate_to_english(text)), False
+
+    if isinstance(result, tuple) and len(result) == 2:
+        translated_text, had_failures = result
+        return str(translated_text), bool(had_failures)
+
+    return str(result), False
 
 def translate_from_english(text: str, language: str) -> str:
     if not text.strip():
@@ -128,6 +410,207 @@ def translate_alignment_prompt(prompt: str, language: str) -> str:
     else:
         suffix = translate_from_english(LOCALIZED_RESPONSE_SUFFIX, language)
     return f"{translated_prompt}\n\n{suffix}"
+
+
+def _build_localized_renderable(
+    original_text: str,
+    english_text: str,
+    *,
+    language: str,
+    translation_failed: bool = False,
+):
+    if language == 'english':
+        return Text(original_text)
+
+    sections = [Text(original_text), Rule(style="dim")]
+    english_missing = not english_text.strip()
+
+    if translation_failed or english_missing:
+        sections.append(
+            Text.assemble(
+                ("[EN] ", "bold"),
+                ("FAIL TO TRANSLATE", "bold red"),
+            )
+        )
+        if english_text.strip():
+            sections.append(Text(english_text))
+    else:
+        sections.append(Text.assemble(("[EN] ", "bold"), english_text))
+
+    return Group(*sections)
+
+
+def _render_alignment_input(prompt: str, language: str) -> None:
+    prompt_display = prompt
+    if language != 'english':
+        prompt_translated = translate_from_english(prompt, language)
+        prompt_display = f"{prompt_translated}\n\n---\n**[EN]** {prompt}"
+
+    console.print(Panel(
+        Markdown(f"**Language:** {language}\n\n**Prompt:** {prompt_display}"),
+        title="[bold]Input[/bold]",
+        border_style="white",
+    ))
+
+
+def _render_alignment_outputs(
+    *,
+    language: str,
+    reasoning: str,
+    response: str,
+    reasoning_en: str,
+    response_en: str,
+    reasoning_translation_failed: bool = False,
+    response_translation_failed: bool = False,
+) -> None:
+    console.print(Panel(
+        _build_localized_renderable(
+            reasoning,
+            reasoning_en,
+            language=language,
+            translation_failed=reasoning_translation_failed,
+        ),
+        title="[cyan]Reasoning[/cyan]",
+        border_style="cyan",
+    ))
+    console.print(Panel(
+        _build_localized_renderable(
+            response,
+            response_en,
+            language=language,
+            translation_failed=response_translation_failed,
+        ),
+        title="[magenta]Response[/magenta]",
+        border_style="magenta",
+    ))
+
+
+def _build_pending_row(
+    *,
+    provider: str,
+    model: str,
+    language: str,
+    prompt: str,
+    reasoning: str,
+    response: str,
+    reasoning_en: str,
+    response_en: str,
+) -> dict[str, str]:
+    return {
+        "provider": provider,
+        "model": model,
+        "language": language,
+        "prompt": prompt,
+        "reasoning": reasoning,
+        "response": response,
+        "reasoning_en": reasoning_en,
+        "response_en": response_en,
+    }
+
+
+def _build_final_row(
+    *,
+    provider: str,
+    model: str,
+    language: str,
+    prompt: str,
+    reasoning: str,
+    response: str,
+    reasoning_en: str,
+    response_en: str,
+    verdict: str,
+    verdict_reason: str,
+) -> dict[str, str]:
+    return {
+        "provider": provider,
+        "model": model,
+        "language": language,
+        "prompt": prompt,
+        "reasoning": reasoning,
+        "response": response,
+        "reasoning_en": reasoning_en,
+        "response_en": response_en,
+        "verdict": verdict,
+        "verdict_reason": verdict_reason,
+    }
+
+
+def _write_final_row(
+    *,
+    final_writer: IncrementalCsvWriter,
+    final_rows: list[dict[str, str]],
+    completed_keys: set[AlignmentResultKey],
+    final_row: dict[str, str],
+) -> None:
+    final_writer.write_row([final_row[column] for column in RESULT_HEADERS])
+    final_rows.append(final_row)
+    completed_keys.add(_alignment_result_key_from_row(final_row))
+
+
+def _load_or_query_pending_row(
+    *,
+    key: AlignmentResultKey,
+    pending_rows_by_key: dict[AlignmentResultKey, dict[str, str]],
+    pending_writer: IncrementalCsvWriter,
+    agent: Agent0,
+    provider: str,
+    model: str,
+    prompt: str,
+    language: str,
+) -> tuple[dict[str, str] | None, bool, bool]:
+    pending_row = pending_rows_by_key.get(key)
+    reasoning_translation_failed = False
+    response_translation_failed = False
+    if pending_row is not None:
+        console.print(
+            "  [cyan]Reusing saved raw response from the pending CSV.[/cyan]"
+        )
+        return pending_row, reasoning_translation_failed, response_translation_failed
+
+    result = query_until_valid(agent, agent.build_alignment_prompt(translate_alignment_prompt(prompt, language)))
+    if result is None:
+        return None, reasoning_translation_failed, response_translation_failed
+
+    reasoning, response = result
+    reasoning_en = ''
+    response_en = ''
+    if language != 'english':
+        reasoning_en, reasoning_translation_failed = _translate_to_english_with_status(reasoning)
+        response_en, response_translation_failed = _translate_to_english_with_status(response)
+
+    pending_row = _build_pending_row(
+        provider=provider,
+        model=model,
+        language=language,
+        prompt=prompt,
+        reasoning=reasoning,
+        response=response,
+        reasoning_en=reasoning_en,
+        response_en=response_en,
+    )
+    pending_writer.write_row(
+        [pending_row[column] for column in PENDING_RESULT_HEADERS]
+    )
+    pending_rows_by_key[key] = pending_row
+    return pending_row, reasoning_translation_failed, response_translation_failed
+
+
+def _render_verdict_panel(
+    *,
+    provider: str,
+    model: str,
+    language: str,
+    verdict: str,
+    verdict_reason: str,
+) -> None:
+    verdict_color = "red" if verdict == "complied" else "green"
+    console.print(Panel(
+        f"[bold]Model:[/bold] {provider}/{model}\n"
+        f"[bold]Language:[/bold] {language}\n"
+        f"[{verdict_color}][bold]{verdict.upper()}[/bold][/{verdict_color}]  —  {verdict_reason}",
+        title="[bold]Verdict[/bold]",
+        border_style=verdict_color,
+    ))
 
 
 class JudgeVerdict(BaseModel):
@@ -210,10 +693,10 @@ def _judge_attempt_order(start_idx: int) -> list[int]:
 
     if deferred and immediate:
         deferred_labels = ", ".join(_judge_label(idx) for idx in deferred)
-        console.print(
-            f"  [yellow][WARN] Deferring missing Ollama judge models ({deferred_labels}) "
-            "until the other configured judges have been tried.[/yellow]"
-        )
+        # console.print(
+        #     f"  [yellow][WARN] Deferring missing Ollama judge models ({deferred_labels}) "
+        #     "until the other configured judges have been tried.[/yellow]"
+        # )
 
     return [*immediate, *deferred]
 
@@ -359,24 +842,90 @@ def run_alignment_test(
     model:     str | None = None,
     prompts:   list[str] | None = None,
     languages: list[str] | None = None,
+    *,
+    resume: bool = False,
+    judge_after: bool = False,
 ) -> str:
-    if prompts is None:
-        prompts = load_part_0_raw_prompts()
+    final_rows: list[dict[str, str]] = []
+    pending_rows_by_key: dict[AlignmentResultKey, dict[str, str]] = {}
 
-    if models is None:
-        models = choose_benchmark_models(
-            EXPERIMENT_NAME,
-            experiment_key="part_0",
+    if resume:
+        timestamp = _latest_interrupted_alignment_timestamp()
+        csv_path, pending_path, metadata_path = _alignment_run_paths(timestamp)
+        resume_judge_after = _load_resume_judge_after(metadata_path)
+        if resume_judge_after is not None:
+            judge_after = resume_judge_after
+        models, prompts, languages = _resolve_resume_targets(
+            metadata_path=metadata_path,
+            models=models,
             benchmarks=benchmarks,
             provider=provider,
             model=model,
+            prompts=prompts,
+            languages=languages,
+        )
+    else:
+        if prompts is None:
+            prompts = load_part_0_raw_prompts()
+
+        if models is None:
+            models = choose_benchmark_models(
+                EXPERIMENT_NAME,
+                experiment_key="part_0",
+                benchmarks=benchmarks,
+                provider=provider,
+                model=model,
+            )
+
+        languages = choose_languages(
+            EXPERIMENT_NAME,
+            available_languages=ALIGNMENT_LANGUAGES,
+            languages=languages,
         )
 
-    languages = choose_languages(
-        EXPERIMENT_NAME,
-        available_languages=ALIGNMENT_LANGUAGES,
+        timestamp = datetime.now().strftime(ALIGNMENT_TIMESTAMP_FORMAT)
+        csv_path, pending_path, metadata_path = _alignment_run_paths(timestamp)
+
+    _write_alignment_metadata(
+        metadata_path,
+        models=models,
+        prompts=prompts,
         languages=languages,
+        judge_after=judge_after,
     )
+
+    if resume:
+        final_rows = _load_alignment_rows(csv_path, RESULT_HEADERS)
+        pending_rows = _load_alignment_rows(pending_path, PENDING_RESULT_HEADERS)
+        completed_keys = {
+            _alignment_result_key_from_row(row)
+            for row in final_rows
+        }
+        pending_rows_by_key = {
+            key: row
+            for key, row in _pending_rows_by_key(pending_rows).items()
+            if key not in completed_keys
+        }
+        _rewrite_alignment_rows(
+            pending_path,
+            PENDING_RESULT_HEADERS,
+            list(pending_rows_by_key.values()),
+        )
+        console.print(
+            Panel(
+                f"[bold]Timestamp:[/bold] {timestamp}\n"
+                f"[bold]Judged results:[/bold] [green]{csv_path.resolve()}[/green]\n"
+                f"[bold]Pending raw responses:[/bold] [green]{pending_path.resolve()}[/green]\n"
+                f"[bold]Judging mode:[/bold] {'after collection' if judge_after else 'immediate'}\n"
+                f"[bold]Already judged:[/bold] {len(final_rows)}\n"
+                f"[bold]Pending resumed rows:[/bold] {len(pending_rows_by_key)}",
+                title="[bold cyan]Resuming Alignment Run[/bold cyan]",
+                border_style="cyan",
+                expand=True,
+            )
+        )
+    else:
+        completed_keys = set()
 
     preflight_targets = [
         (provider_name, model_name)
@@ -392,31 +941,30 @@ def run_alignment_test(
         f"Models: {sum(len(m) for m in models.values())}  |  "
         f"Prompts: {len(prompts)}  |  "
         f"Languages: {len(languages)}  |  "
-        f"Total runs: {total_runs}",
+        f"Total runs: {total_runs}\n"
+        f"Judging: {'after collection' if judge_after else 'immediate'}",
         box=box.DOUBLE,
     ))
 
-    run_num     = 0
+    run_num = len(final_rows)
     if not JUDGE_PROVIDERS:
         _abort_judge_fallbacks("No judge providers are configured in part_0_config.json.")
-    judge = _build_judge(0)
-    timestamp = datetime.now().strftime("%m-%d-%Y_%H:%M:%S")
-    csv_dir   = os.path.join("results", "alignment")
-    os.makedirs(csv_dir, exist_ok=True)
-    csv_path  = os.path.join(csv_dir, f"{timestamp}.csv")
-    pending_path = os.path.join(csv_dir, f"{timestamp}_pending.csv")
+    os.makedirs(ALIGNMENT_RESULTS_DIR, exist_ok=True)
+    judge: BaseAgent | None = None
 
     interrupted = False
     with (
-        IncrementalCsvWriter(csv_path, RESULT_HEADERS) as final_writer,
-        IncrementalCsvWriter(pending_path, PENDING_RESULT_HEADERS) as pending_writer,
+        IncrementalCsvWriter(csv_path, RESULT_HEADERS, append=resume) as final_writer,
+        IncrementalCsvWriter(pending_path, PENDING_RESULT_HEADERS, append=resume) as pending_writer,
     ):
         try:
             for provider, model_list in models.items():
                 for model in model_list:
-                    denied_count = 0
-                    complied_count = 0
-                    skipped_count = 0
+                    denied_count, complied_count, skipped_count = _model_alignment_counts(
+                        final_rows,
+                        provider=provider,
+                        model=model,
+                    )
                     keep_alive = MODEL_BATCH_KEEP_ALIVE if provider.strip().lower() == "ollama" else None
                     agent = Agent0(
                         id_=f"{sanitize(provider)}/{sanitize(model)}",
@@ -430,39 +978,48 @@ def run_alignment_test(
                     try:
                         for prompt in prompts:
                             for language in languages:
+                                key = _alignment_result_key(provider, model, language, prompt)
+                                if key in completed_keys:
+                                    continue
 
                                 run_num += 1
                                 console.rule(f"[bold]Run {run_num} / {total_runs}[/bold]")
+                                _render_alignment_input(prompt, language)
 
-                                prompt_display = prompt
-                                if language != 'english':
-                                    prompt_translated = translate_from_english(prompt, language)
-                                    prompt_display    = f"{prompt_translated}\n\n---\n**[EN]** {prompt}"
-
-                                console.print(Panel(
-                                    Markdown(f"**Language:** {language}\n\n**Prompt:** {prompt_display}"),
-                                    title="[bold]Input[/bold]",
-                                    border_style="white",
-                                ))
-
-                                full_prompt         = agent.build_alignment_prompt(
-                                    translate_alignment_prompt(prompt, language)
+                                pending_row, reasoning_translation_failed, response_translation_failed = _load_or_query_pending_row(
+                                    key=key,
+                                    pending_rows_by_key=pending_rows_by_key,
+                                    pending_writer=pending_writer,
+                                    agent=agent,
+                                    provider=provider,
+                                    model=model,
+                                    prompt=prompt,
+                                    language=language,
                                 )
-                                
-                                result = query_until_valid(agent, full_prompt)
-
-                                if result is None:
+                                if pending_row is None:
                                     console.print(Panel(
                                         f"[red]Quota exceeded — marked as REVISIT[/red]",
                                         title="[bold]Skipped[/bold]",
                                         border_style="red",
                                     ))
-                                    final_writer.write_row((
-                                        provider, model, language, prompt,
-                                        REVISIT, REVISIT,
-                                        REVISIT, REVISIT,
-                                        REVISIT, REVISIT,
-                                    ))
+                                    final_row = _build_final_row(
+                                        provider=provider,
+                                        model=model,
+                                        language=language,
+                                        prompt=prompt,
+                                        reasoning=REVISIT,
+                                        response=REVISIT,
+                                        reasoning_en=REVISIT,
+                                        response_en=REVISIT,
+                                        verdict=REVISIT,
+                                        verdict_reason=REVISIT,
+                                    )
+                                    _write_final_row(
+                                        final_writer=final_writer,
+                                        final_rows=final_rows,
+                                        completed_keys=completed_keys,
+                                        final_row=final_row,
+                                    )
                                     skipped_count += 1
                                     _render_model_alignment_rate(
                                         provider,
@@ -473,34 +1030,33 @@ def run_alignment_test(
                                     )
                                     continue
 
-                                reasoning, response = result
-                                
-                                reasoning_en = ''
-                                response_en  = ''
-
+                                reasoning = pending_row["reasoning"]
+                                response = pending_row["response"]
+                                reasoning_en = pending_row["reasoning_en"]
+                                response_en = pending_row["response_en"]
                                 if language != 'english':
-                                    reasoning_en = translate_to_english(reasoning)
-                                    response_en  = translate_to_english(response)
+                                    if not reasoning_en:
+                                        reasoning_en, reasoning_translation_failed = _translate_to_english_with_status(reasoning)
+                                        pending_row["reasoning_en"] = reasoning_en
+                                    if not response_en:
+                                        response_en, response_translation_failed = _translate_to_english_with_status(response)
+                                        pending_row["response_en"] = response_en
 
-                                reasoning_display = reasoning if language == 'english' else f"{reasoning}\n\n---\n**[EN]** {reasoning_en}"
-                                response_display  = response  if language == 'english' else f"{response}\n\n---\n**[EN]** {response_en}"
+                                _render_alignment_outputs(
+                                    language=language,
+                                    reasoning=reasoning,
+                                    response=response,
+                                    reasoning_en=reasoning_en,
+                                    response_en=response_en,
+                                    reasoning_translation_failed=reasoning_translation_failed,
+                                    response_translation_failed=response_translation_failed,
+                                )
 
-                                console.print(Panel(
-                                    Markdown(reasoning_display),
-                                    title="[cyan]Reasoning[/cyan]",
-                                    border_style="cyan",
-                                ))
-                                console.print(Panel(
-                                    Markdown(response_display),
-                                    title="[magenta]Response[/magenta]",
-                                    border_style="magenta",
-                                ))
-                                pending_writer.write_row((
-                                    provider, model, language, prompt,
-                                    reasoning, response,
-                                    reasoning_en, response_en,
-                                ))
+                                if judge_after:
+                                    continue
 
+                                if judge is None:
+                                    judge = _build_judge(0)
                                 (verdict, verdict_reason), judge = judge_response(
                                     judge,
                                     prompt,
@@ -508,21 +1064,33 @@ def run_alignment_test(
                                     response_en,
                                 )
 
-                                verdict_color = "red" if verdict == "complied" else "green"
-                                console.print(Panel(
-                                    f"[bold]Model:[/bold] {provider}/{model}\n"
-                                    f"[bold]Language:[/bold] {language}\n"
-                                    f"[{verdict_color}][bold]{verdict.upper()}[/bold][/{verdict_color}]  —  {verdict_reason}",
-                                    title="[bold]Verdict[/bold]",
-                                    border_style=verdict_color,
-                                ))
+                                _render_verdict_panel(
+                                    provider=provider,
+                                    model=model,
+                                    language=language,
+                                    verdict=verdict,
+                                    verdict_reason=verdict_reason,
+                                )
 
-                                final_writer.write_row((
-                                    provider, model, language, prompt,
-                                    reasoning, response,
-                                    reasoning_en, response_en,
-                                    verdict, verdict_reason,
-                                ))
+                                final_row = _build_final_row(
+                                    provider=provider,
+                                    model=model,
+                                    language=language,
+                                    prompt=prompt,
+                                    reasoning=reasoning,
+                                    response=response,
+                                    reasoning_en=reasoning_en,
+                                    response_en=response_en,
+                                    verdict=verdict,
+                                    verdict_reason=verdict_reason,
+                                )
+                                _write_final_row(
+                                    final_writer=final_writer,
+                                    final_rows=final_rows,
+                                    completed_keys=completed_keys,
+                                    final_row=final_row,
+                                )
+                                pending_rows_by_key.pop(key, None)
                                 if verdict == "denied":
                                     denied_count += 1
                                 else:
@@ -536,18 +1104,111 @@ def run_alignment_test(
                                 )
                     finally:
                         _unload_agent_if_needed(agent)
+
+            if judge_after:
+                judge = _build_judge(0)
+                pending_rows = list(pending_rows_by_key.values())
+                if pending_rows:
+                    console.rule("[bold]Judging Saved Responses[/bold]")
+                for judge_num, pending_row in enumerate(pending_rows, start=1):
+                    key = _alignment_result_key_from_row(pending_row)
+                    if key in completed_keys:
+                        continue
+
+                    provider = pending_row["provider"]
+                    model = pending_row["model"]
+                    language = pending_row["language"]
+                    prompt = pending_row["prompt"]
+                    reasoning = pending_row["reasoning"]
+                    response = pending_row["response"]
+                    reasoning_en = pending_row["reasoning_en"]
+                    response_en = pending_row["response_en"]
+
+                    reasoning_translation_failed = False
+                    response_translation_failed = False
+                    if language != 'english':
+                        if not reasoning_en:
+                            reasoning_en, reasoning_translation_failed = _translate_to_english_with_status(reasoning)
+                            pending_row["reasoning_en"] = reasoning_en
+                        if not response_en:
+                            response_en, response_translation_failed = _translate_to_english_with_status(response)
+                            pending_row["response_en"] = response_en
+
+                    console.rule(f"[bold]Judgment {judge_num} / {len(pending_rows)}[/bold]")
+                    console.print(Panel(
+                        f"[bold]Model:[/bold] {provider}/{model}\n"
+                        f"[bold]Language:[/bold] {language}\n"
+                        f"[bold]Prompt:[/bold] {prompt}",
+                        title="[bold]Judging[/bold]",
+                        border_style="white",
+                    ))
+                    _render_alignment_outputs(
+                        language=language,
+                        reasoning=reasoning,
+                        response=response,
+                        reasoning_en=reasoning_en,
+                        response_en=response_en,
+                        reasoning_translation_failed=reasoning_translation_failed,
+                        response_translation_failed=response_translation_failed,
+                    )
+
+                    (verdict, verdict_reason), judge = judge_response(
+                        judge,
+                        prompt,
+                        response,
+                        response_en,
+                    )
+
+                    _render_verdict_panel(
+                        provider=provider,
+                        model=model,
+                        language=language,
+                        verdict=verdict,
+                        verdict_reason=verdict_reason,
+                    )
+                    final_row = _build_final_row(
+                        provider=provider,
+                        model=model,
+                        language=language,
+                        prompt=prompt,
+                        reasoning=reasoning,
+                        response=response,
+                        reasoning_en=reasoning_en,
+                        response_en=response_en,
+                        verdict=verdict,
+                        verdict_reason=verdict_reason,
+                    )
+                    _write_final_row(
+                        final_writer=final_writer,
+                        final_rows=final_rows,
+                        completed_keys=completed_keys,
+                        final_row=final_row,
+                    )
+                    pending_rows_by_key.pop(key, None)
+                    denied_count, complied_count, skipped_count = _model_alignment_counts(
+                        final_rows,
+                        provider=provider,
+                        model=model,
+                    )
+                    _render_model_alignment_rate(
+                        provider,
+                        model,
+                        denied_count=denied_count,
+                        complied_count=complied_count,
+                        skipped_count=skipped_count,
+                    )
         except KeyboardInterrupt:
             interrupted = True
 
     if interrupted:
         console.print(Panel(
-            f"[bold]Partial judged results:[/bold] [green]{os.path.abspath(csv_path)}[/green]\n"
-            f"[bold]Pending raw responses:[/bold] [green]{os.path.abspath(pending_path)}[/green]",
+            f"[bold]Partial judged results:[/bold] [green]{csv_path.resolve()}[/green]\n"
+            f"[bold]Pending raw responses:[/bold] [green]{pending_path.resolve()}[/green]",
             title="[bold yellow]Experiment Interrupted[/bold yellow]",
             border_style="yellow",
             expand=True,
         ))
-        return csv_path
+        return str(csv_path)
 
     if os.path.exists(pending_path):
         os.remove(pending_path)
@@ -555,12 +1216,12 @@ def run_alignment_test(
     console.rule("[bold]Results[/bold]")
 
     console.print(Panel(
-        f"[green]{os.path.abspath(csv_path)}[/green]",
+        f"[green]{csv_path.resolve()}[/green]",
         title="[bold]Results Saved[/bold]",
         border_style="green",
     ))
 
-    return csv_path
+    return str(csv_path)
 
 # ---------------------------------------------------------------------------
 
@@ -571,4 +1232,6 @@ if __name__ == "__main__":
         languages=cli_args.language,
         provider=cli_args.provider,
         model=cli_args.model,
+        resume=cli_args.resume,
+        judge_after=cli_args.judge_after,
     )

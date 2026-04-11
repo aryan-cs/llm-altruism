@@ -9,18 +9,33 @@ class IncrementalCsvWriter:
         self,
         path: str | Path,
         header: Sequence[str],
+        *,
+        append: bool = False,
     ) -> None:
         self.path = Path(path)
         self.header = list(header)
+        self.append = append
         self._handle = None
         self._writer = None
 
     def __enter__(self) -> "IncrementalCsvWriter":
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self._handle = self.path.open("w", newline="", encoding="utf-8")
+        file_exists = self.path.exists()
+        if self.append and file_exists and self.path.stat().st_size > 0:
+            with self.path.open("r", newline="", encoding="utf-8") as existing_handle:
+                existing_header = next(csv.reader(existing_handle), [])
+            if existing_header != self.header:
+                raise ValueError(
+                    f"CSV header mismatch for {self.path}: "
+                    f"expected {self.header}, found {existing_header}."
+                )
+
+        mode = "a" if self.append else "w"
+        self._handle = self.path.open(mode, newline="", encoding="utf-8")
         self._writer = csv.writer(self._handle)
-        self._writer.writerow(self.header)
-        self._sync()
+        if not self.append or not file_exists or self.path.stat().st_size == 0:
+            self._writer.writerow(self.header)
+            self._sync()
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:
