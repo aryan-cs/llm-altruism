@@ -932,7 +932,11 @@ def run_alignment_test(
         for provider_name, model_list in models.items()
         for model_name in model_list
     ]
-    run_experiment_preflight(EXPERIMENT_NAME, preflight_targets)
+    run_experiment_preflight(
+        EXPERIMENT_NAME,
+        preflight_targets,
+        resume=resume,
+    )
 
     total_runs = sum(len(m) for m in models.values()) * len(prompts) * len(languages)
 
