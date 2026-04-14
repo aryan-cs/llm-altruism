@@ -1,4 +1,4 @@
-print("[PART 2] Hello, World!")
+# print("[PART 2] Hello, World!")
 
 import json
 import os

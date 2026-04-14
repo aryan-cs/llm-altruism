@@ -1,4 +1,4 @@
-print("[AGENT 2] Hello, World!")
+# print("[AGENT 2] Hello, World!")
 
 from pydantic import BaseModel, ConfigDict, Field
 

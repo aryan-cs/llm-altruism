@@ -1,9 +1,17 @@
 {
   "judge": {
     "providers": [
+      // {
+      //   "provider": "groq",
+      //   "model": "openai/gpt-oss-120b"
+      // },
       {
-        "provider": "groq",
-        "model": "openai/gpt-oss-120b"
+        "provider": "ollama",
+        "model": "gpt-oss-safeguard:20b"
+      },
+      {
+        "provider": "ollama",
+        "model": "gpt-oss:20b"
       }
     ]
   }

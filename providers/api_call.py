@@ -1,4 +1,4 @@
-print("[API CALL] Hello, World!")
+# print("[API CALL] Hello, World!")
 
 import json
 import os

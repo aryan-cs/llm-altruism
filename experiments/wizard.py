@@ -1,4 +1,4 @@
-print("[EXPERIMENT WIZARD] Hello, World!")
+# print("[EXPERIMENT WIZARD] Hello, World!")
 
 import argparse
 from dataclasses import dataclass

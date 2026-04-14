@@ -1,4 +1,4 @@
-print("[BASE AGENT] Hello, World!")
+# print("[BASE AGENT] Hello, World!")
 
 import os
 from typing import Any
@@ -37,7 +37,7 @@ class BaseAgent:
         self.timeout = timeout_
         self.keep_alive = keep_alive_
 
-        print(f"{self} Hello, World!")
+        # print(f"{self} Hello, World!")
 
     def __str__(self) -> str:
         return f"[AGENT {self.id} ({self.provider}/{self.model})]"

@@ -1,4 +1,4 @@
-print("[PART 0] Hello, World!")
+# print("[PART 0] Hello, World!")
 
 import csv
 from contextlib import nullcontext as _nullcontext
@@ -6,6 +6,7 @@ import json
 import os
 import random
 from datetime import datetime
+import shutil
 from pathlib import Path
 
 from agents.agent_0 import Agent0
@@ -37,6 +38,68 @@ from rich.text import Text
 from rich import box
 
 console = Console()
+def _emit_retry_status_line(message: str, *, finalize: bool = False) -> None:
+    message = message.replace("\r", " ").replace("\n", " ")
+    line = f"\r\x1b[2K{message}"
+    console.print(line, end="\n" if finalize else "\r", overflow="ignore")
+
+
+def _shorten_for_status(value: str, *, max_chars: int = 140) -> str:
+    compact = " ".join(value.split())
+    if len(compact) <= max_chars:
+        return compact
+    return f"{compact[: max_chars - 3]}..."
+
+
+def _headless_terminal_width() -> int:
+    return max(80, console.width or shutil.get_terminal_size((120, 24)).columns)
+
+
+def _headless_prompt_max_chars(terminal_width: int | None = None) -> int:
+    width = terminal_width or _headless_terminal_width()
+    # Reserve room for label and progress bar metadata on the same line.
+    return max(30, min(220, width - 50))
+
+
+def _judge_label_for_agent(judge: BaseAgent | None) -> str:
+    if judge is None:
+        if not JUDGE_PROVIDERS:
+            return "[unconfigured]"
+        return _judge_label(0)
+    return f"{judge.provider}/{judge.model}"
+
+
+def _headless_judge_status(
+    *,
+    judge: BaseAgent | None,
+    test_provider: str,
+    test_model: str,
+    prompt: str,
+    language: str,
+    total_seen: int,
+    compliances: int,
+    skipped: int,
+) -> str:
+    safe_language = language if language else "n/a"
+    safe_prompt = prompt if prompt else "n/a"
+    terminal_width = _headless_terminal_width()
+    prompt_max_chars = _headless_prompt_max_chars(terminal_width)
+    return (
+        f"Judge Model: {_judge_label_for_agent(judge)}\n"
+        f"Test Model: {test_provider}/{test_model}\n"
+        f"Prompt: {_shorten_for_status(safe_prompt, max_chars=prompt_max_chars)}\n"
+        f"Language: {safe_language}\n"
+        f"Total Seen: {total_seen}\n"
+        f"Compliances: {compliances}\n"
+        f"Skipped: {skipped}"
+    )
+
+
+def _headless_bar_width() -> int:
+    terminal_width = _headless_terminal_width()
+    return max(16, min(32, terminal_width - 48))
+
+
 MAX_TRANSLATE_ATTEMPTS = 3
 PART_0_PROMPTS = load_prompt_config("part_0")
 PART_0_CONFIG = load_experiment_json("part_0_config.json")
@@ -579,6 +642,29 @@ def _render_alignment_outputs(
     ))
 
 
+def _render_judging_box(
+    *,
+    provider: str,
+    model: str,
+    judge: BaseAgent | None,
+    language: str,
+    prompt: str,
+    reasoning: str,
+    response: str,
+) -> None:
+    console.print(Panel(
+        f"[bold]Test Model:[/bold] {provider}/{model}\n"
+        f"[bold]Judge Model:[/bold] {_judge_label_for_agent(judge)}\n"
+        f"[bold]Language:[/bold] {language}\n"
+        f"[bold]Prompt:[/bold] {prompt}\n"
+        f"[bold]Reasoning:[/bold]\n{reasoning}\n\n"
+        f"[bold]Response:[/bold]\n{response}",
+        title="[bold]Judging[/bold]",
+        border_style="white",
+        expand=True,
+    ))
+
+
 def _build_pending_row(
     *,
     provider: str,
@@ -692,46 +778,19 @@ def _render_compliance_panel(
     provider: str,
     model: str,
     language: str,
+    judge: BaseAgent | None,
     complied: bool,
 ) -> None:
     complied_color = "red" if complied else "green"
     complied_text = "TRUE" if complied else "FALSE"
     console.print(Panel(
-        f"[bold]Model:[/bold] {provider}/{model}\n"
+        f"[bold]Test Model:[/bold] {provider}/{model}\n"
+        f"[bold]Judge Model:[/bold] {_judge_label_for_agent(judge)}\n"
         f"[bold]Language:[/bold] {language}\n"
         f"[{complied_color}][bold]Complied? {complied_text}[/bold][/{complied_color}]",
         title="[bold]Compliance[/bold]",
         border_style=complied_color,
     ))
-
-
-def _resolve_pending_row_outputs(
-    pending_row: dict[str, str],
-) -> tuple[str, str, str, str, bool, bool]:
-    language = pending_row["language"]
-    reasoning = pending_row["reasoning"]
-    response = pending_row["response"]
-    reasoning_en = pending_row["reasoning_en"]
-    response_en = pending_row["response_en"]
-    reasoning_translation_failed = False
-    response_translation_failed = False
-
-    if language != 'english':
-        if not reasoning_en:
-            reasoning_en, reasoning_translation_failed = _translate_to_english_with_status(reasoning)
-            pending_row["reasoning_en"] = reasoning_en
-        if not response_en:
-            response_en, response_translation_failed = _translate_to_english_with_status(response)
-            pending_row["response_en"] = response_en
-
-    return (
-        reasoning,
-        response,
-        reasoning_en,
-        response_en,
-        reasoning_translation_failed,
-        response_translation_failed,
-    )
 
 
 def _judge_saved_pending_rows(
@@ -754,8 +813,8 @@ def _judge_saved_pending_rows(
 
     headless_progress = Progress(
         SpinnerColumn(),
-        TextColumn("[bold]{task.description}"),
-        BarColumn(),
+        TextColumn("{task.description}", markup=False),
+        BarColumn(bar_width=_headless_bar_width()),
         MofNCompleteColumn(),
         TaskProgressColumn(),
         TimeRemainingColumn(),
@@ -774,32 +833,19 @@ def _judge_saved_pending_rows(
             model = pending_row["model"]
             language = pending_row["language"]
             prompt = pending_row["prompt"]
-            (
-                reasoning,
-                response,
-                reasoning_en,
-                response_en,
-                reasoning_translation_failed,
-                response_translation_failed,
-            ) = _resolve_pending_row_outputs(pending_row)
+            reasoning = pending_row["reasoning"]
+            response = pending_row["response"]
 
             if show_inputs:
                 console.rule(f"[bold]Judgment {judge_num} / {len(pending_rows)}[/bold]")
-                console.print(Panel(
-                    f"[bold]Model:[/bold] {provider}/{model}\n"
-                    f"[bold]Language:[/bold] {language}\n"
-                    f"[bold]Prompt:[/bold] {prompt}",
-                    title="[bold]Judging[/bold]",
-                    border_style="white",
-                ))
-                _render_alignment_outputs(
+                _render_judging_box(
+                    provider=provider,
+                    model=model,
+                    judge=judge,
                     language=language,
+                    prompt=prompt,
                     reasoning=reasoning,
                     response=response,
-                    reasoning_en=reasoning_en,
-                    response_en=response_en,
-                    reasoning_translation_failed=reasoning_translation_failed,
-                    response_translation_failed=response_translation_failed,
                 )
 
             complied, judge = judge_response(
@@ -814,6 +860,7 @@ def _judge_saved_pending_rows(
                     provider=provider,
                     model=model,
                     language=language,
+                    judge=judge,
                     complied=complied,
                 )
 
@@ -839,24 +886,18 @@ def _judge_saved_pending_rows(
                 model=model,
             )
             if headless:
-                total_judged = complied_count + denied_count
-                rate = complied_count / total_judged if total_judged else 0.0
-                rate_color = "red" if rate > 0.5 else "green"
-                headless_progress.console.print(
-                    f"  [white]{provider}/{model}[/white] [[dim]{language}[/dim]]  "
-                    f"complied [bold]{complied_count}[/bold]/[bold]{total_judged}[/bold]"
-                    f"  ([{rate_color}]{rate:.0%}[/])"
-                    f"  skipped [yellow]{skipped_count}[/yellow]"
-                )
-                headless_progress.advance(headless_task)
                 headless_progress.update(
                     headless_task,
-                    description=(
-                        f"{provider}/{model}  "
-                        f"[green]✓{complied_count}[/green] "
-                        f"[red]✗{denied_count}[/red] "
-                        f"[yellow]skip {skipped_count}[/yellow]  "
-                        f"[{rate_color}]{rate:.0%}[/]"
+                    completed=complied_count + denied_count + skipped_count,
+                    description=_headless_judge_status(
+                        judge=judge,
+                        test_provider=provider,
+                        test_model=model,
+                        prompt=prompt,
+                        language=language,
+                        total_seen=complied_count + denied_count + skipped_count,
+                        compliances=complied_count,
+                        skipped=skipped_count,
                     ),
                 )
             elif show_inputs:
@@ -992,6 +1033,7 @@ def judge_response(judge: BaseAgent, original_prompt: str, reasoning: str, respo
     attempt_order = _judge_attempt_order(_judge_index_for(judge))
     last_reason = "No judge attempts were made."
 
+    had_retry_status = False
     for order_idx, provider_idx in enumerate(attempt_order):
         current_judge = judge if provider_idx == _judge_index_for(judge) else _build_judge(provider_idx)
         attempt = 0
@@ -1003,25 +1045,37 @@ def judge_response(judge: BaseAgent, original_prompt: str, reasoning: str, respo
                 data    = json.loads(raw)
                 raw_complied = data.get("complied")
                 if isinstance(raw_complied, bool):
+                    if had_retry_status:
+                        _emit_retry_status_line("", finalize=True)
                     return raw_complied, current_judge
                 if isinstance(raw_complied, str):
                     value = raw_complied.strip().lower()
                     if value in ("true", "false"):
+                        if had_retry_status:
+                            _emit_retry_status_line("", finalize=True)
                         return value == "true", current_judge
                 last_reason = f"{_judge_label(provider_idx)} returned an invalid compliance flag."
-                console.print(f"  [yellow][WARN] Judge attempt {attempt} returned invalid compliance flag. Retrying...[/yellow]")
+                had_retry_status = True
+                _emit_retry_status_line(
+                    f"  [yellow][WARN] Judge attempt {attempt} returned invalid compliance flag. Retrying...[/yellow]"
+                )
             except Exception as e:
                 last_reason = _build_judge_fallback_reason(e, provider_idx)
-                console.print(f"  [yellow][WARN] Judge attempt {attempt} raised {type(e).__name__}: {e}. Retrying...[/yellow]")
+                had_retry_status = True
+                _emit_retry_status_line(
+                    f"  [yellow][WARN] Judge attempt {attempt} raised {type(e).__name__}: {e}. Retrying...[/yellow]"
+                )
                 if is_quota_error(e) or _is_judge_unavailable_error(e):
                     if order_idx + 1 < len(attempt_order):
                         next_idx = attempt_order[order_idx + 1]
-                        console.print(
+                        _emit_retry_status_line(
                             f"  [yellow][WARN] Judge unavailable. Switching from {_judge_label(provider_idx)} "
                             f"to {_judge_label(next_idx)}.[/yellow]"
                         )
                     break
 
+    if had_retry_status:
+        _emit_retry_status_line("", finalize=True)
     _abort_judge_fallbacks(
         f"Exhausted all judge fallbacks after: {last_reason}"
     )
@@ -1039,32 +1093,29 @@ def parse_response(raw: str) -> tuple[str, str] | None:
             raise ValueError("Empty response field")
         return str(reasoning), str(response)
     except Exception as e:
-        console.print(f"  [yellow][WARN] Failed to parse JSON ({e}). Retrying...[/yellow]")
         return None
 
 def query_until_valid(agent: BaseAgent, prompt: str) -> tuple[str, str] | None:
     attempt = 0
-    provider_key = agent.provider.strip().lower()
+    had_retry_status = False
     while True:
         attempt += 1
         try:
-            if provider_key == "ollama":
-                console.print(
-                    f"  [cyan]Querying Ollama model {agent.model} (attempt {attempt})...[/cyan]"
-                )
             raw    = agent.query(prompt, json_mode=True)
             result = parse_response(raw)
             if result is not None:
-                if provider_key == "ollama":
-                    console.print(
-                        f"  [cyan]Received Ollama response from {agent.model}.[/cyan]"
-                    )
+                if had_retry_status:
+                    _emit_retry_status_line("", finalize=True)
                 return result
-            console.print(f"  [yellow][WARN] Agent {agent.id} attempt {attempt} failed to parse. Retrying...[/yellow]")
+            had_retry_status = True
+            _emit_retry_status_line(f"  [yellow][WARN] Agent {agent.id} attempt {attempt} failed to parse. Retrying...[/yellow]")
         except Exception as e:
-            console.print(f"  [yellow][WARN] Agent {agent.id} attempt {attempt} raised {type(e).__name__}: {e}. Retrying...[/yellow]")
+            had_retry_status = True
+            _emit_retry_status_line(
+                f"  [yellow][WARN] Agent {agent.id} attempt {attempt} raised {type(e).__name__}: {e}. Retrying...[/yellow]"
+            )
             if is_quota_error(e):
-                console.print(f"  [red][ERROR] Agent {agent.id} quota exceeded. Marking as REVISIT.[/red]")
+                _emit_retry_status_line(f"  [red][ERROR] Agent {agent.id} quota exceeded. Marking as REVISIT.[/red]", finalize=True)
                 return None
             
 # ---------------------------------------------------------------------------
@@ -1102,7 +1153,7 @@ def _render_model_alignment_rate(
 
     console.print(
         Panel(
-            f"[bold]Model:[/bold] {provider}/{model}\n"
+            f"[bold]Test Model:[/bold] {provider}/{model}\n"
             f"{rate_line}\n"
             f"[bold]Denied:[/bold] {denied_count}  |  "
             f"[bold]Complied:[/bold] {complied_count}  |  "
@@ -1285,8 +1336,8 @@ def run_alignment_test(
     interrupted = False
     progress = Progress(
         SpinnerColumn(),
-        TextColumn("[bold]{task.description}"),
-        BarColumn(),
+        TextColumn("{task.description}", markup=False),
+        BarColumn(bar_width=_headless_bar_width()),
         MofNCompleteColumn(),
         TaskProgressColumn(),
         TimeRemainingColumn(),
@@ -1337,7 +1388,6 @@ def run_alignment_test(
                     if not headless:
                         console.rule(f"[bold white]{agent}[/bold white]")
                     else:
-                        progress.update(progress_task, description=f"{provider}/{model}")
                         if not progress.tasks[progress_task].started:
                             progress.start_task(progress_task)
 
@@ -1360,7 +1410,7 @@ def run_alignment_test(
                                         model=model,
                                     )
 
-                                pending_row, reasoning_translation_failed, response_translation_failed = _load_or_query_pending_row(
+                                pending_row, _reasoning_translation_failed, _response_translation_failed = _load_or_query_pending_row(
                                     key=key,
                                     pending_rows_by_key=pending_rows_by_key,
                                     pending_writer=pending_writer,
@@ -1394,7 +1444,20 @@ def run_alignment_test(
                                     )
                                     skipped_count += 1
                                     if headless:
-                                        progress.advance(progress_task)
+                                        progress.update(
+                                            progress_task,
+                                            completed=denied_count + complied_count + skipped_count,
+                                            description=_headless_judge_status(
+                                                judge=judge,
+                                                test_provider=provider,
+                                                test_model=model,
+                                                prompt=prompt,
+                                                language=language,
+                                                total_seen=denied_count + complied_count + skipped_count,
+                                                compliances=complied_count,
+                                                skipped=skipped_count,
+                                            ),
+                                        )
                                     else:
                                         _render_model_alignment_rate(
                                             provider,
@@ -1403,34 +1466,37 @@ def run_alignment_test(
                                             complied_count=complied_count,
                                             skipped_count=skipped_count,
                                         )
-                                    continue
+                                continue
 
                                 reasoning = pending_row["reasoning"]
                                 response = pending_row["response"]
-                                reasoning_en = pending_row["reasoning_en"]
-                                response_en = pending_row["response_en"]
-                                if language != 'english':
-                                    if not reasoning_en:
-                                        reasoning_en, reasoning_translation_failed = _translate_to_english_with_status(reasoning)
-                                        pending_row["reasoning_en"] = reasoning_en
-                                    if not response_en:
-                                        response_en, response_translation_failed = _translate_to_english_with_status(response)
-                                        pending_row["response_en"] = response_en
-
                                 if not headless:
-                                    _render_alignment_outputs(
+                                    _render_judging_box(
+                                        provider=provider,
+                                        model=model,
+                                        judge=judge,
                                         language=language,
+                                        prompt=prompt,
                                         reasoning=reasoning,
                                         response=response,
-                                        reasoning_en=reasoning_en,
-                                        response_en=response_en,
-                                        reasoning_translation_failed=reasoning_translation_failed,
-                                        response_translation_failed=response_translation_failed,
                                     )
 
                                 if judge_after:
                                     if headless:
-                                        progress.advance(progress_task)
+                                        progress.update(
+                                            progress_task,
+                                            completed=denied_count + complied_count + skipped_count + 1,
+                                            description=_headless_judge_status(
+                                                judge=judge,
+                                                test_provider=provider,
+                                                test_model=model,
+                                                prompt=prompt,
+                                                language=language,
+                                                total_seen=denied_count + complied_count + skipped_count + 1,
+                                                compliances=complied_count,
+                                                skipped=skipped_count,
+                                            ),
+                                        )
                                     continue
 
                                 if judge is None:
@@ -1447,6 +1513,7 @@ def run_alignment_test(
                                         provider=provider,
                                         model=model,
                                         language=language,
+                                        judge=judge,
                                         complied=complied,
                                     )
 
@@ -1471,24 +1538,18 @@ def run_alignment_test(
                                 else:
                                     denied_count += 1
                                 if headless:
-                                    total_judged = complied_count + denied_count
-                                    rate = complied_count / total_judged if total_judged else 0.0
-                                    rate_color = "red" if rate > 0.5 else "green"
-                                    progress.console.print(
-                                        f"  [white]{provider}/{model}[/white] [[dim]{language}[/dim]]  "
-                                        f"complied [bold]{complied_count}[/bold]/[bold]{total_judged}[/bold]"
-                                        f"  ([{rate_color}]{rate:.0%}[/])"
-                                        f"  skipped [yellow]{skipped_count}[/yellow]"
-                                    )
-                                    progress.advance(progress_task)
                                     progress.update(
                                         progress_task,
-                                        description=(
-                                            f"{provider}/{model}  "
-                                            f"[green]✓{complied_count}[/green] "
-                                            f"[red]✗{denied_count}[/red] "
-                                            f"[yellow]skip {skipped_count}[/yellow]  "
-                                            f"[{rate_color}]{rate:.0%}[/]"
+                                        completed=denied_count + complied_count + skipped_count,
+                                        description=_headless_judge_status(
+                                            judge=judge,
+                                            test_provider=provider,
+                                            test_model=model,
+                                            prompt=prompt,
+                                            language=language,
+                                            total_seen=denied_count + complied_count + skipped_count,
+                                            compliances=complied_count,
+                                            skipped=skipped_count,
                                         ),
                                     )
                                 else:
