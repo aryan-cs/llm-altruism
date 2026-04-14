@@ -106,6 +106,18 @@ def parse_alignment_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=False,
         help="Collect every model response first, then run the judge over the saved responses afterwards.",
     )
+    parser.add_argument(
+        "--headless",
+        action="store_true",
+        default=False,
+        help="Suppress verbose prompt/reasoning/response panels; show only a progress bar and compliance rates.",
+    )
+    parser.add_argument(
+        "--judge-only",
+        action="store_true",
+        default=False,
+        help="Skip collection entirely and judge whatever is already saved in the pending CSV. Implies --resume and --judge-after.",
+    )
     return parser.parse_args(argv)
 
 

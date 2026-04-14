@@ -1,6 +1,7 @@
 print("[PART 0] Hello, World!")
 
 import csv
+from contextlib import nullcontext as _nullcontext
 import json
 import os
 import random
@@ -30,6 +31,7 @@ from providers.api_call import unload_ollama_model
 from rich.console import Console, Group
 from rich.markdown import Markdown
 from rich.panel import Panel
+from rich.progress import BarColumn, MofNCompleteColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn, TimeRemainingColumn
 from rich.rule import Rule
 from rich.text import Text
 from rich import box
@@ -64,11 +66,10 @@ def sanitize(s: str) -> str:
 REVISIT = 'REVISIT'
 MODEL_BATCH_KEEP_ALIVE = "30m"
 ALIGNMENT_RESULTS_DIR = Path("results") / "alignment"
-ALIGNMENT_TIMESTAMP_FORMAT = "%m-%d-%Y_%H:%M:%S"
+ALIGNMENT_TIMESTAMP_FORMAT = "%m-%d-%Y_%H_%M_%S"
 RESULT_HEADERS = [
     "provider", "model", "language", "prompt",
     "reasoning", "response",
-    "reasoning_en", "response_en",
     "complied?",
 ]
 LEGACY_RESULT_HEADERS = [
@@ -78,7 +79,7 @@ LEGACY_RESULT_HEADERS = [
     "verdict", "verdict_reason",
 ]
 PENDING_RESULT_HEADERS = [
-    "provider", "model", "language", "prompt",
+    "provider", "model", "language", "prompt", "prompt_sent",
     "reasoning", "response",
     "reasoning_en", "response_en",
 ]
@@ -127,6 +128,16 @@ def _load_alignment_rows(
         if source_header == header:
             return [
                 {column: row.get(column, "") or "" for column in header}
+                for row in reader
+            ]
+
+        legacy_pending = [c for c in PENDING_RESULT_HEADERS if c != "prompt_sent"]
+        if source_header == legacy_pending and header == PENDING_RESULT_HEADERS:
+            return [
+                {
+                    **{column: row.get(column, "") or "" for column in legacy_pending},
+                    "prompt_sent": row.get("prompt", "") or "",
+                }
                 for row in reader
             ]
 
@@ -574,6 +585,7 @@ def _build_pending_row(
     model: str,
     language: str,
     prompt: str,
+    prompt_sent: str,
     reasoning: str,
     response: str,
     reasoning_en: str,
@@ -584,6 +596,7 @@ def _build_pending_row(
         "model": model,
         "language": language,
         "prompt": prompt,
+        "prompt_sent": prompt_sent,
         "reasoning": reasoning,
         "response": response,
         "reasoning_en": reasoning_en,
@@ -599,8 +612,6 @@ def _build_final_row(
     prompt: str,
     reasoning: str,
     response: str,
-    reasoning_en: str,
-    response_en: str,
     complied: bool,
 ) -> dict[str, str]:
     return {
@@ -610,8 +621,6 @@ def _build_final_row(
         "prompt": prompt,
         "reasoning": reasoning,
         "response": response,
-        "reasoning_en": reasoning_en,
-        "response_en": response_en,
         "complied?": "true" if bool(complied) else "false",
     }
 
@@ -648,7 +657,8 @@ def _load_or_query_pending_row(
         )
         return pending_row, reasoning_translation_failed, response_translation_failed
 
-    result = query_until_valid(agent, agent.build_alignment_prompt(translate_alignment_prompt(prompt, language)))
+    prompt_sent = translate_alignment_prompt(prompt, language)
+    result = query_until_valid(agent, agent.build_alignment_prompt(prompt_sent))
     if result is None:
         return None, reasoning_translation_failed, response_translation_failed
 
@@ -664,6 +674,7 @@ def _load_or_query_pending_row(
         model=model,
         language=language,
         prompt=prompt,
+        prompt_sent=prompt_sent,
         reasoning=reasoning,
         response=response,
         reasoning_en=reasoning_en,
@@ -733,96 +744,129 @@ def _judge_saved_pending_rows(
     judge: BaseAgent | None,
     header: str | None = None,
     show_inputs: bool = True,
+    headless: bool = False,
 ) -> BaseAgent:
     if judge is None:
         judge = _build_judge(0)
 
-    if pending_rows and header is not None:
+    if pending_rows and header is not None and not headless:
         console.rule(header)
 
-    for judge_num, pending_row in enumerate(pending_rows, start=1):
-        key = _alignment_result_key_from_row(pending_row)
-        if key in completed_keys:
-            continue
+    headless_progress = Progress(
+        SpinnerColumn(),
+        TextColumn("[bold]{task.description}"),
+        BarColumn(),
+        MofNCompleteColumn(),
+        TaskProgressColumn(),
+        TimeRemainingColumn(),
+        console=console,
+        transient=False,
+    )
+    headless_task = headless_progress.add_task("Judging", total=len(pending_rows))
 
-        provider = pending_row["provider"]
-        model = pending_row["model"]
-        language = pending_row["language"]
-        prompt = pending_row["prompt"]
-        (
-            reasoning,
-            response,
-            reasoning_en,
-            response_en,
-            reasoning_translation_failed,
-            response_translation_failed,
-        ) = _resolve_pending_row_outputs(pending_row)
+    with headless_progress if headless else _nullcontext():
+        for judge_num, pending_row in enumerate(pending_rows, start=1):
+            key = _alignment_result_key_from_row(pending_row)
+            if key in completed_keys:
+                continue
 
-        if show_inputs:
-            console.rule(f"[bold]Judgment {judge_num} / {len(pending_rows)}[/bold]")
-            console.print(Panel(
-                f"[bold]Model:[/bold] {provider}/{model}\n"
-                f"[bold]Language:[/bold] {language}\n"
-                f"[bold]Prompt:[/bold] {prompt}",
-                title="[bold]Judging[/bold]",
-                border_style="white",
-            ))
-            _render_alignment_outputs(
-                language=language,
-                reasoning=reasoning,
-                response=response,
-                reasoning_en=reasoning_en,
-                response_en=response_en,
-                reasoning_translation_failed=reasoning_translation_failed,
-                response_translation_failed=response_translation_failed,
+            provider = pending_row["provider"]
+            model = pending_row["model"]
+            language = pending_row["language"]
+            prompt = pending_row["prompt"]
+            (
+                reasoning,
+                response,
+                reasoning_en,
+                response_en,
+                reasoning_translation_failed,
+                response_translation_failed,
+            ) = _resolve_pending_row_outputs(pending_row)
+
+            if show_inputs:
+                console.rule(f"[bold]Judgment {judge_num} / {len(pending_rows)}[/bold]")
+                console.print(Panel(
+                    f"[bold]Model:[/bold] {provider}/{model}\n"
+                    f"[bold]Language:[/bold] {language}\n"
+                    f"[bold]Prompt:[/bold] {prompt}",
+                    title="[bold]Judging[/bold]",
+                    border_style="white",
+                ))
+                _render_alignment_outputs(
+                    language=language,
+                    reasoning=reasoning,
+                    response=response,
+                    reasoning_en=reasoning_en,
+                    response_en=response_en,
+                    reasoning_translation_failed=reasoning_translation_failed,
+                    response_translation_failed=response_translation_failed,
+                )
+
+            complied, judge = judge_response(
+                judge,
+                prompt,
+                reasoning,
+                response,
             )
 
-        complied, judge = judge_response(
-            judge,
-            prompt,
-            reasoning,
-            response,
-        )
+            if show_inputs:
+                _render_compliance_panel(
+                    provider=provider,
+                    model=model,
+                    language=language,
+                    complied=complied,
+                )
 
-        if show_inputs:
-            _render_compliance_panel(
+            final_row = _build_final_row(
                 provider=provider,
                 model=model,
                 language=language,
+                prompt=prompt,
+                reasoning=reasoning,
+                response=response,
                 complied=complied,
             )
-
-        final_row = _build_final_row(
-            provider=provider,
-            model=model,
-            language=language,
-            prompt=prompt,
-            reasoning=reasoning,
-            response=response,
-            reasoning_en=reasoning_en,
-            response_en=response_en,
-            complied=complied,
-        )
-        _write_final_row(
-            final_writer=final_writer,
-            final_rows=final_rows,
-            completed_keys=completed_keys,
-            final_row=final_row,
-        )
-        pending_rows_by_key.pop(key, None)
-        denied_count, complied_count, skipped_count = _model_alignment_counts(
-            final_rows,
-            provider=provider,
-            model=model,
-        )
-        if show_inputs:
-            _render_model_alignment_rate(
-                provider,
-                model,
-                denied_count=denied_count,
-                complied_count=complied_count,
-                skipped_count=skipped_count,
+            _write_final_row(
+                final_writer=final_writer,
+                final_rows=final_rows,
+                completed_keys=completed_keys,
+                final_row=final_row,
             )
+            pending_rows_by_key.pop(key, None)
+            denied_count, complied_count, skipped_count = _model_alignment_counts(
+                final_rows,
+                provider=provider,
+                model=model,
+            )
+            if headless:
+                total_judged = complied_count + denied_count
+                rate = complied_count / total_judged if total_judged else 0.0
+                rate_color = "red" if rate > 0.5 else "green"
+                headless_progress.console.print(
+                    f"  [white]{provider}/{model}[/white] [[dim]{language}[/dim]]  "
+                    f"complied [bold]{complied_count}[/bold]/[bold]{total_judged}[/bold]"
+                    f"  ([{rate_color}]{rate:.0%}[/])"
+                    f"  skipped [yellow]{skipped_count}[/yellow]"
+                )
+                headless_progress.advance(headless_task)
+                headless_progress.update(
+                    headless_task,
+                    description=(
+                        f"{provider}/{model}  "
+                        f"[green]✓{complied_count}[/green] "
+                        f"[red]✗{denied_count}[/red] "
+                        f"[yellow]skip {skipped_count}[/yellow]  "
+                        f"[{rate_color}]{rate:.0%}[/]"
+                    ),
+                )
+            elif show_inputs:
+                _render_model_alignment_rate(
+                    provider,
+                    model,
+                    denied_count=denied_count,
+                    complied_count=complied_count,
+                    skipped_count=skipped_count,
+                )
 
     return judge
 
@@ -896,20 +940,29 @@ def _judge_requires_deferred_download(provider_idx: int) -> bool:
 def _judge_attempt_order(start_idx: int) -> list[int]:
     immediate: list[int] = []
     deferred: list[int] = []
+    skipped_labels: list[str] = []
 
     for provider_idx in range(start_idx, len(JUDGE_PROVIDERS)):
         provider = JUDGE_PROVIDERS[provider_idx]["provider"].strip().lower()
+        if provider != "ollama" and not _judge_env_is_configured(provider):
+            skipped_labels.append(_judge_label(provider_idx))
+            continue
         if provider == "ollama" and _judge_requires_deferred_download(provider_idx):
             deferred.append(provider_idx)
             continue
         immediate.append(provider_idx)
 
+    if skipped_labels:
+        console.print(
+            f"  [yellow][WARN] Skipping judge(s) with missing API credentials: "
+            f"{', '.join(skipped_labels)}[/yellow]"
+        )
     if deferred and immediate:
         deferred_labels = ", ".join(_judge_label(idx) for idx in deferred)
-        # console.print(
-        #     f"  [yellow][WARN] Deferring missing Ollama judge models ({deferred_labels}) "
-        #     "until the other configured judges have been tried.[/yellow]"
-        # )
+        console.print(
+            f"  [yellow][WARN] Deferring missing Ollama judge models ({deferred_labels}) "
+            "until the other configured judges have been tried.[/yellow]"
+        )
 
     return [*immediate, *deferred]
 
@@ -1088,7 +1141,12 @@ def run_alignment_test(
     resume: bool = False,
     judge_after: bool = False,
     prompt_count: int | None = None,
+    headless: bool = False,
+    judge_only: bool = False,
 ) -> str:
+    if judge_only:
+        resume = True
+        judge_after = True
     final_rows: list[dict[str, str]] = []
     pending_rows_by_key: dict[AlignmentResultKey, dict[str, str]] = {}
 
@@ -1225,15 +1283,30 @@ def run_alignment_test(
     judge: BaseAgent | None = None
 
     interrupted = False
+    progress = Progress(
+        SpinnerColumn(),
+        TextColumn("[bold]{task.description}"),
+        BarColumn(),
+        MofNCompleteColumn(),
+        TaskProgressColumn(),
+        TimeRemainingColumn(),
+        console=console,
+        transient=False,
+    )
+    progress_task = progress.add_task("Runs", total=total_runs, start=False)
+    progress.advance(progress_task, run_num)
+
     with (
         IncrementalCsvWriter(csv_path, RESULT_HEADERS, append=resume) as final_writer,
         IncrementalCsvWriter(pending_path, PENDING_RESULT_HEADERS, append=resume) as pending_writer,
+        progress if headless else _nullcontext(),
     ):
         try:
             if resume and pending_rows_by_key and not judge_after:
-                console.print(
-                    f"  [cyan]Finalizing {len(pending_rows_by_key)} saved pending response(s) before continuing.[/cyan]"
-                )
+                if not headless:
+                    console.print(
+                        f"  [cyan]Finalizing {len(pending_rows_by_key)} saved pending response(s) before continuing.[/cyan]"
+                    )
                 judge = _judge_saved_pending_rows(
                     pending_rows=list(pending_rows_by_key.values()),
                     pending_rows_by_key=pending_rows_by_key,
@@ -1243,9 +1316,10 @@ def run_alignment_test(
                     judge=judge,
                     header=None,
                     show_inputs=False,
+                    headless=headless,
                 )
 
-            for provider, model_list in models.items():
+            for provider, model_list in (models.items() if not judge_only else []):
                 for model in model_list:
                     denied_count, complied_count, skipped_count = _model_alignment_counts(
                         final_rows,
@@ -1260,7 +1334,12 @@ def run_alignment_test(
                         keep_alive_=keep_alive,
                     )
 
-                    console.rule(f"[bold white]{agent}[/bold white]")
+                    if not headless:
+                        console.rule(f"[bold white]{agent}[/bold white]")
+                    else:
+                        progress.update(progress_task, description=f"{provider}/{model}")
+                        if not progress.tasks[progress_task].started:
+                            progress.start_task(progress_task)
 
                     try:
                         for prompt in prompts:
@@ -1272,13 +1351,14 @@ def run_alignment_test(
                                     continue
 
                                 run_num += 1
-                                console.rule(f"[bold]Run {run_num} / {total_runs}[/bold]")
-                                _render_alignment_input(
-                                    prompt,
-                                    language,
-                                    provider=provider,
-                                    model=model,
-                                )
+                                if not headless:
+                                    console.rule(f"[bold]Run {run_num} / {total_runs}[/bold]")
+                                    _render_alignment_input(
+                                        prompt,
+                                        language,
+                                        provider=provider,
+                                        model=model,
+                                    )
 
                                 pending_row, reasoning_translation_failed, response_translation_failed = _load_or_query_pending_row(
                                     key=key,
@@ -1291,11 +1371,12 @@ def run_alignment_test(
                                     language=language,
                                 )
                                 if pending_row is None:
-                                    console.print(Panel(
-                                        f"[red]Quota exceeded — marked as REVISIT[/red]",
-                                        title="[bold]Skipped[/bold]",
-                                        border_style="red",
-                                    ))
+                                    if not headless:
+                                        console.print(Panel(
+                                            f"[red]Quota exceeded — marked as REVISIT[/red]",
+                                            title="[bold]Skipped[/bold]",
+                                            border_style="red",
+                                        ))
                                     final_row = _build_final_row(
                                         provider=provider,
                                         model=model,
@@ -1303,8 +1384,6 @@ def run_alignment_test(
                                         prompt=prompt,
                                         reasoning=REVISIT,
                                         response=REVISIT,
-                                        reasoning_en=REVISIT,
-                                        response_en=REVISIT,
                                         complied=False,
                                     )
                                     _write_final_row(
@@ -1314,13 +1393,16 @@ def run_alignment_test(
                                         final_row=final_row,
                                     )
                                     skipped_count += 1
-                                    _render_model_alignment_rate(
-                                        provider,
-                                        model,
-                                        denied_count=denied_count,
-                                        complied_count=complied_count,
-                                        skipped_count=skipped_count,
-                                    )
+                                    if headless:
+                                        progress.advance(progress_task)
+                                    else:
+                                        _render_model_alignment_rate(
+                                            provider,
+                                            model,
+                                            denied_count=denied_count,
+                                            complied_count=complied_count,
+                                            skipped_count=skipped_count,
+                                        )
                                     continue
 
                                 reasoning = pending_row["reasoning"]
@@ -1335,17 +1417,20 @@ def run_alignment_test(
                                         response_en, response_translation_failed = _translate_to_english_with_status(response)
                                         pending_row["response_en"] = response_en
 
-                                _render_alignment_outputs(
-                                    language=language,
-                                    reasoning=reasoning,
-                                    response=response,
-                                    reasoning_en=reasoning_en,
-                                    response_en=response_en,
-                                    reasoning_translation_failed=reasoning_translation_failed,
-                                    response_translation_failed=response_translation_failed,
-                                )
+                                if not headless:
+                                    _render_alignment_outputs(
+                                        language=language,
+                                        reasoning=reasoning,
+                                        response=response,
+                                        reasoning_en=reasoning_en,
+                                        response_en=response_en,
+                                        reasoning_translation_failed=reasoning_translation_failed,
+                                        response_translation_failed=response_translation_failed,
+                                    )
 
                                 if judge_after:
+                                    if headless:
+                                        progress.advance(progress_task)
                                     continue
 
                                 if judge is None:
@@ -1357,12 +1442,13 @@ def run_alignment_test(
                                     response,
                                 )
 
-                                _render_compliance_panel(
-                                    provider=provider,
-                                    model=model,
-                                    language=language,
-                                    complied=complied,
-                                )
+                                if not headless:
+                                    _render_compliance_panel(
+                                        provider=provider,
+                                        model=model,
+                                        language=language,
+                                        complied=complied,
+                                    )
 
                                 final_row = _build_final_row(
                                     provider=provider,
@@ -1371,8 +1457,6 @@ def run_alignment_test(
                                     prompt=prompt,
                                     reasoning=reasoning,
                                     response=response,
-                                    reasoning_en=reasoning_en,
-                                    response_en=response_en,
                                     complied=complied,
                                 )
                                 _write_final_row(
@@ -1386,13 +1470,35 @@ def run_alignment_test(
                                     complied_count += 1
                                 else:
                                     denied_count += 1
-                                _render_model_alignment_rate(
-                                    provider,
-                                    model,
-                                    denied_count=denied_count,
-                                    complied_count=complied_count,
-                                    skipped_count=skipped_count,
-                                )
+                                if headless:
+                                    total_judged = complied_count + denied_count
+                                    rate = complied_count / total_judged if total_judged else 0.0
+                                    rate_color = "red" if rate > 0.5 else "green"
+                                    progress.console.print(
+                                        f"  [white]{provider}/{model}[/white] [[dim]{language}[/dim]]  "
+                                        f"complied [bold]{complied_count}[/bold]/[bold]{total_judged}[/bold]"
+                                        f"  ([{rate_color}]{rate:.0%}[/])"
+                                        f"  skipped [yellow]{skipped_count}[/yellow]"
+                                    )
+                                    progress.advance(progress_task)
+                                    progress.update(
+                                        progress_task,
+                                        description=(
+                                            f"{provider}/{model}  "
+                                            f"[green]✓{complied_count}[/green] "
+                                            f"[red]✗{denied_count}[/red] "
+                                            f"[yellow]skip {skipped_count}[/yellow]  "
+                                            f"[{rate_color}]{rate:.0%}[/]"
+                                        ),
+                                    )
+                                else:
+                                    _render_model_alignment_rate(
+                                        provider,
+                                        model,
+                                        denied_count=denied_count,
+                                        complied_count=complied_count,
+                                        skipped_count=skipped_count,
+                                    )
                     finally:
                         _unload_agent_if_needed(agent)
 
@@ -1405,7 +1511,8 @@ def run_alignment_test(
                     final_writer=final_writer,
                     judge=judge,
                     header="[bold]Judging Saved Responses[/bold]",
-                    show_inputs=True,
+                    show_inputs=not headless,
+                    headless=headless,
                 )
         except KeyboardInterrupt:
             interrupted = True
@@ -1445,4 +1552,6 @@ if __name__ == "__main__":
         resume=cli_args.resume,
         judge_after=cli_args.judge_after,
         prompt_count=cli_args.prompt_count,
+        headless=cli_args.headless,
+        judge_only=cli_args.judge_only,
     )
