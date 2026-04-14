@@ -1,6 +1,7 @@
 import pytest
 
 from experiments.wizard import (
+    _format_prompt_count_preview,
     DEFAULT_COMMUNITY_BENEFIT,
     DEFAULT_DEPLETION_UNITS,
     DEFAULT_RESOURCE,
@@ -9,6 +10,7 @@ from experiments.wizard import (
     DEFAULT_SOCIETY_SIZE,
     choose_benchmark_models,
     choose_languages,
+    choose_prompt_count,
     choose_prompt_style,
     choose_provider_and_model,
     choose_society_config,
@@ -112,6 +114,12 @@ def test_parse_alignment_args_supports_judge_after_flag() -> None:
     assert cli_args.judge_after is True
 
 
+def test_parse_alignment_args_supports_prompt_count() -> None:
+    cli_args = parse_alignment_args(["--prompt-count", "25"])
+
+    assert cli_args.prompt_count == 25
+
+
 def test_choose_languages_skips_wizard_when_values_provided() -> None:
     languages = choose_languages(
         "Part 0",
@@ -129,6 +137,49 @@ def test_choose_languages_rejects_unknown_language() -> None:
             available_languages=["english", "spanish"],
             languages=["english", "klingon"],
         )
+
+
+def test_choose_prompt_count_skips_wizard_when_value_provided() -> None:
+    prompt_count = choose_prompt_count(
+        "Part 0",
+        total_prompts=500,
+        total_languages=10,
+        total_models=3,
+        prompt_count=25,
+    )
+
+    assert prompt_count == 25
+
+
+def test_choose_prompt_count_rejects_values_above_available_prompts() -> None:
+    with pytest.raises(ValueError, match="less than or equal to the number of available prompts"):
+        choose_prompt_count(
+            "Part 0",
+            total_prompts=500,
+            total_languages=10,
+            total_models=3,
+            prompt_count=501,
+        )
+
+
+def test_format_prompt_count_preview_uses_dynamic_prompt_range() -> None:
+    preview = _format_prompt_count_preview(
+        "25",
+        total_prompts=484,
+        total_languages=10,
+        total_models=3,
+    )
+
+    assert preview == "25 prompts × 10 languages × 3 models = 750 total runs"
+
+    empty_preview = _format_prompt_count_preview(
+        "",
+        total_prompts=484,
+        total_languages=10,
+        total_models=3,
+    )
+    assert "1-484" in empty_preview
+    assert "10 languages × 3 models" in empty_preview
 
 
 def test_choose_prompt_style_skips_wizard_when_value_provided() -> None:

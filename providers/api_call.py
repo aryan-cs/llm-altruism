@@ -12,8 +12,11 @@ load_dotenv()
 NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1"
 OPENROUTER_SITE_URL = "https://openrouter.ai"
 OPENROUTER_APP_NAME = "llm-altruism"
-OLLAMA_BASE_URL = "http://localhost:11434"
+OLLAMA_BASE_URL = "http://127.0.0.1:11434"
 XAI_API_HOST = "api.x.ai"
+OLLAMA_MODEL_ALIASES = {
+    "aratan/qwen3.5-uncensored": "aratan/qwen3.5-uncensored:9b",
+}
 
 
 class OllamaConnectionError(RuntimeError):
@@ -21,6 +24,19 @@ class OllamaConnectionError(RuntimeError):
 
 
 OllamaProgressCallback = Callable[[str], None]
+
+
+def _float_env(var_name: str, default: float) -> float:
+    raw_value = os.getenv(var_name, "").strip()
+    if not raw_value:
+        return default
+    try:
+        return float(raw_value)
+    except ValueError:
+        return default
+
+
+OLLAMA_ADMIN_TIMEOUT_SECONDS = _float_env("OLLAMA_ADMIN_TIMEOUT_SECONDS", 10.0)
 
 
 def api_call(
@@ -82,6 +98,13 @@ def _normalize_provider(provider: str) -> str:
         "x.ai": "xai",
     }
     return aliases.get(provider_key, provider_key)
+
+
+def _resolve_ollama_model_name(model: str) -> str:
+    normalized_model = model.strip()
+    if not normalized_model:
+        raise ValueError("Ollama model must be a non-empty string.")
+    return OLLAMA_MODEL_ALIASES.get(normalized_model, normalized_model)
 
 
 def _build_messages(system_prompt: str, query: str) -> list[dict[str, str]]:
@@ -148,12 +171,18 @@ def _ensure_env(var_name: str) -> str:
     return value
 
 
-def _build_ollama_client() -> Any:
+def _build_ollama_client(*, timeout: float | None = None) -> Any:
     from ollama import Client
 
     client_kwargs: dict[str, Any] = {
-        "host": os.getenv("OLLAMA_BASE_URL", OLLAMA_BASE_URL),
+        "host": (
+            os.getenv("OLLAMA_BASE_URL", "").strip()
+            or os.getenv("OLLAMA_HOST", "").strip()
+            or OLLAMA_BASE_URL
+        ),
     }
+    if timeout is not None:
+        client_kwargs["timeout"] = timeout
     api_key = os.getenv("OLLAMA_API_KEY", "").strip()
     if api_key:
         client_kwargs["headers"] = {"Authorization": f"Bearer {api_key}"}
@@ -161,12 +190,31 @@ def _build_ollama_client() -> Any:
 
 
 def _raise_ollama_connection_error(error: Exception) -> None:
-    host = os.getenv("OLLAMA_BASE_URL", OLLAMA_BASE_URL)
+    host = (
+        os.getenv("OLLAMA_BASE_URL", "").strip()
+        or os.getenv("OLLAMA_HOST", "").strip()
+        or OLLAMA_BASE_URL
+    )
     raise OllamaConnectionError(
         "Could not connect to Ollama at "
         f"{host}. Start the Ollama server, then rerun the experiment. "
         "Example: `ollama serve`."
     ) from error
+
+
+def _is_ollama_transport_error(error: Exception) -> bool:
+    if isinstance(error, (ConnectionError, TimeoutError)):
+        return True
+
+    error_type = type(error)
+    error_name = error_type.__name__.lower()
+    error_module = error_type.__module__.lower()
+    return "httpx" in error_module and (
+        "timeout" in error_name
+        or "connect" in error_name
+        or "network" in error_name
+        or "transport" in error_name
+    )
 
 
 def _is_ollama_not_found_error(error: Exception) -> bool:
@@ -210,7 +258,7 @@ def _ollama_model_available_locally_with_client(
         client.show(model)
         return True
     except Exception as error:
-        if isinstance(error, ConnectionError):
+        if _is_ollama_transport_error(error):
             _raise_ollama_connection_error(error)
         if _is_ollama_not_found_error(error):
             return False
@@ -221,7 +269,7 @@ def _list_loaded_ollama_models_with_client(client: Any) -> list[str]:
     try:
         response = client.ps()
     except Exception as error:
-        if isinstance(error, ConnectionError):
+        if _is_ollama_transport_error(error):
             _raise_ollama_connection_error(error)
         raise
 
@@ -246,7 +294,7 @@ def _unload_ollama_model_with_client(
     try:
         client.generate(model=model, keep_alive=0)
     except Exception as error:
-        if isinstance(error, ConnectionError):
+        if _is_ollama_transport_error(error):
             _raise_ollama_connection_error(error)
         if _is_ollama_not_found_error(error):
             return
@@ -254,10 +302,8 @@ def _unload_ollama_model_with_client(
 
 
 def unload_ollama_model(model: str) -> None:
-    normalized_model = model.strip()
-    if not normalized_model:
-        raise ValueError("Ollama model must be a non-empty string.")
-    client = _build_ollama_client()
+    normalized_model = _resolve_ollama_model_name(model)
+    client = _build_ollama_client(timeout=OLLAMA_ADMIN_TIMEOUT_SECONDS)
     _unload_ollama_model_with_client(client, normalized_model)
 
 
@@ -285,16 +331,14 @@ def _ensure_ollama_model_with_client(
             progress_callback=progress_callback,
         )
     except Exception as pull_error:
-        if isinstance(pull_error, ConnectionError):
+        if _is_ollama_transport_error(pull_error):
             _raise_ollama_connection_error(pull_error)
         raise
 
 
 def ollama_model_available_locally(model: str) -> bool:
-    normalized_model = model.strip()
-    if not normalized_model:
-        raise ValueError("Ollama model must be a non-empty string.")
-    client = _build_ollama_client()
+    normalized_model = _resolve_ollama_model_name(model)
+    client = _build_ollama_client(timeout=OLLAMA_ADMIN_TIMEOUT_SECONDS)
     return _ollama_model_available_locally_with_client(client, normalized_model)
 
 
@@ -302,9 +346,7 @@ def ensure_ollama_model_available(
     model: str,
     progress_callback: OllamaProgressCallback | None = None,
 ) -> None:
-    normalized_model = model.strip()
-    if not normalized_model:
-        raise ValueError("Ollama model must be a non-empty string.")
+    normalized_model = _resolve_ollama_model_name(model)
     client = _build_ollama_client()
     _ensure_ollama_model_with_client(
         client,
@@ -553,12 +595,23 @@ def _query_ollama(
     timeout: float | None,
     keep_alive: float | str | None,
 ) -> str:
-    client = _build_ollama_client()
-    _unload_other_ollama_models_with_client(client, keep_model=model)
-    _ensure_ollama_model_with_client(client, model)
+    resolved_model = _resolve_ollama_model_name(model)
+    admin_timeout = min(timeout, OLLAMA_ADMIN_TIMEOUT_SECONDS) if timeout is not None else OLLAMA_ADMIN_TIMEOUT_SECONDS
+    admin_client = _build_ollama_client(timeout=admin_timeout)
+    _unload_other_ollama_models_with_client(admin_client, keep_model=resolved_model)
+    model_available = _ollama_model_available_locally_with_client(admin_client, resolved_model)
+
+    client = _build_ollama_client(timeout=timeout)
+    if not model_available:
+        try:
+            _pull_ollama_model(client, resolved_model)
+        except Exception as pull_error:
+            if _is_ollama_transport_error(pull_error):
+                _raise_ollama_connection_error(pull_error)
+            raise
 
     payload: dict[str, Any] = {
-        "model": model,
+        "model": resolved_model,
         "messages": _build_messages(system_prompt, query),
         # Ollama supports keep_alive=0 to unload immediately after the response.
         "keep_alive": 0 if keep_alive is None else keep_alive,
@@ -579,19 +632,19 @@ def _query_ollama(
     try:
         response = client.chat(**payload)
     except Exception as error:
-        if isinstance(error, ConnectionError):
+        if _is_ollama_transport_error(error):
             _raise_ollama_connection_error(error)
         if not _is_ollama_not_found_error(error):
             raise
         try:
-            _pull_ollama_model(client, model)
+            _pull_ollama_model(client, resolved_model)
         except Exception as pull_error:
-            if isinstance(pull_error, ConnectionError):
+            if _is_ollama_transport_error(pull_error):
                 _raise_ollama_connection_error(pull_error)
             raise
         response = client.chat(**payload)
     text = _extract_content(response.get("message", {}).get("content"))
-    return _finalize_text("ollama", model, text)
+    return _finalize_text("ollama", resolved_model, text)
 
 
 def _query_anthropic(

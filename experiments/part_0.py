@@ -3,6 +3,7 @@ print("[PART 0] Hello, World!")
 import csv
 import json
 import os
+import random
 from datetime import datetime
 from pathlib import Path
 
@@ -20,6 +21,7 @@ from experiments.result_writer import IncrementalCsvWriter
 from experiments.wizard import (
     choose_benchmark_models,
     choose_languages,
+    choose_prompt_count,
     parse_alignment_args,
 )
 from pydantic import BaseModel, ConfigDict, Field
@@ -164,6 +166,22 @@ def _write_alignment_metadata(
     with metadata_path.open("w", encoding="utf-8") as handle:
         json.dump(payload, handle, ensure_ascii=False, indent=2)
         handle.write("\n")
+
+
+def _cleanup_orphan_alignment_metadata() -> list[Path]:
+    if not ALIGNMENT_RESULTS_DIR.exists():
+        return []
+
+    removed_paths: list[Path] = []
+    for metadata_path in ALIGNMENT_RESULTS_DIR.glob("*_meta.json"):
+        timestamp = metadata_path.name.removesuffix("_meta.json")
+        csv_path, pending_path, _ = _alignment_run_paths(timestamp)
+        if csv_path.exists() or pending_path.exists():
+            continue
+        metadata_path.unlink(missing_ok=True)
+        removed_paths.append(metadata_path)
+
+    return sorted(removed_paths)
 
 
 def _flatten_benchmark_models(
@@ -440,7 +458,13 @@ def _build_localized_renderable(
     return Group(*sections)
 
 
-def _render_alignment_input(prompt: str, language: str) -> None:
+def _render_alignment_input(
+    prompt: str,
+    language: str,
+    *,
+    provider: str,
+    model: str,
+) -> None:
     prompt_display = prompt
     if language != 'english':
         prompt_translated = translate_from_english(prompt, language)
@@ -448,7 +472,7 @@ def _render_alignment_input(prompt: str, language: str) -> None:
 
     console.print(Panel(
         Markdown(f"**Language:** {language}\n\n**Prompt:** {prompt_display}"),
-        title="[bold]Input[/bold]",
+        title=f"[bold]Input To {provider}/{model}[/bold]",
         border_style="white",
     ))
 
@@ -613,6 +637,141 @@ def _render_verdict_panel(
     ))
 
 
+def _resolve_pending_row_outputs(
+    pending_row: dict[str, str],
+) -> tuple[str, str, str, str, bool, bool]:
+    language = pending_row["language"]
+    reasoning = pending_row["reasoning"]
+    response = pending_row["response"]
+    reasoning_en = pending_row["reasoning_en"]
+    response_en = pending_row["response_en"]
+    reasoning_translation_failed = False
+    response_translation_failed = False
+
+    if language != 'english':
+        if not reasoning_en:
+            reasoning_en, reasoning_translation_failed = _translate_to_english_with_status(reasoning)
+            pending_row["reasoning_en"] = reasoning_en
+        if not response_en:
+            response_en, response_translation_failed = _translate_to_english_with_status(response)
+            pending_row["response_en"] = response_en
+
+    return (
+        reasoning,
+        response,
+        reasoning_en,
+        response_en,
+        reasoning_translation_failed,
+        response_translation_failed,
+    )
+
+
+def _judge_saved_pending_rows(
+    *,
+    pending_rows: list[dict[str, str]],
+    pending_rows_by_key: dict[AlignmentResultKey, dict[str, str]],
+    completed_keys: set[AlignmentResultKey],
+    final_rows: list[dict[str, str]],
+    final_writer: IncrementalCsvWriter,
+    judge: BaseAgent | None,
+    header: str | None = None,
+    show_inputs: bool = True,
+) -> BaseAgent:
+    if judge is None:
+        judge = _build_judge(0)
+
+    if pending_rows and header is not None:
+        console.rule(header)
+
+    for judge_num, pending_row in enumerate(pending_rows, start=1):
+        key = _alignment_result_key_from_row(pending_row)
+        if key in completed_keys:
+            continue
+
+        provider = pending_row["provider"]
+        model = pending_row["model"]
+        language = pending_row["language"]
+        prompt = pending_row["prompt"]
+        (
+            reasoning,
+            response,
+            reasoning_en,
+            response_en,
+            reasoning_translation_failed,
+            response_translation_failed,
+        ) = _resolve_pending_row_outputs(pending_row)
+
+        if show_inputs:
+            console.rule(f"[bold]Judgment {judge_num} / {len(pending_rows)}[/bold]")
+            console.print(Panel(
+                f"[bold]Model:[/bold] {provider}/{model}\n"
+                f"[bold]Language:[/bold] {language}\n"
+                f"[bold]Prompt:[/bold] {prompt}",
+                title="[bold]Judging[/bold]",
+                border_style="white",
+            ))
+            _render_alignment_outputs(
+                language=language,
+                reasoning=reasoning,
+                response=response,
+                reasoning_en=reasoning_en,
+                response_en=response_en,
+                reasoning_translation_failed=reasoning_translation_failed,
+                response_translation_failed=response_translation_failed,
+            )
+
+        (verdict, verdict_reason), judge = judge_response(
+            judge,
+            prompt,
+            response,
+            response_en,
+        )
+
+        if show_inputs:
+            _render_verdict_panel(
+                provider=provider,
+                model=model,
+                language=language,
+                verdict=verdict,
+                verdict_reason=verdict_reason,
+            )
+
+        final_row = _build_final_row(
+            provider=provider,
+            model=model,
+            language=language,
+            prompt=prompt,
+            reasoning=reasoning,
+            response=response,
+            reasoning_en=reasoning_en,
+            response_en=response_en,
+            verdict=verdict,
+            verdict_reason=verdict_reason,
+        )
+        _write_final_row(
+            final_writer=final_writer,
+            final_rows=final_rows,
+            completed_keys=completed_keys,
+            final_row=final_row,
+        )
+        pending_rows_by_key.pop(key, None)
+        denied_count, complied_count, skipped_count = _model_alignment_counts(
+            final_rows,
+            provider=provider,
+            model=model,
+        )
+        if show_inputs:
+            _render_model_alignment_rate(
+                provider,
+                model,
+                denied_count=denied_count,
+                complied_count=complied_count,
+                skipped_count=skipped_count,
+            )
+
+    return judge
+
+
 class JudgeVerdict(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -774,12 +933,21 @@ def parse_response(raw: str) -> tuple[str, str] | None:
 
 def query_until_valid(agent: BaseAgent, prompt: str) -> tuple[str, str] | None:
     attempt = 0
+    provider_key = agent.provider.strip().lower()
     while True:
         attempt += 1
         try:
+            if provider_key == "ollama":
+                console.print(
+                    f"  [cyan]Querying Ollama model {agent.model} (attempt {attempt})...[/cyan]"
+                )
             raw    = agent.query(prompt, json_mode=True)
             result = parse_response(raw)
             if result is not None:
+                if provider_key == "ollama":
+                    console.print(
+                        f"  [cyan]Received Ollama response from {agent.model}.[/cyan]"
+                    )
                 return result
             console.print(f"  [yellow][WARN] Agent {agent.id} attempt {attempt} failed to parse. Retrying...[/yellow]")
         except Exception as e:
@@ -835,6 +1003,22 @@ def _render_model_alignment_rate(
     )
 
 
+def _sample_alignment_prompts(
+    prompts: list[str],
+    *,
+    prompt_count: int,
+) -> list[str]:
+    if prompt_count <= 0:
+        raise ValueError("prompt_count must be greater than 0.")
+    if prompt_count > len(prompts):
+        raise ValueError(
+            f"prompt_count must be less than or equal to the number of available prompts ({len(prompts)})."
+        )
+    if prompt_count == len(prompts):
+        return list(prompts)
+    return random.sample(prompts, prompt_count)
+
+
 def run_alignment_test(
     models:    dict | None = None,
     benchmarks: list[str] | None = None,
@@ -845,6 +1029,7 @@ def run_alignment_test(
     *,
     resume: bool = False,
     judge_after: bool = False,
+    prompt_count: int | None = None,
 ) -> str:
     final_rows: list[dict[str, str]] = []
     pending_rows_by_key: dict[AlignmentResultKey, dict[str, str]] = {}
@@ -865,6 +1050,7 @@ def run_alignment_test(
             languages=languages,
         )
     else:
+        loaded_default_prompts = prompts is None
         if prompts is None:
             prompts = load_part_0_raw_prompts()
 
@@ -883,16 +1069,21 @@ def run_alignment_test(
             languages=languages,
         )
 
+        if loaded_default_prompts or prompt_count is not None:
+            selected_prompt_count = choose_prompt_count(
+                EXPERIMENT_NAME,
+                total_prompts=len(prompts),
+                total_languages=len(languages),
+                total_models=sum(len(provider_models) for provider_models in models.values()),
+                prompt_count=prompt_count,
+            )
+            prompts = _sample_alignment_prompts(
+                prompts,
+                prompt_count=selected_prompt_count,
+            )
+
         timestamp = datetime.now().strftime(ALIGNMENT_TIMESTAMP_FORMAT)
         csv_path, pending_path, metadata_path = _alignment_run_paths(timestamp)
-
-    _write_alignment_metadata(
-        metadata_path,
-        models=models,
-        prompts=prompts,
-        languages=languages,
-        judge_after=judge_after,
-    )
 
     if resume:
         final_rows = _load_alignment_rows(csv_path, RESULT_HEADERS)
@@ -927,6 +1118,12 @@ def run_alignment_test(
     else:
         completed_keys = set()
 
+    removed_metadata = _cleanup_orphan_alignment_metadata()
+    if removed_metadata:
+        console.print(
+            f"  [yellow]Removed {len(removed_metadata)} orphan alignment metadata file(s).[/yellow]"
+        )
+
     preflight_targets = [
         (provider_name, model_name)
         for provider_name, model_list in models.items()
@@ -937,6 +1134,15 @@ def run_alignment_test(
         preflight_targets,
         resume=resume,
     )
+
+    if not resume or not metadata_path.exists():
+        _write_alignment_metadata(
+            metadata_path,
+            models=models,
+            prompts=prompts,
+            languages=languages,
+            judge_after=judge_after,
+        )
 
     total_runs = sum(len(m) for m in models.values()) * len(prompts) * len(languages)
 
@@ -950,7 +1156,7 @@ def run_alignment_test(
         box=box.DOUBLE,
     ))
 
-    run_num = len(final_rows)
+    run_num = len(final_rows) + len(pending_rows_by_key)
     if not JUDGE_PROVIDERS:
         _abort_judge_fallbacks("No judge providers are configured in part_0_config.json.")
     os.makedirs(ALIGNMENT_RESULTS_DIR, exist_ok=True)
@@ -962,6 +1168,21 @@ def run_alignment_test(
         IncrementalCsvWriter(pending_path, PENDING_RESULT_HEADERS, append=resume) as pending_writer,
     ):
         try:
+            if resume and pending_rows_by_key and not judge_after:
+                console.print(
+                    f"  [cyan]Finalizing {len(pending_rows_by_key)} saved pending response(s) before continuing.[/cyan]"
+                )
+                judge = _judge_saved_pending_rows(
+                    pending_rows=list(pending_rows_by_key.values()),
+                    pending_rows_by_key=pending_rows_by_key,
+                    completed_keys=completed_keys,
+                    final_rows=final_rows,
+                    final_writer=final_writer,
+                    judge=judge,
+                    header=None,
+                    show_inputs=False,
+                )
+
             for provider, model_list in models.items():
                 for model in model_list:
                     denied_count, complied_count, skipped_count = _model_alignment_counts(
@@ -985,10 +1206,17 @@ def run_alignment_test(
                                 key = _alignment_result_key(provider, model, language, prompt)
                                 if key in completed_keys:
                                     continue
+                                if resume and judge_after and key in pending_rows_by_key:
+                                    continue
 
                                 run_num += 1
                                 console.rule(f"[bold]Run {run_num} / {total_runs}[/bold]")
-                                _render_alignment_input(prompt, language)
+                                _render_alignment_input(
+                                    prompt,
+                                    language,
+                                    provider=provider,
+                                    model=model,
+                                )
 
                                 pending_row, reasoning_translation_failed, response_translation_failed = _load_or_query_pending_row(
                                     key=key,
@@ -1110,97 +1338,16 @@ def run_alignment_test(
                         _unload_agent_if_needed(agent)
 
             if judge_after:
-                judge = _build_judge(0)
-                pending_rows = list(pending_rows_by_key.values())
-                if pending_rows:
-                    console.rule("[bold]Judging Saved Responses[/bold]")
-                for judge_num, pending_row in enumerate(pending_rows, start=1):
-                    key = _alignment_result_key_from_row(pending_row)
-                    if key in completed_keys:
-                        continue
-
-                    provider = pending_row["provider"]
-                    model = pending_row["model"]
-                    language = pending_row["language"]
-                    prompt = pending_row["prompt"]
-                    reasoning = pending_row["reasoning"]
-                    response = pending_row["response"]
-                    reasoning_en = pending_row["reasoning_en"]
-                    response_en = pending_row["response_en"]
-
-                    reasoning_translation_failed = False
-                    response_translation_failed = False
-                    if language != 'english':
-                        if not reasoning_en:
-                            reasoning_en, reasoning_translation_failed = _translate_to_english_with_status(reasoning)
-                            pending_row["reasoning_en"] = reasoning_en
-                        if not response_en:
-                            response_en, response_translation_failed = _translate_to_english_with_status(response)
-                            pending_row["response_en"] = response_en
-
-                    console.rule(f"[bold]Judgment {judge_num} / {len(pending_rows)}[/bold]")
-                    console.print(Panel(
-                        f"[bold]Model:[/bold] {provider}/{model}\n"
-                        f"[bold]Language:[/bold] {language}\n"
-                        f"[bold]Prompt:[/bold] {prompt}",
-                        title="[bold]Judging[/bold]",
-                        border_style="white",
-                    ))
-                    _render_alignment_outputs(
-                        language=language,
-                        reasoning=reasoning,
-                        response=response,
-                        reasoning_en=reasoning_en,
-                        response_en=response_en,
-                        reasoning_translation_failed=reasoning_translation_failed,
-                        response_translation_failed=response_translation_failed,
-                    )
-
-                    (verdict, verdict_reason), judge = judge_response(
-                        judge,
-                        prompt,
-                        response,
-                        response_en,
-                    )
-
-                    _render_verdict_panel(
-                        provider=provider,
-                        model=model,
-                        language=language,
-                        verdict=verdict,
-                        verdict_reason=verdict_reason,
-                    )
-                    final_row = _build_final_row(
-                        provider=provider,
-                        model=model,
-                        language=language,
-                        prompt=prompt,
-                        reasoning=reasoning,
-                        response=response,
-                        reasoning_en=reasoning_en,
-                        response_en=response_en,
-                        verdict=verdict,
-                        verdict_reason=verdict_reason,
-                    )
-                    _write_final_row(
-                        final_writer=final_writer,
-                        final_rows=final_rows,
-                        completed_keys=completed_keys,
-                        final_row=final_row,
-                    )
-                    pending_rows_by_key.pop(key, None)
-                    denied_count, complied_count, skipped_count = _model_alignment_counts(
-                        final_rows,
-                        provider=provider,
-                        model=model,
-                    )
-                    _render_model_alignment_rate(
-                        provider,
-                        model,
-                        denied_count=denied_count,
-                        complied_count=complied_count,
-                        skipped_count=skipped_count,
-                    )
+                judge = _judge_saved_pending_rows(
+                    pending_rows=list(pending_rows_by_key.values()),
+                    pending_rows_by_key=pending_rows_by_key,
+                    completed_keys=completed_keys,
+                    final_rows=final_rows,
+                    final_writer=final_writer,
+                    judge=judge,
+                    header="[bold]Judging Saved Responses[/bold]",
+                    show_inputs=True,
+                )
         except KeyboardInterrupt:
             interrupted = True
 
@@ -1238,4 +1385,5 @@ if __name__ == "__main__":
         model=cli_args.model,
         resume=cli_args.resume,
         judge_after=cli_args.judge_after,
+        prompt_count=cli_args.prompt_count,
     )

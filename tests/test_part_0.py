@@ -248,14 +248,17 @@ def test_judge_response_only_uses_missing_ollama_after_api_fails(
 def test_run_alignment_test_preflight_only_checks_selected_benchmark_models(
     monkeypatch,
 ) -> None:
-    captured: dict[str, list[tuple[str, str]]] = {}
+    captured: dict[str, object] = {}
 
     def fake_preflight(
         experiment_name: str,
         targets: list[tuple[str, str]],
+        *,
+        resume: bool = False,
     ) -> None:
         del experiment_name
         captured["targets"] = list(targets)
+        captured["resume"] = resume
         raise RuntimeError("stop after preflight")
 
     monkeypatch.setattr(part_0, "run_experiment_preflight", fake_preflight)
@@ -268,6 +271,162 @@ def test_run_alignment_test_preflight_only_checks_selected_benchmark_models(
         )
 
     assert captured["targets"] == [("ollama", "gpt-oss:20b")]
+    assert captured["resume"] is False
+
+
+def test_run_alignment_test_resume_marks_preflight_as_resume(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_preflight(
+        experiment_name: str,
+        targets: list[tuple[str, str]],
+        *,
+        resume: bool = False,
+    ) -> None:
+        del experiment_name
+        captured["targets"] = list(targets)
+        captured["resume"] = resume
+        raise RuntimeError("stop after preflight")
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(part_0, "run_experiment_preflight", fake_preflight)
+
+    timestamp = "04-10-2026_23:29:07"
+    results_dir = tmp_path / "results" / "alignment"
+    csv_path = results_dir / f"{timestamp}.csv"
+    pending_path = results_dir / f"{timestamp}_pending.csv"
+    metadata_path = results_dir / f"{timestamp}_meta.json"
+
+    _write_csv_rows(csv_path, part_0.RESULT_HEADERS, [])
+    _write_csv_rows(pending_path, part_0.PENDING_RESULT_HEADERS, [])
+    metadata_path.write_text(
+        json.dumps(
+            {
+                "models": {"ollama": ["model-a"]},
+                "prompts": ["prompt-1"],
+                "languages": ["english"],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(RuntimeError, match="stop after preflight"):
+        part_0.run_alignment_test(resume=True)
+
+    assert captured["targets"] == [("ollama", "model-a")]
+    assert captured["resume"] is True
+
+
+def test_cleanup_orphan_alignment_metadata_removes_only_orphans(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    results_dir = tmp_path / "results" / "alignment"
+    keeper_timestamp = "04-10-2026_23:29:07"
+    orphan_timestamp = "04-12-2026_19:25:41"
+    keeper_csv = results_dir / f"{keeper_timestamp}.csv"
+    keeper_meta = results_dir / f"{keeper_timestamp}_meta.json"
+    orphan_meta = results_dir / f"{orphan_timestamp}_meta.json"
+
+    _write_csv_rows(keeper_csv, part_0.RESULT_HEADERS, [])
+    keeper_meta.parent.mkdir(parents=True, exist_ok=True)
+    keeper_meta.write_text("{}", encoding="utf-8")
+    orphan_meta.write_text("{}", encoding="utf-8")
+
+    removed = part_0._cleanup_orphan_alignment_metadata()
+
+    assert [path.resolve() for path in removed] == [orphan_meta.resolve()]
+    assert keeper_meta.exists()
+    assert not orphan_meta.exists()
+
+
+def test_run_alignment_test_does_not_write_metadata_before_preflight(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        part_0,
+        "run_experiment_preflight",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("stop after preflight")),
+    )
+
+    with pytest.raises(RuntimeError, match="stop after preflight"):
+        part_0.run_alignment_test(
+            models={"ollama": ["gpt-oss:20b"]},
+            prompts=["prompt"],
+            languages=["english"],
+        )
+
+    assert list((tmp_path / "results" / "alignment").glob("*_meta.json")) == []
+
+
+def test_run_alignment_test_samples_one_shared_prompt_subset_for_all_models(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    query_calls: list[tuple[str, str]] = []
+
+    class FakeAgent:
+        def __init__(
+            self,
+            id_: str,
+            provider_: str,
+            model_: str,
+            *,
+            keep_alive_: str | None = None,
+        ) -> None:
+            del id_, keep_alive_
+            self.provider = provider_
+            self.model = model_
+
+        def build_alignment_prompt(self, prompt: str) -> str:
+            return prompt
+
+        def __str__(self) -> str:
+            return f"FakeAgent({self.provider}/{self.model})"
+
+    def fake_query_until_valid(agent, prompt: str):
+        query_calls.append((agent.model, prompt))
+        return ("reasoning", "response")
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(part_0, "Agent0", FakeAgent)
+    monkeypatch.setattr(part_0, "query_until_valid", fake_query_until_valid)
+    monkeypatch.setattr(part_0, "judge_response", lambda judge, *args, **kwargs: (("denied", "ok"), judge))
+    monkeypatch.setattr(part_0, "run_experiment_preflight", lambda *args, **kwargs: None)
+    monkeypatch.setattr(part_0, "load_part_0_raw_prompts", lambda: ["p1", "p2", "p3", "p4"])
+    monkeypatch.setattr(part_0, "choose_prompt_count", lambda *args, **kwargs: 2)
+    monkeypatch.setattr(part_0.random, "sample", lambda prompts, count: ["p3", "p1"])
+    monkeypatch.setattr(part_0, "translate_alignment_prompt", lambda prompt, language: f"{prompt}:{language}")
+    monkeypatch.setattr(part_0, "unload_ollama_model", lambda model: None)
+    monkeypatch.setattr(part_0, "_render_model_alignment_rate", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        part_0,
+        "_build_judge",
+        lambda _: SimpleNamespace(provider="openai", model="judge-model"),
+    )
+
+    csv_path = part_0.run_alignment_test(
+        models={"ollama": ["model-a", "model-b"]},
+        languages=["english"],
+    )
+
+    assert query_calls == [
+        ("model-a", "p3:english"),
+        ("model-a", "p1:english"),
+        ("model-b", "p3:english"),
+        ("model-b", "p1:english"),
+    ]
+
+    metadata = json.loads(
+        Path(csv_path).with_name(f"{Path(csv_path).stem}_meta.json").read_text(encoding="utf-8")
+    )
+    assert metadata["prompts"] == ["p3", "p1"]
 
 
 def test_run_alignment_test_judges_each_prompt_before_moving_on(
@@ -579,6 +738,7 @@ def test_run_alignment_test_resume_uses_latest_interrupted_run_and_pending_rows(
 ) -> None:
     query_calls: list[tuple[str, str]] = []
     judge_calls: list[tuple[str, str]] = []
+    rendered_inputs: list[tuple[str, str, str, str]] = []
 
     class FakeAgent:
         def __init__(
@@ -614,6 +774,11 @@ def test_run_alignment_test_resume_uses_latest_interrupted_run_and_pending_rows(
     monkeypatch.setattr(part_0, "judge_response", fake_judge_response)
     monkeypatch.setattr(part_0, "run_experiment_preflight", lambda *args, **kwargs: None)
     monkeypatch.setattr(part_0, "translate_alignment_prompt", lambda prompt, language: f"{prompt}:{language}")
+    monkeypatch.setattr(
+        part_0,
+        "_render_alignment_input",
+        lambda prompt, language, *, provider, model: rendered_inputs.append((prompt, language, provider, model)),
+    )
     monkeypatch.setattr(part_0, "unload_ollama_model", lambda model: None)
     monkeypatch.setattr(part_0, "_render_model_alignment_rate", lambda *args, **kwargs: None)
     monkeypatch.setattr(
@@ -717,6 +882,7 @@ def test_run_alignment_test_resume_uses_latest_interrupted_run_and_pending_rows(
         ("prompt-2", "saved response 2"),
         ("prompt-3", "fresh response 3"),
     ]
+    assert rendered_inputs == [("prompt-3", "english", "ollama", "model-a")]
 
     with newer_csv.open("r", newline="", encoding="utf-8") as handle:
         rows = list(csv.DictReader(handle))
@@ -829,6 +995,7 @@ def test_run_alignment_test_resume_preserves_judge_after_mode(
     tmp_path: Path,
 ) -> None:
     events: list[str] = []
+    rendered_inputs: list[tuple[str, str, str, str]] = []
 
     class FakeAgent:
         def __init__(
@@ -864,6 +1031,11 @@ def test_run_alignment_test_resume_preserves_judge_after_mode(
     monkeypatch.setattr(part_0, "judge_response", fake_judge_response)
     monkeypatch.setattr(part_0, "run_experiment_preflight", lambda *args, **kwargs: None)
     monkeypatch.setattr(part_0, "translate_alignment_prompt", lambda prompt, language: f"{prompt}:{language}")
+    monkeypatch.setattr(
+        part_0,
+        "_render_alignment_input",
+        lambda prompt, language, *, provider, model: rendered_inputs.append((prompt, language, provider, model)),
+    )
     monkeypatch.setattr(part_0, "unload_ollama_model", lambda model: None)
     monkeypatch.setattr(part_0, "_render_model_alignment_rate", lambda *args, **kwargs: None)
     monkeypatch.setattr(
@@ -932,6 +1104,7 @@ def test_run_alignment_test_resume_preserves_judge_after_mode(
         "judge:prompt-2:saved response 2",
         "judge:prompt-3:fresh response 3",
     ]
+    assert rendered_inputs == [("prompt-3", "english", "ollama", "model-a")]
 
     metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
     assert metadata["judge_after"] is True

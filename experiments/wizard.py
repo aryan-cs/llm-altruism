@@ -88,6 +88,12 @@ def parse_alignment_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Repeatable language selection for part 0.",
     )
     parser.add_argument(
+        "--prompt-count",
+        type=int,
+        default=None,
+        help="Choose a random subset of this many prompts for part 0.",
+    )
+    parser.add_argument(
         "--resume",
         "--pick-up-where-we-left-off",
         action="store_true",
@@ -101,6 +107,121 @@ def parse_alignment_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Collect every model response first, then run the judge over the saved responses afterwards.",
     )
     return parser.parse_args(argv)
+
+
+def choose_prompt_count(
+    experiment_name: str,
+    *,
+    total_prompts: int,
+    total_languages: int,
+    total_models: int,
+    prompt_count: int | None = None,
+) -> int:
+    total_prompts = _require_positive("total_prompts", total_prompts)
+    total_languages = _require_positive("total_languages", total_languages)
+    total_models = _require_positive("total_models", total_models)
+
+    console.print(
+        Panel(
+            f"[bold]{experiment_name} Prompt Setup[/bold]\n"
+            f"Choose how many prompts to sample randomly from the {total_prompts} available prompts.\n"
+            f"[bold]Minimum:[/bold] 1  |  [bold]Maximum:[/bold] {total_prompts}\n"
+            f"[bold]Total runs formula:[/bold] prompts × {total_languages} languages × {total_models} models",
+            box=box.DOUBLE,
+            border_style="white",
+            expand=True,
+        )
+    )
+
+    if prompt_count is None:
+        from prompt_toolkit import prompt as pt_prompt
+        from prompt_toolkit.validation import ValidationError, Validator
+
+        default_prompt_count = str(total_prompts)
+
+        class PromptCountValidator(Validator):
+            def validate(self, document) -> None:
+                text = document.text.strip()
+                if not text:
+                    raise ValidationError(message="Enter a prompt count.", cursor_position=0)
+                if not text.isdigit():
+                    raise ValidationError(message="Enter a whole number.", cursor_position=len(document.text))
+                value = int(text)
+                if value <= 0:
+                    raise ValidationError(message="Prompt count must be greater than 0.", cursor_position=len(document.text))
+                if value > total_prompts:
+                    raise ValidationError(
+                        message=f"Prompt count cannot exceed {total_prompts}.",
+                        cursor_position=len(document.text),
+                    )
+
+        def bottom_toolbar() -> str:
+            current_text = get_app().current_buffer.text.strip()
+            preview = _format_prompt_count_preview(
+                current_text or default_prompt_count,
+                total_prompts=total_prompts,
+                total_languages=total_languages,
+                total_models=total_models,
+            )
+            return f" {preview} "
+
+        prompt_count = int(
+            pt_prompt(
+                f"Number of prompts to sample (1-{total_prompts}): ",
+                default=default_prompt_count,
+                validator=PromptCountValidator(),
+                validate_while_typing=True,
+                bottom_toolbar=bottom_toolbar,
+            ).strip()
+        )
+
+    prompt_count = _require_positive("prompt_count", prompt_count)
+    if prompt_count > total_prompts:
+        raise ValueError(
+            f"prompt_count must be less than or equal to the number of available prompts ({total_prompts})."
+        )
+
+    console.print(
+        Panel(
+            f"[bold]Selected prompts:[/bold] {prompt_count} / {total_prompts}\n"
+            f"[bold]Minimum:[/bold] 1  |  [bold]Maximum:[/bold] {total_prompts}\n"
+            f"[bold]Selected languages:[/bold] {total_languages}\n"
+            f"[bold]Selected models:[/bold] {total_models}\n"
+            f"[bold]Total runs:[/bold] {prompt_count * total_languages * total_models}",
+            title="[bold]Prompt Sample Size[/bold]",
+            border_style="green",
+            expand=True,
+        )
+    )
+
+    return prompt_count
+
+
+def _format_prompt_count_preview(
+    prompt_count_text: str,
+    *,
+    total_prompts: int,
+    total_languages: int,
+    total_models: int,
+) -> str:
+    prompt_count_text = prompt_count_text.strip()
+    if not prompt_count_text:
+        return (
+            f"Range: 1-{total_prompts} prompts. "
+            f"Total runs = prompts × {total_languages} languages × {total_models} models."
+        )
+    if not prompt_count_text.isdigit():
+        return "Enter a whole number."
+
+    prompt_count = int(prompt_count_text)
+    if prompt_count <= 0:
+        return "Prompt count must be greater than 0."
+    if prompt_count > total_prompts:
+        return f"Prompt count cannot exceed {total_prompts}."
+    return (
+        f"{prompt_count} prompts × {total_languages} languages × {total_models} models = "
+        f"{prompt_count * total_languages * total_models} total runs"
+    )
 
 
 def parse_game_theory_args() -> argparse.Namespace:

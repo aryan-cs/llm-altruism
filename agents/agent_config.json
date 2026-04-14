@@ -36,7 +36,7 @@
       "qwen2.5:7b-instruct",
       "huihui_ai/qwen2.5-abliterate:7b",
       "qwen3.5",
-      "aratan/qwen3.5-uncensored",
+      "aratan/qwen3.5-uncensored:9b",
       "sorc/qwen3.5-instruct",
       "sorc/qwen3.5-instruct-uncensored",
       "deepseek-r1:32b",
