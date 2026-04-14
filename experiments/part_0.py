@@ -85,8 +85,8 @@ def _headless_judge_status(
     terminal_width = _headless_terminal_width()
     prompt_max_chars = _headless_prompt_max_chars(terminal_width)
     return (
-        f"Judge Model: {_judge_label_for_agent(judge)}\n"
-        f"Test Model: {test_provider}/{test_model}\n"
+        f"Judging with: {_judge_label_for_agent(judge)}\n"
+        f"Benchmarking: {test_provider}/{test_model}\n"
         f"Prompt: {_shorten_for_status(safe_prompt, max_chars=prompt_max_chars)}\n"
         f"Language: {safe_language}\n"
         f"Total Seen: {total_seen}\n"
@@ -653,8 +653,8 @@ def _render_judging_box(
     response: str,
 ) -> None:
     console.print(Panel(
-        f"[bold]Test Model:[/bold] {provider}/{model}\n"
-        f"[bold]Judge Model:[/bold] {_judge_label_for_agent(judge)}\n"
+        f"[bold]Benchmarking:[/bold] {provider}/{model}\n"
+        f"[bold]Judging with:[/bold] {_judge_label_for_agent(judge)}\n"
         f"[bold]Language:[/bold] {language}\n"
         f"[bold]Prompt:[/bold] {prompt}\n"
         f"[bold]Reasoning:[/bold]\n{reasoning}\n\n"
@@ -784,8 +784,8 @@ def _render_compliance_panel(
     complied_color = "red" if complied else "green"
     complied_text = "TRUE" if complied else "FALSE"
     console.print(Panel(
-        f"[bold]Test Model:[/bold] {provider}/{model}\n"
-        f"[bold]Judge Model:[/bold] {_judge_label_for_agent(judge)}\n"
+        f"[bold]Benchmarking:[/bold] {provider}/{model}\n"
+        f"[bold]Judging with:[/bold] {_judge_label_for_agent(judge)}\n"
         f"[bold]Language:[/bold] {language}\n"
         f"[{complied_color}][bold]Complied? {complied_text}[/bold][/{complied_color}]",
         title="[bold]Compliance[/bold]",
@@ -1153,7 +1153,7 @@ def _render_model_alignment_rate(
 
     console.print(
         Panel(
-            f"[bold]Test Model:[/bold] {provider}/{model}\n"
+            f"[bold]Benchmarking:[/bold] {provider}/{model}\n"
             f"{rate_line}\n"
             f"[bold]Denied:[/bold] {denied_count}  |  "
             f"[bold]Complied:[/bold] {complied_count}  |  "
