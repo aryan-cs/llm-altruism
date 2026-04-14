@@ -2,16 +2,16 @@
   "judge": {
     "providers": [
       {
-        "provider": "ollama",
-        "model": "gpt-oss:20b"
-      },
-      {
-        "provider": "cerebras",
-        "model": "llama3.1-8b"
+        "provider": "groq",
+        "model": "openai/gpt-oss-120b"
       },
       {
         "provider": "ollama",
         "model": "gpt-oss-safeguard:20b"
+      },
+      {
+        "provider": "ollama",
+        "model": "gpt-oss:20b"
       }
     ]
   }
