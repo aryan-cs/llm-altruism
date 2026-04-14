@@ -36,7 +36,24 @@ def _float_env(var_name: str, default: float) -> float:
         return default
 
 
+def _int_env(var_name: str, default: int) -> int:
+    raw_value = os.getenv(var_name, "").strip()
+    if not raw_value:
+        return default
+    try:
+        return int(raw_value)
+    except ValueError:
+        return default
+
+
 OLLAMA_ADMIN_TIMEOUT_SECONDS = _float_env("OLLAMA_ADMIN_TIMEOUT_SECONDS", 10.0)
+# Maximum wall-clock seconds allowed for a single generation request.
+# Prevents models from hanging indefinitely on problematic prompts (e.g. safety
+# refusal loops that never emit an EOS token).  Override via env var.
+OLLAMA_GENERATION_TIMEOUT_SECONDS = _float_env("OLLAMA_GENERATION_TIMEOUT_SECONDS", 120.0)
+# Maximum tokens the model may generate per request.  Caps runaway generation
+# loops before the HTTP timeout would kick in.  Override via env var.
+OLLAMA_NUM_PREDICT = _int_env("OLLAMA_NUM_PREDICT", 2048)
 
 
 def api_call(
@@ -601,7 +618,8 @@ def _query_ollama(
     _unload_other_ollama_models_with_client(admin_client, keep_model=resolved_model)
     model_available = _ollama_model_available_locally_with_client(admin_client, resolved_model)
 
-    client = _build_ollama_client(timeout=timeout)
+    generation_timeout = timeout if timeout is not None else OLLAMA_GENERATION_TIMEOUT_SECONDS
+    client = _build_ollama_client(timeout=generation_timeout)
     if not model_available:
         try:
             _pull_ollama_model(client, resolved_model)
@@ -623,11 +641,10 @@ def _query_ollama(
     elif json_mode:
         payload["format"] = "json"
 
-    options: dict[str, Any] = {}
+    options: dict[str, Any] = {"num_predict": OLLAMA_NUM_PREDICT}
     if temperature is not None:
         options["temperature"] = temperature
-    if options:
-        payload["options"] = options
+    payload["options"] = options
 
     try:
         response = client.chat(**payload)

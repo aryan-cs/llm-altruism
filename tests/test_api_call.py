@@ -555,7 +555,10 @@ def test_api_call_ollama_pulls_missing_model_before_chat(
         {
             "pull": "llama3.1:8b",
             "stream": True,
-            "client": {"host": _ollama_host()},
+            "client": {
+                "host": _ollama_host(),
+                "timeout": api_call_module.OLLAMA_GENERATION_TIMEOUT_SECONDS,
+            },
         },
         {
             "request": {
@@ -565,8 +568,12 @@ def test_api_call_ollama_pulls_missing_model_before_chat(
                     {"role": "user", "content": "query"},
                 ],
                 "keep_alive": 0,
+                "options": {"num_predict": api_call_module.OLLAMA_NUM_PREDICT},
             },
-            "client": {"host": _ollama_host()},
+            "client": {
+                "host": _ollama_host(),
+                "timeout": api_call_module.OLLAMA_GENERATION_TIMEOUT_SECONDS,
+            },
         },
     ]
 
@@ -630,7 +637,10 @@ def test_api_call_ollama_uses_canonical_alias_for_chat(
         {
             "pull": "aratan/qwen3.5-uncensored:9b",
             "stream": True,
-            "client": {"host": _ollama_host()},
+            "client": {
+                "host": _ollama_host(),
+                "timeout": api_call_module.OLLAMA_GENERATION_TIMEOUT_SECONDS,
+            },
         },
         {
             "request": {
@@ -640,8 +650,12 @@ def test_api_call_ollama_uses_canonical_alias_for_chat(
                     {"role": "user", "content": "query"},
                 ],
                 "keep_alive": 0,
+                "options": {"num_predict": api_call_module.OLLAMA_NUM_PREDICT},
             },
-            "client": {"host": _ollama_host()},
+            "client": {
+                "host": _ollama_host(),
+                "timeout": api_call_module.OLLAMA_GENERATION_TIMEOUT_SECONDS,
+            },
         },
     ]
 
@@ -713,8 +727,12 @@ def test_api_call_ollama_unloads_other_loaded_models_before_chat(
                     {"role": "user", "content": "query"},
                 ],
                 "keep_alive": 0,
+                "options": {"num_predict": api_call_module.OLLAMA_NUM_PREDICT},
             },
-            "client": {"host": _ollama_host()},
+            "client": {
+                "host": _ollama_host(),
+                "timeout": api_call_module.OLLAMA_GENERATION_TIMEOUT_SECONDS,
+            },
         },
     ]
 
@@ -776,6 +794,7 @@ def test_api_call_ollama_forwards_explicit_timeout_to_chat_client(
                     {"role": "user", "content": "query"},
                 ],
                 "keep_alive": 0,
+                "options": {"num_predict": api_call_module.OLLAMA_NUM_PREDICT},
             },
             "client": {
                     "host": _ollama_host(),
