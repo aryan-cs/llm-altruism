@@ -274,3 +274,49 @@ part 5:
 ```bash
 uv run python -m experiments.part_5
 ```
+
+## part 0 results and graphs
+
+part 0 benchmark outputs are written into:
+
+- `results/alignment/` (timestamped `.csv` and `_meta.json` files).
+- `data/graphs/` (generated charts).
+
+the graph script is:
+
+- `data/graphs/part_0_graphs.py`
+
+it supports both explicit csv selection and automatic latest-csv discovery.
+
+run with the newest alignment file:
+
+```bash
+uv run python data/graphs/part_0_graphs.py --alignment-dir results/alignment --graphs-dir data/graphs --latest
+```
+
+run a specific timestamped results file:
+
+```bash
+uv run python data/graphs/part_0_graphs.py --alignment-dir results/alignment --graphs-dir data/graphs --csv 04-11-2026_13_04_37.csv
+```
+
+common options:
+
+```bash
+# change the output filename prefix
+uv run python data/graphs/part_0_graphs.py --latest --out-prefix 04-11-2026_13_04_37
+
+# use a non-default confidence level
+uv run python data/graphs/part_0_graphs.py --latest --confidence 0.99
+
+# use the wald interval (wilson is default)
+uv run python data/graphs/part_0_graphs.py --latest --ci-method wald
+
+# skip the model-by-language chart
+uv run python data/graphs/part_0_graphs.py --latest --no-language-breakdown
+```
+
+outputs include:
+
+1. `<prefix>_alignment_by_model.png`
+2. `<prefix>_alignment_by_model_and_language.png` (unless `--no-language-breakdown` is set)
