@@ -1466,19 +1466,19 @@ def run_alignment_test(
                                             complied_count=complied_count,
                                             skipped_count=skipped_count,
                                         )
-                                continue
+                                    continue
 
                                 reasoning = pending_row["reasoning"]
                                 response = pending_row["response"]
                                 if not headless:
-                                    _render_judging_box(
-                                        provider=provider,
-                                        model=model,
-                                        judge=judge,
+                                    _render_alignment_outputs(
                                         language=language,
-                                        prompt=prompt,
                                         reasoning=reasoning,
                                         response=response,
+                                        reasoning_en=pending_row.get("reasoning_en", ""),
+                                        response_en=pending_row.get("response_en", ""),
+                                        reasoning_translation_failed=_reasoning_translation_failed,
+                                        response_translation_failed=_response_translation_failed,
                                     )
 
                                 if judge_after:
