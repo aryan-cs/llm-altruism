@@ -10,11 +10,19 @@ venv/
 env/
 ENV/
 
+# uv / local dependency tool metadata
+.uv/
+
 # Python caches and bytecode
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
+__pypackages__/
+
+# Interactive notebook metadata
+.ipynb_checkpoints/
+.python_history
 
 # Tooling caches
 .pytest_cache/
@@ -45,12 +53,11 @@ pip-wheel-metadata/
 *.tmp
 *.swp
 *.swo
+*.pid
+*.seed
 
 # Editors and OS files
 .vscode/
 .idea/
 .DS_Store
 Thumbs.db
-
-# Project outputs
-results/
