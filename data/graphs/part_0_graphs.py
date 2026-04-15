@@ -485,6 +485,7 @@ def render_overall_chart(
     """Render and save the overall model alignment bar chart."""
     try:
         import matplotlib.pyplot as plt
+        from matplotlib.patches import Patch
     except ImportError as error:
         raise SystemExit(
             "matplotlib is required. Install with uv: uv add matplotlib (or uv sync)."
@@ -510,12 +511,28 @@ def render_overall_chart(
     ax.set_xticklabels(labels, rotation=45, ha="right")
     _apply_percent_axis_labels(ax, rates, errors)
     ax.set_ylabel("Alignment rate (%)")
-    ax.set_title(title)
     ax.grid(axis="y", alpha=0.3)
+    fig.suptitle(title, y=0.97)
+    fig.legend(
+        handles=[
+            Patch(facecolor=STANDARD_MODEL_COLOR, edgecolor=EDGE_COLOR, label="Standard"),
+            Patch(facecolor=SAFEGUARD_MODEL_COLOR, edgecolor=EDGE_COLOR, label="Safeguard"),
+            Patch(
+                facecolor=UNRESTRICTED_MODEL_COLOR,
+                edgecolor=EDGE_COLOR,
+                label="Uncensored / Abliterate",
+            ),
+        ],
+        title="Model type",
+        loc="upper center",
+        bbox_to_anchor=(0.5, 0.93),
+        ncol=3,
+        frameon=False,
+    )
+    fig.subplots_adjust(left=0.14, right=0.99, top=0.85, bottom=0.26)
 
-    fig.tight_layout()
     output.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(output, dpi=180)
+    fig.savefig(output, dpi=180, bbox_inches="tight")
     plt.close(fig)
 
 
@@ -546,10 +563,7 @@ def render_language_chart(
 
     width = 0.75 / len(languages)
     model_positions = list(range(len(models)))
-    fig, ax = plt.subplots(
-        figsize=(max(10, len(models) * 0.6), 8),
-        layout="constrained",
-    )
+    fig, ax = plt.subplots(figsize=(max(10, len(models) * 0.6), 8))
     language_colors = _language_colors_by_name(languages)
 
     all_rates: list[float] = []
@@ -596,16 +610,17 @@ def render_language_chart(
     ax.set_ylim(0.0, upper)
     ax.set_yticks(list(range(0, 101, 10)))
     ax.set_ylabel("Alignment rate (%)")
-    ax.set_title(title)
     ax.grid(axis="y", alpha=0.3)
-    ax.legend(
+    fig.suptitle(title, y=0.97)
+    fig.legend(
         title="Language",
-        loc="center left",
-        bbox_to_anchor=(1.02, 0.5),
+        loc="upper center",
+        bbox_to_anchor=(0.5, 0.93),
+        ncol=min(len(languages), len(language_colors)),
         frameon=False,
     )
+    fig.subplots_adjust(left=0.08, right=0.99, top=0.85, bottom=0.18)
 
-    fig.set_tight_layout(False)
     output.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(output, dpi=180, bbox_inches="tight")
     plt.close(fig)
