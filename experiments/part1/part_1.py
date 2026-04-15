@@ -5,10 +5,10 @@ import json
 from datetime import datetime
 
 from agents.agent_1 import Agent1
-from experiments.preflight import run_experiment_preflight
-from experiments.prompt_loader import load_prompt_config
-from experiments.result_writer import IncrementalCsvWriter
-from experiments.wizard import (
+from experiments.misc.preflight import run_experiment_preflight
+from experiments.misc.prompt_loader import load_prompt_config
+from experiments.misc.result_writer import IncrementalCsvWriter
+from experiments.misc.wizard import (
     choose_prompt_style,
     choose_provider_and_model,
     parse_game_theory_args,

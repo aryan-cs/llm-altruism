@@ -11,16 +11,16 @@ from pathlib import Path
 
 from agents.agent_0 import Agent0
 from agents.base_agent import BaseAgent
-from experiments.preflight import run_experiment_preflight
+from experiments.misc.preflight import run_experiment_preflight
 from deep_translator import GoogleTranslator
-from experiments.prompt_loader import (
+from experiments.misc.prompt_loader import (
     load_experiment_json,
     load_part_0_raw_prompts,
     load_prompt_config,
     render_prompt_template,
 )
-from experiments.result_writer import IncrementalCsvWriter
-from experiments.wizard import (
+from experiments.misc.result_writer import IncrementalCsvWriter
+from experiments.misc.wizard import (
     choose_benchmark_models,
     choose_languages,
     choose_prompt_count,

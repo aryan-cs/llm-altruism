@@ -1,6 +1,6 @@
 import pytest
 
-from experiments.wizard import (
+from experiments.misc.wizard import (
     _format_prompt_count_preview,
     DEFAULT_COMMUNITY_BENEFIT,
     DEFAULT_DEPLETION_UNITS,

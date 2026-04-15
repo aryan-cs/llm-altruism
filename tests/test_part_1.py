@@ -2,7 +2,7 @@ import csv
 import json
 from pathlib import Path
 
-from experiments.part_1 import run_part_1
+from experiments.part1.part_1 import run_part_1
 
 
 def test_run_part_1_writes_results_incrementally(
@@ -10,7 +10,9 @@ def test_run_part_1_writes_results_incrementally(
     tmp_path: Path,
 ) -> None:
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("experiments.part_1.run_experiment_preflight", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        "experiments.part1.part_1.run_experiment_preflight", lambda *args, **kwargs: None
+    )
 
     def fake_query(self, query: str, json_mode: bool = False) -> str:
         del query, json_mode
@@ -18,7 +20,7 @@ def test_run_part_1_writes_results_incrementally(
             return json.dumps({"reasoning": "A reasoning", "action": "SNITCH"})
         return json.dumps({"reasoning": "B reasoning", "action": "STAY_SILENT"})
 
-    monkeypatch.setattr("experiments.part_1.Agent1.query", fake_query)
+    monkeypatch.setattr("experiments.part1.part_1.Agent1.query", fake_query)
 
     csv_path = run_part_1(
         provider="openai",
@@ -40,7 +42,9 @@ def test_run_part_1_preserves_first_agent_row_when_interrupted(
     tmp_path: Path,
 ) -> None:
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("experiments.part_1.run_experiment_preflight", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        "experiments.part1.part_1.run_experiment_preflight", lambda *args, **kwargs: None
+    )
 
     calls = {"count": 0}
 
@@ -51,7 +55,7 @@ def test_run_part_1_preserves_first_agent_row_when_interrupted(
             return json.dumps({"reasoning": "A reasoning", "action": "SNITCH"})
         raise KeyboardInterrupt()
 
-    monkeypatch.setattr("experiments.part_1.Agent1.query", fake_query)
+    monkeypatch.setattr("experiments.part1.part_1.Agent1.query", fake_query)
 
     csv_path = run_part_1(
         provider="openai",

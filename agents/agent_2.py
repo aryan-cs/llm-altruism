@@ -3,7 +3,7 @@
 from pydantic import BaseModel, ConfigDict, Field
 
 from agents.base_agent import BaseAgent
-from experiments.prompt_loader import load_prompt_config, render_prompt_template
+from experiments.misc.prompt_loader import load_prompt_config, render_prompt_template
 
 PART_2_PROMPTS = load_prompt_config("part_2")
 

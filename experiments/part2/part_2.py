@@ -7,10 +7,10 @@ from datetime import datetime
 from math import ceil
 
 from agents.agent_2 import Agent2
-from experiments.preflight import run_experiment_preflight
-from experiments.prompt_loader import load_prompt_config
-from experiments.result_writer import IncrementalCsvWriter
-from experiments.wizard import (
+from experiments.misc.preflight import run_experiment_preflight
+from experiments.misc.prompt_loader import load_prompt_config
+from experiments.misc.result_writer import IncrementalCsvWriter
+from experiments.misc.wizard import (
     SocietyConfig,
     choose_provider_and_model,
     choose_society_config,

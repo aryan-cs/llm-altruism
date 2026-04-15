@@ -2,7 +2,7 @@ import csv
 import json
 from pathlib import Path
 
-from experiments.part_2 import run_part_2
+from experiments.part2.part_2 import run_part_2
 
 
 def test_run_part_2_writes_multi_day_results(
@@ -20,7 +20,7 @@ def test_run_part_2_writes_multi_day_results(
             }
         )
 
-    monkeypatch.setattr("experiments.part_2.Agent2.query", fake_query)
+    monkeypatch.setattr("experiments.part2.part_2.Agent2.query", fake_query)
 
     csv_path = run_part_2(
         provider="openai",

@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import pytest
 from rich.console import Console
 
-from experiments import part_0
+from experiments.part0 import part_0
 
 
 class FakeJudge:

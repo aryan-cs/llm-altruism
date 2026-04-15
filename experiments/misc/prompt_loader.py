@@ -9,7 +9,8 @@ from string import Template
 from typing import Any
 
 PROMPT_DIR = Path(__file__).resolve().parent
-RAW_DATA_DIR = PROMPT_DIR.parent / "data" / "raw"
+EXPERIMENT_ROOT_DIR = PROMPT_DIR.parent
+RAW_DATA_DIR = EXPERIMENT_ROOT_DIR.parent / "data" / "raw"
 
 
 def _strip_json_comments(raw_text: str) -> str:
@@ -28,9 +29,9 @@ def _strip_trailing_commas(raw_text: str) -> str:
 
 @lru_cache(maxsize=None)
 def load_experiment_json(file_name: str) -> dict[str, Any]:
-    config_path = PROMPT_DIR / file_name
-    if not config_path.is_file():
-        raise FileNotFoundError(f"Missing experiment config: {config_path}")
+    config_path = _resolve_experiment_file(file_name)
+    if config_path is None:
+        raise FileNotFoundError(f"Missing experiment config: {file_name}")
 
     raw_text = config_path.read_text(encoding="utf-8")
     config = json.loads(_strip_trailing_commas(_strip_json_comments(raw_text)))
@@ -38,6 +39,28 @@ def load_experiment_json(file_name: str) -> dict[str, Any]:
     if not isinstance(config, dict):
         raise ValueError(f"Experiment config must be a JSON object: {config_path}")
     return config
+
+
+def _resolve_experiment_file(file_name: str) -> Path | None:
+    filename = Path(file_name)
+
+    candidate_roots: list[Path] = [PROMPT_DIR, EXPERIMENT_ROOT_DIR]
+    for part_dir in EXPERIMENT_ROOT_DIR.glob("part*"):
+        if part_dir.is_dir():
+            candidate_roots.append(part_dir)
+
+    candidates: list[Path] = []
+    if filename.is_absolute():
+        candidates.append(filename)
+    else:
+        for root in candidate_roots:
+            candidates.append(root / filename)
+
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+
+    return None
 
 
 def load_prompt_config(part_name: str) -> dict[str, Any]:

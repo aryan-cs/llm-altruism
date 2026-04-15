@@ -80,14 +80,24 @@ llm-altruism/
 │   └── base_agent.py
 ├── experiments/
 │   ├── __init__.py
-│   ├── prompt_loader.py
-│   ├── part_0.py
-│   ├── part_0_config.json
-│   ├── part_0_prompt.json
-│   ├── part_1.py
-│   ├── part_1_prompt.json
-│   ├── part_2.py
-│   └── part_2_prompt.json
+│   ├── misc/
+│   │   ├── preflight.py
+│   │   ├── prompt_loader.py
+│   │   ├── result_writer.py
+│   │   └── wizard.py
+│   ├── part0/
+│   │   ├── part_0.py
+│   │   ├── part_0_config.json
+│   │   └── part_0_prompt.json
+│   ├── part1/
+│   │   ├── part_1.py
+│   │   └── part_1_prompt.json
+│   ├── part2/
+│   │   ├── part_2.py
+│   │   └── part_2_prompt.json
+│   ├── part3/  # placeholder package
+│   ├── part4/  # placeholder package
+│   └── part5/  # placeholder package
 ├── providers/
 │   ├── __init__.py
 │   └── api_call.py
@@ -104,11 +114,19 @@ llm-altruism/
 
 ## models tested
 
-uncensored models:
-- start here...
-
-censored models:
-- start here...
+- gpt-oss:20b
+- gpt-oss-safeguard:20b
+- gurubot/gpt-oss-derestricted:20b
+- llama2
+- llama2-uncensored
+- qwen2.5:7b
+- huihui_ai/qwen2.5-abliterate:7b
+- qwen2.5:7b-instruct
+- huihui_ai/qwen2.5-abliterate:7b-instruct
+- qwen3.5
+- aratan/qwen3.5-uncensored:9b
+- sorc/qwen3.5-instruct
+- sorc/qwen3.5-instruct-uncensored
 
 ## how to run
 
@@ -179,7 +197,7 @@ uv run pytest
 6. then launch an experiment with a provider/model you actually configured, for example:
 
 ```bash
-uv run python -m experiments.part_1 --provider openai --model gpt-4.1-mini
+uv run python -m experiments.part1.part_1 --provider openai --model gpt-4.1-mini
 ```
 
 setup recap:
@@ -204,15 +222,15 @@ the interactive selection menus use the keyboard: `↑` / `↓` to move, `Enter`
 you can skip either stage with optional CLI args:
 
 ```bash
-uv run python -m experiments.part_1 --provider openai
-uv run python -m experiments.part_1 --provider openai --model gpt-4.1-mini
+uv run python -m experiments.part1.part_1 --provider openai
+uv run python -m experiments.part1.part_1 --provider openai --model gpt-4.1-mini
 ```
 
 for part 0, the wizard asks you to choose one or more benchmark models and which languages to run. if you want to skip those prompts, pass one or more `--benchmark provider:model` entries and one or more `--language` entries:
 
 ```bash
-uv run python -m experiments.part_0 --benchmark openai:gpt-4.1-mini --language english
-uv run python -m experiments.part_0 --benchmark openai:gpt-4.1-mini --benchmark anthropic:claude-sonnet-4-5 --language english --language spanish
+uv run python -m experiments.part0.part_0 --benchmark openai:gpt-4.1-mini --language english
+uv run python -m experiments.part0.part_0 --benchmark openai:gpt-4.1-mini --benchmark anthropic:claude-sonnet-4-5 --language english --language spanish
 ```
 
 part 0 now loads its benchmark prompts from every CSV in `data/raw/part_0`. each CSV must include a `prompt` column, and each row in that column is treated as one prompt. preflight only checks the benchmark models selected for the run; judge fallbacks are tried at runtime, and missing ollama judge models are deferred until the other configured judges have been tried first. when part 0 benchmarks multiple models, it now runs all prompts and selected languages for one benchmark model first, unloads that benchmark model, then runs the judge pass for that batch before moving to the next benchmark model. ollama requests also unload other loaded ollama models before each call, so the repo only keeps one ollama model resident at a time.
@@ -220,7 +238,7 @@ part 0 now loads its benchmark prompts from every CSV in `data/raw/part_0`. each
 for part 1, the wizard also asks whether to use a direct or indirect prompt framing. you can skip that prompt with:
 
 ```bash
-uv run python -m experiments.part_1 --provider openai --model gpt-4.1-mini --prompt-style direct
+uv run python -m experiments.part1.part_1 --provider openai --model gpt-4.1-mini --prompt-style direct
 ```
 
 for part 2, the wizard also asks for the starting number of agents and the society parameters. the starter defaults are:
@@ -234,46 +252,30 @@ for part 2, the wizard also asks for the starting number of agents and the socie
 you can override any of them from the CLI:
 
 ```bash
-uv run python -m experiments.part_2 --provider openai --model gpt-4.1-mini --society-size 50
-uv run python -m experiments.part_2 --provider openai --model gpt-4.1-mini --society-size 80 --days 250 --resource fish --selfish-gain 3 --depletion-units 3 --community-benefit 6
-uv run python -m experiments.part_2 --provider openai --model gpt-4.1-mini --society-size 50 --days 0
+uv run python -m experiments.part2.part_2 --provider openai --model gpt-4.1-mini --society-size 50
+uv run python -m experiments.part2.part_2 --provider openai --model gpt-4.1-mini --society-size 80 --days 250 --resource fish --selfish-gain 3 --depletion-units 3 --community-benefit 6
+uv run python -m experiments.part2.part_2 --provider openai --model gpt-4.1-mini --society-size 50 --days 0
 ```
 
 part 0:
 
 ```bash
-uv run python -m experiments.part_0
+uv run python -m experiments.part0.part_0
 ```
 
 part 1:
 
 ```bash
-uv run python -m experiments.part_1
+uv run python -m experiments.part1.part_1
 ```
 
 part 2:
 
 ```bash
-uv run python -m experiments.part_2
+uv run python -m experiments.part2.part_2
 ```
 
-part 3:
-
-```bash
-uv run python -m experiments.part_3
-```
-
-part 4:
-
-```bash
-uv run python -m experiments.part_4
-```
-
-part 5:
-
-```bash
-uv run python -m experiments.part_5
-```
+Part 3, part 4, and part 5 are reserved for future experiments and are currently placeholders.
 
 ## part 0 results and graphs
 

@@ -2,8 +2,8 @@ from pathlib import Path
 
 from agents.agent_1 import Agent1
 from agents.agent_2 import Agent2
-from experiments import prompt_loader
-from experiments.prompt_loader import (
+from experiments.misc import prompt_loader
+from experiments.misc.prompt_loader import (
     load_part_0_raw_prompts,
     load_prompt_config,
     load_prompts_from_csv_dir,
