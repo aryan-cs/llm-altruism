@@ -568,6 +568,7 @@ def test_api_call_ollama_pulls_missing_model_before_chat(
                     {"role": "user", "content": "query"},
                 ],
                 "keep_alive": 0,
+                "think": False,
                 "options": {"num_predict": api_call_module.OLLAMA_NUM_PREDICT},
             },
             "client": {
@@ -650,6 +651,7 @@ def test_api_call_ollama_uses_canonical_alias_for_chat(
                     {"role": "user", "content": "query"},
                 ],
                 "keep_alive": 0,
+                "think": False,
                 "options": {"num_predict": api_call_module.OLLAMA_NUM_PREDICT},
             },
             "client": {
@@ -727,11 +729,66 @@ def test_api_call_ollama_unloads_other_loaded_models_before_chat(
                     {"role": "user", "content": "query"},
                 ],
                 "keep_alive": 0,
+                "think": False,
                 "options": {"num_predict": api_call_module.OLLAMA_NUM_PREDICT},
             },
             "client": {
                 "host": _ollama_host(),
                 "timeout": api_call_module.OLLAMA_GENERATION_TIMEOUT_SECONDS,
+            },
+        },
+    ]
+
+
+def test_delete_other_ollama_models_keeps_target_model_and_deletes_rest(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict] = []
+
+    class FakeOllamaClient:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+        def list(self):
+            calls.append({"list": True, "client": dict(self.kwargs)})
+            return SimpleNamespace(
+                models=[
+                    SimpleNamespace(model="qwen3.5:latest"),
+                    SimpleNamespace(model="other-model:latest"),
+                    SimpleNamespace(model="gpt-oss:20b"),
+                ]
+            )
+
+        def delete(self, model: str):
+            calls.append({"delete": model, "client": dict(self.kwargs)})
+            return {"status": "success"}
+
+    module = ModuleType("ollama")
+    module.Client = FakeOllamaClient
+    monkeypatch.setitem(sys.modules, "ollama", module)
+
+    api_call_module.delete_other_ollama_models("qwen3.5")
+
+    assert calls == [
+        {
+            "list": True,
+            "client": {
+                "host": _ollama_host(),
+                "timeout": api_call_module.OLLAMA_ADMIN_TIMEOUT_SECONDS,
+            },
+        },
+        {
+            "delete": "other-model:latest",
+            "client": {
+                "host": _ollama_host(),
+                "timeout": api_call_module.OLLAMA_ADMIN_TIMEOUT_SECONDS,
+            },
+        },
+        {
+            "delete": "gpt-oss:20b",
+            "client": {
+                "host": _ollama_host(),
+                "timeout": api_call_module.OLLAMA_ADMIN_TIMEOUT_SECONDS,
             },
         },
     ]
@@ -794,11 +851,116 @@ def test_api_call_ollama_forwards_explicit_timeout_to_chat_client(
                     {"role": "user", "content": "query"},
                 ],
                 "keep_alive": 0,
+                "think": False,
                 "options": {"num_predict": api_call_module.OLLAMA_NUM_PREDICT},
             },
             "client": {
                     "host": _ollama_host(),
                 "timeout": 42,
+            },
+        },
+    ]
+
+
+def test_api_call_ollama_retries_when_runner_process_terminates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict] = []
+
+    class FakeResponseError(Exception):
+        def __init__(self, error: str, status_code: int = -1):
+            super().__init__(error)
+            self.error = error
+            self.status_code = status_code
+
+    class FakeOllamaClient:
+        chat_calls = 0
+
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+        def ps(self):
+            calls.append({"ps": True, "client": dict(self.kwargs)})
+            return SimpleNamespace(models=[])
+
+        def show(self, model: str):
+            calls.append({"show": model, "client": dict(self.kwargs)})
+            return {"model": model}
+
+        def generate(self, **kwargs):
+            calls.append({"generate": kwargs, "client": dict(self.kwargs)})
+            return {"response": "", "done": True}
+
+        def chat(self, **kwargs):
+            FakeOllamaClient.chat_calls += 1
+            calls.append({"request": kwargs, "client": dict(self.kwargs)})
+            if FakeOllamaClient.chat_calls == 1:
+                raise FakeResponseError(
+                    "llama runner process has terminated: %!w(<nil>)",
+                    500,
+                )
+            return {"message": {"content": '{"value":"ok"}'}}
+
+    module = ModuleType("ollama")
+    module.Client = FakeOllamaClient
+    module.ResponseError = FakeResponseError
+    monkeypatch.setitem(sys.modules, "ollama", module)
+
+    result = api_call_module.api_call("ollama", "test-model", "sys", "query")
+
+    assert json.loads(result) == {"value": "ok"}
+    assert calls == [
+        {
+            "ps": True,
+            "client": {
+                "host": _ollama_host(),
+                "timeout": api_call_module.OLLAMA_ADMIN_TIMEOUT_SECONDS,
+            },
+        },
+        {
+            "show": "test-model",
+            "client": {
+                "host": _ollama_host(),
+                "timeout": api_call_module.OLLAMA_ADMIN_TIMEOUT_SECONDS,
+            },
+        },
+        {
+            "request": {
+                "model": "test-model",
+                "messages": [
+                    {"role": "system", "content": "sys"},
+                    {"role": "user", "content": "query"},
+                ],
+                "keep_alive": 0,
+                "think": False,
+                "options": {"num_predict": api_call_module.OLLAMA_NUM_PREDICT},
+            },
+            "client": {
+                "host": _ollama_host(),
+                "timeout": api_call_module.OLLAMA_GENERATION_TIMEOUT_SECONDS,
+            },
+        },
+        {
+            "generate": {"model": "test-model", "keep_alive": 0},
+            "client": {
+                "host": _ollama_host(),
+                "timeout": api_call_module.OLLAMA_ADMIN_TIMEOUT_SECONDS,
+            },
+        },
+        {
+            "request": {
+                "model": "test-model",
+                "messages": [
+                    {"role": "system", "content": "sys"},
+                    {"role": "user", "content": "query"},
+                ],
+                "keep_alive": 0,
+                "think": False,
+                "options": {"num_predict": api_call_module.OLLAMA_NUM_PREDICT},
+            },
+            "client": {
+                "host": _ollama_host(),
+                "timeout": api_call_module.OLLAMA_GENERATION_TIMEOUT_SECONDS,
             },
         },
     ]

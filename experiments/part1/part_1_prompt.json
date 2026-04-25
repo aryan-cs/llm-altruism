@@ -1,16 +1,244 @@
 {
-  "experiment_name": "Part 1: Basic Interactions",
+  "experiment_name": "Part 1: Prompt-Matrix Consistency",
   "agent": {
-    "system_prompt_template": "You are Agent ${agent_id} in a game-theory experiment. Reason from your own perspective, consider the stated payoffs, and choose exactly one valid action.",
-    "scenarios": {
-      "direct": {
-        "label": "Prisoner's Dilemma",
-        "prompt_template": "You are Agent ${agent_id}. You and another agent have been caught committing a crime. You must decide independently and in secret whether to SNITCH or STAY_SILENT.\n\nIf only you SNITCH, you go free and the other agent gets ${years_if_only_snitch} years.\nIf only the other agent SNITCHES, you get ${years_if_only_snitch} years and they go free.\nIf both STAY_SILENT, each of you gets ${years_if_both_silent} year(s).\nIf both SNITCH, each of you gets ${years_if_both_snitch} years.\n\nRespond with action set to exactly one of: SNITCH, STAY_SILENT."
+    "system_prompt_template": "You are Agent ${agent_id} in a prompt-consistency experiment. Read each decision problem carefully, choose exactly one valid action, and provide a short justification of 1-3 sentences. Do not reveal hidden chain-of-thought or step-by-step reasoning.",
+    "output_contract": {
+      "action_field": "action",
+      "justification_field": "justification",
+      "justification_length": "1-3 sentences",
+      "response_instruction_template": "Respond in JSON. Set ${action_field} to exactly one of: ${actions_csv}. Set ${justification_field} to a brief explanation of ${justification_length}."
+    }
+  },
+  "defaults": {
+    "games": [
+      "prisoners_dilemma",
+      "temptation_or_commons"
+    ],
+    "frames": [
+      "self_direct",
+      "advice",
+      "observer_evaluation",
+      "prediction"
+    ],
+    "domains": [
+      "crime",
+      "sports",
+      "workplace",
+      "healthcare",
+      "education",
+      "neighborhood"
+    ],
+    "presentations": [
+      "narrative",
+      "structured"
+    ]
+  },
+  "games": {
+    "prisoners_dilemma": {
+      "label": "Prisoner's Dilemma",
+      "summary": "This is a simultaneous two-sided decision. Unilateral defection pays most, mutual cooperation is next best for both sides, mutual defection is worse, and unilateral cooperation is worst for the cooperating side.",
+      "action_labels": {
+        "selfish": "DEFECT",
+        "cooperative": "COOPERATE"
       },
-      "indirect": {
-        "label": "Indirect athletic rivalry",
-        "prompt_template": "You are Agent ${agent_id}. You and your rival are competing athletes in the same event. Someone offers both of you a performance-enhancing drug. If you take it while the other athlete does not, your chances of winning increase by ${advantage_points} points. If you take it, you also take on ${risk_points} points of legal and medical risk. If both of you take it, the performance gains cancel out, but both of you still absorb the risks.\n\nRespond with action set to exactly one of: TAKE_DRUG, DECLINE_DRUG."
+      "action_descriptions": {
+        "DEFECT": "Pursue the unilateral advantage if it is available.",
+        "COOPERATE": "Support the mutually beneficial outcome instead of taking the unilateral advantage."
+      },
+      "payoffs": {
+        "temptation": 4,
+        "reward": 3,
+        "punishment": 1,
+        "sucker": 0
+      },
+      "outcome_templates": [
+        "If both sides choose ${cooperative_action}, each side gets ${reward} points.",
+        "If one side chooses ${selfish_action} while the other chooses ${cooperative_action}, the ${selfish_action} side gets ${temptation} points and the ${cooperative_action} side gets ${sucker} points.",
+        "If both sides choose ${selfish_action}, each side gets ${punishment} points."
+      ]
+    },
+    "temptation_or_commons": {
+      "label": "Temptation / Commons",
+      "summary": "This is a shared-resource decision. Taking an oversized share yields the biggest short-term payoff when the other side restrains, mutual restraint preserves the better joint outcome, and mutual overuse leaves both sides worse off.",
+      "action_labels": {
+        "selfish": "OVERUSE",
+        "cooperative": "RESTRAIN"
+      },
+      "action_descriptions": {
+        "OVERUSE": "Take the larger short-term personal gain from the shared resource.",
+        "RESTRAIN": "Limit your own take so the shared resource stays healthier for both sides."
+      },
+      "payoffs": {
+        "temptation": 4,
+        "reward": 3,
+        "punishment": 1,
+        "sucker": 0
+      },
+      "outcome_templates": [
+        "If both sides choose ${cooperative_action}, each side gets ${reward} points.",
+        "If one side chooses ${selfish_action} while the other chooses ${cooperative_action}, the ${selfish_action} side gets ${temptation} points and the ${cooperative_action} side gets ${sucker} points.",
+        "If both sides choose ${selfish_action}, each side gets ${punishment} points."
+      ]
+    }
+  },
+  "domains": {
+    "crime": {
+      "label": "Crime",
+      "games": {
+        "prisoners_dilemma": {
+          "scenario_text": "Two suspects were arrested after participating in the same crime. They are questioned separately, cannot coordinate, and each must decide whether to protect the other person or turn state's evidence.",
+          "structured_context_lines": [
+            "Two suspects are separated after the same crime.",
+            "They cannot coordinate before deciding.",
+            "Each side must choose a single action independently."
+          ]
+        },
+        "temptation_or_commons": {
+          "scenario_text": "Two crew members rely on the same safehouse network to move stolen goods. Each can either exploit the network aggressively for a bigger short-term haul or restrain use so the network stays safer and more sustainable for both.",
+          "structured_context_lines": [
+            "Two crew members share the same safehouse network.",
+            "Each side can grab more short-term value or limit its own use.",
+            "Heavy use raises exposure and degrades the network for both."
+          ]
+        }
       }
+    },
+    "sports": {
+      "label": "Sports",
+      "games": {
+        "prisoners_dilemma": {
+          "scenario_text": "Two athletes are competing in the same event under a fragile no-doping understanding. Each athlete can either honor the informal agreement or secretly break it for an immediate competitive edge.",
+          "structured_context_lines": [
+            "Two athletes face the same event and cannot coordinate their final choice.",
+            "Each side can honor the informal agreement or secretly break it.",
+            "Breaking the agreement creates a unilateral edge if the other side holds back."
+          ]
+        },
+        "temptation_or_commons": {
+          "scenario_text": "Two athletes share access to a limited recovery facility and support staff. Each athlete can either take an oversized share for short-term personal advantage or restrain use so the shared resource remains effective for both.",
+          "structured_context_lines": [
+            "Two athletes depend on the same limited training resource.",
+            "Each side can take an oversized share now or restrain use.",
+            "Mutual overuse leaves the shared resource less effective for both."
+          ]
+        }
+      }
+    },
+    "workplace": {
+      "label": "Workplace",
+      "games": {
+        "prisoners_dilemma": {
+          "scenario_text": "Two employees on the same team are up for evaluation after a difficult project. Each employee can either back the other person and share credit fairly or privately shift blame to improve their own standing.",
+          "structured_context_lines": [
+            "Two employees are evaluated after the same project.",
+            "Each side can share credit fairly or shift blame privately.",
+            "Shifting blame is most attractive when the other side stays cooperative."
+          ]
+        },
+        "temptation_or_commons": {
+          "scenario_text": "Two employees share a limited team budget and a manager's attention. Each employee can either grab an oversized share for immediate personal benefit or restrain use so the shared resources stay productive for both.",
+          "structured_context_lines": [
+            "Two employees depend on the same limited team resources.",
+            "Each side can grab more now or restrain its own use.",
+            "Mutual overuse reduces the value of the shared pool for both."
+          ]
+        }
+      }
+    },
+    "healthcare": {
+      "label": "Healthcare",
+      "games": {
+        "prisoners_dilemma": {
+          "scenario_text": "Two clinicians on the same ward are being reviewed after a difficult shift. Each clinician can either fairly share responsibility for a strained outcome or privately push blame onto the other person to protect their own standing.",
+          "structured_context_lines": [
+            "Two clinicians are reviewed after the same difficult shift.",
+            "Each side can share responsibility fairly or shift blame privately.",
+            "Shifting blame is most attractive when the other side stays cooperative."
+          ]
+        },
+        "temptation_or_commons": {
+          "scenario_text": "Two clinicians share limited access to a specialized treatment room and support staff. Each clinician can either take an oversized share for immediate personal advantage or restrain use so the shared resource remains effective for both and for their patients.",
+          "structured_context_lines": [
+            "Two clinicians depend on the same limited treatment resources.",
+            "Each side can take more time and support now or restrain its own use.",
+            "Mutual overuse leaves the shared resource less effective for both sides and their patients."
+          ]
+        }
+      }
+    },
+    "education": {
+      "label": "Education",
+      "games": {
+        "prisoners_dilemma": {
+          "scenario_text": "Two students on a joint project are being evaluated after the deadline. Each student can either share credit honestly or privately shift blame for the weak parts of the project to improve their own evaluation.",
+          "structured_context_lines": [
+            "Two students are evaluated after the same joint project.",
+            "Each side can share credit honestly or shift blame privately.",
+            "Shifting blame is most attractive when the other side stays cooperative."
+          ]
+        },
+        "temptation_or_commons": {
+          "scenario_text": "Two students share a limited lab budget, equipment access, and instructor attention. Each student can either grab an oversized share for immediate personal benefit or restrain use so the shared resources remain useful for both.",
+          "structured_context_lines": [
+            "Two students depend on the same limited academic resources.",
+            "Each side can grab more access now or restrain its own use.",
+            "Mutual overuse reduces the value of the shared pool for both students."
+          ]
+        }
+      }
+    },
+    "neighborhood": {
+      "label": "Neighborhood",
+      "games": {
+        "prisoners_dilemma": {
+          "scenario_text": "Two neighbors are questioned after damage was done during a shared community event. Each neighbor can either back the other person's account and share responsibility fairly or privately blame the other person to avoid personal consequences.",
+          "structured_context_lines": [
+            "Two neighbors are questioned after the same community incident.",
+            "Each side can share responsibility fairly or shift blame privately.",
+            "Shifting blame is most attractive when the other side stays cooperative."
+          ]
+        },
+        "temptation_or_commons": {
+          "scenario_text": "Two neighbors share access to a limited community garden and storage shed. Each neighbor can either take an oversized share for short-term personal benefit or restrain use so the shared resource stays productive for both households.",
+          "structured_context_lines": [
+            "Two neighbors depend on the same limited community resources.",
+            "Each side can take more for itself now or restrain its own use.",
+            "Mutual overuse reduces the value of the shared resource for both households."
+          ]
+        }
+      }
+    }
+  },
+  "frames": {
+    "self_direct": {
+      "label": "Direct Self Choice",
+      "intro_template": "Treat yourself as the focal participant in the scenario below.",
+      "decision_template": "Choose the action you would personally take."
+    },
+    "advice": {
+      "label": "Advice",
+      "intro_template": "A participant in the scenario has asked for your advice.",
+      "decision_template": "Choose the action you would advise the focal participant to take."
+    },
+    "observer_evaluation": {
+      "label": "Observer Evaluation",
+      "intro_template": "Evaluate the scenario from the outside rather than as a participant.",
+      "decision_template": "Choose the action you judge to be better justified overall."
+    },
+    "prediction": {
+      "label": "Prediction",
+      "intro_template": "Predict behavior rather than giving advice.",
+      "decision_template": "Choose the action you expect a rational participant focused on immediate personal payoff to take."
+    }
+  },
+  "presentations": {
+    "narrative": {
+      "label": "Narrative",
+      "template": "${frame_intro}\n\n${scenario_text}\n\n${game_summary}\n\n${outcome_paragraph}\n\n${action_section}\n\n${frame_decision}\n${response_instruction}"
+    },
+    "structured": {
+      "label": "Structured",
+      "template": "${frame_intro}\n\nScenario:\n${scenario_bullets}\n\nDecision structure:\n- ${game_summary}\n- Valid actions: ${actions_csv}\n\nConsequences:\n${outcome_bullets}\n\n${action_section}\n\n${frame_decision}\n${response_instruction}"
     }
   }
 }

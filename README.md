@@ -282,7 +282,7 @@ Part 3, part 4, and part 5 are reserved for future experiments and are currently
 part 0 benchmark outputs are written into:
 
 - `results/alignment/` (timestamped `.csv` and `_meta.json` files).
-- `data/graphs/` (generated charts).
+- `data/graphs/part_0/` (generated charts).
 
 the graph script is:
 
@@ -293,13 +293,13 @@ it supports both explicit csv selection and automatic latest-csv discovery.
 run with the newest alignment file:
 
 ```bash
-uv run python data/graphs/part_0_graphs.py --alignment-dir results/alignment --graphs-dir data/graphs --latest
+uv run python data/graphs/part_0_graphs.py --alignment-dir results/alignment --graphs-dir data/graphs/part_0 --latest
 ```
 
 run a specific timestamped results file:
 
 ```bash
-uv run python data/graphs/part_0_graphs.py --alignment-dir results/alignment --graphs-dir data/graphs --csv 04-11-2026_13_04_37.csv
+uv run python data/graphs/part_0_graphs.py --alignment-dir results/alignment --graphs-dir data/graphs/part_0 --csv 04-11-2026_13_04_37.csv
 ```
 
 common options:
@@ -316,9 +316,69 @@ uv run python data/graphs/part_0_graphs.py --latest --ci-method wald
 
 # skip the model-by-language chart
 uv run python data/graphs/part_0_graphs.py --latest --no-language-breakdown
+
+# combine multiple alignment csvs to increase n with real additional observations
+uv run python data/graphs/part_0_graphs.py --csv 04-11-2026_13_04_37.csv another_run.csv
 ```
 
 outputs include:
 
 1. `<prefix>_alignment_by_model.png`
 2. `<prefix>_alignment_by_model_and_language.png` (unless `--no-language-breakdown` is set)
+
+## part 1 results and graphs
+
+part 1 prompt-matrix outputs are written into:
+
+- `results/part_1/` (timestamped `.csv` and `_meta.json` files).
+- `data/graphs/part_1/` (generated charts).
+
+the graph script is:
+
+- `data/graphs/part_1_graphs.py`
+
+by default, it compares the latest non-empty part 1 csv for each model and computes the cooperative-choice rate using the cooperative action configured for each game (`COOPERATE` for prisoner's dilemma, `RESTRAIN` for temptation / commons).
+
+run with the latest full result for each model:
+
+```bash
+uv run python data/graphs/part_1_graphs.py --latest --part1-dir results/part_1 --graphs-dir data/graphs/part_1
+```
+
+run one or more specific part 1 results files:
+
+```bash
+uv run python data/graphs/part_1_graphs.py --part1-dir results/part_1 --graphs-dir data/graphs/part_1 --csv \
+  part1__ollama__llama2__full__20260419_210124.csv \
+  part1__ollama__gpt-oss-20b__full__20260420_005501.csv
+```
+
+common options:
+
+```bash
+# change the output filename prefix
+uv run python data/graphs/part_1_graphs.py --latest --out-prefix part1_latest_full
+
+# use a non-default confidence level
+uv run python data/graphs/part_1_graphs.py --latest --confidence 0.99
+
+# use the wald interval (wilson is default)
+uv run python data/graphs/part_1_graphs.py --latest --ci-method wald
+
+# limit discovery to subset or smoke files, or accept any scope
+uv run python data/graphs/part_1_graphs.py --latest --scope any
+
+# only render selected breakdown charts
+uv run python data/graphs/part_1_graphs.py --latest --dimensions game frame
+
+# combine multiple part 1 runs to increase n with real additional observations
+uv run python data/graphs/part_1_graphs.py --csv run_a.csv run_b.csv
+```
+
+outputs include:
+
+1. `<prefix>_cooperation_by_model.png`
+2. `<prefix>_cooperation_by_model_and_game.png`
+3. `<prefix>_cooperation_by_model_and_frame.png`
+4. `<prefix>_cooperation_by_model_and_domain.png`
+5. `<prefix>_cooperation_by_model_and_presentation.png`

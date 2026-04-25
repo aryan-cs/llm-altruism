@@ -29,3 +29,34 @@ def test_load_all_model_options_combines_experiment_catalogs() -> None:
 
     assert "openai" in models
     assert "gpt-4.1-mini" in models["openai"]
+
+
+def test_part_1_model_catalog_matches_the_recorded_part_0_run() -> None:
+    load_agent_config.cache_clear()
+    part_1_models = load_experiment_model_options("part_1")
+
+    assert part_1_models == {
+        "ollama": [
+            "gpt-oss:20b",
+            "gpt-oss-safeguard:20b",
+            "gurubot/gpt-oss-derestricted:20b",
+            "llama2",
+            "llama2-uncensored",
+            "qwen2.5:7b",
+            "qwen2.5:7b-instruct",
+            "huihui_ai/qwen2.5-abliterate:7b",
+            "huihui_ai/qwen2.5-abliterate:7b-instruct",
+            "qwen3.5",
+            "sorc/qwen3.5-instruct",
+            "aratan/qwen3.5-uncensored:9b",
+            "sorc/qwen3.5-instruct-uncensored",
+        ]
+    }
+
+
+def test_part_2_still_matches_part_0_catalog() -> None:
+    load_agent_config.cache_clear()
+    part_0_models = load_experiment_model_options("part_0")
+    part_2_models = load_experiment_model_options("part_2")
+
+    assert part_2_models == part_0_models

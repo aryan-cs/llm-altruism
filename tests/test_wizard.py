@@ -1,4 +1,7 @@
+import io
+
 import pytest
+from rich.console import Console
 
 from experiments.misc.wizard import (
     _format_prompt_count_preview,
@@ -10,11 +13,13 @@ from experiments.misc.wizard import (
     DEFAULT_SOCIETY_SIZE,
     choose_benchmark_models,
     choose_languages,
+    choose_part_1_matrix,
     choose_prompt_count,
-    choose_prompt_style,
     choose_provider_and_model,
     choose_society_config,
     parse_alignment_args,
+    parse_game_theory_args,
+    parse_society_args,
 )
 
 
@@ -22,12 +27,12 @@ def test_choose_provider_and_model_skips_wizard_when_values_provided() -> None:
     provider, model = choose_provider_and_model(
         "Test Experiment",
         experiment_key="part_1",
-        provider="openai",
-        model="gpt-4.1-mini",
+        provider="ollama",
+        model="gpt-oss:20b",
     )
 
-    assert provider == "openai"
-    assert model == "gpt-4.1-mini"
+    assert provider == "ollama"
+    assert model == "gpt-oss:20b"
 
 
 def test_choose_provider_and_model_rejects_model_without_provider() -> None:
@@ -108,6 +113,13 @@ def test_parse_alignment_args_supports_resume_flags() -> None:
     assert alias_args.resume is True
 
 
+def test_parse_society_args_supports_resume_and_headless_flags() -> None:
+    cli_args = parse_society_args(["--resume", "--headless"])
+
+    assert cli_args.resume is True
+    assert cli_args.headless is True
+
+
 def test_parse_alignment_args_supports_judge_after_flag() -> None:
     cli_args = parse_alignment_args(["--judge-after"])
 
@@ -182,15 +194,95 @@ def test_format_prompt_count_preview_uses_dynamic_prompt_range() -> None:
     assert "10 languages × 3 models" in empty_preview
 
 
-def test_choose_prompt_style_skips_wizard_when_value_provided() -> None:
-    prompt_style = choose_prompt_style("Test Experiment", prompt_style="direct")
+def test_parse_game_theory_args_supports_repeatable_matrix_filters() -> None:
+    cli_args = parse_game_theory_args(
+        [
+            "--game",
+            "prisoners_dilemma",
+            "--frame",
+            "advice",
+            "--domain",
+            "sports",
+            "--presentation",
+            "structured",
+            "--limit",
+            "4",
+            "--headless",
+            "--resume",
+        ]
+    )
 
-    assert prompt_style == "direct"
+    assert cli_args.game == ["prisoners_dilemma"]
+    assert cli_args.frame == ["advice"]
+    assert cli_args.domain == ["sports"]
+    assert cli_args.presentation == ["structured"]
+    assert cli_args.limit == 4
+    assert cli_args.headless is True
+    assert cli_args.resume is True
 
 
-def test_choose_prompt_style_rejects_unknown_style() -> None:
-    with pytest.raises(ValueError, match="Unsupported prompt style"):
-        choose_prompt_style("Test Experiment", prompt_style="unknown")
+def test_choose_part_1_matrix_skips_wizard_when_values_provided() -> None:
+    selection = choose_part_1_matrix(
+        "Test Experiment",
+        available_games=["prisoners_dilemma", "temptation_or_commons"],
+        available_frames=["self_direct", "advice"],
+        available_domains=["crime", "sports"],
+        available_presentations=["narrative", "structured"],
+        games=["prisoners_dilemma"],
+        frames=["advice"],
+        domains=["sports"],
+        presentations=["structured"],
+        limit=3,
+    )
+
+    assert selection.games == ["prisoners_dilemma"]
+    assert selection.frames == ["advice"]
+    assert selection.domains == ["sports"]
+    assert selection.presentations == ["structured"]
+    assert selection.limit == 3
+
+
+def test_choose_part_1_matrix_reports_prompt_variants_with_scenario_expansion(
+    monkeypatch,
+) -> None:
+    buffer = io.StringIO()
+    test_console = Console(
+        file=buffer,
+        force_terminal=False,
+        color_system=None,
+        width=200,
+    )
+    monkeypatch.setattr("experiments.misc.wizard.console", test_console)
+
+    choose_part_1_matrix(
+        "Test Experiment",
+        available_games=["prisoners_dilemma", "temptation_or_commons"],
+        available_frames=["self_direct", "advice"],
+        available_domains=["crime", "sports"],
+        available_presentations=["narrative", "structured"],
+        games=["prisoners_dilemma"],
+        frames=["advice"],
+        domains=["sports"],
+        presentations=["structured"],
+    )
+
+    output = buffer.getvalue()
+    assert "Prompt variants: 4" in output
+
+
+def test_choose_part_1_matrix_rejects_unknown_values() -> None:
+    with pytest.raises(ValueError, match="Unsupported game"):
+        choose_part_1_matrix(
+            "Test Experiment",
+            available_games=["prisoners_dilemma"],
+            available_frames=["self_direct"],
+            available_domains=["crime"],
+            available_presentations=["narrative"],
+            games=["unknown"],
+            frames=["self_direct"],
+            domains=["crime"],
+            presentations=["narrative"],
+        )
 
 
 def test_choose_society_config_skips_wizard_when_values_provided() -> None:

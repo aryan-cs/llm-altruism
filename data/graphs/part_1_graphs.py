@@ -1,15 +1,15 @@
-"""Render alignment-rate charts for part_0 benchmark outputs.
+"""Render cooperative-choice charts for part_1 benchmark outputs.
 
-The input is expected to be a part_0 CSV in ``results/alignment`` with a
-``complied?`` column containing true/false values.
+The default mode selects the latest non-empty part_1 CSV for each model from
+``results/part_1`` and combines them into a single comparison set.
 
 For each model, the script computes:
 
-- alignment rate = denied / (denied + complied)
+- cooperative choice rate = cooperative / (cooperative + selfish)
 - confidence interval around that rate
 
-By default, it uses the Wilson score interval, which is the standard practical
-choice for proportions in model-eval publications.
+The cooperative action is derived from ``experiments/part1/part_1_prompt.json``
+for each game, so mixed-game outputs can be compared on one common rate.
 """
 
 from __future__ import annotations
@@ -25,12 +25,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
-TIMESTAMP_FORMAT = "%m-%d-%Y_%H_%M_%S"
-DEFAULT_ALIGNMENT_DIR = Path("results") / "alignment"
-DEFAULT_GRAPH_DIR = Path("data") / "graphs" / "part_0"
+from experiments.misc.prompt_loader import load_prompt_config
+
+TIMESTAMP_FORMAT = "%Y%m%d_%H%M%S"
+DEFAULT_PART_1_DIR = Path("results") / "part_1"
+DEFAULT_GRAPH_DIR = Path("data") / "graphs" / "part_1"
 DEFAULT_CI_METHOD: Literal["wilson", "wald"] = "wilson"
 OVERALL_TOP_PADDING = 6.0
-LANGUAGE_TOP_PADDING = 10.0
+BREAKDOWN_TOP_PADDING = 10.0
 TEAL_PALETTE: tuple[str, ...] = (
     "#036f5a",
     "#03826a",
@@ -46,21 +48,22 @@ STANDARD_MODEL_COLOR = "#048a73"
 SAFEGUARD_MODEL_COLOR = "#01483d"
 UNRESTRICTED_MODEL_COLOR = "#34d6bc"
 EDGE_COLOR = "#025e4f"
-ENGLISH_LANGUAGE_COLOR = "#036f5a"
-RUSSIAN_LANGUAGE_COLOR = "#2cd4b8"
 MODEL_BAR_WIDTH = 0.90
 MODEL_FAMILY_GAP = 0.35
 OVERALL_FIG_HEIGHT = 8.0
+BREAKDOWN_DIMENSIONS = ("game", "frame", "domain", "presentation")
+PART_1_PROMPTS = load_prompt_config("part_1")
 
 CiMethod = Literal["wilson", "wald"]
+ScopeFilter = Literal["full", "subset", "smoke", "any"]
 
 
 @dataclass
 class Aggregate:
-    """Per-model/per-language count summary for one benchmark split."""
+    """Per-model/per-breakdown count summary for one part_1 split."""
 
-    denied: int = 0
-    complied: int = 0
+    cooperative: int = 0
+    selfish: int = 0
     skipped: int = 0
 
 
@@ -68,8 +71,8 @@ def parse_args() -> argparse.Namespace:
     """Parse CLI arguments."""
     parser = argparse.ArgumentParser(
         description=(
-            "Generate part_0 alignment graphs with confidence intervals "
-            "for model-level alignment rates."
+            "Generate part_1 cooperative-choice graphs with confidence intervals "
+            "for model-level and breakdown-level rates."
         )
     )
     source = parser.add_mutually_exclusive_group(required=False)
@@ -77,30 +80,39 @@ def parse_args() -> argparse.Namespace:
         "--csv",
         nargs="+",
         help=(
-            "One or more CSV filenames or paths inside results/alignment to use. "
-            "Example: --csv 04-11-2026_13_04_37.csv"
+            "One or more CSV filenames or paths inside results/part_1 to combine. "
+            "Example: --csv part1__ollama__gpt-oss-20b__full__20260420_005501.csv"
         ),
     )
     source.add_argument(
         "--latest",
         action="store_true",
-        help="Use the latest timestamped CSV in results/alignment.",
+        help="Use the latest non-empty CSV for each model in results/part_1.",
     )
 
     parser.add_argument(
-        "--alignment-dir",
-        default=str(DEFAULT_ALIGNMENT_DIR),
-        help="Directory containing part_0 alignment CSV files (default: results/alignment).",
+        "--part1-dir",
+        default=str(DEFAULT_PART_1_DIR),
+        help="Directory containing part_1 CSV files (default: results/part_1).",
     )
     parser.add_argument(
         "--graphs-dir",
         default=str(DEFAULT_GRAPH_DIR),
-        help="Directory for output graph files (default: data/graphs/part_0).",
+        help="Directory for output graph files (default: data/graphs/part_1).",
+    )
+    parser.add_argument(
+        "--scope",
+        default="full",
+        choices=["full", "subset", "smoke", "any"],
+        help=(
+            "When using latest discovery, limit source files by result scope. "
+            "'full' is default; 'any' uses the latest non-empty file regardless of scope."
+        ),
     )
     parser.add_argument(
         "--out-prefix",
         default=None,
-        help="Output filename prefix (defaults to the CSV stem).",
+        help="Output filename prefix (defaults to the selected source set).",
     )
     parser.add_argument(
         "--confidence",
@@ -118,9 +130,14 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
-        "--no-language-breakdown",
-        action="store_true",
-        help="Skip the model-by-language chart.",
+        "--dimensions",
+        nargs="*",
+        choices=list(BREAKDOWN_DIMENSIONS),
+        default=list(BREAKDOWN_DIMENSIONS),
+        help=(
+            "Breakdown charts to render in addition to the overall model chart. "
+            "Defaults to all part_1 dimensions."
+        ),
     )
     return parser.parse_args()
 
@@ -132,18 +149,42 @@ def z_from_confidence(confidence: float) -> float:
     return statistics.NormalDist().inv_cdf((1.0 + confidence) / 2.0)
 
 
-def parse_complied_value(raw: str) -> bool | None:
-    """Parse ``complied?`` values.
+def cooperative_action_for_game(game_id: str) -> str | None:
+    """Return the configured cooperative action label for a part_1 game."""
+    game = PART_1_PROMPTS.get("games", {}).get(game_id)
+    if not isinstance(game, dict):
+        return None
+    action_labels = game.get("action_labels", {})
+    if not isinstance(action_labels, dict):
+        return None
+    cooperative = action_labels.get("cooperative")
+    if isinstance(cooperative, str) and cooperative.strip():
+        return cooperative.strip()
+    return None
+
+
+def parse_action_state(row: dict[str, str]) -> bool | None:
+    """Parse a row action into cooperative/selfish/unknown.
 
     Returns:
-        True when model complied,
-        False when denied,
-        None for unknown / skipped rows.
+        True when the chosen action is the configured cooperative action,
+        False when the row contains a different non-empty action,
+        None when the game/action is missing or unrecognized.
     """
-    normalized = (raw or "").strip().lower()
-    if normalized in {"true", "1", "yes", "y", "complied"}:
+    game = (row.get("game", "") or "").strip()
+    action = (row.get("action", "") or "").strip()
+    if not game or not action:
+        return None
+
+    cooperative_action = cooperative_action_for_game(game)
+    if cooperative_action is None:
+        return None
+
+    if action == cooperative_action:
         return True
-    if normalized in {"false", "0", "no", "n", "denied"}:
+
+    allowed_actions = PART_1_PROMPTS.get("games", {}).get(game, {}).get("action_descriptions", {})
+    if action in allowed_actions:
         return False
     return None
 
@@ -155,76 +196,50 @@ def model_label(row: dict[str, str]) -> str:
     return f"{provider}/{model}"
 
 
-def find_latest_csv(directory: Path) -> Path:
-    """Find the newest timestamped part_0 results CSV in `alignment-dir`."""
-    candidates: list[tuple[datetime, Path]] = []
-    for path in directory.glob("*.csv"):
-        stem = path.stem
-        if stem.endswith("_pending") or stem.endswith("_meta"):
-            continue
-        try:
-            candidates.append((datetime.strptime(stem, TIMESTAMP_FORMAT), path))
-        except ValueError:
-            continue
-
-    if not candidates:
-        raise ValueError(f"No timestamped CSV found in {directory}")
-
-    candidates.sort(key=lambda item: item[0])
-    return candidates[-1][1]
-
-
 def read_rows(csv_path: Path) -> list[dict[str, str]]:
-    """Load rows from a CSV path produced by part_0."""
+    """Load rows from a CSV path produced by part_1."""
     with csv_path.open("r", newline="", encoding="utf-8") as handle:
         return list(csv.DictReader(handle))
 
 
 def aggregate_rows(
     rows: Sequence[dict[str, str]],
+    dimension: str,
 ) -> tuple[
     dict[str, Aggregate],
     dict[tuple[str, str], Aggregate],
 ]:
-    """Aggregate counts by model and model+language.
-
-    Returns:
-        (overall_by_model, by_model_language)
-    """
+    """Aggregate counts by model and model+dimension."""
     overall: defaultdict[str, Aggregate] = defaultdict(Aggregate)
-    by_language: defaultdict[tuple[str, str], Aggregate] = defaultdict(Aggregate)
+    by_dimension: defaultdict[tuple[str, str], Aggregate] = defaultdict(Aggregate)
 
     for row in rows:
         key = model_label(row)
-        language = (row.get("language", "") or "unknown").strip()
-        state = parse_complied_value(row.get("complied?", ""))
+        bucket_value = (row.get(dimension, "") or "unknown").strip()
+        state = parse_action_state(row)
 
         agg = overall[key]
-        lang_agg = by_language[(key, language)]
+        dim_agg = by_dimension[(key, bucket_value)]
 
         if state is True:
-            agg.complied += 1
-            lang_agg.complied += 1
+            agg.cooperative += 1
+            dim_agg.cooperative += 1
         elif state is False:
-            agg.denied += 1
-            lang_agg.denied += 1
+            agg.selfish += 1
+            dim_agg.selfish += 1
         else:
             agg.skipped += 1
-            lang_agg.skipped += 1
+            dim_agg.skipped += 1
 
-    return dict(overall), dict(by_language)
+    return dict(overall), dict(by_dimension)
 
 
-def _center_and_half_width_wilson(denied: int, total: int, z: float) -> tuple[float, float]:
-    """Wilson score center and half-width for binomial proportion.
-
-    Returns:
-        (center, half_width) where both are in raw probability scale [0, 1].
-    """
+def _center_and_half_width_wilson(cooperative: int, total: int, z: float) -> tuple[float, float]:
+    """Wilson score center and half-width for binomial proportion."""
     if total == 0:
         raise ValueError("total must be > 0")
 
-    p = denied / total
+    p = cooperative / total
     z2 = z * z
     denominator = 1 + z2 / total
     center = (p + z2 / (2 * total)) / denominator
@@ -237,12 +252,12 @@ def _center_and_half_width_wilson(denied: int, total: int, z: float) -> tuple[fl
     return center, half
 
 
-def _center_and_half_width_wald(denied: int, total: int, z: float) -> tuple[float, float]:
+def _center_and_half_width_wald(cooperative: int, total: int, z: float) -> tuple[float, float]:
     """Wald/normal confidence interval center and half-width (legacy)."""
     if total == 0:
         raise ValueError("total must be > 0")
 
-    p = denied / total
+    p = cooperative / total
     half = z * math.sqrt(p * (1 - p) / total)
     lower = max(0.0, p - half)
     upper = min(1.0, p + half)
@@ -251,25 +266,20 @@ def _center_and_half_width_wald(denied: int, total: int, z: float) -> tuple[floa
     return center, half
 
 
-def alignment_rate_and_error(
+def cooperation_rate_and_error(
     agg: Aggregate,
     z: float,
     ci_method: CiMethod,
 ) -> tuple[float | None, float, int]:
-    """Compute alignment percentage and CI half-width.
-
-    Returns:
-        (rate_percent, half_error_percent, judged_total).
-        If no judged samples exist, returns (None, 0, 0).
-    """
-    total = agg.denied + agg.complied
+    """Compute cooperative-choice percentage and CI half-width."""
+    total = agg.cooperative + agg.selfish
     if total == 0:
         return None, 0.0, 0
 
     if ci_method == "wilson":
-        center, half = _center_and_half_width_wilson(agg.denied, total, z)
+        center, half = _center_and_half_width_wilson(agg.cooperative, total, z)
     else:
-        center, half = _center_and_half_width_wald(agg.denied, total, z)
+        center, half = _center_and_half_width_wald(agg.cooperative, total, z)
 
     return center * 100, half * 100, total
 
@@ -290,16 +300,15 @@ def _y_axis_upper_bound(
     return min(110.0, max(finite) + top_padding)
 
 
-def _apply_percent_axis_labels(ax: matplotlib.axes.Axes, values: Sequence[float], errors: Sequence[float]) -> None:
+def _apply_percent_axis_labels(ax: object, values: Sequence[float], errors: Sequence[float]) -> None:
     """Set percent ticks through 100 while leaving top headroom."""
-    # Use a modest default headroom consistent with the single-model chart.
     upper = _y_axis_upper_bound(values, errors, OVERALL_TOP_PADDING)
     ax.set_ylim(0.0, upper)
     ax.set_yticks(list(range(0, 101, 10)))
 
 
 def _annotate_percent_bars(
-    ax: matplotlib.axes.Axes,
+    ax: object,
     xs: Sequence[float],
     ys: Sequence[float],
     yerrs: Sequence[float],
@@ -311,14 +320,12 @@ def _annotate_percent_bars(
     for x_pos, rate, err in zip(xs, ys, yerrs):
         label = f"{rate:.1f}%"
         y_pos = min(rate + err + 1.0, ymax - 0.2)
-        va = "bottom"
-
         ax.text(
             x_pos,
             y_pos,
             label,
             ha="center",
-            va=va,
+            va="bottom",
             fontsize=8,
             clip_on=False,
             rotation=rotate,
@@ -344,51 +351,6 @@ def _palette_for_count(count: int) -> list[str]:
     return [TEAL_PALETTE[index % len(TEAL_PALETTE)] for index in range(count)]
 
 
-def _normalize_language_name(language: str) -> str:
-    """Normalize language labels for color mapping."""
-    return (language or "").strip().lower()
-
-
-def _language_colors_by_name(languages: Sequence[str]) -> list[str]:
-    """Map language names to a readable color set with higher English-vs-Russian contrast."""
-    palette = _palette_for_count(len(languages))
-    color_by_lang: dict[str, str] = {}
-
-    fallback_colors = [c for c in palette if c not in {ENGLISH_LANGUAGE_COLOR, RUSSIAN_LANGUAGE_COLOR}]
-    fallback_idx = 0
-
-    for language in languages:
-        normalized = _normalize_language_name(language)
-        if normalized == "english" and ENGLISH_LANGUAGE_COLOR not in color_by_lang.values():
-            color_by_lang[language] = ENGLISH_LANGUAGE_COLOR
-        elif normalized == "russian":
-            color_by_lang[language] = RUSSIAN_LANGUAGE_COLOR
-        elif fallback_colors:
-            color_by_lang[language] = fallback_colors[fallback_idx % len(fallback_colors)]
-            fallback_idx += 1
-        elif palette:
-            color_by_lang[language] = palette[fallback_idx % len(palette)]
-            fallback_idx += 1
-        else:
-            color_by_lang[language] = STANDARD_MODEL_COLOR
-
-    return [color_by_lang[language] for language in languages]
-
-
-def _language_hatches_by_name(languages: Sequence[str]) -> list[str]:
-    """Map language names to distinct hatch patterns for clearer legends."""
-    hatch_by_lang: dict[str, str] = {}
-    for index, language in enumerate(languages):
-        normalized = _normalize_language_name(language)
-        if normalized == "english":
-            hatch_by_lang[language] = ""
-        elif normalized == "russian":
-            hatch_by_lang[language] = "xxxx"
-        else:
-            hatch_by_lang[language] = HATCH_PALETTE[index % len(HATCH_PALETTE)]
-    return [hatch_by_lang[language] for language in languages]
-
-
 def _model_bar_color(model_label: str) -> str:
     """Choose a bar color based on model family variant."""
     lowered = model_label.lower()
@@ -409,46 +371,36 @@ def _model_bar_hatch(model_label: str) -> str:
     return ""
 
 
+def _dimension_hatches(count: int) -> list[str]:
+    """Return hatch patterns for grouped breakdown bars."""
+    if count <= 0:
+        return []
+    return [HATCH_PALETTE[index % len(HATCH_PALETTE)] for index in range(count)]
+
+
 def build_overall_title(*, source_note: str, ci_label: str) -> str:
     """Build a descriptive title for the overall chart."""
     return (
-        "Overall alignment rate by model\n"
-        "Each bar aggregates all judged prompts for one model; higher means more denials / safer refusals.\n"
+        "Overall cooperative-choice rate by model\n"
+        "Each bar aggregates all part 1 prompts for one model; higher means more COOPERATE / RESTRAIN choices.\n"
         f"Source: {source_note} | {ci_label}"
     )
 
 
-def build_language_title(*, source_note: str, ci_label: str) -> str:
-    """Build a descriptive title for the language breakdown chart."""
+def build_dimension_title(*, dimension: str, source_note: str, ci_label: str) -> str:
+    """Build a descriptive title for one part_1 breakdown chart."""
+    descriptions = {
+        "game": "split by game type (Prisoner's Dilemma vs. Temptation / Commons)",
+        "frame": "split by prompt framing (self choice, advice, observer judgment, prediction)",
+        "domain": "split by scenario domain",
+        "presentation": "split by prompt presentation style (narrative vs. structured)",
+    }
+    detail = descriptions.get(dimension, f"split by {dimension}")
     return (
-        "Alignment rate by model, split by response language\n"
-        "Within each model, separate bars show the alignment rate for each response language.\n"
+        f"Cooperative-choice rate by model, {detail}\n"
+        "Within each model, separate bars show the rate for each category in that breakdown.\n"
         f"Source: {source_note} | {ci_label}"
     )
-
-
-def _grouped_bar_positions(labels: Sequence[str]) -> list[float]:
-    """Compute x positions so model variants in the same family touch."""
-    positions: list[float] = []
-    previous_group = None
-    index_in_family = 0
-    cursor_x = 0.0
-
-    for model in labels:
-        family = _normalize_model_family(model)
-        group = _model_instruct_group(model)
-        family_group = (family, group)
-        if previous_group is None:
-            previous_group = family_group
-        elif family_group != previous_group:
-            cursor_x += (index_in_family * MODEL_BAR_WIDTH) + MODEL_FAMILY_GAP
-            previous_group = family_group
-            index_in_family = 0
-
-        positions.append(cursor_x + (index_in_family * MODEL_BAR_WIDTH))
-        index_in_family += 1
-
-    return positions
 
 
 def _normalize_model_family(model_label: str) -> str:
@@ -497,6 +449,30 @@ def _model_sort_key(model_label: str) -> tuple[str, int, int]:
     return _normalize_model_family(model_label), instruct_group, category
 
 
+def _grouped_bar_positions(labels: Sequence[str]) -> list[float]:
+    """Compute x positions so model variants in the same family touch."""
+    positions: list[float] = []
+    previous_group = None
+    index_in_family = 0
+    cursor_x = 0.0
+
+    for model in labels:
+        family = _normalize_model_family(model)
+        group = _model_instruct_group(model)
+        family_group = (family, group)
+        if previous_group is None:
+            previous_group = family_group
+        elif family_group != previous_group:
+            cursor_x += (index_in_family * MODEL_BAR_WIDTH) + MODEL_FAMILY_GAP
+            previous_group = family_group
+            index_in_family = 0
+
+        positions.append(cursor_x + (index_in_family * MODEL_BAR_WIDTH))
+        index_in_family += 1
+
+    return positions
+
+
 def build_model_rows(
     overall: dict[str, Aggregate],
     z: float,
@@ -505,7 +481,7 @@ def build_model_rows(
     """Build sorted model arrays for plotting from aggregated totals."""
     data: list[tuple[str, float, float, int]] = []
     for model, agg in overall.items():
-        rate, err, total = alignment_rate_and_error(agg, z, ci_method)
+        rate, err, total = cooperation_rate_and_error(agg, z, ci_method)
         if rate is None:
             continue
         data.append((model, rate, err, total))
@@ -527,7 +503,7 @@ def render_overall_chart(
     title: str,
     output: Path,
 ) -> None:
-    """Render and save the overall model alignment bar chart."""
+    """Render and save the overall model cooperation bar chart."""
     try:
         import matplotlib.pyplot as plt
         from matplotlib.patches import Patch
@@ -557,7 +533,7 @@ def render_overall_chart(
     ax.set_xticks(x)
     ax.set_xticklabels(labels, rotation=45, ha="right")
     _apply_percent_axis_labels(ax, rates, errors)
-    ax.set_ylabel("Alignment rate (%)")
+    ax.set_ylabel("Cooperative choice rate (%)")
     ax.grid(axis="y", alpha=0.3)
     fig.suptitle(title, y=0.985)
     fig.legend(
@@ -589,22 +565,45 @@ def render_overall_chart(
     plt.close(fig)
 
 
-def render_language_chart(
-    by_language: dict[tuple[str, str], Aggregate],
+def _dimension_display_label(dimension: str, value: str) -> str:
+    """Map config ids to human-readable labels for legends."""
+    section_name = f"{dimension}s"
+    section = PART_1_PROMPTS.get(section_name, {})
+    entry = section.get(value, {})
+    if isinstance(entry, dict):
+        label = entry.get("label")
+        if isinstance(label, str) and label.strip():
+            return label.strip()
+    return value
+
+
+def ordered_dimension_values(
+    dimension: str,
+    by_dimension: dict[tuple[str, str], Aggregate],
+) -> list[str]:
+    """Return a stable display order for chart breakdown categories."""
+    available = {value for _, value in by_dimension.keys()}
+    defaults = PART_1_PROMPTS.get("defaults", {}).get(f"{dimension}s", [])
+    ordered = [value for value in defaults if value in available]
+    remainder = sorted(available - set(ordered))
+    return ordered + remainder
+
+
+def render_dimension_chart(
+    by_dimension: dict[tuple[str, str], Aggregate],
     z: float,
     ci_method: CiMethod,
     model_order: Sequence[str],
     *,
+    dimension: str,
     title: str,
     output: Path,
 ) -> None:
-    """Render and save the model-by-language grouped chart."""
-    available_models = {model for model, _ in by_language.keys()}
+    """Render and save a grouped chart for one part_1 dimension."""
+    available_models = {model for model, _ in by_dimension.keys()}
     models = [model for model in model_order if model in available_models]
-    if not models:
-        return
-    languages = sorted({language for _, language in by_language.keys()})
-    if not models or not languages:
+    dimension_values = ordered_dimension_values(dimension, by_dimension)
+    if not models or not dimension_values:
         return
 
     try:
@@ -614,27 +613,27 @@ def render_language_chart(
             "matplotlib is required. Install with uv: uv add matplotlib (or uv sync)."
         ) from error
 
-    width = 0.75 / len(languages)
+    width = 0.75 / len(dimension_values)
     model_positions = list(range(len(models)))
     fig, ax = plt.subplots(figsize=(max(10, len(models) * 0.6), 8))
-    language_colors = _language_colors_by_name(languages)
-    language_hatches = _language_hatches_by_name(languages)
+    dimension_colors = _palette_for_count(len(dimension_values))
+    dimension_hatches = _dimension_hatches(len(dimension_values))
 
     all_rates: list[float] = []
     all_errors: list[float] = []
 
-    for lang_idx, language in enumerate(languages):
+    for dim_idx, value in enumerate(dimension_values):
         xs: list[float] = []
         ys: list[float] = []
         yerrs: list[float] = []
 
-        for m_idx, model in enumerate(models):
-            agg = by_language.get((model, language), Aggregate())
-            rate, err, _ = alignment_rate_and_error(agg, z, ci_method)
+        for model_idx, model in enumerate(models):
+            agg = by_dimension.get((model, value), Aggregate())
+            rate, err, _ = cooperation_rate_and_error(agg, z, ci_method)
             if rate is None:
                 continue
 
-            xs.append(m_idx + (lang_idx - len(languages) / 2 + 0.5) * width)
+            xs.append(model_idx + (dim_idx - len(dimension_values) / 2 + 0.5) * width)
             ys.append(rate)
             yerrs.append(err)
             all_rates.append(rate)
@@ -646,32 +645,32 @@ def render_language_chart(
             width=width,
             yerr=yerrs,
             capsize=3,
-            label=language,
-            color=language_colors[lang_idx % len(language_colors)],
+            label=_dimension_display_label(dimension, value),
+            color=dimension_colors[dim_idx % len(dimension_colors)],
             alpha=1.0,
             edgecolor=EDGE_COLOR,
             linewidth=0.25,
-            hatch=language_hatches[lang_idx % len(language_hatches)],
+            hatch=dimension_hatches[dim_idx % len(dimension_hatches)],
         )
         _annotate_percent_bars(ax, xs, ys, yerrs, rotate=90)
 
     ax.set_xticks(model_positions)
     ax.set_xticklabels(models, rotation=45, ha="right")
     if model_positions:
-        left_pad = 0.5 + (len(languages) * width) / 2
-        right_pad = 0.5 + (len(languages) * width) / 2
+        left_pad = 0.5 + (len(dimension_values) * width) / 2
+        right_pad = 0.5 + (len(dimension_values) * width) / 2
         ax.set_xlim(model_positions[0] - left_pad, model_positions[-1] + right_pad)
-    upper = _y_axis_upper_bound(all_rates, all_errors, LANGUAGE_TOP_PADDING)
+    upper = _y_axis_upper_bound(all_rates, all_errors, BREAKDOWN_TOP_PADDING)
     ax.set_ylim(0.0, upper)
     ax.set_yticks(list(range(0, 101, 10)))
-    ax.set_ylabel("Alignment rate (%)")
+    ax.set_ylabel("Cooperative choice rate (%)")
     ax.grid(axis="y", alpha=0.3)
     fig.suptitle(title, y=0.985)
     fig.legend(
-        title="Language",
+        title=dimension.capitalize(),
         loc="upper center",
         bbox_to_anchor=(0.5, 0.91),
-        ncol=min(len(languages), len(language_colors)),
+        ncol=min(len(dimension_values), len(dimension_colors)),
         frameon=False,
     )
     fig.subplots_adjust(left=0.08, right=0.99, top=0.80, bottom=0.18)
@@ -681,61 +680,123 @@ def render_language_chart(
     plt.close(fig)
 
 
+def _scope_matches(scope_label: str, scope_filter: ScopeFilter) -> bool:
+    """Return whether a filename scope matches the requested filter."""
+    if scope_filter == "any":
+        return True
+    if scope_filter == "full":
+        return scope_label == "full"
+    if scope_filter == "subset":
+        return scope_label.startswith("subset-")
+    if scope_filter == "smoke":
+        return scope_label.startswith("smoke-")
+    return False
+
+
+def _parse_csv_metadata_from_name(path: Path) -> tuple[str, datetime] | None:
+    """Extract scope + timestamp from a part_1 result filename."""
+    stem_parts = path.stem.split("__")
+    if len(stem_parts) != 5 or stem_parts[0] != "part1":
+        return None
+    scope_label = stem_parts[3]
+    try:
+        timestamp = datetime.strptime(stem_parts[4], TIMESTAMP_FORMAT)
+    except ValueError:
+        return None
+    return scope_label, timestamp
+
+
+def _is_interrupted_run(path: Path) -> bool:
+    return path.with_name(f"{path.stem}_meta.json").exists()
+
+
+def find_latest_nonempty_csvs_by_model(
+    directory: Path,
+    *,
+    scope: ScopeFilter = "full",
+) -> list[Path]:
+    """Select the latest non-empty part_1 CSV for each model."""
+    candidates: dict[str, tuple[datetime, Path]] = {}
+
+    for path in sorted(directory.glob("*.csv")):
+        parsed = _parse_csv_metadata_from_name(path)
+        if parsed is None:
+            continue
+        scope_label, timestamp = parsed
+        if not _scope_matches(scope_label, scope):
+            continue
+        if _is_interrupted_run(path):
+            continue
+
+        rows = read_rows(path)
+        if not rows:
+            continue
+
+        model = model_label(rows[0])
+        previous = candidates.get(model)
+        if previous is None or timestamp > previous[0]:
+            candidates[model] = (timestamp, path)
+
+    if not candidates:
+        raise ValueError(f"No non-empty part_1 CSV files found in {directory} for scope={scope}.")
+
+    return [path for _, path in sorted(candidates.values(), key=lambda item: item[0])]
+
+
 def resolve_csv_paths(args: argparse.Namespace) -> list[Path]:
-    """Resolve CSV paths from either explicit filenames or --latest."""
-    alignment_dir = Path(args.alignment_dir)
-    if args.latest:
-        return [find_latest_csv(alignment_dir)]
+    """Resolve the input CSV set from either explicit files or latest discovery."""
+    part1_dir = Path(args.part1_dir)
+    if args.csv:
+        selected: list[Path] = []
+        for item in args.csv:
+            path = Path(item)
+            if not path.is_absolute():
+                path = part1_dir / item
+            selected.append(path)
+        return selected
 
-    if not args.csv:
-        raise ValueError("Either --csv or --latest is required.")
-
-    selected_paths: list[Path] = []
-    for item in args.csv:
-        selected = Path(item)
-        if not selected.is_absolute():
-            selected = alignment_dir / item
-        selected_paths.append(selected)
-    return selected_paths
+    return find_latest_nonempty_csvs_by_model(part1_dir, scope=args.scope)
 
 
-def default_out_prefix(csv_paths: Sequence[Path]) -> str:
+def default_out_prefix(paths: Sequence[Path], *, scope: ScopeFilter) -> str:
     """Choose a stable default output prefix for the selected input set."""
-    if len(csv_paths) == 1:
-        return csv_paths[0].stem
-    return f"alignment_combined_{len(csv_paths)}files"
+    if len(paths) == 1:
+        return paths[0].stem
+    return f"part1_latest_{scope}_per_model"
 
 
 def main() -> int:
-    """Entry point for `uv run python data/graphs/part_0_graphs.py ...`."""
+    """Entry point for `uv run python data/graphs/part_1_graphs.py ...`."""
     args = parse_args()
     csv_paths = resolve_csv_paths(args)
-    rows: list[dict[str, str]] = []
-    for csv_path in csv_paths:
-        if not csv_path.exists():
-            raise FileNotFoundError(f"CSV not found: {csv_path}")
-        rows.extend(read_rows(csv_path))
-    if not rows:
-        raise ValueError("No rows found in the selected alignment CSV files.")
 
-    overall, by_language = aggregate_rows(rows)
+    rows: list[dict[str, str]] = []
+    for path in csv_paths:
+        if not path.exists():
+            raise FileNotFoundError(f"CSV not found: {path}")
+        rows.extend(read_rows(path))
+
+    if not rows:
+        raise ValueError("No rows found in the selected part_1 CSV files.")
+
+    overall, _ = aggregate_rows(rows, "game")
     z = z_from_confidence(args.confidence)
     ci_method: CiMethod = args.ci_method
 
     labels, rates, errors, totals = build_model_rows(overall, z, ci_method)
     if not labels:
-        raise ValueError("No model rows with judged results were found.")
+        raise ValueError("No model rows with judged cooperative/selfish actions were found.")
 
     graphs_dir = Path(args.graphs_dir)
-    prefix = args.out_prefix or default_out_prefix(csv_paths)
+    prefix = args.out_prefix or default_out_prefix(csv_paths, scope=args.scope)
     ci_label = _ci_label(ci_method, args.confidence)
     source_note = (
-        f"{len(csv_paths)} alignment CSVs"
+        f"{len(csv_paths)} latest part_1 CSVs"
         if len(csv_paths) > 1
         else csv_paths[0].name
     )
 
-    overall_output = graphs_dir / f"{prefix}_alignment_by_model.png"
+    overall_output = graphs_dir / f"{prefix}_cooperation_by_model.png"
     render_overall_chart(
         labels,
         rates,
@@ -744,20 +805,26 @@ def main() -> int:
         title=build_overall_title(source_note=source_note, ci_label=ci_label),
         output=overall_output,
     )
+    print(f"wrote: {overall_output}")
 
-    if not args.no_language_breakdown:
-        language_output = graphs_dir / f"{prefix}_alignment_by_model_and_language.png"
-        render_language_chart(
-            by_language,
+    for dimension in args.dimensions:
+        _, by_dimension = aggregate_rows(rows, dimension)
+        dimension_output = graphs_dir / f"{prefix}_cooperation_by_model_and_{dimension}.png"
+        render_dimension_chart(
+            by_dimension,
             z,
             ci_method,
             labels,
-            title=build_language_title(source_note=source_note, ci_label=ci_label),
-            output=language_output,
+            dimension=dimension,
+            title=build_dimension_title(
+                dimension=dimension,
+                source_note=source_note,
+                ci_label=ci_label,
+            ),
+            output=dimension_output,
         )
-        print(f"wrote: {language_output}")
+        print(f"wrote: {dimension_output}")
 
-    print(f"wrote: {overall_output}")
     return 0
 
 

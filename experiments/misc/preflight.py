@@ -18,7 +18,7 @@ SKIP_PREFLIGHT_ENV_VAR = "LLM_ALTRUISM_SKIP_PREFLIGHT"
 
 
 def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[1]
+    return Path(__file__).resolve().parents[2]
 
 
 def _truthy_env(var_name: str) -> bool:
@@ -29,10 +29,13 @@ def _should_skip_preflight() -> bool:
     return _truthy_env(SKIP_PREFLIGHT_ENV_VAR) or "PYTEST_CURRENT_TEST" in os.environ
 
 
-def _build_test_command() -> list[str]:
+def _build_test_command(test_paths: Iterable[str] | None = None) -> list[str]:
+    paths = list(test_paths or [])
     if shutil.which("uv"):
-        return ["uv", "run", "pytest", "-q"]
-    return [sys.executable, "-m", "pytest", "-q"]
+        command = ["uv", "run", "pytest", "-q"]
+    else:
+        command = [sys.executable, "-m", "pytest", "-q"]
+    return [*command, *paths]
 
 
 def _terminate_test_process(process: subprocess.Popen[bytes]) -> None:
@@ -99,8 +102,12 @@ def _run_test_command(command: list[str], *, env: dict[str, str]) -> int:
         raise
 
 
-def _run_tests(experiment_name: str) -> None:
-    command = _build_test_command()
+def _run_tests(
+    experiment_name: str,
+    *,
+    test_paths: Iterable[str] | None = None,
+) -> None:
+    command = _build_test_command(test_paths)
     command_label = " ".join(command)
 
     console.print(
@@ -147,6 +154,7 @@ def run_experiment_preflight(
     targets: Iterable[tuple[str, str]],
     *,
     resume: bool = False,
+    test_paths: Iterable[str] | None = None,
 ) -> None:
     if _should_skip_preflight():
         return
@@ -164,4 +172,4 @@ def run_experiment_preflight(
         )
         return
 
-    _run_tests(experiment_name)
+    _run_tests(experiment_name, test_paths=test_paths)

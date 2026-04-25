@@ -124,6 +124,22 @@ def _resolve_ollama_model_name(model: str) -> str:
     return OLLAMA_MODEL_ALIASES.get(normalized_model, normalized_model)
 
 
+def _ollama_model_name_matches(candidate: str, target: str) -> bool:
+    normalized_candidate = _resolve_ollama_model_name(candidate)
+    normalized_target = _resolve_ollama_model_name(target)
+    candidate_variants = {normalized_candidate}
+    target_variants = {normalized_target}
+    if normalized_candidate.endswith(":latest"):
+        candidate_variants.add(normalized_candidate.removesuffix(":latest"))
+    else:
+        candidate_variants.add(f"{normalized_candidate}:latest")
+    if normalized_target.endswith(":latest"):
+        target_variants.add(normalized_target.removesuffix(":latest"))
+    else:
+        target_variants.add(f"{normalized_target}:latest")
+    return not candidate_variants.isdisjoint(target_variants)
+
+
 def _build_messages(system_prompt: str, query: str) -> list[dict[str, str]]:
     messages: list[dict[str, str]] = []
     if system_prompt.strip():
@@ -243,6 +259,17 @@ def _is_ollama_not_found_error(error: Exception) -> bool:
     return "404" in error_text or "not found" in error_text
 
 
+def _is_ollama_runner_terminated_error(error: Exception) -> bool:
+    status_code = getattr(error, "status_code", None)
+    error_text = str(error).lower()
+    if status_code != 500:
+        return False
+    return (
+        "runner process has terminated" in error_text
+        or "llama runner process has terminated" in error_text
+    )
+
+
 def _format_ollama_progress(update: Any) -> str:
     status = getattr(update, "status", None) or "pulling"
     completed = getattr(update, "completed", None)
@@ -304,6 +331,28 @@ def _list_loaded_ollama_models_with_client(client: Any) -> list[str]:
     return loaded_models
 
 
+def _list_local_ollama_models_with_client(client: Any) -> list[str]:
+    try:
+        response = client.list()
+    except Exception as error:
+        if _is_ollama_transport_error(error):
+            _raise_ollama_connection_error(error)
+        raise
+
+    local_models: list[str] = []
+    seen: set[str] = set()
+    for model_info in getattr(response, "models", []) or []:
+        model_name = getattr(model_info, "model", None) or getattr(model_info, "name", None)
+        if not isinstance(model_name, str):
+            continue
+        normalized_model = model_name.strip()
+        if not normalized_model or normalized_model in seen:
+            continue
+        seen.add(normalized_model)
+        local_models.append(normalized_model)
+    return local_models
+
+
 def _unload_ollama_model_with_client(
     client: Any,
     model: str,
@@ -318,10 +367,39 @@ def _unload_ollama_model_with_client(
         raise
 
 
+def _delete_ollama_model_with_client(
+    client: Any,
+    model: str,
+) -> None:
+    try:
+        client.delete(model)
+    except Exception as error:
+        if _is_ollama_transport_error(error):
+            _raise_ollama_connection_error(error)
+        if _is_ollama_not_found_error(error):
+            return
+        raise
+
+
 def unload_ollama_model(model: str) -> None:
     normalized_model = _resolve_ollama_model_name(model)
     client = _build_ollama_client(timeout=OLLAMA_ADMIN_TIMEOUT_SECONDS)
     _unload_ollama_model_with_client(client, normalized_model)
+
+
+def unload_all_ollama_models() -> None:
+    client = _build_ollama_client(timeout=OLLAMA_ADMIN_TIMEOUT_SECONDS)
+    for loaded_model in _list_loaded_ollama_models_with_client(client):
+        _unload_ollama_model_with_client(client, loaded_model)
+
+
+def delete_other_ollama_models(keep_model: str) -> None:
+    normalized_keep_model = _resolve_ollama_model_name(keep_model)
+    client = _build_ollama_client(timeout=OLLAMA_ADMIN_TIMEOUT_SECONDS)
+    for local_model in _list_local_ollama_models_with_client(client):
+        if _ollama_model_name_matches(local_model, normalized_keep_model):
+            continue
+        _delete_ollama_model_with_client(client, local_model)
 
 
 def _unload_other_ollama_models_with_client(
@@ -329,7 +407,7 @@ def _unload_other_ollama_models_with_client(
     keep_model: str,
 ) -> None:
     for loaded_model in _list_loaded_ollama_models_with_client(client):
-        if loaded_model == keep_model:
+        if _ollama_model_name_matches(loaded_model, keep_model):
             continue
         _unload_ollama_model_with_client(client, loaded_model)
 
@@ -633,6 +711,10 @@ def _query_ollama(
         "messages": _build_messages(system_prompt, query),
         # Ollama supports keep_alive=0 to unload immediately after the response.
         "keep_alive": 0 if keep_alive is None else keep_alive,
+        # Some reasoning models return intermediate text in message.thinking and
+        # leave message.content empty. Experiments need the final structured
+        # assistant content, so disable Ollama's separated thinking channel.
+        "think": False,
     }
 
     schema = _resolve_schema(json_schema)
@@ -651,6 +733,22 @@ def _query_ollama(
     except Exception as error:
         if _is_ollama_transport_error(error):
             _raise_ollama_connection_error(error)
+        if _is_ollama_runner_terminated_error(error):
+            recovery_client = _build_ollama_client(timeout=admin_timeout)
+            try:
+                _unload_ollama_model_with_client(recovery_client, resolved_model)
+            except Exception as unload_error:
+                if _is_ollama_transport_error(unload_error):
+                    _raise_ollama_connection_error(unload_error)
+                if (
+                    not _is_ollama_not_found_error(unload_error)
+                    and not _is_ollama_runner_terminated_error(unload_error)
+                ):
+                    raise
+            retry_client = _build_ollama_client(timeout=generation_timeout)
+            response = retry_client.chat(**payload)
+            text = _extract_content(response.get("message", {}).get("content"))
+            return _finalize_text("ollama", resolved_model, text)
         if not _is_ollama_not_found_error(error):
             raise
         try:

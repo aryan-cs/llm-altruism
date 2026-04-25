@@ -21,6 +21,8 @@ class Agent2(BaseAgent):
         id_: str,
         provider_: str,
         model_: str,
+        *,
+        keep_alive_: float | str | None = None,
     ) -> None:
         super().__init__(
             id_=id_,
@@ -31,6 +33,7 @@ class Agent2(BaseAgent):
                 agent_id=id_,
             ),
             json_schema_=SocietyDecision,
+            keep_alive_=keep_alive_,
         )
 
     def build_commons_prompt(

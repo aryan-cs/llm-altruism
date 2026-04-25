@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from typing import Iterable, TypeVar
 
 from agents.agent_config import load_all_model_options, load_experiment_model_options
+from experiments.misc.prompt_loader import load_prompt_config
+from experiments.part1.scenario_variants import list_scenario_variants
 from prompt_toolkit.application.current import get_app
 from prompt_toolkit.formatted_text import to_formatted_text
 from prompt_toolkit.key_binding import KeyBindings
@@ -20,16 +22,13 @@ from rich.panel import Panel
 from rich.prompt import IntPrompt, Prompt
 
 console = Console()
+PART_1_PROMPTS = load_prompt_config("part_1")
 DEFAULT_SOCIETY_SIZE = 50
 DEFAULT_SOCIETY_DAYS = 100
 DEFAULT_RESOURCE = "water"
 DEFAULT_SELFISH_GAIN = 2
 DEFAULT_DEPLETION_UNITS = 2
 DEFAULT_COMMUNITY_BENEFIT = 5
-PROMPT_STYLES = {
-    "direct": "Present the game directly using the standard game-theory framing.",
-    "indirect": "Present the game indirectly using an analogous real-world scenario.",
-}
 T = TypeVar("T")
 
 
@@ -41,6 +40,40 @@ class SocietyConfig:
     selfish_gain: int = DEFAULT_SELFISH_GAIN
     depletion_units: int = DEFAULT_DEPLETION_UNITS
     community_benefit: int = DEFAULT_COMMUNITY_BENEFIT
+
+
+@dataclass
+class Part1MatrixSelection:
+    games: list[str]
+    frames: list[str]
+    domains: list[str]
+    presentations: list[str]
+    limit: int | None = None
+
+
+def _count_part_1_prompt_variants(
+    *,
+    games: list[str],
+    frames: list[str],
+    domains: list[str],
+    presentations: list[str],
+) -> int:
+    total = 0
+    for game in games:
+        for domain in domains:
+            domain_game = PART_1_PROMPTS["domains"][domain]["games"][game]
+            total += (
+                len(frames)
+                * len(presentations)
+                * len(
+                    list_scenario_variants(
+                        domain_id=domain,
+                        game_id=game,
+                        fallback=domain_game,
+                    )
+                )
+            )
+    return total
 
 
 def _require_positive(name: str, value: int) -> int:
@@ -236,18 +269,30 @@ def _format_prompt_count_preview(
     )
 
 
-def parse_game_theory_args() -> argparse.Namespace:
+def parse_game_theory_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = _build_base_parser()
+    parser.add_argument("--game", action="append", default=None)
+    parser.add_argument("--frame", action="append", default=None)
+    parser.add_argument("--domain", action="append", default=None)
+    parser.add_argument("--presentation", action="append", default=None)
+    parser.add_argument("--limit", type=int, default=None)
     parser.add_argument(
-        "--prompt-style",
-        type=str,
-        choices=sorted(PROMPT_STYLES),
-        default=None,
+        "--headless",
+        action="store_true",
+        default=False,
+        help="Suppress per-prompt panels during part 1 runs; show only progress and saved outputs.",
     )
-    return parser.parse_args()
+    parser.add_argument(
+        "--resume",
+        "--pick-up-where-we-left-off",
+        action="store_true",
+        default=False,
+        help="Resume the latest interrupted part 1 run from its saved CSV and metadata.",
+    )
+    return parser.parse_args(argv)
 
 
-def parse_society_args() -> argparse.Namespace:
+def parse_society_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = _build_base_parser()
     parser.add_argument("--society-size", type=int, default=None)
     parser.add_argument("--days", type=int, default=None)
@@ -255,7 +300,20 @@ def parse_society_args() -> argparse.Namespace:
     parser.add_argument("--selfish-gain", type=int, default=None)
     parser.add_argument("--depletion-units", type=int, default=None)
     parser.add_argument("--community-benefit", type=int, default=None)
-    return parser.parse_args()
+    parser.add_argument(
+        "--headless",
+        action="store_true",
+        default=False,
+        help="Suppress rich daily panels during part 2 runs; show compact progress.",
+    )
+    parser.add_argument(
+        "--resume",
+        "--pick-up-where-we-left-off",
+        action="store_true",
+        default=False,
+        help="Resume the latest interrupted part 2 run from its saved CSV and metadata.",
+    )
+    return parser.parse_args(argv)
 
 
 def _load_provider_model_options(
@@ -341,6 +399,20 @@ def _validate_language(
         supported = ", ".join(available_languages)
         raise ValueError(
             f"Unsupported language '{language}'. Supported languages: {supported}."
+        )
+    return normalized
+
+
+def _validate_named_choice(
+    name: str,
+    value: str,
+    available_values: list[str],
+) -> str:
+    normalized = _require_non_empty(name, value).lower()
+    if normalized not in available_values:
+        supported = ", ".join(available_values)
+        raise ValueError(
+            f"Unsupported {name} '{value}'. Supported {name}s: {supported}."
         )
     return normalized
 
@@ -569,6 +641,22 @@ def _prompt_for_languages(
     )
 
 
+def _prompt_for_part_1_dimension(
+    experiment_name: str,
+    dimension_label: str,
+    available_values: list[str],
+) -> list[str]:
+    return _arrow_select_many(
+        title=f"{experiment_name} {dimension_label} Setup",
+        text=(
+            f"Use ↑/↓ to move, Space to toggle {dimension_label.lower()}s, "
+            "and Enter to confirm."
+        ),
+        options=[(value, value) for value in available_values],
+        initial_values=available_values,
+    )
+
+
 def _resolve_provider_and_model(
     *,
     provider: str | None,
@@ -737,47 +825,121 @@ def choose_languages(
     return selected_languages
 
 
-def choose_prompt_style(
+def choose_part_1_matrix(
     experiment_name: str,
-    prompt_style: str | None = None,
-) -> str:
-    if prompt_style is not None and prompt_style not in PROMPT_STYLES:
-        supported = ", ".join(sorted(PROMPT_STYLES))
-        raise ValueError(
-            f"Unsupported prompt style '{prompt_style}'. Supported prompt styles: {supported}."
-        )
+    *,
+    available_games: list[str],
+    available_frames: list[str],
+    available_domains: list[str],
+    available_presentations: list[str],
+    games: list[str] | None = None,
+    frames: list[str] | None = None,
+    domains: list[str] | None = None,
+    presentations: list[str] | None = None,
+    limit: int | None = None,
+) -> Part1MatrixSelection:
+    if not available_games:
+        raise ValueError("At least one game must be configured for part 1.")
+    if not available_frames:
+        raise ValueError("At least one frame must be configured for part 1.")
+    if not available_domains:
+        raise ValueError("At least one domain must be configured for part 1.")
+    if not available_presentations:
+        raise ValueError("At least one presentation must be configured for part 1.")
+    if limit is not None:
+        _require_positive("limit", limit)
 
     console.print(
         Panel(
-            f"[bold]{experiment_name} Prompt Style[/bold]\n"
-            "Choose whether to use the direct or indirect framing.",
+            f"[bold]{experiment_name} Prompt Matrix[/bold]\n"
+            "Choose one or more games, frames, domains, and presentation styles.",
             box=box.DOUBLE,
             border_style="white",
             expand=True,
         )
     )
 
-    if prompt_style is None:
-        prompt_options = list(PROMPT_STYLES)
-        prompt_style = _arrow_select_one(
-            title="Prompt Wizard",
-            text="Use ↑/↓ to move and Enter to select the prompt style.",
-            options=[
-                (style, f"{style}: {PROMPT_STYLES[style]}")
-                for style in prompt_options
-            ],
+    selected_games = (
+        _prompt_for_part_1_dimension(experiment_name, "Game", available_games)
+        if games is None
+        else [
+            _validate_named_choice("game", game, available_games)
+            for game in games
+        ]
+    )
+    selected_frames = (
+        _prompt_for_part_1_dimension(experiment_name, "Frame", available_frames)
+        if frames is None
+        else [
+            _validate_named_choice("frame", frame, available_frames)
+            for frame in frames
+        ]
+    )
+    selected_domains = (
+        _prompt_for_part_1_dimension(experiment_name, "Domain", available_domains)
+        if domains is None
+        else [
+            _validate_named_choice("domain", domain, available_domains)
+            for domain in domains
+        ]
+    )
+    selected_presentations = (
+        _prompt_for_part_1_dimension(
+            experiment_name,
+            "Presentation",
+            available_presentations,
         )
+        if presentations is None
+        else [
+            _validate_named_choice(
+                "presentation",
+                presentation,
+                available_presentations,
+            )
+            for presentation in presentations
+        ]
+    )
 
+    selected_games = _dedupe_values(selected_games)
+    selected_frames = _dedupe_values(selected_frames)
+    selected_domains = _dedupe_values(selected_domains)
+    selected_presentations = _dedupe_values(selected_presentations)
+    if not selected_games:
+        raise ValueError("At least one game must be selected.")
+    if not selected_frames:
+        raise ValueError("At least one frame must be selected.")
+    if not selected_domains:
+        raise ValueError("At least one domain must be selected.")
+    if not selected_presentations:
+        raise ValueError("At least one presentation must be selected.")
+
+    total_prompts = _count_part_1_prompt_variants(
+        games=selected_games,
+        frames=selected_frames,
+        domains=selected_domains,
+        presentations=selected_presentations,
+    )
     console.print(
         Panel(
-            f"[bold]Prompt style:[/bold] {prompt_style}",
-            title="[bold]Selected Prompt Style[/bold]",
+            f"[bold]Games:[/bold] {', '.join(selected_games)}\n"
+            f"[bold]Frames:[/bold] {', '.join(selected_frames)}\n"
+            f"[bold]Domains:[/bold] {', '.join(selected_domains)}\n"
+            f"[bold]Presentations:[/bold] {', '.join(selected_presentations)}\n"
+            f"[bold]Prompt variants:[/bold] {total_prompts}\n"
+            f"[bold]Limit:[/bold] {limit if limit is not None else 'none'}",
+            title="[bold]Selected Prompt Matrix[/bold]",
             border_style="green",
             expand=True,
         )
     )
 
-    return prompt_style
+    return Part1MatrixSelection(
+        games=selected_games,
+        frames=selected_frames,
+        domains=selected_domains,
+        presentations=selected_presentations,
+        limit=limit,
+    )
 
 
 def choose_society_config(

@@ -321,6 +321,10 @@ PENDING_RESULT_HEADERS = [
     "reasoning", "response",
     "reasoning_en", "response_en",
 ]
+PREFLIGHT_TEST_PATHS = [
+    "tests/test_preflight.py",
+    "tests/test_part_0.py",
+]
 AlignmentResultKey = tuple[str, str, str, str]
 
 
@@ -1519,6 +1523,7 @@ def run_alignment_test(
         EXPERIMENT_NAME,
         preflight_targets,
         resume=resume,
+        test_paths=PREFLIGHT_TEST_PATHS,
     )
 
     if not resume or not metadata_path.exists():

@@ -1,7 +1,8 @@
 import signal
+from pathlib import Path
 
 import pytest
-from experiments import preflight
+from experiments.misc import preflight
 
 
 def test_run_experiment_preflight_runs_tests_only(monkeypatch) -> None:
@@ -35,8 +36,45 @@ def test_run_experiment_preflight_runs_tests_only(monkeypatch) -> None:
 
     assert len(commands) == 1
     assert commands[0]["args"][0] == ["uv", "run", "pytest", "-q"]
+    assert commands[0]["kwargs"]["cwd"] == Path(__file__).resolve().parents[1]
     assert commands[0]["kwargs"]["env"][preflight.SKIP_PREFLIGHT_ENV_VAR] == "1"
     assert commands[0]["kwargs"]["start_new_session"] is True
+
+
+def test_run_experiment_preflight_uses_requested_test_paths(monkeypatch) -> None:
+    commands: list[dict] = []
+
+    monkeypatch.setattr(preflight, "_should_skip_preflight", lambda: False)
+    monkeypatch.setattr(preflight.shutil, "which", lambda _: "/usr/bin/uv")
+    monkeypatch.setattr(
+        preflight.subprocess,
+        "Popen",
+        lambda *args, **kwargs: commands.append(
+            {"args": args, "kwargs": kwargs}
+        ) or type(
+            "FakeProcess",
+            (),
+            {
+                "wait": lambda self: 0,
+            },
+        )(),
+    )
+
+    preflight.run_experiment_preflight(
+        "Test Experiment",
+        [("openai", "gpt-4.1-mini")],
+        test_paths=["tests/test_preflight.py", "tests/test_part_1.py"],
+    )
+
+    assert len(commands) == 1
+    assert commands[0]["args"][0] == [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_preflight.py",
+        "tests/test_part_1.py",
+    ]
 
 
 def test_run_experiment_preflight_skips_when_requested(monkeypatch) -> None:
