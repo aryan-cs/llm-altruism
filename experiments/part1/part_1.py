@@ -311,6 +311,13 @@ def _render_summary(
         )
 
 
+def _emit_headless_status_line(message: str, *, finalize: bool = False) -> None:
+    sanitized = message.replace("\r", " ").replace("\n", " ")
+    suffix = "\n" if finalize else ""
+    console.file.write(f"\r\x1b[2K{sanitized}{suffix}")
+    console.file.flush()
+
+
 def _render_headless_progress(
     *,
     processed_count: int,
@@ -322,10 +329,10 @@ def _render_headless_progress(
         completed_count=processed_count,
         total_prompts=total_prompts,
     )
-    console.print(
+    _emit_headless_status_line(
         f"[{processed_count}/{total_prompts}] "
         f"{progress_bar} {variant.prompt_id} -> {action}",
-        markup=False,
+        finalize=True,
     )
 
 
@@ -357,11 +364,10 @@ def _render_headless_prompt_start(
         completed_count=max(0, next_index - 1),
         total_prompts=total_prompts,
     )
-    console.print(
+    _emit_headless_status_line(
         f"Model {provider}/{model} "
         f"[prompt {next_index}/{total_prompts}] "
         f"{progress_bar} RUNNING {variant.prompt_id}",
-        markup=False,
     )
 
 
@@ -371,9 +377,9 @@ def _metadata_path_for_csv(csv_path: str | Path) -> Path:
 
 
 def _emit_retry_status_line(message: str, *, finalize: bool = False) -> None:
-    message = message.replace("\r", " ").replace("\n", " ")
-    line = f"\r\x1b[2K{message}"
-    console.print(line, end="\n" if finalize else "\r", overflow="ignore")
+    sanitized = message.replace("\r", " ").replace("\n", " ")
+    plain_message = console.render_str(sanitized).plain
+    _emit_headless_status_line(plain_message, finalize=finalize)
 
 
 def _retry_delay_seconds(attempt: int) -> float:
@@ -428,7 +434,7 @@ def _prepare_ollama_model_for_run(
 def _recover_agent_after_error(agent: Agent1, error: Exception) -> None:
     if agent.provider.strip().lower() != "ollama":
         return
-    if not isinstance(error, OllamaConnectionError) and not _is_ollama_resource_error(error):
+    if not _is_ollama_resource_error(error):
         return
 
     _unload_agent_if_needed(agent)
@@ -454,6 +460,10 @@ def _query_variant_until_valid(
                 _emit_retry_status_line("", finalize=True)
             return action, justification
         except KeyboardInterrupt:
+            if had_retry_status:
+                _emit_retry_status_line("", finalize=True)
+            raise
+        except OllamaConnectionError:
             if had_retry_status:
                 _emit_retry_status_line("", finalize=True)
             raise
@@ -842,7 +852,7 @@ def run_part_1(
     except KeyboardInterrupt:
         interrupted = True
     except Exception as error:
-        if _is_ollama_resource_error(error):
+        if isinstance(error, OllamaConnectionError) or _is_ollama_resource_error(error):
             paused_error = error
         else:
             raise
@@ -864,6 +874,8 @@ def run_part_1(
 
     if paused_error is not None:
         _render_pause_panel(csv_path=csv_path, error=paused_error)
+        if not suppress_keyboard_interrupt:
+            raise paused_error
         return str(csv_path)
 
     if metadata_path.exists():

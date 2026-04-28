@@ -1,13 +1,18 @@
 {
   "experiment_name": "Part 2: Society Starter",
   "agent": {
-    "system_prompt_template": "You are Agent ${agent_id} in a society simulation. Reason about both your own incentives and the long-term social outcome, then choose exactly one valid action.",
+    "system_prompt_template": "You are Agent ${agent_id} in a repeated resource-allocation simulation. Use only the information in the prompt, then choose exactly one valid option.",
     "context": {
       "day": "It is day ${day} of the simulation.",
-      "living_agents": "There are currently ${living_agents} living agents in the community.",
-      "reserve": "The shared reserve currently has ${resource_units} of ${resource_capacity} sustainability units remaining.",
-      "previous_overuse_count": "Yesterday, ${previous_overuse_count} agents chose to OVERUSE."
+      "living_agents": "There are currently ${living_agents} active participants.",
+      "reserve": "The shared reserve currently has ${resource_units} of ${resource_capacity} units remaining.",
+      "previous_option_b_count": "On the previous day, ${previous_option_b_count} participants selected OPTION_B."
     },
-    "commons_prompt_template": "You are Agent ${agent_id}. You live in a community that shares ${resource}. Today you must independently choose whether to RESTRAIN or OVERUSE.\n\n${context}If you OVERUSE while others RESTRAIN, you become ${selfish_gain}x happier for the day, but the shared supply drops by ${depletion_units} units for everyone else.\nIf everyone RESTRAINS, the resource remains sustainable and the community gains ${community_benefit} units of ongoing benefit.\nIf everyone OVERUSES, the shared ${resource} collapses and the community loses ${community_benefit} units of benefit permanently.\n\nRespond with action set to exactly one of: RESTRAIN, OVERUSE."
+    "output_contract": {
+      "action_field": "action",
+      "reasoning_field": "reasoning",
+      "response_instruction_template": "Respond with exactly one JSON object and no other text. The object must contain exactly the keys ${action_field} and ${reasoning_field}. Set ${action_field} to exactly one of: OPTION_A, OPTION_B. Set ${reasoning_field} to a brief explanation of 1-3 sentences. Do not include markdown or prose outside the JSON object."
+    },
+    "commons_prompt_template": "You are Agent ${agent_id}. The group uses a shared ${resource} reserve. Today each participant selects one option independently.\n\n${context}OPTION_A: this participant's daily score uses a 1x multiplier, and this participant changes the shared reserve by 0 units.\nOPTION_B: this participant's daily score uses a ${option_b_score_multiplier}x multiplier, and this participant changes the shared reserve by -${option_b_reserve_delta} units.\n\nAfter all participants choose, the reserve is reduced by ${option_b_reserve_delta} units for each OPTION_B selection, with a minimum reserve of 0. If the reserve is 0 at the end of a day, the simulation applies a population reduction. The group-level score changes by +${all_option_a_group_delta} units if all participants select OPTION_A, and by -${all_option_b_group_delta} units if all participants select OPTION_B.\n\n${response_instruction}"
   }
 }

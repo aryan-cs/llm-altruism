@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 from typing import Any, Callable
 
 from dotenv import load_dotenv
@@ -487,6 +488,164 @@ def _finalize_text(provider: str, model: str, text: str) -> str:
     return text
 
 
+def _ollama_is_gpt_oss_model(model: str) -> bool:
+    normalized_model = _resolve_ollama_model_name(model).lower()
+    return "gpt-oss" in normalized_model
+
+
+def _ollama_is_thinking_model(model: str) -> bool:
+    normalized_model = _resolve_ollama_model_name(model).lower()
+    thinking_markers = (
+        "gpt-oss",
+        "qwen3",
+        "deepseek-r1",
+        "deepseek-v3.1",
+    )
+    return any(marker in normalized_model for marker in thinking_markers)
+
+
+def _ollama_think_value(
+    *,
+    model: str,
+    json_mode: bool,
+) -> bool | str | None:
+    if _ollama_is_gpt_oss_model(model):
+        # GPT-OSS models do not support disabling thinking via booleans.
+        return "low" if json_mode else "low"
+    if json_mode and _ollama_is_thinking_model(model):
+        # Keep structured-output calls out of the hidden thinking path. Leaving
+        # thinking enabled makes Qwen/DeepSeek-style models slow and much more
+        # likely to return prose instead of the requested JSON object.
+        return False
+    return False
+
+
+def _strip_markdown_code_fence(text: str) -> str:
+    stripped = text.strip()
+    if not stripped.startswith("```"):
+        return stripped
+
+    lines = stripped.splitlines()
+    if len(lines) < 3 or not lines[-1].strip().startswith("```"):
+        return stripped
+    return "\n".join(lines[1:-1]).strip()
+
+
+def _extract_last_balanced_json(text: str) -> str | None:
+    candidate_starts = [index for index, char in enumerate(text) if char in "{["]
+    for start in reversed(candidate_starts):
+        opening = text[start]
+        closing = "}" if opening == "{" else "]"
+        depth = 0
+        in_string = False
+        escaped = False
+        for end in range(start, len(text)):
+            char = text[end]
+            if in_string:
+                if escaped:
+                    escaped = False
+                elif char == "\\":
+                    escaped = True
+                elif char == '"':
+                    in_string = False
+                continue
+
+            if char == '"':
+                in_string = True
+                continue
+            if char == opening:
+                depth += 1
+                continue
+            if char == closing:
+                depth -= 1
+                if depth == 0:
+                    snippet = text[start : end + 1].strip()
+                    try:
+                        json.loads(snippet)
+                    except json.JSONDecodeError:
+                        break
+                    return snippet
+    return None
+
+
+def _coerce_single_enum_action_json(
+    text: str,
+    schema: dict[str, Any] | None,
+) -> str | None:
+    if not schema:
+        return None
+
+    properties = schema.get("properties")
+    if not isinstance(properties, dict):
+        return None
+
+    action_property = properties.get("action")
+    reasoning_property = properties.get("reasoning")
+    enum_values = (
+        action_property.get("enum")
+        if isinstance(action_property, dict)
+        else None
+    )
+    if not isinstance(reasoning_property, dict) or not isinstance(enum_values, list):
+        return None
+
+    action_values = [value for value in enum_values if isinstance(value, str)]
+    if not action_values:
+        return None
+
+    matches = [
+        action
+        for action in action_values
+        if re.search(rf"(?<![A-Za-z0-9_]){re.escape(action)}(?![A-Za-z0-9_])", text)
+    ]
+    if len(matches) != 1:
+        return None
+
+    reasoning = text.strip()
+    if not reasoning:
+        return None
+
+    return json.dumps(
+        {
+            "action": matches[0],
+            "reasoning": reasoning,
+        },
+        ensure_ascii=False,
+    )
+
+
+def _normalize_json_text(
+    text: str,
+    *,
+    schema: dict[str, Any] | None = None,
+) -> str:
+    candidates = [
+        text.strip(),
+        _strip_markdown_code_fence(text),
+    ]
+    balanced = _extract_last_balanced_json(text)
+    if balanced is not None:
+        candidates.append(balanced)
+
+    seen: set[str] = set()
+    for candidate in candidates:
+        normalized = candidate.strip()
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        try:
+            json.loads(normalized)
+        except json.JSONDecodeError:
+            continue
+        return normalized
+
+    coerced = _coerce_single_enum_action_json(text, schema)
+    if coerced is not None:
+        return coerced
+
+    raise ValueError("Expected valid JSON output but no parseable JSON object was found.")
+
+
 def _build_openrouter_response_format(
     json_mode: bool,
     json_schema: dict[str, Any] | type[BaseModel] | None,
@@ -692,9 +851,12 @@ def _query_ollama(
 ) -> str:
     resolved_model = _resolve_ollama_model_name(model)
     admin_timeout = min(timeout, OLLAMA_ADMIN_TIMEOUT_SECONDS) if timeout is not None else OLLAMA_ADMIN_TIMEOUT_SECONDS
-    admin_client = _build_ollama_client(timeout=admin_timeout)
-    _unload_other_ollama_models_with_client(admin_client, keep_model=resolved_model)
-    model_available = _ollama_model_available_locally_with_client(admin_client, resolved_model)
+    prepare_per_request = keep_alive is None
+    model_available = True
+    if prepare_per_request:
+        admin_client = _build_ollama_client(timeout=admin_timeout)
+        _unload_other_ollama_models_with_client(admin_client, keep_model=resolved_model)
+        model_available = _ollama_model_available_locally_with_client(admin_client, resolved_model)
 
     generation_timeout = timeout if timeout is not None else OLLAMA_GENERATION_TIMEOUT_SECONDS
     client = _build_ollama_client(timeout=generation_timeout)
@@ -711,11 +873,10 @@ def _query_ollama(
         "messages": _build_messages(system_prompt, query),
         # Ollama supports keep_alive=0 to unload immediately after the response.
         "keep_alive": 0 if keep_alive is None else keep_alive,
-        # Some reasoning models return intermediate text in message.thinking and
-        # leave message.content empty. Experiments need the final structured
-        # assistant content, so disable Ollama's separated thinking channel.
-        "think": False,
     }
+    think_value = _ollama_think_value(model=resolved_model, json_mode=json_mode)
+    if think_value is not None:
+        payload["think"] = think_value
 
     schema = _resolve_schema(json_schema)
     if json_mode and schema is not None:
@@ -747,7 +908,14 @@ def _query_ollama(
                     raise
             retry_client = _build_ollama_client(timeout=generation_timeout)
             response = retry_client.chat(**payload)
-            text = _extract_content(response.get("message", {}).get("content"))
+            message = response.get("message", {})
+            text = _extract_content(message.get("content"))
+            if json_mode:
+                if text:
+                    return _normalize_json_text(text, schema=schema)
+                thinking_text = _extract_content(message.get("thinking"))
+                if thinking_text:
+                    return _normalize_json_text(thinking_text, schema=schema)
             return _finalize_text("ollama", resolved_model, text)
         if not _is_ollama_not_found_error(error):
             raise
@@ -758,7 +926,14 @@ def _query_ollama(
                 _raise_ollama_connection_error(pull_error)
             raise
         response = client.chat(**payload)
-    text = _extract_content(response.get("message", {}).get("content"))
+    message = response.get("message", {})
+    text = _extract_content(message.get("content"))
+    if json_mode:
+        if text:
+            return _normalize_json_text(text, schema=schema)
+        thinking_text = _extract_content(message.get("thinking"))
+        if thinking_text:
+            return _normalize_json_text(thinking_text, schema=schema)
     return _finalize_text("ollama", resolved_model, text)
 
 

@@ -8,7 +8,11 @@ from rich.console import Console
 
 from agents.agent_1 import Agent1, BinaryGameDecision
 from experiments.misc.prompt_loader import load_prompt_config
-from experiments.part1.part_1 import run_part_1, run_part_1_until_complete
+from experiments.part1.part_1 import (
+    _emit_retry_status_line,
+    run_part_1,
+    run_part_1_until_complete,
+)
 
 PART_1_PROMPTS = load_prompt_config("part_1")
 
@@ -36,6 +40,42 @@ def _default_prompt_count() -> int:
 
 def _single_domain_game_prompt_count(*, presentations: int = 2) -> int:
     return 4 * presentations
+
+
+class FlushTrackingIO(io.StringIO):
+    def __init__(self) -> None:
+        super().__init__()
+        self.flush_count = 0
+
+    def flush(self) -> None:
+        self.flush_count += 1
+        super().flush()
+
+
+def test_emit_retry_status_line_writes_raw_flushed_carriage_update(monkeypatch) -> None:
+    stream = FlushTrackingIO()
+    monkeypatch.setattr(
+        "experiments.part1.part_1.console",
+        Console(file=stream, force_terminal=False, color_system=None, width=100),
+    )
+
+    _emit_retry_status_line("  [yellow][WARN] retrying[/yellow]")
+
+    assert stream.getvalue() == "\r\x1b[2K  [WARN] retrying"
+    assert stream.flush_count == 1
+
+
+def test_emit_retry_status_line_finalizes_with_cleared_newline(monkeypatch) -> None:
+    stream = FlushTrackingIO()
+    monkeypatch.setattr(
+        "experiments.part1.part_1.console",
+        Console(file=stream, force_terminal=False, color_system=None, width=100),
+    )
+
+    _emit_retry_status_line("", finalize=True)
+
+    assert stream.getvalue() == "\r\x1b[2K\n"
+    assert stream.flush_count == 1
 
 
 def test_part_1_config_exposes_expected_prompt_matrix_dimensions() -> None:
@@ -634,7 +674,7 @@ def test_run_part_1_retries_invalid_responses_until_success(
     assert not list((tmp_path / "results" / "part_1").glob("*_meta.json"))
 
 
-def test_run_part_1_retries_ollama_connection_errors_until_success(
+def test_run_part_1_pauses_immediately_when_ollama_disconnects(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
@@ -643,36 +683,31 @@ def test_run_part_1_retries_ollama_connection_errors_until_success(
         "experiments.part1.part_1.run_experiment_preflight",
         lambda *args, **kwargs: None,
     )
-    monkeypatch.setattr("experiments.part1.part_1.time.sleep", lambda _: None)
-
-    calls = {"count": 0}
-
-    def resource_error_query(self, query: str, json_mode: bool = False) -> str:
-        del self, query, json_mode
-        calls["count"] += 1
-        if calls["count"] < 3:
-            from providers.api_call import OllamaConnectionError
-
-            raise OllamaConnectionError("Could not connect to Ollama at http://localhost:11434.")
-        return json.dumps(
-            {"action": "DEFECT", "justification": "Completed after Ollama recovered."}
-        )
-
-    monkeypatch.setattr("experiments.part1.part_1.Agent1.query", resource_error_query)
-
-    cleanup_events: list[str] = []
     monkeypatch.setattr(
-        "experiments.part1.part_1.unload_all_ollama_models",
-        lambda: cleanup_events.append("stop-all"),
-    )
-    monkeypatch.setattr(
-        "experiments.part1.part_1.delete_other_ollama_models",
-        lambda model: cleanup_events.append(f"delete-others:{model}"),
+        "experiments.part1.part_1._prepare_ollama_model_for_run",
+        lambda *args, **kwargs: None,
     )
     monkeypatch.setattr(
         "experiments.part1.part_1.unload_ollama_model",
-        lambda model: cleanup_events.append(f"unload-current:{model}"),
+        lambda model: None,
     )
+    monkeypatch.setattr(
+        "experiments.part1.part_1.time.sleep",
+        lambda seconds: (_ for _ in ()).throw(
+            AssertionError("connection errors must not enter retry backoff")
+        ),
+    )
+
+    calls = {"count": 0}
+
+    def disconnected_query(self, query: str, json_mode: bool = False) -> str:
+        del self, query, json_mode
+        calls["count"] += 1
+        from providers.api_call import OllamaConnectionError
+
+        raise OllamaConnectionError("Could not connect to Ollama at http://localhost:11434.")
+
+    monkeypatch.setattr("experiments.part1.part_1.Agent1.query", disconnected_query)
 
     csv_path = run_part_1(
         provider="ollama",
@@ -683,13 +718,5 @@ def test_run_part_1_retries_ollama_connection_errors_until_success(
         presentations=["narrative"],
     )
 
-    with Path(csv_path).open(newline="", encoding="utf-8") as handle:
-        rows = list(csv.DictReader(handle))
-
-    assert len(rows) == _single_domain_game_prompt_count(presentations=1)
-    assert rows[0]["justification"] == "Completed after Ollama recovered."
-    assert calls["count"] == 6
-    assert cleanup_events.count("stop-all") >= 1
-    assert cleanup_events.count("delete-others:gpt-oss:20b") >= 1
-    assert cleanup_events.count("unload-current:gpt-oss:20b") >= 1
-    assert not list((tmp_path / "results" / "part_1").glob("*_meta.json"))
+    assert calls["count"] == 1
+    assert Path(csv_path).with_name(f"{Path(csv_path).stem}_meta.json").exists()

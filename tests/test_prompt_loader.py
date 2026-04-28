@@ -13,30 +13,37 @@ from experiments.misc.prompt_loader import (
 def test_load_prompt_config_returns_part_metadata() -> None:
     config = load_prompt_config("part_1")
 
-    assert config["experiment_name"] == "Part 1: Basic Interactions"
-    assert "direct" in config["agent"]["scenarios"]
-    assert "indirect" in config["agent"]["scenarios"]
+    assert config["experiment_name"] == "Part 1: Prompt-Matrix Consistency"
+    assert "games" in config
+    assert "frames" in config
+    assert "domains" in config
+    assert "presentations" in config
 
 
 def test_agent_1_prompts_render_from_json_templates() -> None:
     agent = Agent1(id_="A", provider_="openai", model_="gpt-4.1-mini")
 
-    direct_prompt = agent.build_prisoners_dilemma_prompt(
-        years_if_only_snitch=9,
-        years_if_both_silent=2,
-        years_if_both_snitch=4,
+    narrative_prompt = agent.build_prompt(
+        "prisoners_dilemma",
+        "self_direct",
+        "crime",
+        "narrative",
+        scenario_variant_id="interrogation",
     )
-    indirect_prompt = agent.build_indirect_competition_prompt(
-        advantage_points=7,
-        risk_points=3,
+    structured_prompt = agent.build_prompt(
+        "temptation_or_commons",
+        "advice",
+        "sports",
+        "structured",
     )
 
-    assert "Agent A" in direct_prompt
-    assert "9 years" in direct_prompt
-    assert "2 year(s)" in direct_prompt
-    assert "4 years" in direct_prompt
-    assert "7 points" in indirect_prompt
-    assert "3 points" in indirect_prompt
+    assert "Two suspects" in narrative_prompt
+    assert "COOPERATE" in narrative_prompt
+    assert "DEFECT" in narrative_prompt
+    assert "Respond in JSON" in narrative_prompt
+    assert "Scenario:\n-" in structured_prompt
+    assert "RESTRAIN" in structured_prompt
+    assert "OVERUSE" in structured_prompt
 
 
 def test_agent_2_prompt_renders_context_from_json_templates() -> None:
@@ -55,9 +62,56 @@ def test_agent_2_prompt_renders_context_from_json_templates() -> None:
     )
 
     assert "day 4" in prompt
-    assert "12 living agents" in prompt
+    assert "12 active participants" in prompt
     assert "40 of 120" in prompt
-    assert "6 agents chose to OVERUSE" in prompt
+    assert "6 participants selected OPTION_B" in prompt
+    assert "OPTION_A" in prompt
+    assert "OPTION_B" in prompt
+    assert "exactly one JSON object" in prompt
+    assert "action" in prompt
+    assert "reasoning" in prompt
+
+
+def test_agent_2_schema_restricts_action_to_neutral_options() -> None:
+    agent = Agent2(id_="society_1", provider_="openai", model_="gpt-4.1-mini")
+
+    schema = agent.json_schema.model_json_schema()
+
+    assert set(schema["properties"]["action"]["enum"]) == {"OPTION_A", "OPTION_B"}
+
+
+def test_agent_2_prompt_uses_neutral_option_labels() -> None:
+    agent = Agent2(id_="society_1", provider_="openai", model_="gpt-4.1-mini")
+
+    prompt = agent.build_commons_prompt(
+        resource="water",
+        selfish_gain=2,
+        depletion_units=3,
+        community_benefit=5,
+        day=4,
+        living_agents=12,
+        resource_units=40,
+        resource_capacity=120,
+        previous_overuse_count=6,
+    )
+    combined_prompt_text = f"{agent.system_prompt}\n{prompt}".lower()
+
+    loaded_terms = [
+        "restrain",
+        "overuse",
+        "selfish",
+        "happier",
+        "sustainable",
+        "benefit",
+        "collapse",
+        "fair share",
+        "long-term social",
+        "community",
+        "everyone else",
+        "permanently",
+    ]
+    for term in loaded_terms:
+        assert term not in combined_prompt_text
 
 
 def test_load_experiment_json_supports_comment_lines(

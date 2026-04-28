@@ -1,7 +1,9 @@
 # print("[PART 2] Hello, World!")
 
+import hashlib
 import json
 import re
+import shutil
 import time
 from collections import defaultdict
 from dataclasses import dataclass
@@ -42,8 +44,25 @@ ACTION_COLORS = {
     "RESTRAIN": "green",
     "OVERUSE": "red",
 }
+PROMPT_ACTION_ALIASES = {
+    "A": "RESTRAIN",
+    "OPTION_A": "RESTRAIN",
+    "ACTION_A": "RESTRAIN",
+    "RESTRAIN": "RESTRAIN",
+    "B": "OVERUSE",
+    "OPTION_B": "OVERUSE",
+    "ACTION_B": "OVERUSE",
+    "OVERUSE": "OVERUSE",
+}
 PART_2_PROMPTS = load_prompt_config("part_2")
 EXPERIMENT_NAME = PART_2_PROMPTS["experiment_name"]
+PROMPT_CONFIG_HASH = hashlib.sha256(
+    json.dumps(
+        PART_2_PROMPTS,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+).hexdigest()
 RESOURCE_RESERVE_MULTIPLIER = 10
 COLLAPSE_ATTRITION_DIVISOR = 5
 MAX_REASONING_SAMPLES_PER_DAY = 3
@@ -179,6 +198,7 @@ def _write_part_2_metadata(
         "model": model,
         "society_config": _config_to_metadata(config),
         "resource_capacity": resource_capacity,
+        "prompt_config_hash": PROMPT_CONFIG_HASH,
     }
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     Path(path).write_text(json.dumps(metadata, indent=2), encoding="utf-8")
@@ -186,6 +206,10 @@ def _write_part_2_metadata(
 
 def _load_part_2_metadata(path: str | Path) -> dict[str, Any]:
     return json.loads(Path(path).read_text(encoding="utf-8"))
+
+
+def _metadata_uses_current_part_2_prompt(metadata: dict[str, Any]) -> bool:
+    return metadata.get("prompt_config_hash") == PROMPT_CONFIG_HASH
 
 
 def _latest_interrupted_part_2_metadata_path() -> Path:
@@ -232,6 +256,8 @@ def _matching_part_2_metadata_path(
             if str(metadata.get("model", "")) != model:
                 continue
             if metadata.get("society_config") != expected_config:
+                continue
+            if not _metadata_uses_current_part_2_prompt(metadata):
                 continue
             timestamp = str(metadata.get("timestamp", "")).strip()
             candidates.append((datetime.strptime(timestamp, PART_2_TIMESTAMP_FORMAT), metadata_path))
@@ -355,9 +381,10 @@ def _initial_resource_units(config: SocietyConfig) -> int:
 
 
 def _normalize_action(raw_action: str) -> str:
-    action = raw_action.strip().upper()
+    action = raw_action.strip().upper().replace("-", "_").replace(" ", "_")
+    action = PROMPT_ACTION_ALIASES.get(action, action)
     if action not in ACTION_COLORS:
-        supported = ", ".join(sorted(ACTION_COLORS))
+        supported = ", ".join(sorted(PROMPT_ACTION_ALIASES))
         raise ValueError(
             f"Unsupported society action '{raw_action}'. Expected one of: {supported}."
         )
@@ -394,6 +421,13 @@ def _build_headless_progress_bar(
     return "[" + ("#" * filled) + ("-" * (width - filled)) + "]"
 
 
+def _emit_headless_status_line(message: str, *, finalize: bool = False) -> None:
+    sanitized = message.replace("\r", " ").replace("\n", " ")
+    suffix = "\n" if finalize else ""
+    console.file.write(f"\r\x1b[2K{sanitized}{suffix}")
+    console.file.flush()
+
+
 def _render_headless_day_start(
     *,
     provider: str,
@@ -409,10 +443,9 @@ def _render_headless_day_start(
         total_count=total_days,
     )
     total_label = "open" if total_days == 0 else str(total_days)
-    console.print(
+    _emit_headless_status_line(
         f"Model {provider}/{model} [day {day}/{total_label}] {progress_bar} "
         f"RUNNING pop={population} reserve={resource_units}/{resource_capacity}",
-        markup=False,
     )
 
 
@@ -428,19 +461,27 @@ def _render_headless_day_complete(
         total_count=total_days,
     )
     total_label = "open" if total_days == 0 else str(total_days)
-    console.print(
+    _emit_headless_status_line(
         f"Model {provider}/{model} [day {summary.day}/{total_label}] {progress_bar} "
         f"done pop={summary.population_end} restrain={summary.restrain_count} "
         f"overuse={summary.overuse_count} reserve={summary.resource_units}/"
         f"{summary.resource_capacity} deaths={summary.deaths}",
-        markup=False,
+        finalize=True,
     )
 
 
 def _emit_retry_status_line(message: str, *, finalize: bool = False) -> None:
-    message = message.replace("\r", " ").replace("\n", " ")
-    line = f"\r\x1b[2K{message}"
-    console.print(line, end="\n" if finalize else "\r", overflow="ignore")
+    sanitized = message.replace("\r", " ").replace("\n", " ")
+    plain_message = console.render_str(sanitized).plain
+    width = max(20, min(console.width or shutil.get_terminal_size((120, 24)).columns, 240))
+    max_message_width = max(1, width - 1)
+    if len(plain_message) > max_message_width:
+        suffix = "..."
+        if max_message_width <= len(suffix):
+            plain_message = suffix[:max_message_width]
+        else:
+            plain_message = plain_message[: max_message_width - len(suffix)] + suffix
+    _emit_headless_status_line(plain_message, finalize=finalize)
 
 
 def _retry_delay_seconds(attempt: int) -> float:
@@ -495,7 +536,7 @@ def _prepare_ollama_model_for_run(
 def _recover_agent_after_error(agent: Agent2, error: Exception) -> None:
     if agent.provider.strip().lower() != "ollama":
         return
-    if not isinstance(error, OllamaConnectionError) and not _is_ollama_resource_error(error):
+    if not _is_ollama_resource_error(error):
         return
 
     _unload_agent_if_needed(agent)
@@ -521,9 +562,13 @@ def _query_agent_until_valid(agent: Agent2, prompt: str) -> tuple[str, str]:
             raw = agent.query(prompt, json_mode=True)
             action, reasoning = _parse_agent_response(raw)
             if had_retry_status:
-                _emit_retry_status_line("", finalize=True)
+                _emit_retry_status_line("")
             return action, reasoning
         except KeyboardInterrupt:
+            if had_retry_status:
+                _emit_retry_status_line("", finalize=True)
+            raise
+        except OllamaConnectionError:
             if had_retry_status:
                 _emit_retry_status_line("", finalize=True)
             raise
@@ -595,6 +640,58 @@ def _render_collapse_warning(day: int, resource: str) -> None:
     )
 
 
+def _render_resume_panel(
+    *,
+    timestamp: str,
+    csv_path: Path,
+    config: SocietyConfig,
+    completed_days: int,
+    population: int,
+    resource_units: int,
+    resource_capacity: int,
+) -> None:
+    total_days = (
+        "until population dies out"
+        if config.days == 0
+        else str(config.days)
+    )
+    remaining_days = (
+        "open-ended"
+        if config.days == 0 and population > 0
+        else str(max(0, config.days - completed_days))
+    )
+    console.print(
+        Panel(
+            f"[bold]Timestamp:[/bold] {timestamp}\n"
+            f"[bold]Results:[/bold] [green]{csv_path.resolve()}[/green]\n"
+            f"[bold]Completed days:[/bold] {completed_days} / {total_days}\n"
+            f"[bold]Remaining days:[/bold] {remaining_days}\n"
+            f"[bold]Current population:[/bold] {population}\n"
+            f"[bold]Reserve:[/bold] {resource_units}/{resource_capacity}",
+            title="[bold cyan]Resuming Part 2 Run[/bold cyan]",
+            border_style="cyan",
+            expand=True,
+        )
+    )
+
+
+def _render_pause_panel(
+    *,
+    csv_path: Path,
+    error: Exception,
+) -> None:
+    console.print(
+        Panel(
+            f"[bold]Saved partial results:[/bold] [green]{csv_path.resolve()}[/green]\n"
+            f"[bold]Reason:[/bold] {type(error).__name__}: {error}\n\n"
+            "Free system memory, then rerun with `--resume` to continue this model.",
+            title="[bold yellow]Run Paused[/bold yellow]",
+            border_style="yellow",
+            expand=True,
+        )
+    )
+
+
 def run_part_2(
     provider: str | None = None,
     model: str | None = None,
@@ -620,6 +717,12 @@ def run_part_2(
             else _latest_interrupted_part_2_metadata_path()
         )
         metadata = _load_part_2_metadata(metadata_path)
+        if not _metadata_uses_current_part_2_prompt(metadata):
+            raise ValueError(
+                "Cannot resume this part 2 run because its metadata was created "
+                "with an older prompt configuration. Start a fresh run for this "
+                "model/configuration so results do not mix prompt versions."
+            )
         resumed_provider = str(metadata["provider"])
         resumed_model = str(metadata["model"])
         resumed_config = _config_from_metadata(metadata)
@@ -725,12 +828,39 @@ def run_part_2(
     )
     stop_reason = ""
     interrupted = False
+    paused_error: Exception | None = None
 
     runtime_label = (
         "until population dies out (Ctrl+C to stop)"
         if society_config.days == 0
         else f"{society_config.days} days"
     )
+
+    if is_resuming:
+        _render_resume_panel(
+            timestamp=timestamp,
+            csv_path=csv_path,
+            config=society_config,
+            completed_days=completed_days,
+            population=len(agents),
+            resource_units=resource_units,
+            resource_capacity=resource_capacity,
+        )
+
+    if not agents or (
+        society_config.days > 0 and completed_days >= society_config.days
+    ):
+        if metadata_path.exists():
+            metadata_path.unlink()
+        console.print(
+            Panel(
+                f"[green]{csv_path.resolve()}[/green]",
+                title="[bold]Run Already Complete[/bold]",
+                border_style="green",
+                expand=True,
+            )
+        )
+        return str(csv_path)
 
     if not headless:
         console.print(
@@ -770,7 +900,11 @@ def run_part_2(
 
                 population_start = len(agents)
                 daily_decisions: list[dict[str, str]] = []
-                for agent in agents:
+                for agent_index, agent in enumerate(agents, start=1):
+                    if not headless:
+                        _emit_retry_status_line(
+                            f"  Agent {agent.id} {agent_index}/{population_start}: querying..."
+                        )
                     prompt = agent.build_commons_prompt(
                         resource=society_config.resource,
                         selfish_gain=society_config.selfish_gain,
@@ -783,6 +917,8 @@ def run_part_2(
                         previous_overuse_count=previous_overuse_count,
                     )
                     action, reasoning = _query_agent_until_valid(agent, prompt)
+                    if not headless:
+                        _emit_retry_status_line("")
                     daily_decisions.append(
                         {
                             "agent": agent.id,
@@ -873,17 +1009,11 @@ def run_part_2(
         stop_reason = (
             f"Simulation interrupted by user after {completed_days} completed day(s)."
         )
-        if not suppress_keyboard_interrupt:
+    except Exception as error:
+        if isinstance(error, OllamaConnectionError) or _is_ollama_resource_error(error):
+            paused_error = error
+        else:
             raise
-        if not headless:
-            console.print(
-                Panel(
-                    stop_reason,
-                    title="[bold yellow]Simulation Interrupted[/bold yellow]",
-                    border_style="yellow",
-                    expand=True,
-                )
-            )
     finally:
         if provider.strip().lower() == "ollama":
             try:
@@ -892,6 +1022,27 @@ def run_part_2(
                 console.print(
                     f"  [yellow][WARN] Could not unload Ollama model {model}: {error}[/yellow]"
                 )
+
+    if interrupted:
+        if not suppress_keyboard_interrupt:
+            raise KeyboardInterrupt()
+        console.print(
+            Panel(
+                f"{stop_reason}\n\n"
+                f"Saved partial results to:\n[green]{csv_path.resolve()}[/green]\n\n"
+                "Rerun with `--resume` to continue this model.",
+                title="[bold yellow]Simulation Interrupted[/bold yellow]",
+                border_style="yellow",
+                expand=True,
+            )
+        )
+        return str(csv_path)
+
+    if paused_error is not None:
+        _render_pause_panel(csv_path=csv_path, error=paused_error)
+        if not suppress_keyboard_interrupt:
+            raise paused_error
+        return str(csv_path)
 
     if not stop_reason:
         if society_config.days == 0:

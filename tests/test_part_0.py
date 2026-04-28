@@ -1,4 +1,5 @@
 import csv
+import io
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -67,6 +68,44 @@ def _render_to_text(renderable) -> str:
     capture_console = Console(force_terminal=False, color_system=None, width=100, record=True)
     capture_console.print(renderable)
     return capture_console.export_text()
+
+
+class FlushTrackingIO(io.StringIO):
+    def __init__(self) -> None:
+        super().__init__()
+        self.flush_count = 0
+
+    def flush(self) -> None:
+        self.flush_count += 1
+        super().flush()
+
+
+def test_emit_retry_status_line_writes_raw_flushed_carriage_update(monkeypatch) -> None:
+    stream = FlushTrackingIO()
+    monkeypatch.setattr(
+        part_0,
+        "console",
+        Console(file=stream, force_terminal=False, color_system=None, width=100),
+    )
+
+    part_0._emit_retry_status_line("  [yellow][WARN] retrying[/yellow]")
+
+    assert stream.getvalue() == "\r\x1b[2K  [WARN] retrying"
+    assert stream.flush_count == 1
+
+
+def test_emit_retry_status_line_finalizes_with_cleared_newline(monkeypatch) -> None:
+    stream = FlushTrackingIO()
+    monkeypatch.setattr(
+        part_0,
+        "console",
+        Console(file=stream, force_terminal=False, color_system=None, width=100),
+    )
+
+    part_0._emit_retry_status_line("", finalize=True)
+
+    assert stream.getvalue() == "\r\x1b[2K\n"
+    assert stream.flush_count == 1
 
 
 def test_translate_to_english_reports_failure_status(monkeypatch) -> None:

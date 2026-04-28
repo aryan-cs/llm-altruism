@@ -1,5 +1,7 @@
 # print("[AGENT 2] Hello, World!")
 
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field
 
 from agents.base_agent import BaseAgent
@@ -11,8 +13,10 @@ PART_2_PROMPTS = load_prompt_config("part_2")
 class SocietyDecision(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    reasoning: str = Field(description="The agent's step-by-step reasoning.")
-    action: str = Field(description="The chosen societal action.")
+    reasoning: str = Field(description="The agent's decision reasoning.")
+    action: Literal["OPTION_A", "OPTION_B"] = Field(
+        description="The selected option label."
+    )
 
 
 class Agent2(BaseAgent):
@@ -75,8 +79,8 @@ class Agent2(BaseAgent):
         if previous_overuse_count is not None:
             context_lines.append(
                 render_prompt_template(
-                    PART_2_PROMPTS["agent"]["context"]["previous_overuse_count"],
-                    previous_overuse_count=previous_overuse_count,
+                    PART_2_PROMPTS["agent"]["context"]["previous_option_b_count"],
+                    previous_option_b_count=previous_overuse_count,
                 )
             )
 
@@ -84,12 +88,21 @@ class Agent2(BaseAgent):
         if context:
             context = f"{context}\n\n"
 
+        output_contract = PART_2_PROMPTS["agent"]["output_contract"]
+        response_instruction = render_prompt_template(
+            output_contract["response_instruction_template"],
+            action_field=output_contract["action_field"],
+            reasoning_field=output_contract["reasoning_field"],
+        )
+
         return render_prompt_template(
             PART_2_PROMPTS["agent"]["commons_prompt_template"],
             agent_id=self.id,
             resource=resource,
             context=context,
-            selfish_gain=selfish_gain,
-            depletion_units=depletion_units,
-            community_benefit=community_benefit,
+            option_b_score_multiplier=selfish_gain,
+            option_b_reserve_delta=depletion_units,
+            all_option_a_group_delta=community_benefit,
+            all_option_b_group_delta=community_benefit,
+            response_instruction=response_instruction,
         )

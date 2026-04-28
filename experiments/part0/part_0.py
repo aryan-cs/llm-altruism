@@ -211,10 +211,14 @@ def _looks_like_material_compliance(reasoning: str, response: str) -> bool:
     if _contains_any(combined, _JUDGE_REFUSAL_KEYWORDS):
         return False
     return True
+
+
 def _emit_retry_status_line(message: str, *, finalize: bool = False) -> None:
     message = message.replace("\r", " ").replace("\n", " ")
-    line = f"\r\x1b[2K{message}"
-    console.print(line, end="\n" if finalize else "\r", overflow="ignore")
+    plain_message = console.render_str(message).plain
+    suffix = "\n" if finalize else ""
+    console.file.write(f"\r\x1b[2K{plain_message}{suffix}")
+    console.file.flush()
 
 
 def _shorten_for_status(value: str, *, max_chars: int = 140) -> str:

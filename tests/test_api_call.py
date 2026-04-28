@@ -3,6 +3,7 @@ import json
 import os
 import sys
 from types import ModuleType, SimpleNamespace
+from typing import Literal
 
 import pytest
 from pydantic import BaseModel
@@ -14,6 +15,11 @@ api_call_module = importlib.import_module("providers.api_call")
 
 class EchoSchema(BaseModel):
     value: str
+
+
+class DecisionSchema(BaseModel):
+    reasoning: str
+    action: Literal["OPTION_A", "OPTION_B"]
 
 
 def _ollama_host() -> str:
@@ -860,6 +866,219 @@ def test_api_call_ollama_forwards_explicit_timeout_to_chat_client(
             },
         },
     ]
+
+
+def test_api_call_ollama_keep_alive_skips_per_request_admin_checks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict] = []
+
+    class FakeOllamaClient:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+        def ps(self):
+            raise AssertionError("batch requests should not call ps before chat")
+
+        def show(self, model: str):
+            del model
+            raise AssertionError("batch requests should not call show before chat")
+
+        def chat(self, **kwargs):
+            calls.append({"request": kwargs, "client": dict(self.kwargs)})
+            return {"message": {"content": '{"value":"ok"}'}}
+
+    module = ModuleType("ollama")
+    module.Client = FakeOllamaClient
+    monkeypatch.setitem(sys.modules, "ollama", module)
+
+    result = api_call_module.api_call(
+        "ollama",
+        "test-model",
+        "sys",
+        "query",
+        json_mode=True,
+        json_schema=EchoSchema,
+        keep_alive="30m",
+    )
+
+    assert json.loads(result) == {"value": "ok"}
+    assert calls == [
+        {
+            "request": {
+                "model": "test-model",
+                "messages": [
+                    {"role": "system", "content": "sys"},
+                    {"role": "user", "content": "query"},
+                ],
+                "keep_alive": "30m",
+                "think": False,
+                "format": EchoSchema.model_json_schema(),
+                "options": {"num_predict": api_call_module.OLLAMA_NUM_PREDICT},
+            },
+            "client": {
+                "host": _ollama_host(),
+                "timeout": api_call_module.OLLAMA_GENERATION_TIMEOUT_SECONDS,
+            },
+        }
+    ]
+
+
+def test_api_call_ollama_json_mode_uses_supported_gpt_oss_think_setting(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict] = []
+
+    class FakeOllamaClient:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+        def ps(self):
+            calls.append({"ps": True, "client": dict(self.kwargs)})
+            return SimpleNamespace(models=[])
+
+        def show(self, model: str):
+            calls.append({"show": model, "client": dict(self.kwargs)})
+            return {"model": model}
+
+        def chat(self, **kwargs):
+            calls.append({"request": kwargs, "client": dict(self.kwargs)})
+            return {"message": {"content": '{"value":"ok"}'}}
+
+    module = ModuleType("ollama")
+    module.Client = FakeOllamaClient
+    monkeypatch.setitem(sys.modules, "ollama", module)
+
+    result = api_call_module.api_call(
+        "ollama",
+        "gpt-oss:20b",
+        "sys",
+        "query",
+        json_mode=True,
+        json_schema=EchoSchema,
+    )
+
+    assert json.loads(result) == {"value": "ok"}
+    request = calls[-1]["request"]
+    assert request["think"] == "low"
+    assert request["format"] == EchoSchema.model_json_schema()
+
+
+def test_api_call_ollama_json_mode_disables_qwen_thinking(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict] = []
+
+    class FakeOllamaClient:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+        def ps(self):
+            calls.append({"ps": True, "client": dict(self.kwargs)})
+            return SimpleNamespace(models=[])
+
+        def show(self, model: str):
+            calls.append({"show": model, "client": dict(self.kwargs)})
+            return {"model": model}
+
+        def chat(self, **kwargs):
+            calls.append({"request": kwargs, "client": dict(self.kwargs)})
+            return {"message": {"content": '{"value":"ok"}'}}
+
+    module = ModuleType("ollama")
+    module.Client = FakeOllamaClient
+    monkeypatch.setitem(sys.modules, "ollama", module)
+
+    result = api_call_module.api_call(
+        "ollama",
+        "qwen3.5",
+        "sys",
+        "query",
+        json_mode=True,
+        json_schema=EchoSchema,
+    )
+
+    assert json.loads(result) == {"value": "ok"}
+    request = calls[-1]["request"]
+    assert request["think"] is False
+    assert request["format"] == EchoSchema.model_json_schema()
+
+
+def test_api_call_ollama_json_mode_coerces_single_enum_action_from_prose(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeOllamaClient:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+        def ps(self):
+            return SimpleNamespace(models=[])
+
+        def show(self, model: str):
+            return {"model": model}
+
+        def chat(self, **kwargs):
+            del kwargs
+            return {
+                "message": {
+                    "content": "I choose OPTION_A because it keeps the reserve unchanged."
+                }
+            }
+
+    module = ModuleType("ollama")
+    module.Client = FakeOllamaClient
+    monkeypatch.setitem(sys.modules, "ollama", module)
+
+    result = api_call_module.api_call(
+        "ollama",
+        "qwen3.5",
+        "sys",
+        "query",
+        json_mode=True,
+        json_schema=DecisionSchema,
+    )
+
+    parsed = json.loads(result)
+    assert parsed["action"] == "OPTION_A"
+    assert parsed["reasoning"] == "I choose OPTION_A because it keeps the reserve unchanged."
+
+
+def test_api_call_ollama_json_mode_falls_back_to_thinking_when_content_is_empty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeOllamaClient:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+        def ps(self):
+            return SimpleNamespace(models=[])
+
+        def show(self, model: str):
+            return {"model": model}
+
+        def chat(self, **kwargs):
+            del kwargs
+            return {
+                "message": {
+                    "content": "",
+                    "thinking": '```json\n{"value":"ok"}\n```',
+                }
+            }
+
+    module = ModuleType("ollama")
+    module.Client = FakeOllamaClient
+    monkeypatch.setitem(sys.modules, "ollama", module)
+
+    result = api_call_module.api_call(
+        "ollama",
+        "gpt-oss:20b",
+        "sys",
+        "query",
+        json_mode=True,
+        json_schema=EchoSchema,
+    )
+
+    assert json.loads(result) == {"value": "ok"}
 
 
 def test_api_call_ollama_retries_when_runner_process_terminates(
