@@ -125,9 +125,20 @@ Current generated outputs:
 - `data/analysis/tables/part1_model_summary.csv`
 - `data/analysis/tables/part1_dimension_summary.csv`
 - `data/analysis/tables/part2_model_summary.csv`
+- `data/analysis/tables/cross_part_model_summary.csv`
+- `data/analysis/tables/cross_part_correlations.csv`
 - `data/analysis/run_manifest.jsonl`
 
-Figure scripts live under `data/graphs/`. Graph styling and final figure selection are intentionally separate from the validation and table pipeline.
+Figure scripts live under `data/graphs/`. Graph styling and final figure selection are intentionally separate from the validation and table pipeline. Master plots are used for the main per-part summaries; model-family and individual cross-part plots are included for reviewer inspection.
+
+Regenerate figures:
+
+```bash
+uv run python data/graphs/part_0_graphs.py --latest
+uv run python data/graphs/part_1_graphs.py --latest
+uv run python data/graphs/part_2_graphs.py --latest
+uv run python data/graphs/cross_part_graphs.py
+```
 
 ## Submission Gates
 

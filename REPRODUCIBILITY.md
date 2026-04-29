@@ -45,11 +45,22 @@ Outputs:
 - `data/analysis/tables/part1_model_summary.csv`
 - `data/analysis/tables/part1_dimension_summary.csv`
 - `data/analysis/tables/part2_model_summary.csv`
+- `data/analysis/tables/cross_part_model_summary.csv`
+- `data/analysis/tables/cross_part_correlations.csv`
 - `data/analysis/run_manifest.jsonl`
 
 ## Figures
 
 Graph generation is intentionally separate from the graph-independent analysis pipeline. Figure scripts live under `data/graphs/`. Use the summary tables and validation report above as the authoritative numerical inputs when checking final figures.
+
+```bash
+uv run python data/graphs/part_0_graphs.py --latest
+uv run python data/graphs/part_1_graphs.py --latest
+uv run python data/graphs/part_2_graphs.py --latest
+uv run python data/graphs/cross_part_graphs.py
+```
+
+The main paper uses selected master plots plus readable individual cross-part scatterplots. The graph tree also contains model-family plots and the full set of individual cross-part scatterplots for reviewer inspection.
 
 ## Acceptance Criteria
 

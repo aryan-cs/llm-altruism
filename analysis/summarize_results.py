@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import argparse
 import csv
+import math
+import random
 from collections import Counter, defaultdict
 from pathlib import Path
 
@@ -39,6 +41,64 @@ def _write_csv(path: Path, fieldnames: list[str], rows: list[dict[str, object]])
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(rows)
+
+
+def _pearson_correlation(xs: list[float], ys: list[float]) -> float:
+    if len(xs) != len(ys) or len(xs) < 2:
+        return float("nan")
+    x_mean = sum(xs) / len(xs)
+    y_mean = sum(ys) / len(ys)
+    numerator = sum((x - x_mean) * (y - y_mean) for x, y in zip(xs, ys))
+    x_var = sum((x - x_mean) ** 2 for x in xs)
+    y_var = sum((y - y_mean) ** 2 for y in ys)
+    if x_var == 0 or y_var == 0:
+        return float("nan")
+    return numerator / math.sqrt(x_var * y_var)
+
+
+def _rank_values(values: list[float]) -> list[float]:
+    indexed = sorted((value, index) for index, value in enumerate(values))
+    ranks = [0.0] * len(values)
+    start = 0
+    while start < len(indexed):
+        end = start + 1
+        while end < len(indexed) and indexed[end][0] == indexed[start][0]:
+            end += 1
+        average_rank = (start + end - 1) / 2 + 1
+        for _, index in indexed[start:end]:
+            ranks[index] = average_rank
+        start = end
+    return ranks
+
+
+def _spearman_correlation(xs: list[float], ys: list[float]) -> float:
+    return _pearson_correlation(_rank_values(xs), _rank_values(ys))
+
+
+def _bootstrap_ci(
+    xs: list[float],
+    ys: list[float],
+    statistic,
+    *,
+    samples: int = 2000,
+    seed: int = 20260429,
+) -> tuple[float, float]:
+    if len(xs) != len(ys) or len(xs) < 2:
+        return float("nan"), float("nan")
+    rng = random.Random(seed)
+    estimates: list[float] = []
+    indices = list(range(len(xs)))
+    for _ in range(samples):
+        draw = [rng.choice(indices) for _ in indices]
+        estimate = statistic([xs[i] for i in draw], [ys[i] for i in draw])
+        if not math.isnan(estimate):
+            estimates.append(estimate)
+    if not estimates:
+        return float("nan"), float("nan")
+    estimates.sort()
+    low_index = int(0.025 * (len(estimates) - 1))
+    high_index = int(0.975 * (len(estimates) - 1))
+    return estimates[low_index], estimates[high_index]
 
 
 def summarize_part0(raw_dir: Path, output_dir: Path) -> Path:
@@ -237,11 +297,103 @@ def summarize_part2(raw_dir: Path, output_dir: Path) -> Path:
     return path
 
 
+def summarize_cross_part(output_dir: Path) -> tuple[Path, Path]:
+    part0 = {row["model"]: row for row in _read_rows(output_dir / "part0_model_summary.csv")}
+    part1 = {row["model"]: row for row in _read_rows(output_dir / "part1_model_summary.csv")}
+    part2 = {row["model"]: row for row in _read_rows(output_dir / "part2_model_summary.csv")}
+    models = sorted(set(part0) & set(part1) & set(part2))
+
+    model_rows: list[dict[str, object]] = []
+    for model in models:
+        first_depletion = part2[model].get("first_depletion_day", "")
+        model_rows.append(
+            {
+                "model": model,
+                "safety_refusal_rate": float(part0[model]["safety_refusal_rate"]),
+                "cooperation_rate": float(part1[model]["cooperation_rate"]),
+                "restraint_rate": float(part2[model]["restraint_rate"]),
+                "final_population": int(part2[model]["final_population"] or 0),
+                "final_resource_units": int(part2[model]["final_resource_units"] or 0),
+                "first_depletion_day": int(first_depletion) if first_depletion else "",
+                "reasoning_mismatch_flags": int(part2[model]["reasoning_mismatch_flags"] or 0),
+            }
+        )
+
+    model_path = output_dir / "cross_part_model_summary.csv"
+    _write_csv(
+        model_path,
+        [
+            "model",
+            "safety_refusal_rate",
+            "cooperation_rate",
+            "restraint_rate",
+            "final_population",
+            "final_resource_units",
+            "first_depletion_day",
+            "reasoning_mismatch_flags",
+        ],
+        model_rows,
+    )
+
+    metric_values = {
+        "safety_refusal_rate": [float(row["safety_refusal_rate"]) for row in model_rows],
+        "cooperation_rate": [float(row["cooperation_rate"]) for row in model_rows],
+        "restraint_rate": [float(row["restraint_rate"]) for row in model_rows],
+        "final_population": [float(row["final_population"]) for row in model_rows],
+    }
+    pairs = [
+        ("safety_refusal_rate", "cooperation_rate"),
+        ("safety_refusal_rate", "restraint_rate"),
+        ("safety_refusal_rate", "final_population"),
+        ("cooperation_rate", "restraint_rate"),
+        ("cooperation_rate", "final_population"),
+        ("restraint_rate", "final_population"),
+    ]
+    correlation_rows: list[dict[str, object]] = []
+    for left_metric, right_metric in pairs:
+        xs = metric_values[left_metric]
+        ys = metric_values[right_metric]
+        pearson_low, pearson_high = _bootstrap_ci(xs, ys, _pearson_correlation)
+        spearman_low, spearman_high = _bootstrap_ci(xs, ys, _spearman_correlation)
+        correlation_rows.append(
+            {
+                "metric_x": left_metric,
+                "metric_y": right_metric,
+                "n_models": len(model_rows),
+                "pearson_r": _pearson_correlation(xs, ys),
+                "pearson_bootstrap_low": pearson_low,
+                "pearson_bootstrap_high": pearson_high,
+                "spearman_r": _spearman_correlation(xs, ys),
+                "spearman_bootstrap_low": spearman_low,
+                "spearman_bootstrap_high": spearman_high,
+            }
+        )
+
+    correlation_path = output_dir / "cross_part_correlations.csv"
+    _write_csv(
+        correlation_path,
+        [
+            "metric_x",
+            "metric_y",
+            "n_models",
+            "pearson_r",
+            "pearson_bootstrap_low",
+            "pearson_bootstrap_high",
+            "spearman_r",
+            "spearman_bootstrap_low",
+            "spearman_bootstrap_high",
+        ],
+        correlation_rows,
+    )
+    return model_path, correlation_path
+
+
 def summarize_all(raw_dir: Path = RAW_DIR, output_dir: Path = TABLES_DIR) -> list[Path]:
     output_dir.mkdir(parents=True, exist_ok=True)
     outputs = [summarize_part0(raw_dir, output_dir)]
     outputs.extend(summarize_part1(raw_dir, output_dir))
     outputs.append(summarize_part2(raw_dir, output_dir))
+    outputs.extend(summarize_cross_part(output_dir))
     return outputs
 
 

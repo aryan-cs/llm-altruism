@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import json
 import math
 import statistics
 from collections import defaultdict
@@ -975,7 +976,14 @@ def _parse_csv_metadata_from_name(path: Path) -> tuple[str, datetime] | None:
 
 
 def _is_interrupted_run(path: Path) -> bool:
-    return path.with_name(f"{path.stem}_meta.json").exists()
+    metadata_path = path.with_name(f"{path.stem}_meta.json")
+    if not metadata_path.exists():
+        return False
+    try:
+        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    except Exception:
+        return True
+    return metadata.get("status") != "complete"
 
 
 def find_latest_nonempty_csvs_by_model(
@@ -1045,8 +1053,6 @@ def render_chart_bundle(
     dimensions: Sequence[str],
     output_dir: Path,
     prefix: str,
-    source_note: str,
-    ci_label: str,
 ) -> list[Path]:
     """Render the selected part_1 chart set into one output directory."""
     written: list[Path] = []
@@ -1059,7 +1065,7 @@ def render_chart_bundle(
         rates,
         errors,
         totals,
-        title=build_overall_title(source_note=source_note, ci_label=ci_label),
+        title=build_overall_title(),
         output=overall_output,
     )
     written.append(overall_output)
@@ -1073,11 +1079,7 @@ def render_chart_bundle(
             ci_method,
             labels,
             dimension=dimension,
-            title=build_dimension_title(
-                dimension=dimension,
-                source_note=source_note,
-                ci_label=ci_label,
-            ),
+            title=build_dimension_title(dimension=dimension),
             output=dimension_output,
         )
         written.append(dimension_output)
@@ -1110,67 +1112,40 @@ def main() -> int:
     graphs_dir = Path(args.graphs_dir)
     prefix = args.out_prefix or default_out_prefix(csv_paths, scope=args.scope)
 
-    # --- master-plots (all models) ---
-    master_dir = graphs_dir / MASTER_PLOTS_DIRNAME
-
-    overall_output = master_dir / f"{prefix}_cooperation_by_model.png"
-    render_overall_chart(
-        labels,
-        rates,
-        errors,
-        totals,
-        title=build_overall_title(),
-        output=overall_output,
+    master_outputs = render_chart_bundle(
+        rows=rows,
+        labels=labels,
+        rates=rates,
+        errors=errors,
+        totals=totals,
+        z=z,
+        ci_method=ci_method,
+        dimensions=args.dimensions,
+        output_dir=graphs_dir / MASTER_PLOTS_DIRNAME,
+        prefix=prefix,
     )
     for output in master_outputs:
         print(f"wrote: {output}")
-
-    for dimension in args.dimensions:
-        _, by_dimension = aggregate_rows(rows, dimension)
-        dimension_output = master_dir / f"{prefix}_cooperation_by_model_and_{dimension}.png"
-        render_dimension_chart(
-            by_dimension,
-            z,
-            ci_method,
-            labels,
-            dimension=dimension,
-            title=build_dimension_title(dimension=dimension),
-            output=dimension_output,
-        )
-        for output in group_outputs:
-            print(f"wrote: {output}")
 
     # --- per-family model-specific plots ---
     for folder_name, group_models in build_model_plot_groups(labels):
         group_labels, group_rates, group_errors, group_totals = filter_model_rows(
             labels, rates, errors, totals, group_models,
         )
-        group_dir = graphs_dir / folder_name
-
-        group_overall = group_dir / f"{prefix}_cooperation_by_model.png"
-        render_overall_chart(
-            group_labels,
-            group_rates,
-            group_errors,
-            group_totals,
-            title=build_overall_title(),
-            output=group_overall,
+        group_outputs = render_chart_bundle(
+            rows=rows,
+            labels=group_labels,
+            rates=group_rates,
+            errors=group_errors,
+            totals=group_totals,
+            z=z,
+            ci_method=ci_method,
+            dimensions=args.dimensions,
+            output_dir=graphs_dir / folder_name,
+            prefix=prefix,
         )
-        print(f"wrote: {group_overall}")
-
-        for dimension in args.dimensions:
-            _, by_dimension = aggregate_rows(rows, dimension)
-            group_dim = group_dir / f"{prefix}_cooperation_by_model_and_{dimension}.png"
-            render_dimension_chart(
-                by_dimension,
-                z,
-                ci_method,
-                group_labels,
-                dimension=dimension,
-                title=build_dimension_title(dimension=dimension),
-                output=group_dim,
-            )
-            print(f"wrote: {group_dim}")
+        for output in group_outputs:
+            print(f"wrote: {output}")
 
     return 0
 

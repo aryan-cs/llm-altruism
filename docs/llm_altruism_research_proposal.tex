@@ -74,52 +74,90 @@ The same commands are listed in \texttt{REPRODUCIBILITY.md}. Summary tables are 
 
 \section{Pilot Results}
 \subsection{Safety Refusal}
-Part 0 contains 13 model summaries with 297 judged prompts per model. Table~\ref{tab:part0} shows the highest and lowest observed safety-refusal rates. Refusal is high for several standard or safeguard-oriented models and much lower for explicitly uncensored or derestricted variants.
+Part 0 contains 13 model summaries with 297 judged prompts per model. Figure~\ref{fig:part0-refusal} shows large variation by model family and release style. Refusal is high for several standard or safeguard-oriented models and much lower for explicitly uncensored or derestricted variants. The exact model-level rates are exported in \texttt{data/analysis/tables/part0\_model\_summary.csv}.
 
-\begin{table}[h]
+\begin{figure}[t]
 \centering
-\caption{Part 0 safety-refusal rates from \texttt{part0\_model\_summary.csv}.}
-\label{tab:part0}
-\small
-\begin{tabular}{lrrr}
-\toprule
-Model & Judged & Denied & Refusal rate \\
-\midrule
-\texttt{gpt-oss:20b} & 297 & 295 & 99.3\% \\
-\texttt{qwen3.5} & 297 & 292 & 98.3\% \\
-\texttt{sorc/qwen3.5-instruct} & 297 & 290 & 97.6\% \\
-\texttt{huihui\_ai/qwen2.5-abliterate:7b} & 297 & 83 & 27.9\% \\
-\texttt{gurubot/gpt-oss-derestricted:20b} & 297 & 48 & 16.2\% \\
-\texttt{aratan/qwen3.5-uncensored:9b} & 297 & 28 & 9.4\% \\
-\bottomrule
-\end{tabular}
-\end{table}
+\includegraphics[width=0.92\linewidth]{../data/graphs/part_0/master-plots/04-11-2026_13_04_37_alignment_by_model.png}
+\caption{Part 0 safety-refusal rate by model. Error bars are Wilson 95\% confidence intervals.}
+\label{fig:part0-refusal}
+\end{figure}
 
 \subsection{Dyadic Cooperation}
-Part 1 contains 384 prompt variants per model. Table~\ref{tab:part1} shows the highest and lowest cooperation rates. The highest observed cooperation rate is 75.0\%, shared by three Qwen 2.5 variants. Several uncensored or derestricted variants have cooperation rates below 30\%. This should not be read as a monotonic safety-to-cooperation relationship: the pilot set is small, model families differ in many ways, and Part 1 uses a distinct behavioral construct.
+Part 1 contains 384 prompt variants per model. Figure~\ref{fig:part1-cooperation} shows that the highest observed cooperation rate is 75.0\%, shared by three Qwen 2.5 variants, while several uncensored or derestricted variants have cooperation rates below 30\%. This should not be read as a monotonic safety-to-cooperation relationship: the pilot set is small, model families differ in many ways, and Part 1 uses a distinct behavioral construct.
 
-\begin{table}[h]
+\begin{figure}[t]
 \centering
-\caption{Part 1 dyadic cooperation rates from \texttt{part1\_model\_summary.csv}.}
-\label{tab:part1}
-\small
-\begin{tabular}{lrrr}
-\toprule
-Model & Prompts & Cooperative & Cooperation rate \\
-\midrule
-\texttt{huihui\_ai/qwen2.5-abliterate:7b} & 384 & 288 & 75.0\% \\
-\texttt{qwen2.5:7b} & 384 & 288 & 75.0\% \\
-\texttt{qwen2.5:7b-instruct} & 384 & 288 & 75.0\% \\
-\texttt{gurubot/gpt-oss-derestricted:20b} & 384 & 104 & 27.1\% \\
-\texttt{sorc/qwen3.5-instruct-uncensored} & 384 & 99 & 25.8\% \\
-\texttt{aratan/qwen3.5-uncensored:9b} & 384 & 93 & 24.2\% \\
-\bottomrule
-\end{tabular}
-\end{table}
+\includegraphics[width=0.92\linewidth]{../data/graphs/part_1/master-plots/part1_latest_full_per_model_cooperation_by_model.png}
+\caption{Part 1 cooperation rate by model across the full dyadic prompt matrix. Error bars are Wilson 95\% confidence intervals.}
+\label{fig:part1-cooperation}
+\end{figure}
 
 \subsection{Commons Restraint}
-Part 2 shows both aggregate survival differences and justification failures. Six of thirteen societies preserve a nonzero population through day 100; seven collapse to zero population. Table~\ref{tab:part2} lists all Part 2 runs ordered by restraint rate. The two Llama variants and several Qwen variants preserve nonzero populations, while lower-restraint runs deplete the reserve and collapse earlier. The warning column is the number of \texttt{OVERUSE} rows flagged by the reasoning/action audit.
+Part 2 shows both aggregate survival differences and justification failures. Six of thirteen societies preserve a nonzero population through day 100; seven collapse to zero population. Figure~\ref{fig:part2-restraint} shows the model-level restraint rates. The two Llama variants and several Qwen variants preserve nonzero populations, while lower-restraint runs deplete the reserve and collapse earlier. Across Part 2, the reasoning/action audit flags 835 \texttt{OVERUSE} rows where the model's explanation describes the action as group-preserving or reserve-preserving.
 
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.92\linewidth]{../data/graphs/part_2/master-plots/part2_latest_n50_d100_water_per_model_restraint_by_model.png}
+\caption{Part 2 restraint rate by model in 50-agent, 100-day commons simulations. Error bars are Wilson 95\% confidence intervals.}
+\label{fig:part2-restraint}
+\end{figure}
+
+\subsection{Cross-Part Interpretation}
+The pilot supports a cautious conclusion: the three metrics are separable. Figures~\ref{fig:cross-safety-cooperation} and~\ref{fig:cross-cooperation-restraint} show two readable individual cross-part scatterplots; the full set of individual cross-part plots is included in the supplement. Safety refusal has a weak and uncertain relation to dyadic cooperation in this cohort (Pearson $r=0.24$), while safety refusal/restraint and cooperation/restraint are more positive but still pilot-scale comparisons over only 13 models. The strongest relation is restraint versus final population (Pearson $r=0.87$), which is expected because restraint is mechanistically tied to resource survival in the Part 2 environment. These patterns argue against collapsing the benchmark into a single ``good behavior'' score and motivate a larger confirmatory run with frozen model taxonomy, repeated seeds or decoding settings, and bootstrap uncertainty over model-level comparisons.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.82\linewidth]{../data/graphs/cross_part/individual-plots/safety_refusal_vs_cooperation.png}
+\caption{Individual cross-part scatterplot comparing Part 0 safety refusal with Part 1 dyadic cooperation. Each point is one evaluated model variant.}
+\label{fig:cross-safety-cooperation}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.82\linewidth]{../data/graphs/cross_part/individual-plots/cooperation_vs_restraint.png}
+\caption{Individual cross-part scatterplot comparing Part 1 dyadic cooperation with Part 2 commons restraint. Each point is one evaluated model variant.}
+\label{fig:cross-cooperation-restraint}
+\end{figure}
+
+\section{Limitations}
+This is an open-model pilot, not a definitive benchmark of frontier systems. The current results use local/Ollama model tags, which can drift across installations. The Part 2 societies are homogeneous same-model simulations; real deployments may contain heterogeneous agents, external incentives, and richer institutions. Metrics are prompt-sensitive and decoding-sensitive. Part 0 relies on judge labels and should be audited for borderline cases, multilingual outputs, and any cases where refusal style masks actionable harmful content. The reasoning/action mismatch audit is intentionally conservative and pattern-based; it catches salient contradictions but is not a complete semantic verifier.
+
+\section{Ethics and Safety}
+The harmful-request component creates and stores potentially unsafe generations. The anonymous supplement therefore includes Part 0 aggregate tables and validation reports, but excludes raw Part 0 completions by default. This limits unnecessary redistribution of harmful content while preserving the numerical claims used in the paper. The released artifact is intended for evaluation research and should not be used to optimize harmful compliance. The paper makes no claim that models possess moral agency or intrinsic altruism.
+
+\section{Conclusion}
+We introduced a reproducible evaluation framework for measuring safety refusal, dyadic cooperation, and commons restraint in LLM agents. The pilot shows strong variation across model variants, clear survival differences in commons simulations, and a concrete reasoning/action mismatch failure mode. The next step is a frozen confirmatory evaluation with broader model coverage, repeated settings, and final figure exports generated from the same graph-independent tables.
+
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\appendix
+
+\section{Artifact Map}
+\begin{itemize}
+    \item Experiment code: \path{experiments/part0}, \path{experiments/part1}, \path{experiments/part2}.
+    \item Analysis code: \path{analysis/validation.py}, \path{analysis/summarize_results.py}, and \path{analysis/build_manifest.py}.
+    \item Raw data: \path{data/raw/part_0}, \path{data/raw/part_1}, and \path{data/raw/part_2}; raw Part 0 completions are omitted from the anonymous supplement by default.
+    \item Derived tables: \path{data/analysis/tables}.
+    \item Paper figures and detailed individual plots: \path{data/graphs}. The main paper uses selected master plots and readable individual cross-part plots, while the supplement includes the model-family plot folders for inspection.
+    \item Validation report: \path{data/analysis/validation/validation_report.json}.
+    \item Manifest: \path{data/analysis/run_manifest.jsonl}.
+    \item Release documentation: \texttt{REPRODUCIBILITY.md}, \texttt{DATA\_CARD.md}, and \texttt{MODEL\_REGISTRY.md}.
+\end{itemize}
+
+\section{Reproduction Checklist}
+The expected pre-submission gate is:
+\begin{verbatim}
+uv run pytest -q
+uv run python -m analysis.validation --strict
+uv run python -m analysis.summarize_results
+uv run python -m analysis.build_manifest
+uv run python data/graphs/cross_part_graphs.py
+\end{verbatim}
+At the time of this draft, the test gate passes, validation reports 27 files with 14 pass, 13 warn, and 0 fail, and the warnings are the Part 2 reasoning/action mismatch flags discussed in the main text.
+
+\section{Pilot Summary Tables}
 \begin{table}[h]
 \centering
 \caption{Part 2 commons outcomes from \texttt{part2\_model\_summary.csv}. ``$>$100'' means no reserve depletion within the configured horizon.}
@@ -147,44 +185,6 @@ Model & Restraint & First depletion day & Final population & Mismatch flags \\
 \end{tabular}%
 }
 \end{table}
-
-\subsection{Cross-Part Interpretation}
-The pilot supports a cautious conclusion: the three metrics are separable. Safety refusal, dyadic cooperation, and commons restraint do not reduce to a single latent ``good behavior'' score in this small cohort. For example, some Qwen 2.5 variants are highly cooperative in Part 1 and high-restraint in Part 2 despite differing safety-refusal behavior in Part 0, while \texttt{llama2} has the highest Part 2 restraint in the pilot without being the top Part 0 refusal model. Conversely, several uncensored or derestricted variants are low on all three behavioral measures. These patterns motivate a larger confirmatory run with frozen model taxonomy, repeated seeds or decoding settings, and bootstrap uncertainty over model-level comparisons.
-
-\section{Limitations}
-This is an open-model pilot, not a definitive benchmark of frontier systems. The current results use local/Ollama model tags, which can drift across installations. The Part 2 societies are homogeneous same-model simulations; real deployments may contain heterogeneous agents, external incentives, and richer institutions. Metrics are prompt-sensitive and decoding-sensitive. Part 0 relies on judge labels and should be audited for borderline cases, multilingual outputs, and any cases where refusal style masks actionable harmful content. The reasoning/action mismatch audit is intentionally conservative and pattern-based; it catches salient contradictions but is not a complete semantic verifier.
-
-\section{Ethics and Safety}
-The harmful-request component creates and stores potentially unsafe generations. The anonymous supplement therefore includes Part 0 aggregate tables and validation reports, but excludes raw Part 0 completions by default. This limits unnecessary redistribution of harmful content while preserving the numerical claims used in the paper. The released artifact is intended for evaluation research and should not be used to optimize harmful compliance. The paper makes no claim that models possess moral agency or intrinsic altruism.
-
-\section{Conclusion}
-We introduced a reproducible evaluation framework for measuring safety refusal, dyadic cooperation, and commons restraint in LLM agents. The pilot shows strong variation across model variants, clear survival differences in commons simulations, and a concrete reasoning/action mismatch failure mode. The next step is a frozen confirmatory evaluation with broader model coverage, repeated settings, and final figure exports generated from the same graph-independent tables.
-
-\bibliographystyle{plainnat}
-\bibliography{references}
-
-\appendix
-
-\section{Artifact Map}
-\begin{itemize}
-    \item Experiment code: \path{experiments/part0}, \path{experiments/part1}, \path{experiments/part2}.
-    \item Analysis code: \path{analysis/validation.py}, \path{analysis/summarize_results.py}, and \path{analysis/build_manifest.py}.
-    \item Raw data: \path{data/raw/part_0}, \path{data/raw/part_1}, and \path{data/raw/part_2}; raw Part 0 completions are omitted from the anonymous supplement by default.
-    \item Derived tables: \path{data/analysis/tables}.
-    \item Validation report: \path{data/analysis/validation/validation_report.json}.
-    \item Manifest: \path{data/analysis/run_manifest.jsonl}.
-    \item Release documentation: \texttt{REPRODUCIBILITY.md}, \texttt{DATA\_CARD.md}, and \texttt{MODEL\_REGISTRY.md}.
-\end{itemize}
-
-\section{Reproduction Checklist}
-The expected pre-submission gate is:
-\begin{verbatim}
-uv run pytest -q
-uv run python -m analysis.validation --strict
-uv run python -m analysis.summarize_results
-uv run python -m analysis.build_manifest
-\end{verbatim}
-At the time of this draft, the test gate passes, validation reports 27 files with 14 pass, 13 warn, and 0 fail, and the warnings are the Part 2 reasoning/action mismatch flags discussed in the main text.
 
 \section{NeurIPS Paper Checklist}
 \begin{enumerate}

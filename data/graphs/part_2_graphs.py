@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import json
 import math
 import statistics
 from collections import defaultdict
@@ -1311,7 +1312,14 @@ def _days_label(days: int | None) -> str | None:
 
 
 def _is_interrupted_run(path: Path) -> bool:
-    return path.with_name(f"{path.stem}_meta.json").exists()
+    metadata_path = path.with_name(f"{path.stem}_meta.json")
+    if not metadata_path.exists():
+        return False
+    try:
+        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    except Exception:
+        return True
+    return metadata.get("status") != "complete"
 
 
 def _metadata_matches_filters(

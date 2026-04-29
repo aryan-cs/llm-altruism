@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 
 from analysis.build_manifest import build_manifest
-from analysis.summarize_results import _wilson_interval
+from analysis.summarize_results import _pearson_correlation, _spearman_correlation, _wilson_interval
 from analysis.validation import validate_part2_file
 from experiments.part2.part_2 import RESULT_HEADERS
 
@@ -81,3 +81,13 @@ def test_wilson_interval_handles_empty_and_nonempty_rates() -> None:
     assert _wilson_interval(0, 0) == (0.0, 0.0)
     low, high = _wilson_interval(5, 10)
     assert 0.0 < low < 0.5 < high < 1.0
+
+
+def test_cross_part_correlation_helpers_handle_rank_and_linear_relationships() -> None:
+    xs = [1.0, 2.0, 3.0, 4.0]
+    ys = [2.0, 4.0, 6.0, 8.0]
+    tied = [1.0, 1.0, 2.0, 3.0]
+
+    assert round(_pearson_correlation(xs, ys), 6) == 1.0
+    assert round(_spearman_correlation(xs, ys), 6) == 1.0
+    assert round(_spearman_correlation(tied, tied), 6) == 1.0
