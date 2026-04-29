@@ -18,7 +18,7 @@ experiments/part0/      Safety/refusal experiment
 experiments/part1/      Dyadic game experiment
 experiments/part2/      Commons simulation
 analysis/               Graph-independent validation, manifests, and tables
-data/raw/part_0/        Raw Part 0 CSVs and metadata
+data/raw/part_0/        Local Part 0 CSVs and metadata; raw harmful completions are redacted from the anonymous supplement
 data/raw/part_1/        Raw Part 1 CSVs and metadata
 data/raw/part_2/        Raw Part 2 CSVs and metadata
 data/analysis/          Validation reports, summary tables, run manifest
