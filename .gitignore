@@ -47,7 +47,6 @@ site/
 pip-wheel-metadata/
 *.egg-info/
 *.egg
-/submission/
 
 # Generated paper artifacts
 docs/*.aux
@@ -66,6 +65,8 @@ docs/**/*.fls
 docs/**/*.out
 docs/**/*.pdf
 docs/**/*.synctex.gz
+docs/conference_submission/anonymous_supplement/
+docs/conference_submission/supplement.zip
 
 # Local logs and temp files
 *.log

@@ -11,5 +11,4 @@ pdflatex -interaction=nonstopmode conference_submission.tex
 pdflatex -interaction=nonstopmode conference_submission.tex
 ```
 
-The submission upload copy is staged as `submission/paper.pdf`.
-
+The compiled upload PDF is `conference_submission.pdf`. Stage the anonymous supplement ZIP in this folder as `supplement.zip` so all conference-upload materials live under `docs/conference_submission/`.

@@ -74,7 +74,7 @@ pdflatex -interaction=nonstopmode conference_submission.tex
 pdflatex -interaction=nonstopmode conference_submission.tex
 ```
 
-The upload-ready copy is staged as `submission/paper.pdf` when preparing the submission package.
+The upload PDF is `docs/conference_submission/conference_submission.pdf`. The anonymous supplement package should be staged in the same folder as `docs/conference_submission/supplement.zip`.
 
 ## Acceptance Criteria
 
