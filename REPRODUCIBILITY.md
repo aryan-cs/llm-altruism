@@ -20,7 +20,7 @@ uv run pytest -q
 Expected status at the time of this update:
 
 ```text
-150 passed
+151 passed
 ```
 
 ## Metadata, Validation, Tables, Manifest
@@ -61,6 +61,20 @@ uv run python data/graphs/cross_part_graphs.py
 ```
 
 The main paper uses selected master plots plus readable individual cross-part scatterplots. The graph tree also contains model-family plots and the full set of individual cross-part scatterplots for reviewer inspection.
+
+## Paper PDF
+
+Build the anonymous conference submission from its own folder:
+
+```bash
+cd docs/conference_submission
+pdflatex -interaction=nonstopmode conference_submission.tex
+bibtex conference_submission
+pdflatex -interaction=nonstopmode conference_submission.tex
+pdflatex -interaction=nonstopmode conference_submission.tex
+```
+
+The upload-ready copy is staged as `submission/paper.pdf` when preparing the submission package.
 
 ## Acceptance Criteria
 

@@ -23,7 +23,8 @@ data/raw/part_1/        Raw Part 1 CSVs and metadata
 data/raw/part_2/        Raw Part 2 CSVs and metadata
 data/analysis/          Validation reports, summary tables, run manifest
 data/graphs/            Figure outputs
-docs/                   NeurIPS paper scaffold and style files
+docs/conference_submission/  NeurIPS submission source and style files
+docs/research_proposal/      Proposal-stage notes/placeholders
 tests/                  Unit and integration tests
 ```
 
