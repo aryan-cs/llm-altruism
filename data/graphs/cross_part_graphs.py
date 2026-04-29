@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import math
 from pathlib import Path
 from typing import Sequence
 
@@ -17,6 +18,8 @@ from data.graphs.part_2_graphs import (
 DEFAULT_TABLES_DIR = Path("data") / "analysis" / "tables"
 DEFAULT_GRAPHS_DIR = Path("data") / "graphs" / "cross_part" / "master-plots"
 DEFAULT_INDIVIDUAL_GRAPHS_DIR = Path("data") / "graphs" / "cross_part" / "individual-plots"
+MATRIX_POINT_SIZE = 20
+INDIVIDUAL_POINT_SIZE = 30
 
 PLOT_SPECS = [
     (
@@ -132,11 +135,11 @@ def _style_scatter_axis(axis, x_key: str, y_key: str, x_label: str, y_label: str
     axis.set_ylabel(y_label)
     axis.grid(True, axis="both", alpha=0.28, linewidth=0.6)
     if x_key.endswith("_rate"):
-        axis.set_xlim(-3, 103)
+        axis.set_xlim(-5, 105)
     if y_key.endswith("_rate"):
-        axis.set_ylim(-3, 103)
+        axis.set_ylim(-5, 105)
     elif y_key == "final_population":
-        axis.set_ylim(-2, 52)
+        axis.set_ylim(-4, 56)
 
 
 def _bbox_overlap_area(left, right) -> float:
@@ -152,6 +155,63 @@ def _outside_axis_penalty(bbox, axis_bbox) -> float:
     bottom = max(0.0, axis_bbox.y0 + padding - bbox.y0)
     top = max(0.0, bbox.y1 - (axis_bbox.y1 - padding))
     return left + right + bottom + top
+
+
+def _candidate_offsets() -> list[tuple[int, int]]:
+    offsets: list[tuple[int, int]] = []
+    directions = [
+        (1, 1),
+        (-1, 1),
+        (1, -1),
+        (-1, -1),
+        (1, 0),
+        (-1, 0),
+        (0, 1),
+        (0, -1),
+    ]
+    for radius in (10, 16, 23, 31, 41, 54, 70, 88, 110):
+        for dx, dy in directions:
+            offsets.append((dx * radius, dy * radius))
+    return offsets
+
+
+def _point_collision_boxes(fig, axis, points, marker_size: int):
+    from matplotlib.transforms import Bbox
+
+    radius_px = max(7.0, math.sqrt(marker_size) * fig.dpi / 72.0 + 4.0)
+    boxes = []
+    for x, y, _label, _color in points:
+        x_px, y_px = axis.transData.transform((x, y))
+        boxes.append(
+            Bbox.from_extents(
+                x_px - radius_px,
+                y_px - radius_px,
+                x_px + radius_px,
+                y_px + radius_px,
+            )
+        )
+    return boxes
+
+
+def _point_density_order(axis, points: Sequence[tuple[float, float, str, str]]):
+    x_min, x_max = axis.get_xlim()
+    y_min, y_max = axis.get_ylim()
+    x_span = max(1e-9, x_max - x_min)
+    y_span = max(1e-9, y_max - y_min)
+
+    def density(point: tuple[float, float, str, str]) -> float:
+        score = 0.0
+        x, y = point[0], point[1]
+        for other in points:
+            if other is point:
+                continue
+            dx = (x - other[0]) / x_span
+            dy = (y - other[1]) / y_span
+            distance = math.hypot(dx, dy)
+            score += 1.0 / max(0.035, distance)
+        return score
+
+    return sorted(points, key=lambda item: (-density(item), -item[1], item[0], item[2]))
 
 
 def _annotate_label(
@@ -186,6 +246,7 @@ def _annotate_label(
             "linewidth": 0.4,
             "alpha": 0.20,
         },
+        zorder=5,
     )
 
 
@@ -227,48 +288,32 @@ def _place_labels(
     points: Sequence[tuple[float, float, str, str]],
     *,
     fontsize: int,
+    marker_size: int,
 ) -> None:
-    candidate_offsets = [
-        (7, 7),
-        (-7, 7),
-        (7, -9),
-        (-7, -9),
-        (14, 0),
-        (-14, 0),
-        (0, 13),
-        (0, -15),
-        (16, 12),
-        (-16, 12),
-        (16, -16),
-        (-16, -16),
-        (25, 4),
-        (-25, 4),
-        (25, -10),
-        (-25, -10),
-        (0, 24),
-        (0, -26),
-        (34, 14),
-        (-34, 14),
-        (34, -20),
-        (-34, -20),
-    ]
+    candidate_offsets = _candidate_offsets()
     placed = []
     renderer = fig.canvas.get_renderer()
     axis_bbox = axis.get_window_extent(renderer)
+    point_boxes = _point_collision_boxes(fig, axis, points, marker_size)
 
-    ordered_points = sorted(points, key=lambda item: (-item[1], item[0], item[2]))
+    ordered_points = _point_density_order(axis, points)
     for x, y, label, color in ordered_points:
         best_offset = candidate_offsets[0]
         best_score = float("inf")
 
         for offset in candidate_offsets:
             annotation = _annotate_label(axis, x, y, label, offset, fontsize, color)
-            fig.canvas.draw()
-            renderer = fig.canvas.get_renderer()
             bbox = annotation.get_window_extent(renderer).expanded(1.08, 1.16)
-            overlap = sum(_bbox_overlap_area(bbox, existing) for existing in placed)
+            label_overlap = sum(_bbox_overlap_area(bbox, existing) for existing in placed)
+            point_overlap = sum(_bbox_overlap_area(bbox, point_box) for point_box in point_boxes)
             outside = _outside_axis_penalty(bbox, axis_bbox)
-            score = overlap + outside * 100000.0
+            distance = math.hypot(offset[0], offset[1])
+            score = (
+                label_overlap * 40.0
+                + point_overlap * 200.0
+                + outside * 100000.0
+                + distance * 0.25
+            )
             annotation.remove()
             if score < best_score:
                 best_score = score
@@ -291,6 +336,7 @@ def _draw_scatter_points(
     *,
     x_key: str,
     y_key: str,
+    marker_size: int,
 ) -> list[tuple[float, float, str, str]]:
     points: list[tuple[float, float, str, str]] = []
     for row in model_rows:
@@ -301,7 +347,7 @@ def _draw_scatter_points(
         axis.scatter(
             x,
             y,
-            s=58,
+            s=marker_size,
             color=_model_bar_color(model_label),
             edgecolors=EDGE_COLOR,
             linewidths=0.7,
@@ -323,12 +369,18 @@ def render_scatter_matrix(
             "matplotlib is required. Install with uv: uv add matplotlib (or uv sync)."
         ) from error
 
-    fig, axes = plt.subplots(2, 3, figsize=(16.0, 9.8), dpi=150)
+    fig, axes = plt.subplots(2, 3, figsize=(18.5, 11.2), dpi=150)
     axes_flat = [axis for row in axes for axis in row]
     points_by_axis = []
 
     for axis, (x_key, y_key, x_label, y_label, _filename) in zip(axes_flat, PLOT_SPECS):
-        points = _draw_scatter_points(axis, model_rows, x_key=x_key, y_key=y_key)
+        points = _draw_scatter_points(
+            axis,
+            model_rows,
+            x_key=x_key,
+            y_key=y_key,
+            marker_size=MATRIX_POINT_SIZE,
+        )
         axis.set_title(_correlation_subtitle(correlation_rows, x_key, y_key), fontsize=10)
         _style_scatter_axis(axis, x_key, y_key, x_label, y_label)
         points_by_axis.append((axis, points))
@@ -350,7 +402,7 @@ def render_scatter_matrix(
     fig.tight_layout(rect=(0.02, 0.02, 0.98, 0.91))
     fig.canvas.draw()
     for axis, points in points_by_axis:
-        _place_labels(fig, axis, points, fontsize=6)
+        _place_labels(fig, axis, points, fontsize=5.5, marker_size=MATRIX_POINT_SIZE)
     output.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(output, bbox_inches="tight")
     plt.close(fig)
@@ -373,8 +425,14 @@ def render_individual_scatters(
     outputs: list[Path] = []
 
     for x_key, y_key, x_label, y_label, filename in PLOT_SPECS:
-        fig, axis = plt.subplots(figsize=(8.8, 6.4), dpi=150)
-        points = _draw_scatter_points(axis, model_rows, x_key=x_key, y_key=y_key)
+        fig, axis = plt.subplots(figsize=(9.2, 6.8), dpi=150)
+        points = _draw_scatter_points(
+            axis,
+            model_rows,
+            x_key=x_key,
+            y_key=y_key,
+            marker_size=INDIVIDUAL_POINT_SIZE,
+        )
         _style_scatter_axis(axis, x_key, y_key, x_label, y_label)
         axis.set_title(
             f"{x_label} vs. {y_label}\n{_correlation_subtitle(correlation_rows, x_key, y_key)}",
@@ -390,7 +448,7 @@ def render_individual_scatters(
         )
         fig.tight_layout(rect=(0.03, 0.03, 0.98, 0.88))
         fig.canvas.draw()
-        _place_labels(fig, axis, points, fontsize=8)
+        _place_labels(fig, axis, points, fontsize=8, marker_size=INDIVIDUAL_POINT_SIZE)
         output = output_dir / filename
         fig.savefig(output, bbox_inches="tight")
         plt.close(fig)
