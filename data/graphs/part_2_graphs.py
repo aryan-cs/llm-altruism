@@ -634,13 +634,13 @@ def build_model_plot_groups(model_order: Sequence[str]) -> list[tuple[str, list[
 
 
 def _model_bar_edge_color(model_label: str) -> str:
-    """Uniform thin gray border for all model bars."""
-    return EDGE_COLOR
+    """No outline for model bars."""
+    return "none"
 
 
 def _model_bar_line_width(model_label: str) -> float:
-    """Uniform thin border width for all model bars."""
-    return 0.4
+    """No outline for model bars."""
+    return 0.0
 
 
 def _model_bar_hatch(model_label: str) -> str:
@@ -675,7 +675,8 @@ def _model_legend_handles(model_labels: Sequence[str]) -> list[object]:
             handles.append(
                 Patch(
                     facecolor=palette["standard"],
-                    edgecolor=EDGE_COLOR,
+                    edgecolor="none",
+                    linewidth=0.0,
                     label=family,
                 )
             )
@@ -684,7 +685,7 @@ def _model_legend_handles(model_labels: Sequence[str]) -> list[object]:
 
 
 def _apply_model_bar_styles(patches: Sequence[object], labels: Sequence[str]) -> None:
-    """Apply hatches and instruct borders to model bars."""
+    """Apply model bar styling without outlines."""
     for patch, model in zip(patches, labels):
         patch.set_hatch(_model_bar_hatch(model))
         patch.set_edgecolor(_model_bar_edge_color(model))
@@ -769,9 +770,30 @@ def _model_sort_key(model_label: str) -> tuple[str, int, int]:
     return _normalize_model_family(model_label), instruct_group, category
 
 
-def _grouped_bar_positions(labels: Sequence[str]) -> list[float]:
-    """Compute evenly spaced x positions for any number of bars."""
-    return [float(i) for i in range(len(labels))]
+INTER_GROUP_GAP = 0.45
+
+
+def _bar_group_key(model_label: str) -> tuple[str, int]:
+    """Return the grouping key for bar clustering: (family, instruct_group)."""
+    return _normalize_model_family(model_label), _model_instruct_group(model_label)
+
+
+def _grouped_bar_positions(labels: Sequence[str], *, cluster: bool = True) -> list[float]:
+    """Position bars so same-family bars touch and different families have a gap.
+
+    When *cluster* is False, bars are evenly spaced for per-family sub-plots.
+    """
+    if not labels:
+        return []
+    if not cluster:
+        return [float(i) for i in range(len(labels))]
+    positions: list[float] = [0.0]
+    for index in range(1, len(labels)):
+        if _bar_group_key(labels[index]) == _bar_group_key(labels[index - 1]):
+            positions.append(positions[-1] + MODEL_BAR_WIDTH)
+        else:
+            positions.append(positions[-1] + MODEL_BAR_WIDTH + INTER_GROUP_GAP)
+    return positions
 
 
 def _apply_bar_xlim(
@@ -780,12 +802,15 @@ def _apply_bar_xlim(
     *,
     bar_width: float = MODEL_BAR_WIDTH,
 ) -> None:
-    """Set x-axis limits so the margin on each side equals the gap between bars."""
+    """Set x-axis limits with consistent padding on each side."""
     if not positions:
         return
-    step = (positions[1] - positions[0]) if len(positions) >= 2 else 1.0
-    padding = step - bar_width / 2
-    ax.set_xlim(min(positions) - padding, max(positions) + padding)
+    if len(positions) >= 2:
+        min_step = min(positions[index] - positions[index - 1] for index in range(1, len(positions)))
+    else:
+        min_step = 1.0
+    padding = max(INTER_GROUP_GAP, min_step - bar_width / 2)
+    ax.set_xlim(min(positions) - bar_width / 2 - padding, max(positions) + bar_width / 2 + padding)
 
 
 def _place_legend_and_adjust(
@@ -1001,6 +1026,7 @@ def render_overall_chart(
     *,
     title: str,
     output: Path,
+    cluster: bool = True,
 ) -> None:
     """Render and save the overall model restraint bar chart."""
     del totals
@@ -1011,7 +1037,7 @@ def render_overall_chart(
             "matplotlib is required. Install with uv: uv add matplotlib (or uv sync)."
         ) from error
 
-    x = _grouped_bar_positions(labels)
+    x = _grouped_bar_positions(labels, cluster=cluster)
     bar_colors = [_model_bar_color(model) for model in labels]
     fig, ax = plt.subplots(figsize=(max(10, len(labels) * 0.7), OVERALL_FIG_HEIGHT))
 
@@ -1023,8 +1049,8 @@ def render_overall_chart(
         width=MODEL_BAR_WIDTH,
         alpha=1.0,
         color=bar_colors,
-        edgecolor=EDGE_COLOR,
-        linewidth=0.4,
+        edgecolor="none",
+        linewidth=0.0,
     )
     _apply_model_bar_styles(ax.patches, labels)
     _annotate_percent_bars(ax, x, rates, errors)
@@ -1058,6 +1084,7 @@ def render_percent_bar_chart(
     title: str,
     ylabel: str,
     output: Path,
+    cluster: bool = True,
 ) -> None:
     """Render and save a percent-valued model bar chart."""
     if not labels:
@@ -1069,7 +1096,7 @@ def render_percent_bar_chart(
             "matplotlib is required. Install with uv: uv add matplotlib (or uv sync)."
         ) from error
 
-    x = _grouped_bar_positions(labels)
+    x = _grouped_bar_positions(labels, cluster=cluster)
     errors = [0.0 for _ in values]
     fig, ax = plt.subplots(figsize=(max(10, len(labels) * 0.7), OVERALL_FIG_HEIGHT))
     ax.bar(
@@ -1080,8 +1107,8 @@ def render_percent_bar_chart(
         width=MODEL_BAR_WIDTH,
         alpha=1.0,
         color=[_model_bar_color(model) for model in labels],
-        edgecolor=EDGE_COLOR,
-        linewidth=0.4,
+        edgecolor="none",
+        linewidth=0.0,
     )
     _apply_model_bar_styles(ax.patches, labels)
     _annotate_percent_bars(ax, x, values, errors)
@@ -1115,6 +1142,7 @@ def render_collapse_day_chart(
     *,
     title: str,
     output: Path,
+    cluster: bool = True,
 ) -> None:
     """Render and save the first reserve-depletion day chart."""
     if not labels:
@@ -1126,7 +1154,7 @@ def render_collapse_day_chart(
             "matplotlib is required. Install with uv: uv add matplotlib (or uv sync)."
         ) from error
 
-    x = _grouped_bar_positions(labels)
+    x = _grouped_bar_positions(labels, cluster=cluster)
     ymax = max(values) if values else 1.0
     fig, ax = plt.subplots(figsize=(max(10, len(labels) * 0.7), OVERALL_FIG_HEIGHT))
     ax.bar(
@@ -1135,8 +1163,8 @@ def render_collapse_day_chart(
         width=MODEL_BAR_WIDTH,
         alpha=1.0,
         color=[_model_bar_color(model) for model in labels],
-        edgecolor=EDGE_COLOR,
-        linewidth=0.4,
+        edgecolor="none",
+        linewidth=0.0,
     )
     _apply_model_bar_styles(ax.patches, labels)
     ax.set_xticks(x)
@@ -1428,6 +1456,7 @@ def render_chart_bundle(
     charts: set[str],
     output_dir: Path,
     prefix: str,
+    cluster: bool = True,
 ) -> list[Path]:
     """Render the selected part_2 chart set into one output directory."""
     written: list[Path] = []
@@ -1443,6 +1472,7 @@ def render_chart_bundle(
             totals,
             title=build_overall_title(),
             output=output,
+            cluster=cluster,
         )
         written.append(output)
 
@@ -1472,6 +1502,7 @@ def render_chart_bundle(
                 ),
                 ylabel="Final resource remaining (%)",
                 output=output,
+                cluster=cluster,
             )
             written.append(output)
 
@@ -1487,6 +1518,7 @@ def render_chart_bundle(
                 ),
                 ylabel="Final population remaining (%)",
                 output=output,
+                cluster=cluster,
             )
             written.append(output)
 
@@ -1503,6 +1535,7 @@ def render_chart_bundle(
                 collapse_annotations,
                 title=build_collapse_title(),
                 output=output,
+                cluster=cluster,
             )
             written.append(output)
 
@@ -1565,6 +1598,7 @@ def main() -> int:
             charts=charts,
             output_dir=graphs_dir / folder_name,
             prefix=prefix,
+            cluster=False,
         )
         for output in group_outputs:
             print(f"wrote: {output}")

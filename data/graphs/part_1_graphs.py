@@ -413,13 +413,13 @@ def _model_bar_color(model_label: str) -> str:
 
 
 def _model_bar_edge_color(model_label: str) -> str:
-    """Uniform thin gray border for all model bars."""
-    return EDGE_COLOR
+    """No outline for model bars."""
+    return "none"
 
 
 def _model_bar_line_width(model_label: str) -> float:
-    """Uniform thin border width for all model bars."""
-    return 0.4
+    """No outline for model bars."""
+    return 0.0
 
 
 def _model_bar_hatch(model_label: str) -> str:
@@ -428,7 +428,7 @@ def _model_bar_hatch(model_label: str) -> str:
 
 
 def _apply_model_bar_styles(patches: Sequence[object], labels: Sequence[str]) -> None:
-    """Apply hatches and instruct borders to model bars."""
+    """Apply model bar styling without outlines."""
     for patch, model in zip(patches, labels):
         patch.set_hatch(_model_bar_hatch(model))
         patch.set_edgecolor(_model_bar_edge_color(model))
@@ -452,7 +452,8 @@ def _model_legend_handles(model_labels: Sequence[str]) -> list[object]:
             handles.append(
                 Patch(
                     facecolor=palette["standard"],
-                    edgecolor=EDGE_COLOR,
+                    edgecolor="none",
+                    linewidth=0.0,
                     label=family,
                 )
             )
@@ -477,7 +478,13 @@ def _dimension_legend_handles(dim_labels: Sequence[str], hatches: Sequence[str])
     from matplotlib.patches import Patch
 
     return [
-        Patch(facecolor=DEFAULT_FALLBACK_COLOR, edgecolor=HATCH_COLOR, hatch=hatches[i], label=label)
+        Patch(
+            facecolor=DEFAULT_FALLBACK_COLOR,
+            edgecolor=HATCH_COLOR if hatches[i] else "none",
+            linewidth=0.0,
+            hatch=hatches[i],
+            label=label,
+        )
         for i, label in enumerate(dim_labels)
     ]
 
@@ -608,9 +615,30 @@ def filter_model_rows(
     return filtered_labels, filtered_rates, filtered_errors, filtered_totals
 
 
-def _grouped_bar_positions(labels: Sequence[str]) -> list[float]:
-    """Compute evenly spaced x positions for any number of bars."""
-    return [float(i) for i in range(len(labels))]
+INTER_GROUP_GAP = 0.45
+
+
+def _bar_group_key(model_label: str) -> tuple[str, int]:
+    """Return the grouping key for bar clustering: (family, instruct_group)."""
+    return _normalize_model_family(model_label), _model_instruct_group(model_label)
+
+
+def _grouped_bar_positions(labels: Sequence[str], *, cluster: bool = True) -> list[float]:
+    """Position bars so same-family bars touch and different families have a gap.
+
+    When *cluster* is False, bars are evenly spaced for per-family sub-plots.
+    """
+    if not labels:
+        return []
+    if not cluster:
+        return [float(i) for i in range(len(labels))]
+    positions: list[float] = [0.0]
+    for index in range(1, len(labels)):
+        if _bar_group_key(labels[index]) == _bar_group_key(labels[index - 1]):
+            positions.append(positions[-1] + MODEL_BAR_WIDTH)
+        else:
+            positions.append(positions[-1] + MODEL_BAR_WIDTH + INTER_GROUP_GAP)
+    return positions
 
 
 def _apply_bar_xlim(
@@ -619,12 +647,36 @@ def _apply_bar_xlim(
     *,
     bar_width: float = MODEL_BAR_WIDTH,
 ) -> None:
-    """Set x-axis limits so the margin on each side equals the gap between bars."""
+    """Set x-axis limits with consistent padding on each side."""
     if not positions:
         return
-    step = (positions[1] - positions[0]) if len(positions) >= 2 else 1.0
-    padding = step - bar_width / 2
-    ax.set_xlim(min(positions) - padding, max(positions) + padding)
+    if len(positions) >= 2:
+        min_step = min(positions[index] - positions[index - 1] for index in range(1, len(positions)))
+    else:
+        min_step = 1.0
+    padding = max(INTER_GROUP_GAP, min_step - bar_width / 2)
+    ax.set_xlim(min(positions) - bar_width / 2 - padding, max(positions) + bar_width / 2 + padding)
+
+
+def _breakdown_bar_width(
+    model_positions: Sequence[float],
+    subgroup_count: int,
+    *,
+    cluster: bool,
+) -> float:
+    """Return each sub-bar width for model breakdown charts."""
+    if subgroup_count <= 0:
+        raise ValueError("subgroup_count must be positive")
+    if not cluster:
+        return MODEL_BAR_WIDTH / subgroup_count
+    if len(model_positions) >= 2:
+        min_step = min(
+            model_positions[index] - model_positions[index - 1]
+            for index in range(1, len(model_positions))
+        )
+    else:
+        min_step = 1.0
+    return min_step / subgroup_count
 
 
 def _place_legend_and_adjust(
@@ -763,6 +815,7 @@ def render_overall_chart(
     *,
     title: str,
     output: Path,
+    cluster: bool = True,
 ) -> None:
     """Render and save the overall model cooperation bar chart."""
     del totals
@@ -773,9 +826,9 @@ def render_overall_chart(
             "matplotlib is required. Install with uv: uv add matplotlib (or uv sync)."
         ) from error
 
-    x = _grouped_bar_positions(labels)
+    x = _grouped_bar_positions(labels, cluster=cluster)
     bar_colors = [_model_bar_color(model) for model in labels]
-    fig, ax = plt.subplots(figsize=(max(10, len(labels) * 0.7), OVERALL_FIG_HEIGHT))
+    fig, ax = plt.subplots(figsize=(max(14, len(labels) * 1.0), OVERALL_FIG_HEIGHT))
 
     ax.bar(
         x,
@@ -785,8 +838,8 @@ def render_overall_chart(
         width=MODEL_BAR_WIDTH,
         alpha=1.0,
         color=bar_colors,
-        edgecolor=EDGE_COLOR,
-        linewidth=0.4,
+        edgecolor="none",
+        linewidth=0.0,
     )
     _apply_model_bar_styles(ax.patches, labels)
     _annotate_percent_bars(ax, x, rates, errors)
@@ -846,6 +899,7 @@ def render_dimension_chart(
     dimension: str,
     title: str,
     output: Path,
+    cluster: bool = True,
 ) -> None:
     """Render and save a grouped chart for one part_1 dimension."""
     available_models = {model for model, _ in by_dimension.keys()}
@@ -865,9 +919,13 @@ def render_dimension_chart(
     mpl.rcParams["hatch.color"] = HATCH_COLOR
     mpl.rcParams["hatch.linewidth"] = 0.5
 
-    width = 0.75 / len(dimension_values)
-    model_positions = list(range(len(models)))
-    fig, ax = plt.subplots(figsize=(max(10, len(models) * 0.6), 8))
+    model_positions = _grouped_bar_positions(models, cluster=cluster)
+    width = _breakdown_bar_width(
+        model_positions,
+        len(dimension_values),
+        cluster=cluster,
+    )
+    fig, ax = plt.subplots(figsize=(max(14, len(models) * 1.0), 8))
     dimension_hatches = _dimension_hatches(len(dimension_values))
     dim_labels = [_dimension_display_label(dimension, v) for v in dimension_values]
 
@@ -886,24 +944,15 @@ def render_dimension_chart(
             if rate is None:
                 continue
 
-            xs.append(model_idx + (dim_idx - len(dimension_values) / 2 + 0.5) * width)
+            xs.append(model_positions[model_idx] + (dim_idx - len(dimension_values) / 2 + 0.5) * width)
             ys.append(rate)
             yerrs.append(err)
             bar_colors.append(_model_bar_color(model))
             all_rates.append(rate)
             all_errors.append(err)
 
-        bar_models = [
-            model
-            for model in models
-            if cooperation_rate_and_error(
-                by_dimension.get((model, value), Aggregate()),
-                z,
-                ci_method,
-            )[0]
-            is not None
-        ]
-        bars = ax.bar(
+        hatch = dimension_hatches[dim_idx % len(dimension_hatches)]
+        ax.bar(
             xs,
             ys,
             width=width,
@@ -912,20 +961,17 @@ def render_dimension_chart(
             label=dim_labels[dim_idx],
             color=bar_colors,
             alpha=1.0,
-            edgecolor=EDGE_COLOR,
-            linewidth=0.25,
-            hatch=dimension_hatches[dim_idx % len(dimension_hatches)],
+            edgecolor=HATCH_COLOR if hatch else "none",
+            linewidth=0.0,
+            hatch=hatch,
         )
-        for patch, model in zip(bars.patches, bar_models):
-            patch.set_edgecolor(_model_bar_edge_color(model))
-            patch.set_linewidth(_model_bar_line_width(model))
         _annotate_percent_bars(ax, xs, ys, yerrs, rotate=90)
 
     ax.set_xticks(model_positions)
     ax.set_xticklabels(models, rotation=45, ha="right")
     if model_positions:
         group_width = len(dimension_values) * width
-        edge_pad = 1.0 - group_width / 2
+        edge_pad = INTER_GROUP_GAP + group_width / 2
         ax.set_xlim(model_positions[0] - edge_pad, model_positions[-1] + edge_pad)
     upper = _y_axis_upper_bound(all_rates, all_errors, BREAKDOWN_TOP_PADDING)
     ax.set_ylim(0.0, upper)
@@ -1053,6 +1099,7 @@ def render_chart_bundle(
     dimensions: Sequence[str],
     output_dir: Path,
     prefix: str,
+    cluster: bool = True,
 ) -> list[Path]:
     """Render the selected part_1 chart set into one output directory."""
     written: list[Path] = []
@@ -1067,6 +1114,7 @@ def render_chart_bundle(
         totals,
         title=build_overall_title(),
         output=overall_output,
+        cluster=cluster,
     )
     written.append(overall_output)
 
@@ -1081,6 +1129,7 @@ def render_chart_bundle(
             dimension=dimension,
             title=build_dimension_title(dimension=dimension),
             output=dimension_output,
+            cluster=cluster,
         )
         written.append(dimension_output)
 
@@ -1143,6 +1192,7 @@ def main() -> int:
             dimensions=args.dimensions,
             output_dir=graphs_dir / folder_name,
             prefix=prefix,
+            cluster=False,
         )
         for output in group_outputs:
             print(f"wrote: {output}")

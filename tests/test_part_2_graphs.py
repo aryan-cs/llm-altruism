@@ -1,6 +1,9 @@
 from pathlib import Path
 
+import pytest
+
 from data.graphs.part_2_graphs import (
+    MODEL_BAR_WIDTH,
     RESULT_HEADERS,
     _grouped_bar_positions,
     _model_bar_color,
@@ -214,7 +217,7 @@ def test_default_out_prefix_uses_single_stem_or_latest_config_bundle() -> None:
     assert default_out_prefix(multiple) == "part2_latest_n50_d100_water_per_model"
 
 
-def test_model_colors_use_requested_family_palettes_and_instruct_border() -> None:
+def test_model_colors_use_requested_family_palettes_without_bar_borders() -> None:
     assert _model_bar_color("ollama/gpt-oss:20b") == "#4fc9b0"
     assert _model_bar_color("ollama/gpt-oss-safeguard:20b") == "#1f9e83"
     assert _model_bar_color("ollama/gurubot/gpt-oss-derestricted:20b") == "#7edcc8"
@@ -224,8 +227,8 @@ def test_model_colors_use_requested_family_palettes_and_instruct_border() -> Non
     assert _model_bar_color("ollama/sorc/qwen3.5-instruct-uncensored") == "#d48edf"
     assert _model_bar_color("ollama/llama2") == "#7aade8"
     assert _model_bar_color("ollama/llama2-uncensored") == "#9ec3ef"
-    assert _model_bar_edge_color("ollama/qwen2.5:7b-instruct") == "#6b7280"
-    assert _model_bar_edge_color("ollama/qwen2.5:7b") == "#6b7280"
+    assert _model_bar_edge_color("ollama/qwen2.5:7b-instruct") == "none"
+    assert _model_bar_edge_color("ollama/qwen2.5:7b") == "none"
 
 
 def test_build_model_plot_groups_uses_requested_subfolders() -> None:
@@ -262,14 +265,21 @@ def test_part_2_legends_and_axis_limits_only_reflect_visible_models() -> None:
         "Llama",
     ]
 
-def test_part_2_model_bar_positions_are_evenly_spaced() -> None:
-    two_positions = _grouped_bar_positions(["ollama/llama2", "ollama/llama2-uncensored"])
-    three_positions = _grouped_bar_positions(
-        ["ollama/llama2", "ollama/llama2-uncensored", "ollama/qwen2.5:7b"]
+def test_part_2_model_bar_positions_separate_instruct_groups() -> None:
+    same_family = _grouped_bar_positions(["ollama/llama2", "ollama/llama2-uncensored"])
+    cross_family = _grouped_bar_positions(
+        [
+            "ollama/qwen3.5",
+            "ollama/aratan/qwen3.5-uncensored:9b",
+            "ollama/sorc/qwen3.5-instruct",
+            "ollama/sorc/qwen3.5-instruct-uncensored",
+        ]
     )
 
-    assert two_positions == [0.0, 1.0]
-    assert three_positions == [0.0, 1.0, 2.0]
+    assert same_family[1] - same_family[0] == pytest.approx(MODEL_BAR_WIDTH)
+    assert cross_family[1] - cross_family[0] == pytest.approx(MODEL_BAR_WIDTH)
+    assert cross_family[2] - cross_family[1] > MODEL_BAR_WIDTH
+    assert cross_family[3] - cross_family[2] == pytest.approx(MODEL_BAR_WIDTH)
 
 
 def test_render_functions_write_part_2_graph_files(tmp_path: Path) -> None:

@@ -1,7 +1,11 @@
 from pathlib import Path
 
+import pytest
+
 from data.graphs.part_1_graphs import (
+    MODEL_BAR_WIDTH,
     _apply_bar_xlim,
+    _breakdown_bar_width,
     _grouped_bar_positions,
     _model_bar_color,
     _model_bar_edge_color,
@@ -144,7 +148,7 @@ def test_part_1_model_colors_and_plot_groups_match_shared_style() -> None:
     assert _model_bar_color("ollama/qwen2.5:7b") == "#a47bd6"
     assert _model_bar_color("ollama/qwen3.5") == "#cc7bd6"
     assert _model_bar_color("ollama/llama2") == "#7aade8"
-    assert _model_bar_edge_color("ollama/qwen2.5:7b-instruct") == "#6b7280"
+    assert _model_bar_edge_color("ollama/qwen2.5:7b-instruct") == "none"
     assert build_model_plot_groups(labels) == [
         ("gpt-oss:20b-plots", labels[0:3]),
         ("llama2-plots", labels[3:5]),
@@ -168,14 +172,25 @@ def test_part_1_legends_and_axis_limits_only_reflect_visible_models() -> None:
 
     axis = Axis()
     _apply_bar_xlim(axis, [0.0, 1.0])
-    assert axis.limits == (-0.69, 1.69)
+    assert axis.limits == (-1.0, 2.0)
 
 
-def test_part_1_model_bar_positions_are_evenly_spaced() -> None:
-    two_positions = _grouped_bar_positions(["ollama/llama2", "ollama/llama2-uncensored"])
-    three_positions = _grouped_bar_positions(
-        ["ollama/llama2", "ollama/llama2-uncensored", "ollama/qwen2.5:7b"]
+def test_part_1_model_bar_positions_separate_instruct_groups() -> None:
+    positions = _grouped_bar_positions(
+        [
+            "ollama/qwen3.5",
+            "ollama/aratan/qwen3.5-uncensored:9b",
+            "ollama/sorc/qwen3.5-instruct",
+            "ollama/sorc/qwen3.5-instruct-uncensored",
+        ]
     )
 
-    assert two_positions == [0.0, 1.0]
-    assert three_positions == [0.0, 1.0, 2.0]
+    assert positions[1] - positions[0] == pytest.approx(MODEL_BAR_WIDTH)
+    assert positions[2] - positions[1] > MODEL_BAR_WIDTH
+    assert positions[3] - positions[2] == pytest.approx(MODEL_BAR_WIDTH)
+
+
+def test_part_1_individual_breakdown_bar_width_leaves_model_gap() -> None:
+    width = _breakdown_bar_width([0.0, 1.0], 4, cluster=False)
+
+    assert width == MODEL_BAR_WIDTH / 4
