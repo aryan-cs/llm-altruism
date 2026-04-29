@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "experiment": "part_2",
+  "status": "complete",
+  "timestamp": "20260429_095234",
+  "created_at_utc": "2026-04-29T09:52:38+00:00",
+  "csv_path": "data/raw/part_2/part2__ollama__llama2-uncensored__n50__d100__water__20260429_095234.csv",
+  "provider": "ollama",
+  "model": "llama2-uncensored",
+  "parameters": {
+    "society_config": {
+      "society_size": 50,
+      "days": 100,
+      "resource": "water",
+      "selfish_gain": 2,
+      "depletion_units": 2,
+      "community_benefit": 5
+    },
+    "resource_capacity": 2500
+  },
+  "prompt_config_hash": "b8ab4a3611f1f7ea9e360b821dbfec778f671c0c01840629abfc3a58cd2c5fdb",
+  "git_commit": "69712b522357a935d3be15ba7a71d23d9a43e590",
+  "git_dirty": true,
+  "command": [
+    "experiments/part2/part_2.py",
+    "--provider",
+    "ollama",
+    "--model",
+    "llama2-uncensored",
+    "--society-size",
+    "50",
+    "--days",
+    "100",
+    "--resource",
+    "water",
+    "--selfish-gain",
+    "2",
+    "--depletion-units",
+    "2",
+    "--community-benefit",
+    "5",
+    "--headless"
+  ],
+  "python": {
+    "version": "3.13.11",
+    "implementation": "CPython"
+  },
+  "platform": "Linux-6.8.0-106-generic-x86_64-with-glibc2.39",
+  "environment": {
+    "DEFAULT_PROVIDER": "openai",
+    "DEFAULT_MODEL": "gpt-4.1-mini",
+    "PART_1_PROVIDER": "openai",
+    "PART_1_MODEL": "gpt-4.1-mini",
+    "PART_2_PROVIDER": "openai",
+    "PART_2_MODEL": "gpt-4.1-mini",
+    "OLLAMA_BASE_URL": "http://localhost:11434"
+  },
+  "society_config": {
+    "society_size": 50,
+    "days": 100,
+    "resource": "water",
+    "selfish_gain": 2,
+    "depletion_units": 2,
+    "community_benefit": 5
+  },
+  "resource_capacity": 2500,
+  "completed_at_utc": "2026-04-29T10:36:01+00:00",
+  "completed_rows": 5000,
+  "completed_days": 100,
+  "final_population": 50,
+  "final_resource_units": 344,
+  "stop_reason": "Reached the configured limit of 100 day(s)."
+}

@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "experiment": "part_2",
+  "status": "complete",
+  "timestamp": "20260429_161229",
+  "created_at_utc": "2026-04-29T16:12:34+00:00",
+  "csv_path": "data/raw/part_2/part2__ollama__aratan-qwen3-5-uncensored-9b__n50__d100__water__20260429_161229.csv",
+  "provider": "ollama",
+  "model": "aratan/qwen3.5-uncensored:9b",
+  "parameters": {
+    "society_config": {
+      "society_size": 50,
+      "days": 100,
+      "resource": "water",
+      "selfish_gain": 2,
+      "depletion_units": 2,
+      "community_benefit": 5
+    },
+    "resource_capacity": 2500
+  },
+  "prompt_config_hash": "b8ab4a3611f1f7ea9e360b821dbfec778f671c0c01840629abfc3a58cd2c5fdb",
+  "git_commit": "5cf6595d37f0a926895c1571062ea0e3d94fee62",
+  "git_dirty": true,
+  "command": [
+    "experiments/part2/part_2.py",
+    "--provider",
+    "ollama",
+    "--model",
+    "aratan/qwen3.5-uncensored:9b",
+    "--society-size",
+    "50",
+    "--days",
+    "100",
+    "--resource",
+    "water",
+    "--selfish-gain",
+    "2",
+    "--depletion-units",
+    "2",
+    "--community-benefit",
+    "5",
+    "--headless"
+  ],
+  "python": {
+    "version": "3.13.11",
+    "implementation": "CPython"
+  },
+  "platform": "Linux-6.8.0-106-generic-x86_64-with-glibc2.39",
+  "environment": {
+    "DEFAULT_PROVIDER": "openai",
+    "DEFAULT_MODEL": "gpt-4.1-mini",
+    "PART_1_PROVIDER": "openai",
+    "PART_1_MODEL": "gpt-4.1-mini",
+    "PART_2_PROVIDER": "openai",
+    "PART_2_MODEL": "gpt-4.1-mini",
+    "OLLAMA_BASE_URL": "http://localhost:11434"
+  },
+  "society_config": {
+    "society_size": 50,
+    "days": 100,
+    "resource": "water",
+    "selfish_gain": 2,
+    "depletion_units": 2,
+    "community_benefit": 5
+  },
+  "resource_capacity": 2500,
+  "completed_at_utc": "2026-04-29T16:51:00+00:00",
+  "completed_rows": 1976,
+  "completed_days": 49,
+  "final_population": 0,
+  "final_resource_units": 0,
+  "stop_reason": "Population died out on day 49."
+}

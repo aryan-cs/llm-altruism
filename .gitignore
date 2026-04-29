@@ -47,6 +47,7 @@ site/
 pip-wheel-metadata/
 *.egg-info/
 *.egg
+data/archive/
 
 # Generated paper artifacts
 docs/*.aux

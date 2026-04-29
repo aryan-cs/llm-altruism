@@ -19,7 +19,7 @@
 \maketitle
 
 \begin{abstract}
-LLM agents are increasingly placed in settings where refusal, cooperation, and resource restraint matter, yet these behaviors are usually evaluated in isolation. We introduce a three-part behavioral audit that measures safety refusal under harmful requests, cooperation in one-shot social dilemmas, and restraint in repeated common-pool resource simulations. The current pilot evaluates 13 local/open-weight model variants over 3,861 harmful-request judgments, 4,992 dyadic-game decisions, and 48,882 commons-simulation agent-day decisions. The results show that the constructs are related but not interchangeable: top safety-refusal rates exceed 99\%, top dyadic cooperation rates reach 75\%, and six of thirteen same-model commons societies preserve a nonzero population through the configured horizon. Cross-part correlations are noisy at this scale; safety refusal has only a weak relationship with dyadic cooperation, while commons restraint is more directly tied to final population survival. We frame the benchmark as an open-model evaluation of observable behavior, not as evidence of moral agency or intrinsic altruism.
+LLM agents are increasingly placed in settings where refusal, cooperation, and resource restraint matter, yet these behaviors are usually evaluated in isolation. We introduce a three-part behavioral audit that measures safety refusal under harmful requests, cooperation in one-shot social dilemmas, and restraint in repeated common-pool resource simulations. The current pilot evaluates 13 local/open-weight model variants over 3,861 harmful-request judgments, 4,992 dyadic-game decisions, and 47,529 commons-simulation agent-day decisions. The results show that the constructs are related but not interchangeable: top safety-refusal rates exceed 99\%, top dyadic cooperation rates reach 75\%, and seven of thirteen same-model commons societies preserve a nonzero population through the configured horizon. Cross-part correlations are noisy at this scale; safety refusal has only a weak relationship with dyadic cooperation, while commons restraint is more directly tied to final population survival. We frame the benchmark as an open-model evaluation of observable behavior, not as evidence of moral agency or intrinsic altruism.
 \end{abstract}
 
 \section{Introduction}
@@ -98,7 +98,7 @@ Part 1 contains 384 prompt variants per model. Figure~\ref{fig:part1-cooperation
 \end{figure}
 
 \subsection{Commons Restraint}
-Part 2 shows both aggregate survival differences and justification failures. Six of thirteen societies preserve a nonzero population through day 100; seven collapse to zero population. Figure~\ref{fig:part2-restraint} shows the model-level restraint rates. The two Llama variants and several Qwen variants preserve nonzero populations, while lower-restraint runs deplete the reserve and collapse earlier. Across Part 2, the reasoning/action audit flags 835 \texttt{OVERUSE} rows where the model's explanation describes the action as group-preserving or reserve-preserving.
+Part 2 shows both aggregate survival differences and justification failures. Seven of thirteen societies preserve a nonzero population through day 100; six collapse to zero population. Figure~\ref{fig:part2-restraint} shows the model-level restraint rates. The two Llama variants, several Qwen variants, and the GPT-OSS safeguard variant preserve nonzero populations, while lower-restraint runs deplete the reserve and collapse earlier. Across Part 2, the reasoning/action audit flags 823 \texttt{OVERUSE} rows where the model's explanation describes the action as group-preserving or reserve-preserving.
 
 \begin{figure}[t]
 \centering
@@ -108,7 +108,7 @@ Part 2 shows both aggregate survival differences and justification failures. Six
 \end{figure}
 
 \subsection{Cross-Part Interpretation}
-The pilot provides mixed support for the motivating hypothesis. If socially beneficial behavior were governed by a single model-level tendency, the three metrics would be expected to correlate strongly across models. Instead, the pilot supports a cautious conclusion: the three metrics are related but separable. Figures~\ref{fig:cross-safety-cooperation} and~\ref{fig:cross-cooperation-restraint} show two readable individual cross-part scatterplots; the full set of individual cross-part plots is included in the supplement. Safety refusal has a weak and uncertain relation to dyadic cooperation in this cohort (Pearson $r=0.24$), while safety refusal/restraint and cooperation/restraint are more positive but still pilot-scale comparisons over only 13 models. The strongest relation is restraint versus final population (Pearson $r=0.87$), which is expected because restraint is mechanistically tied to resource survival in the Part 2 environment. These patterns argue against collapsing the benchmark into a single ``good behavior'' score and motivate a larger confirmatory run with frozen model taxonomy, repeated seeds or decoding settings, and bootstrap uncertainty over model-level comparisons.
+The pilot provides mixed support for the motivating hypothesis. If socially beneficial behavior were governed by a single model-level tendency, the three metrics would be expected to correlate strongly across models. Instead, the pilot supports a cautious conclusion: the three metrics are related but separable. Figures~\ref{fig:cross-safety-cooperation} and~\ref{fig:cross-cooperation-restraint} show two readable individual cross-part scatterplots; the full set of individual cross-part plots is included in the supplement. Safety refusal has a weak and uncertain relation to dyadic cooperation in this cohort (Pearson $r=0.24$), while safety refusal/restraint is stronger and cooperation/restraint is more modest but still pilot-scale over only 13 models. The strongest relation is restraint versus final population (Pearson $r=0.85$), which is expected because restraint is mechanistically tied to resource survival in the Part 2 environment. These patterns argue against collapsing the benchmark into a single ``good behavior'' score and motivate a larger confirmatory run with frozen model taxonomy, repeated seeds or decoding settings, and bootstrap uncertainty over model-level comparisons.
 
 \begin{figure}[t]
 \centering
@@ -172,19 +172,19 @@ At submission time, the test gate passes, validation reports 27 files with 14 pa
 \toprule
 Model & Restraint & First depletion day & Final population & Mismatch flags \\
 \midrule
-\texttt{llama2} & 97.2\% & $>$100 & 50 & 6 \\
-\texttt{qwen2.5:7b-instruct} & 90.9\% & $>$100 & 50 & 26 \\
-\texttt{qwen2.5:7b} & 90.6\% & $>$100 & 50 & 33 \\
-\texttt{qwen3.5} & 84.4\% & $>$100 & 50 & 66 \\
-\texttt{llama2-uncensored} & 77.4\% & $>$100 & 50 & 29 \\
-\texttt{sorc/qwen3.5-instruct} & 75.3\% & $>$100 & 50 & 148 \\
-\texttt{gpt-oss:20b} & 68.3\% & 78 & 0 & 159 \\
-\texttt{gpt-oss-safeguard:20b} & 60.0\% & 64 & 0 & 90 \\
-\texttt{huihui\_ai/qwen2.5-abliterate:7b} & 52.3\% & 50 & 0 & 18 \\
-\texttt{huihui\_ai/qwen2.5-abliterate:7b-instruct} & 52.1\% & 50 & 0 & 30 \\
-\texttt{gurubot/gpt-oss-derestricted:20b} & 36.8\% & 40 & 0 & 54 \\
-\texttt{sorc/qwen3.5-instruct-uncensored} & 33.0\% & 34 & 0 & 72 \\
-\texttt{aratan/qwen3.5-uncensored:9b} & 32.2\% & 37 & 0 & 104 \\
+\texttt{qwen2.5:7b} & 92.5\% & $>$100 & 50 & 26 \\
+\texttt{qwen2.5:7b-instruct} & 92.3\% & $>$100 & 50 & 15 \\
+\texttt{llama2} & 92.0\% & $>$100 & 50 & 18 \\
+\texttt{qwen3.5} & 83.9\% & $>$100 & 50 & 58 \\
+\texttt{llama2-uncensored} & 78.4\% & $>$100 & 50 & 42 \\
+\texttt{sorc/qwen3.5-instruct} & 75.1\% & $>$100 & 50 & 142 \\
+\texttt{gpt-oss-safeguard:20b} & 71.2\% & 89 & 2 & 49 \\
+\texttt{gpt-oss:20b} & 63.1\% & 67 & 0 & 83 \\
+\texttt{gurubot/gpt-oss-derestricted:20b} & 34.5\% & 39 & 0 & 164 \\
+\texttt{sorc/qwen3.5-instruct-uncensored} & 33.2\% & 34 & 0 & 91 \\
+\texttt{aratan/qwen3.5-uncensored:9b} & 30.0\% & 36 & 0 & 114 \\
+\texttt{huihui\_ai/qwen2.5-abliterate:7b-instruct} & 18.7\% & 31 & 0 & 15 \\
+\texttt{huihui\_ai/qwen2.5-abliterate:7b} & 18.6\% & 30 & 0 & 6 \\
 \bottomrule
 \end{tabular}%
 }

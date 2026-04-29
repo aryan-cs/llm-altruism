@@ -32,7 +32,7 @@ class IncrementalCsvWriter:
 
         mode = "a" if self.append else "w"
         self._handle = self.path.open(mode, newline="", encoding="utf-8")
-        self._writer = csv.writer(self._handle)
+        self._writer = csv.writer(self._handle, lineterminator="\n")
         if not self.append or not file_exists or self.path.stat().st_size == 0:
             self._writer.writerow(self.header)
             self._sync()
