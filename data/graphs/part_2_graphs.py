@@ -33,44 +33,34 @@ DEFAULT_CI_METHOD: Literal["wilson", "wald"] = "wilson"
 MASTER_PLOTS_DIRNAME = "master-plots"
 OVERALL_TOP_PADDING = 6.0
 BREAKDOWN_TOP_PADDING = 10.0
-TEAL_PALETTE: tuple[str, ...] = (
-    "#036f5a",
-    "#03826a",
-    "#048a73",
-    "#059482",
-    "#06a991",
-    "#0abfa0",
-    "#10c6a8",
-    "#2cd4b8",
-)
-HATCH_PALETTE: tuple[str, ...] = ("", "////", "xxxx", "....", "++++", "||||", "\\\\\\\\", "----")
+HATCH_PALETTE: tuple[str, ...] = ("", "//", "xx", "..", "++", "||", "\\\\", "--")
 GPT_OSS_MODEL_COLORS = {
-    "standard": "#048a73",
-    "standard_instruct": "#03826a",
-    "safeguard": "#01483d",
-    "unrestricted": "#34d6bc",
-    "unrestricted_instruct": "#10c6a8",
+    "standard": "#4fc9b0",
+    "standard_instruct": "#3bbfa5",
+    "safeguard": "#1f9e83",
+    "unrestricted": "#7edcc8",
+    "unrestricted_instruct": "#66d4bd",
 }
 QWEN25_MODEL_COLORS = {
-    "standard": "#7416c7",
-    "standard_instruct": "#5f12a3",
-    "safeguard": "#3f0b6e",
-    "unrestricted": "#a45ce0",
-    "unrestricted_instruct": "#8e38d8",
+    "standard": "#a47bd6",
+    "standard_instruct": "#9468cc",
+    "safeguard": "#7544b8",
+    "unrestricted": "#bea0e2",
+    "unrestricted_instruct": "#b18edc",
 }
 QWEN35_MODEL_COLORS = {
-    "standard": "#a707b5",
-    "standard_instruct": "#870592",
-    "safeguard": "#65036d",
-    "unrestricted": "#d15add",
-    "unrestricted_instruct": "#bf2ece",
+    "standard": "#cc7bd6",
+    "standard_instruct": "#be68cc",
+    "safeguard": "#a344b5",
+    "unrestricted": "#dca0e5",
+    "unrestricted_instruct": "#d48edf",
 }
 LLAMA_MODEL_COLORS = {
-    "standard": "#105bcc",
-    "standard_instruct": "#0d4baa",
-    "safeguard": "#0a397f",
-    "unrestricted": "#5a95e8",
-    "unrestricted_instruct": "#377bdd",
+    "standard": "#7aade8",
+    "standard_instruct": "#6a9fe2",
+    "safeguard": "#4a84d2",
+    "unrestricted": "#9ec3ef",
+    "unrestricted_instruct": "#8db8ec",
 }
 FAMILY_COLOR_PALETTES = {
     "GPT-OSS": GPT_OSS_MODEL_COLORS,
@@ -78,11 +68,10 @@ FAMILY_COLOR_PALETTES = {
     "Qwen 3.5": QWEN35_MODEL_COLORS,
     "Llama": LLAMA_MODEL_COLORS,
 }
-EDGE_COLOR = "#1f2937"
-INSTRUCT_EDGE_COLOR = "#000000"
+EDGE_COLOR = "#6b7280"
+HATCH_COLOR = "#000000"
+DEFAULT_FALLBACK_COLOR = "#b0b8c4"
 MODEL_BAR_WIDTH = 0.62
-MIN_MODEL_AXIS_SPAN = 6.0
-MIN_MODEL_DISPLAY_SLOTS = 6
 OVERALL_FIG_HEIGHT = 8.0
 LINE_STYLES: tuple[str, ...] = ("-", "--", ":", "-.")
 PART_2_CHARTS = (
@@ -603,7 +592,10 @@ def _model_bar_color(model_label: str) -> str:
     """Choose a bar color based on model family and variant."""
     family = _model_family_name(model_label)
     variant = _model_color_variant(model_label)
-    return FAMILY_COLOR_PALETTES[family][variant]
+    palette = FAMILY_COLOR_PALETTES.get(family)
+    if palette is None:
+        return DEFAULT_FALLBACK_COLOR
+    return palette.get(variant, palette.get("standard", DEFAULT_FALLBACK_COLOR))
 
 
 def _model_plot_folder(model_label: str) -> str:
@@ -641,26 +633,17 @@ def build_model_plot_groups(model_order: Sequence[str]) -> list[tuple[str, list[
 
 
 def _model_bar_edge_color(model_label: str) -> str:
-    """Use a black bar border for instruct models."""
-    if "instruct" in model_label.lower():
-        return INSTRUCT_EDGE_COLOR
+    """Uniform thin gray border for all model bars."""
     return EDGE_COLOR
 
 
 def _model_bar_line_width(model_label: str) -> float:
-    """Use a heavier outline when the black instruct border is active."""
-    if "instruct" in model_label.lower():
-        return 1.1
+    """Uniform thin border width for all model bars."""
     return 0.4
 
 
 def _model_bar_hatch(model_label: str) -> str:
-    """Choose a hatch pattern based on model family variant."""
-    lowered = model_label.lower()
-    if "safeguard" in lowered:
-        return "////"
-    if "uncensored" in lowered or "abliterate" in lowered or "derestricted" in lowered:
-        return "xxxx"
+    """No model-variant hatches — variants are distinguished by color shade and grouping."""
     return ""
 
 
@@ -683,10 +666,7 @@ def _model_legend_handles(model_labels: Sequence[str]) -> list[object]:
             "matplotlib is required. Install with uv: uv add matplotlib (or uv sync)."
         ) from error
 
-    neutral = "#d1d5db"
     present_families = {_model_family_name(label) for label in model_labels}
-    present_variants = {_model_color_variant(label) for label in model_labels}
-    has_instruct = any("instruct" in label.lower() for label in model_labels)
 
     handles: list[object] = []
     for family, palette in FAMILY_COLOR_PALETTES.items():
@@ -699,26 +679,6 @@ def _model_legend_handles(model_labels: Sequence[str]) -> list[object]:
                 )
             )
 
-    if present_variants & {"standard", "standard_instruct"}:
-        handles.append(Patch(facecolor=neutral, edgecolor=EDGE_COLOR, label="Standard"))
-    if "safeguard" in present_variants:
-        handles.append(
-            Patch(facecolor=neutral, edgecolor=EDGE_COLOR, hatch="////", label="Safeguard")
-        )
-    if present_variants & {"unrestricted", "unrestricted_instruct"}:
-        handles.append(
-            Patch(facecolor=neutral, edgecolor=EDGE_COLOR, hatch="xxxx", label="Unrestricted")
-        )
-    if has_instruct:
-        handles.append(
-            Patch(
-                facecolor=neutral,
-                edgecolor=INSTRUCT_EDGE_COLOR,
-                linewidth=1.1,
-                label="Instruct border",
-            )
-        )
-
     return handles
 
 
@@ -730,39 +690,35 @@ def _apply_model_bar_styles(patches: Sequence[object], labels: Sequence[str]) ->
         patch.set_linewidth(_model_bar_line_width(model))
 
 
-def build_overall_title(*, source_note: str, ci_label: str) -> str:
+def build_overall_title() -> str:
     """Build a descriptive title for the overall restraint chart."""
     return (
-        "Overall restraint-choice rate by model\n"
-        "Each bar aggregates all part 2 agent-days for one model; higher means more RESTRAIN choices.\n"
-        f"Source: {source_note} | {ci_label}"
+        "Restraint Rate by Model\n"
+        "Higher bars indicate more sustainable resource use."
     )
 
 
-def build_time_series_title(*, metric_label: str, source_note: str) -> str:
+def build_time_series_title(*, metric_label: str) -> str:
     """Build a descriptive title for one part_2 time-series chart."""
     return (
-        f"{metric_label} over simulation days by model\n"
-        "Each line follows one model's society through the repeated resource-allocation run.\n"
-        f"Source: {source_note}"
+        f"{metric_label} Over Time by Model\n"
+        "Each line follows one model's society through the resource-allocation run."
     )
 
 
-def build_final_title(*, metric_label: str, source_note: str) -> str:
+def build_final_title(*, metric_label: str) -> str:
     """Build a descriptive title for final-state summary charts."""
     return (
-        f"{metric_label} by model\n"
-        "Each bar uses the final completed day for that model's society.\n"
-        f"Source: {source_note}"
+        f"{metric_label} by Model\n"
+        "Each bar uses the final completed day for that model's society."
     )
 
 
-def build_collapse_title(*, source_note: str) -> str:
+def build_collapse_title() -> str:
     """Build a descriptive title for the first-depletion chart."""
     return (
-        "First reserve-depletion day by model\n"
-        "Higher bars mean the shared reserve lasted longer; no-depletion runs are annotated.\n"
-        f"Source: {source_note}"
+        "First Resource Depletion Day by Model\n"
+        "Higher bars indicate the shared resource lasted longer."
     )
 
 
@@ -813,61 +769,62 @@ def _model_sort_key(model_label: str) -> tuple[str, int, int]:
 
 
 def _grouped_bar_positions(labels: Sequence[str]) -> list[float]:
-    """Compute evenly spaced x positions that use the chart width for small subsets."""
-    count = len(labels)
-    if count <= 0:
-        return []
-    if count == 1:
-        return [MIN_MODEL_DISPLAY_SLOTS / 2]
-
-    if count <= MIN_MODEL_DISPLAY_SLOTS:
-        display_span = float(MIN_MODEL_DISPLAY_SLOTS)
-        margin = display_span / (count + 2)
-        step = (display_span - (2 * margin)) / (count - 1)
-        return [margin + (index * step) for index in range(count)]
-
-    return [float(index) for index, _ in enumerate(labels)]
+    """Compute evenly spaced x positions for any number of bars."""
+    return [float(i) for i in range(len(labels))]
 
 
-def _minimum_x_limits(
-    left: float,
-    right: float,
-    *,
-    minimum_span: float = MIN_MODEL_AXIS_SPAN,
-) -> tuple[float, float]:
-    """Return x-limits with a stable minimum span for small model subsets."""
-    span = right - left
-    if span >= minimum_span:
-        return left, right
-
-    center = (left + right) / 2
-    half_span = minimum_span / 2
-    return center - half_span, center + half_span
-
-
-def _apply_minimum_x_span(
-    ax: object,
-    left: float,
-    right: float,
-    *,
-    minimum_span: float = MIN_MODEL_AXIS_SPAN,
-) -> None:
-    """Keep bars visually narrow when only a few models are plotted."""
-    ax.set_xlim(*_minimum_x_limits(left, right, minimum_span=minimum_span))
-
-
-def _apply_model_axis_spacing(
+def _apply_bar_xlim(
     ax: object,
     positions: Sequence[float],
     *,
     bar_width: float = MODEL_BAR_WIDTH,
 ) -> None:
-    """Apply stable x-axis padding for model-level bar charts."""
+    """Set x-axis limits so the margin on each side equals the gap between bars."""
     if not positions:
         return
-    left = min(positions) - (bar_width / 2)
-    right = max(positions) + (bar_width / 2)
-    _apply_minimum_x_span(ax, left, right)
+    step = (positions[1] - positions[0]) if len(positions) >= 2 else 1.0
+    padding = step - bar_width / 2
+    ax.set_xlim(min(positions) - padding, max(positions) + padding)
+
+
+def _place_legend_and_adjust(
+    fig: object,
+    *,
+    handles: Sequence[object] | None = None,
+    title: str,
+    ncol: int,
+    left: float = 0.14,
+    right: float = 0.99,
+    bottom: float = 0.26,
+    gap: float = 0.01,
+) -> None:
+    """Place a legend between the suptitle and the axes, adjusting top margin dynamically."""
+    fig.canvas.draw()
+    suptitle_obj = fig._suptitle
+    if suptitle_obj is not None:
+        title_bbox = suptitle_obj.get_window_extent().transformed(
+            fig.transFigure.inverted()
+        )
+        legend_top = title_bbox.y0 - gap
+    else:
+        legend_top = 0.97
+
+    kwargs: dict[str, object] = dict(
+        title=title,
+        loc="upper center",
+        bbox_to_anchor=(0.5, legend_top),
+        ncol=ncol,
+        frameon=False,
+    )
+    if handles is not None:
+        kwargs["handles"] = handles
+    legend = fig.legend(**kwargs)
+    fig.canvas.draw()
+    legend_bbox = legend.get_window_extent().transformed(
+        fig.transFigure.inverted()
+    )
+    top = max(0.5, legend_bbox.y0 - gap)
+    fig.subplots_adjust(left=left, right=right, top=top, bottom=bottom)
 
 
 def _legend_column_count(handles: Sequence[object], maximum: int = 4) -> int:
@@ -1072,21 +1029,21 @@ def render_overall_chart(
     _annotate_percent_bars(ax, x, rates, errors)
     ax.set_xticks(x)
     ax.set_xticklabels(labels, rotation=45, ha="right")
-    _apply_model_axis_spacing(ax, x)
+    _apply_bar_xlim(ax, x)
     _apply_percent_axis_labels(ax, rates, errors)
     ax.set_ylabel("Restraint choice rate (%)")
     ax.grid(axis="y", alpha=0.3)
     fig.suptitle(title, y=0.985)
     legend_handles = _model_legend_handles(labels)
-    fig.legend(
+    _place_legend_and_adjust(
+        fig,
         handles=legend_handles,
         title="Model family / style",
-        loc="upper center",
-        bbox_to_anchor=(0.5, 0.91),
         ncol=_legend_column_count(legend_handles),
-        frameon=False,
+        left=0.14,
+        right=0.99,
+        bottom=0.26,
     )
-    fig.subplots_adjust(left=0.14, right=0.99, top=0.78, bottom=0.26)
 
     output.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(output, dpi=180, bbox_inches="tight")
@@ -1117,6 +1074,8 @@ def render_percent_bar_chart(
     ax.bar(
         x,
         values,
+        yerr=errors,
+        capsize=4,
         width=MODEL_BAR_WIDTH,
         alpha=1.0,
         color=[_model_bar_color(model) for model in labels],
@@ -1127,21 +1086,21 @@ def render_percent_bar_chart(
     _annotate_percent_bars(ax, x, values, errors)
     ax.set_xticks(x)
     ax.set_xticklabels(labels, rotation=45, ha="right")
-    _apply_model_axis_spacing(ax, x)
+    _apply_bar_xlim(ax, x)
     _apply_percent_axis_labels(ax, values, errors)
     ax.set_ylabel(ylabel)
     ax.grid(axis="y", alpha=0.3)
     fig.suptitle(title, y=0.985)
     legend_handles = _model_legend_handles(labels)
-    fig.legend(
+    _place_legend_and_adjust(
+        fig,
         handles=legend_handles,
         title="Model family / style",
-        loc="upper center",
-        bbox_to_anchor=(0.5, 0.91),
         ncol=_legend_column_count(legend_handles),
-        frameon=False,
+        left=0.14,
+        right=0.99,
+        bottom=0.26,
     )
-    fig.subplots_adjust(left=0.14, right=0.99, top=0.78, bottom=0.26)
 
     output.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(output, dpi=180, bbox_inches="tight")
@@ -1181,22 +1140,22 @@ def render_collapse_day_chart(
     _apply_model_bar_styles(ax.patches, labels)
     ax.set_xticks(x)
     ax.set_xticklabels(labels, rotation=45, ha="right")
-    _apply_model_axis_spacing(ax, x)
+    _apply_bar_xlim(ax, x)
     ax.set_ylim(0.0, ymax + max(2.0, ymax * 0.12))
     _annotate_value_bars(ax, x, values, annotations)
     ax.set_ylabel("Day")
     ax.grid(axis="y", alpha=0.3)
     fig.suptitle(title, y=0.985)
     legend_handles = _model_legend_handles(labels)
-    fig.legend(
+    _place_legend_and_adjust(
+        fig,
         handles=legend_handles,
         title="Model family / style",
-        loc="upper center",
-        bbox_to_anchor=(0.5, 0.91),
         ncol=_legend_column_count(legend_handles),
-        frameon=False,
+        left=0.14,
+        right=0.99,
+        bottom=0.26,
     )
-    fig.subplots_adjust(left=0.14, right=0.99, top=0.78, bottom=0.26)
 
     output.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(output, dpi=180, bbox_inches="tight")
@@ -1291,14 +1250,14 @@ def render_time_series_chart(
     ax.set_ylabel(ylabel)
     ax.grid(axis="y", alpha=0.3)
     fig.suptitle(title, y=0.985)
-    fig.legend(
+    _place_legend_and_adjust(
+        fig,
         title="Model",
-        loc="upper center",
-        bbox_to_anchor=(0.5, 0.91),
         ncol=3,
-        frameon=False,
+        left=0.08,
+        right=0.99,
+        bottom=0.10,
     )
-    fig.subplots_adjust(left=0.08, right=0.99, top=0.76, bottom=0.10)
 
     output.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(output, dpi=180, bbox_inches="tight")
@@ -1461,8 +1420,6 @@ def render_chart_bundle(
     charts: set[str],
     output_dir: Path,
     prefix: str,
-    source_note: str,
-    ci_label: str,
 ) -> list[Path]:
     """Render the selected part_2 chart set into one output directory."""
     written: list[Path] = []
@@ -1476,7 +1433,7 @@ def render_chart_bundle(
             rates,
             errors,
             totals,
-            title=build_overall_title(source_note=source_note, ci_label=ci_label),
+            title=build_overall_title(),
             output=output,
         )
         written.append(output)
@@ -1489,7 +1446,7 @@ def render_chart_bundle(
             day_summaries,
             labels,
             metric=chart,
-            title=build_time_series_title(metric_label=metric_label, source_note=source_note),
+            title=build_time_series_title(metric_label=metric_label),
             ylabel=ylabel,
             output=output,
         )
@@ -1504,7 +1461,6 @@ def render_chart_bundle(
                 resource_values,
                 title=build_final_title(
                     metric_label="Final shared reserve remaining",
-                    source_note=source_note,
                 ),
                 ylabel="Final resource remaining (%)",
                 output=output,
@@ -1520,7 +1476,6 @@ def render_chart_bundle(
                 population_values,
                 title=build_final_title(
                     metric_label="Final population remaining",
-                    source_note=source_note,
                 ),
                 ylabel="Final population remaining (%)",
                 output=output,
@@ -1538,7 +1493,7 @@ def render_chart_bundle(
                 collapse_labels,
                 collapse_values,
                 collapse_annotations,
-                title=build_collapse_title(source_note=source_note),
+                title=build_collapse_title(),
                 output=output,
             )
             written.append(output)
@@ -1570,12 +1525,6 @@ def main() -> int:
 
     graphs_dir = Path(args.graphs_dir)
     prefix = args.out_prefix or default_out_prefix(csv_paths)
-    ci_label = _ci_label(ci_method, args.confidence)
-    source_note = (
-        f"{len(csv_paths)} latest part_2 CSVs"
-        if len(csv_paths) > 1
-        else csv_paths[0].name
-    )
 
     charts: set[str] = set(args.charts)
 
@@ -1588,8 +1537,6 @@ def main() -> int:
         charts=charts,
         output_dir=graphs_dir / MASTER_PLOTS_DIRNAME,
         prefix=prefix,
-        source_note=source_note,
-        ci_label=ci_label,
     )
     for output in master_outputs:
         print(f"wrote: {output}")
@@ -1610,8 +1557,6 @@ def main() -> int:
             charts=charts,
             output_dir=graphs_dir / folder_name,
             prefix=prefix,
-            source_note=f"{len(group_labels)} model subset from {source_note}",
-            ci_label=ci_label,
         )
         for output in group_outputs:
             print(f"wrote: {output}")

@@ -23,7 +23,10 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
+
+if TYPE_CHECKING:
+    import matplotlib.axes
 
 TIMESTAMP_FORMAT = "%m-%d-%Y_%H_%M_%S"
 DEFAULT_ALIGNMENT_DIR = Path("data") / "raw" / "part_0"
@@ -32,44 +35,34 @@ DEFAULT_CI_METHOD: Literal["wilson", "wald"] = "wilson"
 MASTER_PLOTS_DIRNAME = "master-plots"
 OVERALL_TOP_PADDING = 6.0
 LANGUAGE_TOP_PADDING = 10.0
-TEAL_PALETTE: tuple[str, ...] = (
-    "#036f5a",
-    "#03826a",
-    "#048a73",
-    "#059482",
-    "#06a991",
-    "#0abfa0",
-    "#10c6a8",
-    "#2cd4b8",
-)
-HATCH_PALETTE: tuple[str, ...] = ("", "////", "xxxx", "....", "++++", "||||", "\\\\\\\\", "----")
+HATCH_PALETTE: tuple[str, ...] = ("", "//", "xx", "..", "++", "||", "\\\\", "--")
 GPT_OSS_MODEL_COLORS = {
-    "standard": "#048a73",
-    "standard_instruct": "#03826a",
-    "safeguard": "#01483d",
-    "unrestricted": "#34d6bc",
-    "unrestricted_instruct": "#10c6a8",
+    "standard": "#4fc9b0",
+    "standard_instruct": "#3bbfa5",
+    "safeguard": "#1f9e83",
+    "unrestricted": "#7edcc8",
+    "unrestricted_instruct": "#66d4bd",
 }
 QWEN25_MODEL_COLORS = {
-    "standard": "#7416c7",
-    "standard_instruct": "#5f12a3",
-    "safeguard": "#3f0b6e",
-    "unrestricted": "#a45ce0",
-    "unrestricted_instruct": "#8e38d8",
+    "standard": "#a47bd6",
+    "standard_instruct": "#9468cc",
+    "safeguard": "#7544b8",
+    "unrestricted": "#bea0e2",
+    "unrestricted_instruct": "#b18edc",
 }
 QWEN35_MODEL_COLORS = {
-    "standard": "#a707b5",
-    "standard_instruct": "#870592",
-    "safeguard": "#65036d",
-    "unrestricted": "#d15add",
-    "unrestricted_instruct": "#bf2ece",
+    "standard": "#cc7bd6",
+    "standard_instruct": "#be68cc",
+    "safeguard": "#a344b5",
+    "unrestricted": "#dca0e5",
+    "unrestricted_instruct": "#d48edf",
 }
 LLAMA_MODEL_COLORS = {
-    "standard": "#105bcc",
-    "standard_instruct": "#0d4baa",
-    "safeguard": "#0a397f",
-    "unrestricted": "#5a95e8",
-    "unrestricted_instruct": "#377bdd",
+    "standard": "#7aade8",
+    "standard_instruct": "#6a9fe2",
+    "safeguard": "#4a84d2",
+    "unrestricted": "#9ec3ef",
+    "unrestricted_instruct": "#8db8ec",
 }
 FAMILY_COLOR_PALETTES = {
     "GPT-OSS": GPT_OSS_MODEL_COLORS,
@@ -77,13 +70,10 @@ FAMILY_COLOR_PALETTES = {
     "Qwen 3.5": QWEN35_MODEL_COLORS,
     "Llama": LLAMA_MODEL_COLORS,
 }
-EDGE_COLOR = "#1f2937"
-INSTRUCT_EDGE_COLOR = "#000000"
-ENGLISH_LANGUAGE_COLOR = "#036f5a"
-RUSSIAN_LANGUAGE_COLOR = "#2cd4b8"
+EDGE_COLOR = "#6b7280"
+HATCH_COLOR = "#000000"
+DEFAULT_FALLBACK_COLOR = "#b0b8c4"
 MODEL_BAR_WIDTH = 0.62
-MIN_MODEL_AXIS_SPAN = 6.0
-MIN_MODEL_DISPLAY_SLOTS = 6
 OVERALL_FIG_HEIGHT = 8.0
 
 CiMethod = Literal["wilson", "wald"]
@@ -365,71 +355,6 @@ def _ci_label(ci_method: CiMethod, confidence: float) -> str:
     return f"{method} {confidence:.0%} CI"
 
 
-def _palette_for_count(count: int) -> list[str]:
-    """Return visibly separated teal shades instead of adjacent near-matches."""
-    if count <= 0:
-        return []
-    if count <= len(TEAL_PALETTE):
-        if count == 1:
-            return [TEAL_PALETTE[2]]
-        step = (len(TEAL_PALETTE) - 1) / (count - 1)
-        indices = [round(index * step) for index in range(count)]
-        return [TEAL_PALETTE[index] for index in indices]
-    return [TEAL_PALETTE[index % len(TEAL_PALETTE)] for index in range(count)]
-
-
-def _normalize_language_name(language: str) -> str:
-    """Normalize language labels for color mapping."""
-    return (language or "").strip().lower()
-
-
-def _language_colors_by_name(languages: Sequence[str]) -> list[str]:
-    """Map language names to a readable color set with higher English-vs-Russian contrast."""
-    palette = _palette_for_count(len(languages))
-    color_by_lang: dict[str, str] = {}
-
-    fallback_colors = [c for c in palette if c not in {ENGLISH_LANGUAGE_COLOR, RUSSIAN_LANGUAGE_COLOR}]
-    fallback_idx = 0
-
-    for language in languages:
-        normalized = _normalize_language_name(language)
-        if normalized == "english" and ENGLISH_LANGUAGE_COLOR not in color_by_lang.values():
-            color_by_lang[language] = ENGLISH_LANGUAGE_COLOR
-        elif normalized == "russian":
-            color_by_lang[language] = RUSSIAN_LANGUAGE_COLOR
-        elif fallback_colors:
-            color_by_lang[language] = fallback_colors[fallback_idx % len(fallback_colors)]
-            fallback_idx += 1
-        elif palette:
-            color_by_lang[language] = palette[fallback_idx % len(palette)]
-            fallback_idx += 1
-        else:
-            color_by_lang[language] = GPT_OSS_MODEL_COLORS["standard"]
-
-    return [color_by_lang[language] for language in languages]
-
-
-def _language_hatches_by_name(languages: Sequence[str]) -> list[str]:
-    """Map language names to distinct hatch patterns for clearer legends."""
-    hatch_by_lang: dict[str, str] = {}
-    for index, language in enumerate(languages):
-        normalized = _normalize_language_name(language)
-        if normalized == "english":
-            hatch_by_lang[language] = ""
-        elif normalized == "russian":
-            hatch_by_lang[language] = "xxxx"
-        else:
-            hatch_by_lang[language] = HATCH_PALETTE[index % len(HATCH_PALETTE)]
-    return [hatch_by_lang[language] for language in languages]
-
-
-def _model_bar_color(model_label: str) -> str:
-    """Choose a bar color based on model family and variant."""
-    family = _model_family_name(model_label)
-    variant = _model_color_variant(model_label)
-    return FAMILY_COLOR_PALETTES[family][variant]
-
-
 def _model_leaf(model_label: str) -> str:
     """Return the terminal model-name component without the provider prefix."""
     _, _, model_path = model_label.partition("/")
@@ -470,18 +395,39 @@ def _model_color_variant(model_label: str) -> str:
     return "standard"
 
 
+def _normalize_language_name(language: str) -> str:
+    """Normalize language labels for color mapping."""
+    return (language or "").strip().lower()
+
+
+def _language_hatches_by_name(languages: Sequence[str]) -> list[str]:
+    """Map language names to distinct hatch patterns for clearer legends."""
+    return [HATCH_PALETTE[index % len(HATCH_PALETTE)] for index, _ in enumerate(languages)]
+
+
+def _model_bar_color(model_label: str) -> str:
+    """Choose a bar color based on model family and variant."""
+    family = _model_family_name(model_label)
+    variant = _model_color_variant(model_label)
+    palette = FAMILY_COLOR_PALETTES.get(family)
+    if palette is None:
+        return DEFAULT_FALLBACK_COLOR
+    return palette.get(variant, palette.get("standard", DEFAULT_FALLBACK_COLOR))
+
+
 def _model_bar_edge_color(model_label: str) -> str:
-    """Use a black bar border for instruct models."""
-    if "instruct" in model_label.lower():
-        return INSTRUCT_EDGE_COLOR
+    """Uniform thin gray border for all model bars."""
     return EDGE_COLOR
 
 
 def _model_bar_line_width(model_label: str) -> float:
-    """Use a heavier outline when the black instruct border is active."""
-    if "instruct" in model_label.lower():
-        return 1.1
+    """Uniform thin border width for all model bars."""
     return 0.4
+
+
+def _model_bar_hatch(model_label: str) -> str:
+    """No model-variant hatches — variants are distinguished by color shade and grouping."""
+    return ""
 
 
 def _apply_model_bar_styles(patches: Sequence[object], labels: Sequence[str]) -> None:
@@ -501,10 +447,7 @@ def _model_legend_handles(model_labels: Sequence[str]) -> list[object]:
             "matplotlib is required. Install with uv: uv add matplotlib (or uv sync)."
         ) from error
 
-    neutral = "#d1d5db"
     present_families = {_model_family_name(label) for label in model_labels}
-    present_variants = {_model_color_variant(label) for label in model_labels}
-    has_instruct = any("instruct" in label.lower() for label in model_labels)
 
     handles: list[object] = []
     for family, palette in FAMILY_COLOR_PALETTES.items():
@@ -517,144 +460,102 @@ def _model_legend_handles(model_labels: Sequence[str]) -> list[object]:
                 )
             )
 
-    if present_variants & {"standard", "standard_instruct"}:
-        handles.append(Patch(facecolor=neutral, edgecolor=EDGE_COLOR, label="Standard"))
-    if "safeguard" in present_variants:
-        handles.append(
-            Patch(facecolor=neutral, edgecolor=EDGE_COLOR, hatch="////", label="Safeguard")
-        )
-    if present_variants & {"unrestricted", "unrestricted_instruct"}:
-        handles.append(
-            Patch(facecolor=neutral, edgecolor=EDGE_COLOR, hatch="xxxx", label="Unrestricted")
-        )
-    if has_instruct:
-        handles.append(
-            Patch(
-                facecolor=neutral,
-                edgecolor=INSTRUCT_EDGE_COLOR,
-                linewidth=1.1,
-                label="Instruct border",
-            )
-        )
-
     return handles
-
-
-def _category_legend_handles(
-    values: Sequence[str],
-    hatches: Sequence[str],
-    *,
-    label_formatter: object | None = None,
-) -> list[object]:
-    """Build neutral legend handles for grouped chart category hatches."""
-    try:
-        from matplotlib.patches import Patch
-    except ImportError as error:
-        raise SystemExit(
-            "matplotlib is required. Install with uv: uv add matplotlib (or uv sync)."
-        ) from error
-
-    formatter = label_formatter or (lambda value: value)
-    return [
-        Patch(
-            facecolor="#d1d5db",
-            edgecolor=EDGE_COLOR,
-            hatch=hatch,
-            label=str(formatter(value)),
-        )
-        for value, hatch in zip(values, hatches)
-    ]
-
-
-def _model_bar_hatch(model_label: str) -> str:
-    """Choose a hatch pattern based on model family variant."""
-    lowered = model_label.lower()
-    if "safeguard" in lowered:
-        return "////"
-    if "uncensored" in lowered or "abliterate" in lowered or "derestricted" in lowered:
-        return "xxxx"
-    return ""
-
-
-def build_overall_title(*, source_note: str, ci_label: str) -> str:
-    """Build a descriptive title for the overall chart."""
-    return (
-        "Overall alignment rate by model\n"
-        "Each bar aggregates all judged prompts for one model; higher means more denials / safer refusals.\n"
-        f"Source: {source_note} | {ci_label}"
-    )
-
-
-def build_language_title(*, source_note: str, ci_label: str) -> str:
-    """Build a descriptive title for the language breakdown chart."""
-    return (
-        "Alignment rate by model, split by response language\n"
-        "Within each model, separate bars show the alignment rate for each response language.\n"
-        f"Source: {source_note} | {ci_label}"
-    )
-
-
-def _grouped_bar_positions(labels: Sequence[str]) -> list[float]:
-    """Compute evenly spaced x positions that use the chart width for small subsets."""
-    count = len(labels)
-    if count <= 0:
-        return []
-    if count == 1:
-        return [MIN_MODEL_DISPLAY_SLOTS / 2]
-
-    if count <= MIN_MODEL_DISPLAY_SLOTS:
-        display_span = float(MIN_MODEL_DISPLAY_SLOTS)
-        margin = display_span / (count + 2)
-        step = (display_span - (2 * margin)) / (count - 1)
-        return [margin + (index * step) for index in range(count)]
-
-    return [float(index) for index, _ in enumerate(labels)]
-
-
-def _minimum_x_limits(
-    left: float,
-    right: float,
-    *,
-    minimum_span: float = MIN_MODEL_AXIS_SPAN,
-) -> tuple[float, float]:
-    """Return x-limits with a stable minimum span for small model subsets."""
-    span = right - left
-    if span >= minimum_span:
-        return left, right
-
-    center = (left + right) / 2
-    half_span = minimum_span / 2
-    return center - half_span, center + half_span
-
-
-def _apply_minimum_x_span(
-    ax: object,
-    left: float,
-    right: float,
-    *,
-    minimum_span: float = MIN_MODEL_AXIS_SPAN,
-) -> None:
-    """Keep bars visually narrow when only a few models are plotted."""
-    ax.set_xlim(*_minimum_x_limits(left, right, minimum_span=minimum_span))
-
-
-def _apply_model_axis_spacing(
-    ax: object,
-    positions: Sequence[float],
-    *,
-    bar_width: float = MODEL_BAR_WIDTH,
-) -> None:
-    """Apply stable x-axis padding for model-level bar charts."""
-    if not positions:
-        return
-    left = min(positions) - (bar_width / 2)
-    right = max(positions) + (bar_width / 2)
-    _apply_minimum_x_span(ax, left, right)
 
 
 def _legend_column_count(handles: Sequence[object], maximum: int = 4) -> int:
     """Choose a compact legend column count for the handles that are visible."""
     return max(1, min(maximum, len(handles)))
+
+
+def _language_legend_handles(languages: Sequence[str], hatches: Sequence[str]) -> list[object]:
+    """Build hatch-only legend entries for languages."""
+    from matplotlib.patches import Patch
+
+    return [
+        Patch(facecolor=DEFAULT_FALLBACK_COLOR, edgecolor=HATCH_COLOR, hatch=hatches[i], label=lang)
+        for i, lang in enumerate(languages)
+    ]
+
+
+def build_overall_title() -> str:
+    """Build a descriptive title for the overall chart."""
+    return (
+        "Alignment Rate by Model\n"
+        "Higher bars indicate more refusals of harmful prompts."
+    )
+
+
+def build_language_title() -> str:
+    """Build a descriptive title for the language breakdown chart."""
+    return (
+        "Alignment Rate by Model and Language\n"
+        "Bars compare refusal rates across response languages."
+    )
+
+
+def _grouped_bar_positions(labels: Sequence[str]) -> list[float]:
+    """Compute evenly spaced x positions for any number of bars."""
+    return [float(i) for i in range(len(labels))]
+
+
+def _apply_bar_xlim(
+    ax: object,
+    positions: Sequence[float],
+    *,
+    bar_width: float = MODEL_BAR_WIDTH,
+) -> None:
+    """Set x-axis limits so the margin on each side equals the gap between bars."""
+    if not positions:
+        return
+    step = (positions[1] - positions[0]) if len(positions) >= 2 else 1.0
+    padding = step - bar_width / 2
+    ax.set_xlim(min(positions) - padding, max(positions) + padding)
+
+
+def _place_legend_and_adjust(
+    fig: object,
+    *,
+    handles: Sequence[object] | None = None,
+    title: str,
+    ncol: int,
+    left: float = 0.14,
+    right: float = 0.99,
+    bottom: float = 0.26,
+    gap: float = 0.01,
+) -> None:
+    """Place a legend between the suptitle and the axes, adjusting top margin dynamically.
+
+    Measures the suptitle's bottom edge so the legend is anchored just
+    below it, then measures the legend's own height and sets
+    ``subplots_adjust(top=...)`` so the axes never overlap the legend.
+    """
+    fig.canvas.draw()
+    suptitle_obj = fig._suptitle
+    if suptitle_obj is not None:
+        title_bbox = suptitle_obj.get_window_extent().transformed(
+            fig.transFigure.inverted()
+        )
+        legend_top = title_bbox.y0 - gap
+    else:
+        legend_top = 0.97
+
+    kwargs: dict[str, object] = dict(
+        title=title,
+        loc="upper center",
+        bbox_to_anchor=(0.5, legend_top),
+        ncol=ncol,
+        frameon=False,
+    )
+    if handles is not None:
+        kwargs["handles"] = handles
+    legend = fig.legend(**kwargs)
+    fig.canvas.draw()
+    legend_bbox = legend.get_window_extent().transformed(
+        fig.transFigure.inverted()
+    )
+    top = max(0.5, legend_bbox.y0 - gap)
+    fig.subplots_adjust(left=left, right=right, top=top, bottom=bottom)
 
 
 def _normalize_model_family(model_label: str) -> str:
@@ -788,6 +689,73 @@ def build_model_rows(
     return labels, rates, errors, totals
 
 
+MASTER_PLOTS_DIRNAME = "master-plots"
+
+
+def _model_plot_folder(model_label: str) -> str:
+    """Return the subfolder name for a model-family plot bundle."""
+    leaf = _model_leaf(model_label)
+    lowered = leaf.lower()
+    is_instruct = "instruct" in lowered
+
+    if "gpt-oss" in lowered:
+        size = "20b"
+        if ":" in leaf:
+            size = leaf.rsplit(":", 1)[1].lower()
+        return f"gpt-oss:{size}-plots"
+    if "llama2" in lowered:
+        return "llama2-plots"
+    if "qwen2.5" in lowered or "qwen2-5" in lowered:
+        return "qwen2.5-instruct-plots" if is_instruct else "qwen2.5-plots"
+    if "qwen3.5" in lowered or "qwen3-5" in lowered:
+        return "qwen3.5-instruct-plots" if is_instruct else "qwen3.5-plots"
+
+    safe = "".join(
+        character if character.isalnum() or character in ".:-_" else "-"
+        for character in lowered
+    ).strip("-")
+    return f"{safe or 'unknown'}-plots"
+
+
+def build_model_plot_groups(model_order: Sequence[str]) -> list[tuple[str, list[str]]]:
+    """Group sorted model labels into output plot folders."""
+    grouped: dict[str, list[str]] = {}
+    for model in model_order:
+        folder = _model_plot_folder(model)
+        grouped.setdefault(folder, []).append(model)
+    return list(grouped.items())
+
+
+def filter_model_rows(
+    labels: Sequence[str],
+    rates: Sequence[float],
+    errors: Sequence[float],
+    totals: Sequence[int],
+    keep_labels: Sequence[str],
+) -> tuple[list[str], list[float], list[float], list[int]]:
+    """Filter precomputed model rows while preserving a requested order."""
+    rows_by_model = {
+        model: (rate, error, total)
+        for model, rate, error, total in zip(labels, rates, errors, totals)
+    }
+    filtered_labels: list[str] = []
+    filtered_rates: list[float] = []
+    filtered_errors: list[float] = []
+    filtered_totals: list[int] = []
+
+    for model in keep_labels:
+        row = rows_by_model.get(model)
+        if row is None:
+            continue
+        rate, error, total = row
+        filtered_labels.append(model)
+        filtered_rates.append(rate)
+        filtered_errors.append(error)
+        filtered_totals.append(total)
+
+    return filtered_labels, filtered_rates, filtered_errors, filtered_totals
+
+
 def render_overall_chart(
     labels: Sequence[str],
     rates: Sequence[float],
@@ -798,6 +766,7 @@ def render_overall_chart(
     output: Path,
 ) -> None:
     """Render and save the overall model alignment bar chart."""
+    del totals
     try:
         import matplotlib.pyplot as plt
     except ImportError as error:
@@ -824,21 +793,21 @@ def render_overall_chart(
     _annotate_percent_bars(ax, x, rates, errors)
     ax.set_xticks(x)
     ax.set_xticklabels(labels, rotation=45, ha="right")
-    _apply_model_axis_spacing(ax, x)
+    _apply_bar_xlim(ax, x)
     _apply_percent_axis_labels(ax, rates, errors)
     ax.set_ylabel("Alignment rate (%)")
     ax.grid(axis="y", alpha=0.3)
     fig.suptitle(title, y=0.985)
     legend_handles = _model_legend_handles(labels)
-    fig.legend(
+    _place_legend_and_adjust(
+        fig,
         handles=legend_handles,
         title="Model family / style",
-        loc="upper center",
-        bbox_to_anchor=(0.5, 0.91),
         ncol=_legend_column_count(legend_handles),
-        frameon=False,
+        left=0.14,
+        right=0.99,
+        bottom=0.26,
     )
-    fig.subplots_adjust(left=0.14, right=0.99, top=0.78, bottom=0.26)
 
     output.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(output, dpi=180, bbox_inches="tight")
@@ -870,10 +839,13 @@ def render_language_chart(
             "matplotlib is required. Install with uv: uv add matplotlib (or uv sync)."
         ) from error
 
+    import matplotlib as mpl
+    mpl.rcParams["hatch.color"] = HATCH_COLOR
+    mpl.rcParams["hatch.linewidth"] = 0.5
+
     width = 0.75 / len(languages)
     model_positions = list(range(len(models)))
     fig, ax = plt.subplots(figsize=(max(10, len(models) * 0.6), 8))
-    language_colors = _language_colors_by_name(languages)
     language_hatches = _language_hatches_by_name(languages)
 
     all_rates: list[float] = []
@@ -883,6 +855,7 @@ def render_language_chart(
         xs: list[float] = []
         ys: list[float] = []
         yerrs: list[float] = []
+        bar_colors: list[str] = []
 
         for m_idx, model in enumerate(models):
             agg = by_language.get((model, language), Aggregate())
@@ -893,6 +866,7 @@ def render_language_chart(
             xs.append(m_idx + (lang_idx - len(languages) / 2 + 0.5) * width)
             ys.append(rate)
             yerrs.append(err)
+            bar_colors.append(_model_bar_color(model))
             all_rates.append(rate)
             all_errors.append(err)
 
@@ -913,7 +887,7 @@ def render_language_chart(
             yerr=yerrs,
             capsize=3,
             label=language,
-            color=[_model_bar_color(model) for model in bar_models],
+            color=bar_colors,
             alpha=1.0,
             edgecolor=EDGE_COLOR,
             linewidth=0.25,
@@ -927,29 +901,25 @@ def render_language_chart(
     ax.set_xticks(model_positions)
     ax.set_xticklabels(models, rotation=45, ha="right")
     if model_positions:
-        left_pad = 0.5 + (len(languages) * width) / 2
-        right_pad = 0.5 + (len(languages) * width) / 2
-        _apply_minimum_x_span(
-            ax,
-            model_positions[0] - left_pad,
-            model_positions[-1] + right_pad,
-        )
+        group_width = len(languages) * width
+        edge_pad = 1.0 - group_width / 2
+        ax.set_xlim(model_positions[0] - edge_pad, model_positions[-1] + edge_pad)
     upper = _y_axis_upper_bound(all_rates, all_errors, LANGUAGE_TOP_PADDING)
     ax.set_ylim(0.0, upper)
     ax.set_yticks(list(range(0, 101, 10)))
     ax.set_ylabel("Alignment rate (%)")
     ax.grid(axis="y", alpha=0.3)
     fig.suptitle(title, y=0.985)
-    legend_handles = _category_legend_handles(languages, language_hatches) + _model_legend_handles(models)
-    fig.legend(
+    legend_handles = _model_legend_handles(models) + _language_legend_handles(languages, language_hatches)
+    _place_legend_and_adjust(
+        fig,
         handles=legend_handles,
-        title="Language / model family",
-        loc="upper center",
-        bbox_to_anchor=(0.5, 0.91),
+        title="Model / Language",
         ncol=_legend_column_count(legend_handles),
-        frameon=False,
+        left=0.08,
+        right=0.99,
+        bottom=0.18,
     )
-    fig.subplots_adjust(left=0.08, right=0.99, top=0.80, bottom=0.18)
 
     output.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(output, dpi=180, bbox_inches="tight")
@@ -1049,53 +1019,63 @@ def main() -> int:
 
     graphs_dir = Path(args.graphs_dir)
     prefix = args.out_prefix or default_out_prefix(csv_paths)
-    ci_label = _ci_label(ci_method, args.confidence)
-    source_note = (
-        f"{len(csv_paths)} alignment CSVs"
-        if len(csv_paths) > 1
-        else csv_paths[0].name
-    )
 
-    master_outputs = render_chart_bundle(
-        labels=labels,
-        rates=rates,
-        errors=errors,
-        totals=totals,
-        by_language=by_language,
-        z=z,
-        ci_method=ci_method,
-        output_dir=graphs_dir / MASTER_PLOTS_DIRNAME,
-        prefix=prefix,
-        source_note=source_note,
-        ci_label=ci_label,
-        include_language_breakdown=not args.no_language_breakdown,
-    )
-    for output in master_outputs:
-        print(f"wrote: {output}")
+    # --- master-plots (all models) ---
+    master_dir = graphs_dir / MASTER_PLOTS_DIRNAME
 
+    overall_output = master_dir / f"{prefix}_alignment_by_model.png"
+    render_overall_chart(
+        labels,
+        rates,
+        errors,
+        totals,
+        title=build_overall_title(),
+        output=overall_output,
+    )
+    print(f"wrote: {overall_output}")
+
+    if not args.no_language_breakdown:
+        language_output = master_dir / f"{prefix}_alignment_by_model_and_language.png"
+        render_language_chart(
+            by_language,
+            z,
+            ci_method,
+            labels,
+            title=build_language_title(),
+            output=language_output,
+        )
+        print(f"wrote: {language_output}")
+
+    # --- per-family model-specific plots ---
     for folder_name, group_models in build_model_plot_groups(labels):
-        (
+        group_labels, group_rates, group_errors, group_totals = filter_model_rows(
+            labels, rates, errors, totals, group_models,
+        )
+        group_dir = graphs_dir / folder_name
+
+        group_overall = group_dir / f"{prefix}_alignment_by_model.png"
+        render_overall_chart(
             group_labels,
             group_rates,
             group_errors,
             group_totals,
-        ) = filter_model_rows(labels, rates, errors, totals, group_models)
-        group_outputs = render_chart_bundle(
-            labels=group_labels,
-            rates=group_rates,
-            errors=group_errors,
-            totals=group_totals,
-            by_language=by_language,
-            z=z,
-            ci_method=ci_method,
-            output_dir=graphs_dir / folder_name,
-            prefix=prefix,
-            source_note=f"{len(group_labels)} model subset from {source_note}",
-            ci_label=ci_label,
-            include_language_breakdown=not args.no_language_breakdown,
+            title=build_overall_title(),
+            output=group_overall,
         )
-        for output in group_outputs:
-            print(f"wrote: {output}")
+        print(f"wrote: {group_overall}")
+
+        if not args.no_language_breakdown:
+            group_lang = group_dir / f"{prefix}_alignment_by_model_and_language.png"
+            render_language_chart(
+                by_language,
+                z,
+                ci_method,
+                group_labels,
+                title=build_language_title(),
+                output=group_lang,
+            )
+            print(f"wrote: {group_lang}")
+
     return 0
 
 

@@ -3,7 +3,6 @@ from pathlib import Path
 from data.graphs.part_2_graphs import (
     RESULT_HEADERS,
     _grouped_bar_positions,
-    _minimum_x_limits,
     _model_bar_color,
     _model_bar_edge_color,
     _model_legend_handles,
@@ -216,17 +215,17 @@ def test_default_out_prefix_uses_single_stem_or_latest_config_bundle() -> None:
 
 
 def test_model_colors_use_requested_family_palettes_and_instruct_border() -> None:
-    assert _model_bar_color("ollama/gpt-oss:20b") == "#048a73"
-    assert _model_bar_color("ollama/gpt-oss-safeguard:20b") == "#01483d"
-    assert _model_bar_color("ollama/gurubot/gpt-oss-derestricted:20b") == "#34d6bc"
-    assert _model_bar_color("ollama/qwen2.5:7b") == "#7416c7"
-    assert _model_bar_color("ollama/huihui_ai/qwen2.5-abliterate:7b-instruct") == "#8e38d8"
-    assert _model_bar_color("ollama/qwen3.5") == "#a707b5"
-    assert _model_bar_color("ollama/sorc/qwen3.5-instruct-uncensored") == "#bf2ece"
-    assert _model_bar_color("ollama/llama2") == "#105bcc"
-    assert _model_bar_color("ollama/llama2-uncensored") == "#5a95e8"
-    assert _model_bar_edge_color("ollama/qwen2.5:7b-instruct") == "#000000"
-    assert _model_bar_edge_color("ollama/qwen2.5:7b") != "#000000"
+    assert _model_bar_color("ollama/gpt-oss:20b") == "#4fc9b0"
+    assert _model_bar_color("ollama/gpt-oss-safeguard:20b") == "#1f9e83"
+    assert _model_bar_color("ollama/gurubot/gpt-oss-derestricted:20b") == "#7edcc8"
+    assert _model_bar_color("ollama/qwen2.5:7b") == "#a47bd6"
+    assert _model_bar_color("ollama/huihui_ai/qwen2.5-abliterate:7b-instruct") == "#b18edc"
+    assert _model_bar_color("ollama/qwen3.5") == "#cc7bd6"
+    assert _model_bar_color("ollama/sorc/qwen3.5-instruct-uncensored") == "#d48edf"
+    assert _model_bar_color("ollama/llama2") == "#7aade8"
+    assert _model_bar_color("ollama/llama2-uncensored") == "#9ec3ef"
+    assert _model_bar_edge_color("ollama/qwen2.5:7b-instruct") == "#6b7280"
+    assert _model_bar_edge_color("ollama/qwen2.5:7b") == "#6b7280"
 
 
 def test_build_model_plot_groups_uses_requested_subfolders() -> None:
@@ -261,14 +260,7 @@ def test_part_2_legends_and_axis_limits_only_reflect_visible_models() -> None:
 
     assert [handle.get_label() for handle in handles] == [
         "Llama",
-        "Standard",
-        "Unrestricted",
     ]
-
-    left, right = _minimum_x_limits(-0.45, 1.35)
-    assert round(right - left, 6) == 6.0
-    assert _minimum_x_limits(0.0, 8.0) == (0.0, 8.0)
-
 
 def test_part_2_model_bar_positions_are_evenly_spaced() -> None:
     two_positions = _grouped_bar_positions(["ollama/llama2", "ollama/llama2-uncensored"])
@@ -276,8 +268,8 @@ def test_part_2_model_bar_positions_are_evenly_spaced() -> None:
         ["ollama/llama2", "ollama/llama2-uncensored", "ollama/qwen2.5:7b"]
     )
 
-    assert two_positions == [1.5, 4.5]
-    assert [round(position, 6) for position in three_positions] == [1.2, 3.0, 4.8]
+    assert two_positions == [0.0, 1.0]
+    assert three_positions == [0.0, 1.0, 2.0]
 
 
 def test_render_functions_write_part_2_graph_files(tmp_path: Path) -> None:
@@ -334,7 +326,7 @@ def test_render_functions_write_part_2_graph_files(tmp_path: Path) -> None:
         rates,
         errors,
         totals,
-        title=build_overall_title(source_note="synthetic", ci_label="Wilson 95% CI"),
+        title=build_overall_title(),
         output=overall_output,
     )
 
@@ -343,7 +335,7 @@ def test_render_functions_write_part_2_graph_files(tmp_path: Path) -> None:
         day_summaries,
         labels,
         metric="resource-by-day",
-        title=build_time_series_title(metric_label="Shared reserve remaining", source_note="synthetic"),
+        title=build_time_series_title(metric_label="Shared reserve remaining"),
         ylabel="Resource remaining (%)",
         output=series_output,
     )
