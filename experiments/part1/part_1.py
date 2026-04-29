@@ -14,6 +14,11 @@ from experiments.part1.scenario_variants import list_scenario_variants
 from experiments.misc.preflight import run_experiment_preflight
 from experiments.misc.prompt_loader import load_prompt_config
 from experiments.misc.result_writer import IncrementalCsvWriter
+from experiments.misc.run_metadata import (
+    base_run_metadata,
+    mark_metadata_complete,
+    metadata_is_complete,
+)
 from experiments.misc.wizard import (
     choose_part_1_matrix,
     choose_provider_and_model,
@@ -529,11 +534,7 @@ def _write_part_1_metadata(
     limit: int | None,
     total_prompts: int,
 ) -> None:
-    metadata = {
-        "timestamp": timestamp,
-        "csv_path": str(csv_path),
-        "provider": provider,
-        "model": model,
+    parameters = {
         "games": games,
         "frames": frames,
         "domains": domains,
@@ -541,6 +542,15 @@ def _write_part_1_metadata(
         "limit": limit,
         "total_prompts": total_prompts,
     }
+    metadata = base_run_metadata(
+        experiment="part_1",
+        timestamp=timestamp,
+        csv_path=csv_path,
+        provider=provider,
+        model=model,
+        parameters=parameters,
+    )
+    metadata.update(parameters)
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     Path(path).write_text(json.dumps(metadata, indent=2), encoding="utf-8")
 
@@ -559,6 +569,8 @@ def _latest_interrupted_part_1_metadata_path() -> Path:
     for metadata_path in PART_1_RESULTS_DIR.glob("*_meta.json"):
         try:
             metadata = _load_part_1_metadata(metadata_path)
+            if metadata_is_complete(metadata):
+                continue
             timestamp = str(metadata.get("timestamp", "")).strip()
             parsed = datetime.strptime(timestamp, PART_1_TIMESTAMP_FORMAT)
         except Exception:
@@ -609,6 +621,13 @@ def _render_pause_panel(
             expand=True,
         )
     )
+
+
+def _part_1_metadata_complete(path: str | Path) -> bool:
+    try:
+        return metadata_is_complete(_load_part_1_metadata(path))
+    except Exception:
+        return False
 
 
 def run_part_1(
@@ -777,7 +796,11 @@ def run_part_1(
 
     if not remaining_prompt_variants:
         if metadata_path.exists():
-            metadata_path.unlink()
+            mark_metadata_complete(
+                metadata_path,
+                completed_rows=len(completed_rows),
+                extra={"total_prompts": total_prompts},
+            )
         console.print(
             Panel(
                 f"[green]{csv_path.resolve()}[/green]",
@@ -879,7 +902,11 @@ def run_part_1(
         return str(csv_path)
 
     if metadata_path.exists():
-        metadata_path.unlink()
+        mark_metadata_complete(
+            metadata_path,
+            completed_rows=len(all_rows),
+            extra={"total_prompts": total_prompts},
+        )
 
     _render_summary(all_rows)
     console.print(
@@ -932,13 +959,20 @@ def run_part_1_until_complete(
 
         rows = _load_part_1_rows(csv_path)
         metadata_path = _metadata_path_for_csv(csv_path)
-        if rows and not metadata_path.exists():
+        if rows and (
+            not metadata_path.exists()
+            or _part_1_metadata_complete(metadata_path)
+        ):
             console.print(
                 f"[green]Completed non-empty part 1 run for {provider}/{model}: {csv_path}[/green]"
             )
             return str(csv_path)
 
-        resume_metadata_path = metadata_path if metadata_path.exists() else None
+        resume_metadata_path = (
+            metadata_path
+            if metadata_path.exists() and not _part_1_metadata_complete(metadata_path)
+            else None
+        )
         if resume_metadata_path is None:
             console.print(
                 f"[yellow][WARN] {provider}/{model} produced no usable rows. Retrying from scratch.[/yellow]"

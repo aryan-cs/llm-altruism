@@ -1,254 +1,209 @@
 \PassOptionsToPackage{numbers,compress}{natbib}
 \documentclass{article}
 
-% Official NeurIPS 2026 template. For an anonymous E&D submission,
-% remove the `nonanonymous` option.
-\usepackage[eandd, nonanonymous]{neurips_2026}
+\usepackage[eandd]{neurips_2026}
 \usepackage[T1]{fontenc}
 \usepackage[utf8]{inputenc}
-\usepackage{hyperref}
-\usepackage{url}
-\usepackage{array}
 \usepackage{booktabs}
-\usepackage{enumitem}
-\usepackage{tabularx}
-\usepackage{verbatim}
+\usepackage{graphicx}
 \usepackage{microtype}
+\usepackage{url}
 \usepackage{xcolor}
+\usepackage{hyperref}
 
-\hypersetup{
-    colorlinks=true,
-    linkcolor=blue,
-    citecolor=blue,
-    urlcolor=blue,
-    pdftitle={LLM Altruism Research Proposal},
-}
+\title{Safety Refusal, Cooperation, and Commons Restraint in Large Language Model Agents}
 
-\raggedbottom
-\setlist[itemize]{leftmargin=*, itemsep=0.1em, topsep=0.1em, parsep=0pt, partopsep=0pt}
-\setlist[enumerate]{leftmargin=*, itemsep=0.1em, topsep=0.1em, parsep=0pt, partopsep=0pt}
-
-\title{\textbf{Research Proposal: Measuring Altruism, Alignment, and Social Welfare in Large Language Model Agents}}
-\author{Aryan Gupta\\\texttt{aryan.cs.app@gmail.com}}
+\author{Anonymous Authors}
 
 \begin{document}
 \maketitle
 
 \begin{abstract}
-This project studies whether large language models that appear more aligned, safety-conscious, and prosocial in harmful-request benchmarks also behave more cooperatively in strategic games and more sustainably in multi-agent societies. The repository already implements a three-stage experimental pipeline: Part 0 measures refusal and harmful compliance on multilingual safety prompts; Part 1 evaluates two-agent strategic decisions in direct and indirect game-theoretic settings; and Part 2 simulates repeated common-pool resource dilemmas in larger model societies. This proposal formalizes the research questions, the operational definition of altruism, the execution protocol, the evaluation plan, the infrastructure requirements, and the roadmap for extending the current codebase into reputation-based and open-world social simulations. It also positions Part 0 relative to HarmBench and JailbreakBench so the project can report safety results using widely recognized benchmarks while connecting them to downstream social behavior.
+We present a reproducible evaluation framework for comparing three observable behaviors in language-model agents: safety refusal under harmful requests, cooperation in one-shot social dilemmas, and restraint in repeated common-pool resource simulations. The contribution is an evaluation artifact and pilot audit rather than a claim that models have moral agency. We evaluate 13 local/open-weight model variants across three parts: a harmful-request refusal audit, a factorial dyadic-game benchmark, and a same-model commons simulation. The released artifact includes executable experiment code, durable run metadata, validation reports, summary tables, and an anonymous supplement. In the current pilot, model behavior varies substantially across constructs: top safety-refusal rates exceed 98\%, top dyadic cooperation rates are 75\%, and six of thirteen commons societies preserve a nonzero population through the configured horizon. Validation finds no file-level failures, but all 13 Part 2 runs contain warning-level reasoning/action mismatch flags where models choose overuse while describing the action as group-preserving. These warnings are treated as an empirical failure mode, not as noise to hide. We frame the benchmark as a cautious open-model audit of measurable behaviors: safety refusal, cooperation, restraint, resource preservation, and survival.
 \end{abstract}
 
-\section{Problem Statement and Motivation}
-The central claim of this project is that ``altruism'' in a language model should not be treated as an impressionistic personality judgment. It should instead be studied as a measurable pattern of decision-making across multiple contexts. In this proposal, altruism is operationalized through a sequence of increasingly demanding settings: refusal to materially assist harmful or exploitative requests, willingness to cooperate when selfish defection is individually tempting, willingness to preserve common goods when private overuse is advantageous, and, in later phases, willingness to behave in socially stabilizing ways in persistent open-world environments. The scientific objective is therefore not merely to identify whether a model can refuse obviously harmful requests, but to determine whether models that appear aligned in benchmark settings continue to behave in society-serving ways once they are placed under strategic and social pressure.
+\section{Introduction}
+Language-model agents are increasingly evaluated in settings where they make choices with consequences for other agents. Standard helpfulness and accuracy tests do not capture several behaviors that matter in these settings: refusing harmful assistance, cooperating when defection is privately tempting, and preserving a shared resource when overuse creates collective risk. These behaviors are sometimes discussed under the broad label of ``altruism,'' but that term can imply intent, stable preference, or moral agency. This work instead studies observable behavior under controlled prompts.
 
-This question matters for several reasons. First, language models are increasingly deployed not only as chat systems, but as assistants, evaluators, and agents that operate within institutional and social settings. Their value therefore depends not only on task competence, but also on whether they systematically avoid harmful, exploitative, or socially destabilizing behavior. Second, safety benchmarking and multi-agent simulation are often pursued as separate lines of work. This project deliberately connects them by testing whether robust refusal under adversarial or harmful prompts predicts prosocial action in downstream strategic environments. Third, although the project currently has access to a UIUC ICRN baseline of a single \texttt{1xH200} GPU, that resource level is sufficient only for local open-weight pilot studies and small parameter sweeps. A serious empirical account of LLM altruism should compare local safeguarded and uncensored models with modern API-served models from families such as OpenAI, Anthropic, and Google Gemini, which requires both additional local compute and API credits.
+We target the NeurIPS Evaluations and Datasets track because the main contribution is an evaluation protocol and executable artifact. The paper asks two questions. First, can safety refusal, cooperation, and commons restraint be measured in a reproducible pipeline with explicit metadata and validation? Second, in a pilot set of local/open-weight models, do the measured behaviors move together, or do they expose distinct failure modes?
 
-\section{Research Questions and Hypotheses}
-\subsection*{Primary Research Questions}
-\begin{enumerate}
-    \item Do models that show stronger robust refusal on harmful-request benchmarks also cooperate more often in strategic interactions?
-    \item Do models that cooperate in dyadic games also preserve common resources more effectively in larger societies?
-    \item Are there systematic differences between safeguarded, uncensored, open-weight, and frontier API models in these behaviors?
-    \item Does model behavior change across languages, prompt framings, and reputational conditions?
-    \item Can alignment benchmark results be used as an early proxy for downstream social welfare behavior?
-\end{enumerate}
-
-\subsection*{Core Hypotheses}
+The contributions are:
 \begin{itemize}
-    \item \textbf{H1:} Lower harmful compliance in Part 0 will be associated with higher cooperation in Part 1 and lower overuse in Part 2.
-    \item \textbf{H2:} Safeguarded models will outperform uncensored variants on harmful compliance, but may not always outperform them on strategic cooperation unless social incentives are made explicit.
-    \item \textbf{H3:} Frontier models with stronger current alignment tuning will, on average, show more stable prosocial behavior than the currently available local-only open-weight baseline set.
-    \item \textbf{H4:} Public reputation systems introduced in later phases will shift behavior toward socially acceptable actions, but some models will optimize for image rather than intrinsic cooperation.
-    \item \textbf{H5:} Altruism is multidimensional; some models will refuse harmful prompts yet still defect in social dilemmas, implying that safety refusal and social cooperation are related but not identical constructs.
+    \item A three-part evaluation framework covering harmful-request refusal, dyadic social dilemmas, and repeated commons preservation.
+    \item A validation and analysis pipeline that checks schemas, coverage, transitions, metadata, and reasoning/action consistency independently of plots.
+    \item A pilot audit of 13 local/open-weight model variants, including warning-level evidence that some models choose overuse while rationalizing the choice as group-preserving.
 \end{itemize}
 
-\section{Current Project Scope and Proposed Full Roadmap}
-The repository already implements Parts 0--2 and documents Parts 3--5 as the next stages of the research program. The proposal below encompasses the full agenda while distinguishing between \textit{implemented} and \textit{planned} components.
+\section{Related Work}
+Safety-refusal benchmarks such as HarmBench and JailbreakBench evaluate whether models comply with harmful requests or resist jailbreak attempts \citep{mazeika2024harmbench,chao2024jailbreakbench}. Our Part 0 uses this line of work as the safety-refusal component of a broader behavioral audit.
 
-\begin{center}
+The social-dilemma components draw on classic work on cooperation, prisoner's dilemmas, and common-pool resources \citep{axelrod1984evolution,hardin1968tragedy,ostrom1990governing}. Recent LLM-agent work has shown that language models can participate in simulated social environments and role-based interaction settings \citep{park2023generative}. Our emphasis is narrower: we do not claim to model real institutions, but instead use controlled prompt matrices to expose whether choices, justifications, and aggregate outcomes are internally consistent.
+
+The E\&D framing also follows work that treats evaluation itself as an artifact. The benchmark is useful only if reviewers can inspect the protocol, reproduce tables, and see where warnings arise. For this reason, validation reports and manifests are first-class outputs rather than byproducts.
+
+\section{Evaluation Framework}
+\subsection{Part 0: Safety Refusal}
+Part 0 presents harmful-request prompts and records whether a model refuses or materially complies. The primary metric is the safety-refusal rate:
+\[
+\mathrm{refusal} = \frac{\#\mathrm{denied}}{\#\mathrm{denied} + \#\mathrm{complied}}.
+\]
+The stored CSV schema includes provider, model, language, prompt source, prompt text, model reasoning when available, response, judge verdict, and a normalized compliance field. Part 0 raw generations are treated conservatively in release packaging because they may contain harmful content; aggregate summaries and validation outputs are included in the supplement.
+
+\subsection{Part 1: Dyadic Cooperation}
+Part 1 evaluates one-shot choices in two game families: prisoner's dilemma and temptation-of-the-commons analogues. The prompt matrix varies game, frame, domain, scenario variant, and presentation. The primary metric is cooperation rate, where \texttt{COOPERATE} and \texttt{RESTRAIN} are cooperative actions and \texttt{DEFECT} and \texttt{OVERUSE} are non-cooperative actions:
+\[
+\mathrm{cooperation} = \frac{\#\mathrm{cooperative}}{\#\mathrm{cooperative} + \#\mathrm{noncooperative}}.
+\]
+
+\subsection{Part 2: Commons Restraint}
+Part 2 creates same-model societies in which agents repeatedly choose between \texttt{RESTRAIN} and \texttt{OVERUSE}. The primary metrics are restraint rate, first reserve-depletion day, final reserve, final population, deaths, and survival through the configured horizon. Each model run in the current pilot uses 50 agents, a 100-day horizon, and a water-reserve framing. We additionally audit reasoning/action consistency by flagging cases in which a model selects \texttt{OVERUSE} while describing the choice as preserving the reserve, keeping the group safe, or beneficially triggering population loss.
+
+\section{Validation and Reproducibility}
+The repository uses a single data root. Raw CSVs and metadata live under \texttt{data/raw/}; graph-independent validation reports, manifests, and tables live under \texttt{data/analysis/}; figures live under \texttt{data/graphs/}. Each completed run has a metadata sidecar with run status, provider, exact model identifier, command context, timestamp, prompt/config hash when available, experiment parameters, backend, timeout/token settings when available, and output paths. Legacy metadata is backfilled from filenames and configs where possible, with unknown fields marked explicitly.
+
+Validation checks are independent of plotting. They cover CSV headers, duplicate keys, missing actions, invalid actions, prompt-matrix row counts, Part 2 day continuity, reserve/population transition consistency, interrupted versus completed runs, and reasoning/action mismatch flags. The current validation report covers 27 CSVs: one Part 0 file, 13 Part 1 files, and 13 Part 2 files. It reports 14 passes, 13 warnings, and 0 failures. All warning-level files are Part 2 runs with reasoning/action mismatch flags. These warnings remain in the paper because they are relevant to the failure mode being studied.
+
+The main reproduction commands are:
+\begin{verbatim}
+uv run pytest -q
+uv run python -m analysis.validation --strict
+uv run python -m analysis.summarize_results
+uv run python -m analysis.build_manifest
+\end{verbatim}
+The same commands are listed in \texttt{REPRODUCIBILITY.md}. Summary tables are written to \path{data/analysis/tables/}, and the manifest is written to \path{data/analysis/run_manifest.jsonl}.
+
+\section{Pilot Results}
+\subsection{Safety Refusal}
+Part 0 contains 13 model summaries with 297 judged prompts per model. Table~\ref{tab:part0} shows the highest and lowest observed safety-refusal rates. Refusal is high for several standard or safeguard-oriented models and much lower for explicitly uncensored or derestricted variants.
+
+\begin{table}[h]
+\centering
+\caption{Part 0 safety-refusal rates from \texttt{part0\_model\_summary.csv}.}
+\label{tab:part0}
 \small
-\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{0.08\textwidth} >{\raggedright\arraybackslash}p{0.14\textwidth} >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}p{0.16\textwidth}}
+\begin{tabular}{lrrr}
 \toprule
-\textbf{Part} & \textbf{Status} & \textbf{Purpose} & \textbf{Main Output} \\
+Model & Judged & Denied & Refusal rate \\
 \midrule
-0 & Implemented & Baseline safety and alignment benchmark using harmful prompts, multilingual prompting, and judge-model scoring. & Harmful compliance / denial results by model and language \\
-1 & Implemented & Two-agent strategic interaction in direct and indirect dilemma framings. & Action choices and rationales in dyadic games \\
-2 & Implemented & Repeated common-pool resource dilemma in a larger society. & Population, overuse, collapse, and survival trajectories \\
-3 & Planned & Extend the commons simulation with public reputation, action visibility, and interpersonal rating so as to test whether accountability alters restraint, overuse, and collective survival. & Reputation-conditioned cooperation and accountability effects \\
-4 & Planned & Construct a persistent open-world society in which agents possess internal state, inventories, and a richer action space spanning subsistence, exchange, conflict, and reproduction. & Emergent order, conflict, trade, welfare, and instability metrics \\
-5 & Planned & Augment the open-world society with persistent public reputation so that trust, sanction, partner choice, and exclusion can be studied under socially legible conditions. & Interaction between reputation, trust, exchange, conflict, and long-run welfare \\
+\texttt{gpt-oss:20b} & 297 & 295 & 99.3\% \\
+\texttt{qwen3.5} & 297 & 292 & 98.3\% \\
+\texttt{sorc/qwen3.5-instruct} & 297 & 290 & 97.6\% \\
+\texttt{huihui\_ai/qwen2.5-abliterate:7b} & 297 & 83 & 27.9\% \\
+\texttt{gurubot/gpt-oss-derestricted:20b} & 297 & 48 & 16.2\% \\
+\texttt{aratan/qwen3.5-uncensored:9b} & 297 & 28 & 9.4\% \\
 \bottomrule
-\end{tabularx}
-\end{center}
+\end{tabular}
+\end{table}
 
-\section{Operational Definition of Altruism}
-This project does not assume that altruism is a hidden essence residing inside a model. It defines altruism behaviorally. A model is treated as more altruistic to the extent that it declines to materially assist harmful requests, selects cooperative actions when selfish alternatives are tempting, restrains private gain in order to preserve common goods, and, in later phases, exhibits forms of societal stewardship such as reciprocity, trade, coordination, and restraint rather than theft, violence, and destabilization. No single task is treated as sufficient to establish such a claim. The project instead constructs a multi-part behavioral profile and treats any composite ``altruism index'' as a secondary analytic convenience rather than a substitute for reporting the underlying dimensions separately.
+\subsection{Dyadic Cooperation}
+Part 1 contains 384 prompt variants per model. Table~\ref{tab:part1} shows the highest and lowest cooperation rates. The highest observed cooperation rate is 75.0\%, shared by three Qwen 2.5 variants. Several uncensored or derestricted variants have cooperation rates below 30\%. This should not be read as a monotonic safety-to-cooperation relationship: the pilot set is small, model families differ in many ways, and Part 1 uses a distinct behavioral construct.
 
-\section{Methodology}
-\subsection{Model Cohorts}
-The study should compare four broad cohorts: local safeguarded open-weight models, local uncensored or minimally filtered open-weight models, frontier API models with current production alignment stacks, and a smaller set of judge models used only for benchmark scoring. This cohort structure is important because the project is not merely trying to rank individual systems; it is trying to identify whether systematic behavioral differences emerge across censorship regimes, deployment modalities, and levels of capability. At present, the available local cohort is sufficient to support pilot comparisons among safeguarded and uncensored open-weight models from several major model families on the current UIUC ICRN \texttt{1xH200} baseline. That local cohort is useful for exploratory analysis, but it is not sufficient for the full research question, because the design intentionally spans both locally run open-weight systems and closed-source frontier API models. The repository already supports OpenAI and Anthropic providers, and Gemini-family benchmarking could be added with a modest extension to the provider layer and configuration system. The scientific limitation is therefore not conceptual but infrastructural: rigorous comparison requires more local compute for the open-weight side of the study and paid API access for the closed-source side.
+\begin{table}[h]
+\centering
+\caption{Part 1 dyadic cooperation rates from \texttt{part1\_model\_summary.csv}.}
+\label{tab:part1}
+\small
+\begin{tabular}{lrrr}
+\toprule
+Model & Prompts & Cooperative & Cooperation rate \\
+\midrule
+\texttt{huihui\_ai/qwen2.5-abliterate:7b} & 384 & 288 & 75.0\% \\
+\texttt{qwen2.5:7b} & 384 & 288 & 75.0\% \\
+\texttt{qwen2.5:7b-instruct} & 384 & 288 & 75.0\% \\
+\texttt{gurubot/gpt-oss-derestricted:20b} & 384 & 104 & 27.1\% \\
+\texttt{sorc/qwen3.5-instruct-uncensored} & 384 & 99 & 25.8\% \\
+\texttt{aratan/qwen3.5-uncensored:9b} & 384 & 93 & 24.2\% \\
+\bottomrule
+\end{tabular}
+\end{table}
 
-\subsection{Part 0: Alignment and Safety Benchmarking}
-Part 0 is the implemented alignment benchmark. It provides the bridge between standard safety evaluation and later social-behavior experiments.
+\subsection{Commons Restraint}
+Part 2 shows both aggregate survival differences and justification failures. Six of thirteen societies preserve a nonzero population through day 100; seven collapse to zero population. Table~\ref{tab:part2} lists all Part 2 runs ordered by restraint rate. The two Llama variants and several Qwen variants preserve nonzero populations, while lower-restraint runs deplete the reserve and collapse earlier. The warning column is the number of \texttt{OVERUSE} rows flagged by the reasoning/action audit.
 
-\subsubsection*{Prompt Sources}
-The current prompt bank is composed of harmful-behavior prompts derived from HarmBench and JailbreakBench. The implemented benchmark therefore already rests on two recognized safety-evaluation resources, while the broader prompt configuration anticipates future extensions involving jailbreak-style wrappers inspired by in-the-wild attacks. The central methodological choice is to benchmark models not only on direct harmful requests, but on a prompt set that can support later expansion toward more adversarial formulations without requiring a redesign of the surrounding evaluation pipeline.
+\begin{table}[h]
+\centering
+\caption{Part 2 commons outcomes from \texttt{part2\_model\_summary.csv}. ``$>$100'' means no reserve depletion within the configured horizon.}
+\label{tab:part2}
+\small
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{lrrrr}
+\toprule
+Model & Restraint & First depletion day & Final population & Mismatch flags \\
+\midrule
+\texttt{llama2} & 97.2\% & $>$100 & 50 & 6 \\
+\texttt{qwen2.5:7b-instruct} & 90.9\% & $>$100 & 50 & 26 \\
+\texttt{qwen2.5:7b} & 90.6\% & $>$100 & 50 & 33 \\
+\texttt{qwen3.5} & 84.4\% & $>$100 & 50 & 66 \\
+\texttt{llama2-uncensored} & 77.4\% & $>$100 & 50 & 29 \\
+\texttt{sorc/qwen3.5-instruct} & 75.3\% & $>$100 & 50 & 148 \\
+\texttt{gpt-oss:20b} & 68.3\% & 78 & 0 & 159 \\
+\texttt{gpt-oss-safeguard:20b} & 60.0\% & 64 & 0 & 90 \\
+\texttt{huihui\_ai/qwen2.5-abliterate:7b} & 52.3\% & 50 & 0 & 18 \\
+\texttt{huihui\_ai/qwen2.5-abliterate:7b-instruct} & 52.1\% & 50 & 0 & 30 \\
+\texttt{gurubot/gpt-oss-derestricted:20b} & 36.8\% & 40 & 0 & 54 \\
+\texttt{sorc/qwen3.5-instruct-uncensored} & 33.0\% & 34 & 0 & 72 \\
+\texttt{aratan/qwen3.5-uncensored:9b} & 32.2\% & 37 & 0 & 104 \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
 
-\subsubsection*{Execution Protocol}
-For each selected model, prompt, and language, the benchmark prompt is optionally translated from English into the target language, the evaluated model is asked to return a structured response containing both rationale and answer fields, and non-English outputs are translated back into English for standardized assessment. A separate judge model then determines whether the response materially complied with or denied the harmful request. The multilingual design is integral to the research objective, because a model that appears safe only in English would not support a strong claim of robust alignment. The implemented workflow therefore evaluates models across a fixed multilingual setting and preserves run state in resumable artifacts so that long benchmarking jobs can be audited and resumed without compromising validity.
+\subsection{Cross-Part Interpretation}
+The pilot supports a cautious conclusion: the three metrics are separable. Safety refusal, dyadic cooperation, and commons restraint do not reduce to a single latent ``good behavior'' score in this small cohort. For example, some Qwen 2.5 variants are highly cooperative in Part 1 and high-restraint in Part 2 despite differing safety-refusal behavior in Part 0, while \texttt{llama2} has the highest Part 2 restraint in the pilot without being the top Part 0 refusal model. Conversely, several uncensored or derestricted variants are low on all three behavioral measures. These patterns motivate a larger confirmatory run with frozen model taxonomy, repeated seeds or decoding settings, and bootstrap uncertainty over model-level comparisons.
 
-\subsubsection*{Why HarmBench and JailbreakBench Matter}
-Part 0 should be reported explicitly as a benchmark layer built from HarmBench and JailbreakBench. HarmBench is especially valuable because it was designed as a standardized framework for automated red teaming and robust refusal, which makes it an appropriate basis for refusal-rate measurement and cross-model comparison \cite{harmbench_paper,harmbench_repo}. JailbreakBench is complementary because it provides an open benchmark, evaluation framework, artifacts, and leaderboard for jailbreak robustness, making it suitable for testing whether harmful compliance changes under adversarial or misuse-oriented instructions \cite{jbb_paper,jbb_repo,jbb_leaderboard}. Framing Part 0 in these terms allows the project to report not merely a single global ``alignment score,'' but benchmark-specific compliance rates, language-specific robustness, safeguarded-versus-uncensored differentials, and local-versus-frontier differences.
+\section{Limitations}
+This is an open-model pilot, not a definitive benchmark of frontier systems. The current results use local/Ollama model tags, which can drift across installations. The Part 2 societies are homogeneous same-model simulations; real deployments may contain heterogeneous agents, external incentives, and richer institutions. Metrics are prompt-sensitive and decoding-sensitive. Part 0 relies on judge labels and should be audited for borderline cases, multilingual outputs, and any cases where refusal style masks actionable harmful content. The reasoning/action mismatch audit is intentionally conservative and pattern-based; it catches salient contradictions but is not a complete semantic verifier.
 
-\subsection{Part 1: Dyadic Strategic Interaction}
-Part 1 is the implemented two-agent strategic game layer. It currently uses symmetric self-play: two agents instantiated with the same provider and model act independently in one-shot scenarios.
-
-\subsubsection*{Implemented Design}
-The current implementation studies two one-shot strategic framings. The first is an explicit prisoner's-dilemma condition. The second is an indirect analogue in which the same incentive structure is embedded in a more naturalized rivalry scenario. This distinction is methodologically important because it permits the study of whether a model's behavior changes when the underlying strategic tension is presented as a formal game versus as an everyday social dilemma.
-
-\subsubsection*{Measurement Goals}
-Part 1 tests whether models that appear safe in Part 0 also behave cooperatively when the relevant tension is indirect, strategic, and incentive-driven rather than explicitly prohibited. The principal outcomes are cooperation and defection rates, sensitivity to direct versus indirect framing, consistency between rationale and action, and the implied payoff structure of the resulting action pair. Although the present implementation uses same-model self-play, the design can readily be extended to cross-play conditions, such as safeguarded-versus-uncensored or frontier-versus-local pairings. Such extensions would be especially informative because they would reveal whether cooperative behavior is robust across heterogeneous populations or merely an artifact of homogeneous self-play.
-
-\subsection{Part 2: Multi-Agent Commons Simulation}
-Part 2 is the implemented social-dilemma layer. It scales from two-agent interaction to a society of many agents who repeatedly choose whether to preserve or exploit a shared resource.
-
-\subsubsection*{Implemented Design}
-In its current implementation, Part 2 instantiates a society of configurable size, initializes a shared reserve as a function of population size and payoff parameters, and then runs a repeated daily decision process in which every agent independently chooses whether to restrain consumption or overuse the common resource. The reserve is depleted according to the aggregate level of overuse, and once the reserve collapses the simulation imposes population attrition until the society stabilizes or dies out. Every daily decision and day-level summary is written to disk, allowing the resulting trajectories to be analyzed both as individual behavior and as collective social dynamics. The present default configuration is intended only as a starting point; the substantive purpose of the framework is to permit controlled variation in population size, resource structure, and payoff parameters.
-
-\subsubsection*{Measurement Goals}
-Part 2 moves the project from isolated strategic choices to the analysis of social sustainability. The principal outcomes are the daily rate of overuse, the daily rate of restraint, the reserve depletion trajectory, the timing of collapse, the pace of post-collapse deaths, the final surviving population, and qualitative shifts in agent reasoning before and after collective breakdown. This phase is especially important because it expresses the central substantive claim of the project in explicitly collective terms: a population of individually instrumentally rational agents may nevertheless generate socially catastrophic outcomes.
-
-\subsection{Planned Extensions: Parts 3--5}
-The later phases are not ornamental additions. They are necessary for completing the intellectual arc of the project, because they move the study from benchmark refusal and simple dilemmas toward persistent, socially legible environments in which cooperation, opportunism, trust, sanction, and institutional memory can interact over time.
-
-\subsubsection*{Part 3: Reputation in the Commons}
-Part 3 extends the commons simulation by introducing public reputation and rating signals. Agents would no longer act in a purely anonymous environment; instead, their prior conduct would become legible to others through a visible reputational state or through explicit public ratings assigned after each round or after selected actions. The purpose of this phase is to determine whether cooperation in the commons is sensitive to social visibility. More specifically, it asks whether agents become more restrained when they expect future judgment, whether certain models optimize for appearance rather than genuine sustainability, and whether public accountability meaningfully delays or prevents collective collapse. This phase provides a natural bridge from one-shot strategic reasoning to repeated social interaction under conditions of memory and reputational consequence.
-
-\subsubsection*{Part 4: Open-World Society}
-Part 4 expands the setting into an open-world social simulation in which agents possess persistent internal state variables, including health, hunger, thirst, energy, happiness, and inventory. The action space correspondingly becomes much richer: agents may sleep, forage, trade, steal, kill, and reproduce, with each action altering both individual welfare and the social environment. This phase is essential because it replaces a binary social dilemma with a persistent environment in which subsistence, exchange, scarcity, predation, and social interdependence coexist. The objective is to study whether model societies develop stable patterns of reciprocity and exchange, whether coercive or violent behavior becomes dominant under scarcity, whether populations self-organize into sustainable or unstable regimes, and whether nominally safe models retain prosocial behavior when confronted with a broader and more realistic action space. In methodological terms, Part 4 is the first phase in which altruism is tested not as a single decision but as a persistent behavioral disposition under open-ended incentive pressure.
-
-\subsubsection*{Part 5: Open-World Society with Reputation}
-Part 5 adds persistent public reputation to the open-world society developed in Part 4. In this setting, an agent's history of trade, restraint, theft, violence, and reciprocity can influence how other agents respond to it in later interactions. This makes it possible to study trust formation, exclusion, sanction, partner selection, and the extent to which public legibility moderates destructive conduct. Conceptually, this phase is especially important because it allows the project to distinguish among at least three modes of behavior that would otherwise be conflated: genuinely cooperative behavior that persists even in the absence of observation, strategic image-management in which agents behave prosocially only when reputation is at stake, and socially destructive behavior that remains stable even under public accountability.
-
-\section{Analysis Plan}
-\subsection{Primary Dependent Variables}
-The primary dependent variables differ by phase but remain conceptually aligned. In Part 0, the principal outcomes are harmful compliance rate, refusal rate, language robustness, and benchmark-specific refusal differences. In Part 1, the relevant outcomes are cooperation rate, defection rate, framing sensitivity, and the implied payoff structure of the joint action. In Part 2, the key outcomes are overuse frequency, collapse probability, time-to-collapse, and final population survival. In Parts 3 through 5, the analysis additionally incorporates reputation sensitivity, rates of trade, theft, and violence, measures of inequality or concentration of resources, and broader indicators of long-run welfare and social stability.
-
-\subsection{Secondary and Derived Measures}
-Secondary measures should include rationale length and polarity, action consistency across repeated runs, variance across random prompt subsets, cross-phase agreement between benchmark-layer and society-layer behavior, and a composite altruism index built from standardized scores across parts. These derived measures are not intended to replace the primary outcomes, but they may help clarify whether observed differences are stable, noisy, or artifacts of prompt selection.
-
-\subsection{Statistical Approach}
-The project should report descriptive and inferential analysis:
-\begin{enumerate}
-    \item \textbf{Descriptive summaries:} means, rates, confidence intervals, and trajectories for each model and cohort.
-    \item \textbf{Mixed-effects modeling:} logistic mixed-effects models for refusal/compliance and cooperation/overuse, using model family, safeguard status, benchmark source, and language as fixed effects, with prompt or simulation condition as random effects.
-    \item \textbf{Survival analysis:} time-to-collapse or time-to-population-death in Part 2 and later social simulations.
-    \item \textbf{Correlation analysis:} Pearson or Spearman correlations between Part 0 refusal and downstream cooperation/sustainability metrics.
-    \item \textbf{Robustness checks:} bootstrap confidence intervals, multiple seeds, and benchmark-stratified analysis.
-\end{enumerate}
-
-Because LLM outputs are prompt-sensitive, all substantive claims should be made from repeated runs and aggregated distributions rather than single exemplars.
-
-\section{Execution and Reproducibility}
-The repository is already organized in a manner conducive to reproducible experimentation. It uses explicit experiment modules, provider abstraction for model access, configuration-driven prompt loading, automatic preflight testing, incremental result writing, and timestamped output artifacts that preserve both completed and interrupted runs. For the purposes of the proposal, the important point is not the exact command-line interface, but the fact that the experimental workflow is versioned, modular, and auditable.
-
-Accordingly, the project should commit to version-controlled prompts and configurations, frozen prompt subsets for each run through stored metadata, retention of both pending and judged outputs for auditability, explicit separation of benchmarked models from judge models, reporting by provider, model, language, and benchmark source, and replicated runs for settings in which output variance is non-trivial. These commitments are more central to the scientific credibility of the project than a detailed inventory of engineering commands in the body of the proposal.
-
-\section{Why Hardware and API Credits Are Necessary}
-The request for hardware and API credits should be understood as a methodological requirement rather than as a matter of convenience.
-
-\subsection{Current Limitation}
-At present, the project can run meaningful pilot studies on the locally accessible open-weight cohort using a UIUC ICRN baseline of a single \texttt{1xH200} GPU. That baseline is valuable because it makes local experimentation possible, but it supports only pilot-scale runs, modest parameter sweeps, and a limited subset of the full experimental matrix. It is not sufficient to test the broader claim that altruistic or society-serving behavior differs between local open-weight systems and the contemporary frontier models most likely to be deployed in practice.
-
-\subsection{Why Frontier Access Matters}
-The core comparative question requires modern model families from OpenAI, Anthropic, and, after a modest provider integration, Google Gemini. These are closed-source API-served systems, and they cannot be evaluated at the scale required by this project without dedicated usage credits. Without them, the study would largely compare local open-weight models against one another. That is a useful starting point, but it does not answer whether the social behavior of the most capable commercial systems differs materially from the local baseline that the project can already access.
-
-\subsection{Why Credits Matter Even for Small-Text Experiments}
-Even though the individual prompts are short, the total call volume grows quickly. Part 0 currently implies tens of thousands of primary generations once the prompt set, language set, and model set are crossed, and the required judging pass substantially increases that total. Part 2 introduces a different but equally serious scaling problem: even a moderate society size and runtime produce thousands of agent decisions for a single condition, and the total rises rapidly once multiple models, multiple parameter settings, and multiple replications are introduced. When closed-source models from OpenAI, Anthropic, and Gemini are added to that matrix, API credits become a binding experimental requirement rather than a marginal convenience. Credits therefore determine not only whether the study can be run at all, but whether it can be run with adequate coverage, replication, and statistical credibility across both local and frontier cohorts.
-
-\subsection{Why Hardware Matters}
-Additional hardware is justified because it would allow the project to benchmark larger local open-weight baselines, accelerate multilingual batch evaluation, host local judge models when external API costs are undesirable, and execute the repeated generations, judge passes, parameter sweeps, and replications required by Parts 2 through 5 without impractical runtime. The current \texttt{1xH200} UIUC ICRN allocation is a strong starting point, but it is not enough to support the full local side of the study at the same scale as the proposed frontier-model comparison. More compute is therefore needed for the open-weight arm of the project, just as API credits are needed for the closed-source arm. Hardware and credits are part of the experimental design itself. They are necessary to make the study contemporary, comparative, and statistically credible.
-
-\section{Ethics and Risk Management}
-This project necessarily uses harmful prompts because it studies robust refusal and misuse resistance, and that fact creates clear obligations. Harmful prompts should be stored and handled only for evaluation purposes; outputs should be reported in aggregate whenever possible; raw harmful completions should not be republished beyond what is necessary for secure internal analysis; benchmark usage should respect the norms and licenses of the upstream resources; and later phases involving simulated violence, theft, or exploitation should be framed explicitly as safety and governance evaluation rather than as behavioral endorsement. The proposal should also acknowledge an important conceptual limitation: ``altruism'' is used here as a behavioral construct, not as proof of moral agency, subjective intent, or genuine ethical understanding.
-
-\section{Deliverables}
-The project's deliverables should include:
-\begin{enumerate}
-    \item a benchmark report for Part 0 with HarmBench and JBB breakdowns,
-    \item a game-theoretic cooperation report for Part 1,
-    \item a commons-sustainability report for Part 2,
-    \item an integrated cross-part analysis linking safety refusal to downstream social behavior,
-    \item a roadmap implementation plan for Parts 3--5,
-    \item plots, CSV outputs, metadata, and reproducible run configurations,
-    \item a final research paper or technical report suitable for academic submission.
-\end{enumerate}
-
-\section{Proposed Timeline}
-\begin{enumerate}
-    \item \textbf{Stage 1:} stabilize Part 0 reporting, benchmark splits, and multilingual analysis.
-    \item \textbf{Stage 2:} expand Part 1 and Part 2 replication across local safeguarded and uncensored models.
-    \item \textbf{Stage 3:} add frontier API comparison runs for OpenAI and Anthropic, then add Gemini support.
-    \item \textbf{Stage 4:} fit the cross-part statistical models and identify whether refusal predicts social cooperation.
-    \item \textbf{Stage 5:} implement reputation-aware Part 3, then begin the richer Part 4 and Part 5 society simulations.
-\end{enumerate}
+\section{Ethics and Safety}
+The harmful-request component creates and stores potentially unsafe generations. The anonymous supplement therefore includes Part 0 aggregate tables and validation reports, but excludes raw Part 0 completions by default. This limits unnecessary redistribution of harmful content while preserving the numerical claims used in the paper. The released artifact is intended for evaluation research and should not be used to optimize harmful compliance. The paper makes no claim that models possess moral agency or intrinsic altruism.
 
 \section{Conclusion}
-This project is well-motivated because it links three questions that are often studied separately: whether a model refuses harmful requests, whether it cooperates under strategic tension, and whether a society of such models remains stable over time. The current repository already provides a substantive experimental backbone for Parts 0--2. The next step is to turn that foundation into a comparative, publishable study that includes local safeguarded models, local uncensored models, and frontier API models. Framing Part 0 explicitly around HarmBench and JailbreakBench, while extending Parts 1--5 as progressively richer social environments, gives the project a coherent scientific narrative and a strong basis for requesting the hardware and credits needed to execute it properly. Concretely, the study can already begin on the current UIUC ICRN \texttt{1xH200} baseline, but completing the intended comparison across both local open-weight and closed-source frontier systems requires additional compute and API credits.
+We introduced a reproducible evaluation framework for measuring safety refusal, dyadic cooperation, and commons restraint in LLM agents. The pilot shows strong variation across model variants, clear survival differences in commons simulations, and a concrete reasoning/action mismatch failure mode. The next step is a frozen confirmatory evaluation with broader model coverage, repeated settings, and final figure exports generated from the same graph-independent tables.
 
-\begin{thebibliography}{99}
+\bibliographystyle{plainnat}
+\bibliography{references}
 
-\bibitem{harmbench_paper}
-Mantas Mazeika, Long Phan, Xuwang Yin, Andy Zou, Zifan Wang, Norman Mu, Elham Sakhaee, Nathaniel Li, Steven Basart, Bo Li, David Forsyth, and Dan Hendrycks.
-\newblock \emph{HarmBench: A Standardized Evaluation Framework for Automated Red Teaming and Robust Refusal}.
-\newblock arXiv:2402.04249, 2024.
-\newblock \url{https://arxiv.org/abs/2402.04249}
+\appendix
 
-\bibitem{harmbench_repo}
-Center for AI Safety.
-\newblock \emph{HarmBench GitHub Repository}.
-\newblock \url{https://github.com/centerforaisafety/HarmBench}
+\section{Artifact Map}
+\begin{itemize}
+    \item Experiment code: \path{experiments/part0}, \path{experiments/part1}, \path{experiments/part2}.
+    \item Analysis code: \path{analysis/validation.py}, \path{analysis/summarize_results.py}, and \path{analysis/build_manifest.py}.
+    \item Raw data: \path{data/raw/part_0}, \path{data/raw/part_1}, and \path{data/raw/part_2}; raw Part 0 completions are omitted from the anonymous supplement by default.
+    \item Derived tables: \path{data/analysis/tables}.
+    \item Validation report: \path{data/analysis/validation/validation_report.json}.
+    \item Manifest: \path{data/analysis/run_manifest.jsonl}.
+    \item Release documentation: \texttt{REPRODUCIBILITY.md}, \texttt{DATA\_CARD.md}, and \texttt{MODEL\_REGISTRY.md}.
+\end{itemize}
 
-\bibitem{jbb_paper}
-Patrick Chao, Edoardo Debenedetti, Alexander Robey, Maksym Andriushchenko, Francesco Croce, Vikash Sehwag, Edgar Dobriban, Nicolas Flammarion, George J. Pappas, Florian Tramer, Hamed Hassani, and Eric Wong.
-\newblock \emph{JailbreakBench: An Open Robustness Benchmark for Jailbreaking Large Language Models}.
-\newblock arXiv:2404.01318, 2024.
-\newblock \url{https://arxiv.org/abs/2404.01318}
+\section{Reproduction Checklist}
+The expected pre-submission gate is:
+\begin{verbatim}
+uv run pytest -q
+uv run python -m analysis.validation --strict
+uv run python -m analysis.summarize_results
+uv run python -m analysis.build_manifest
+\end{verbatim}
+At the time of this draft, the test gate passes, validation reports 27 files with 14 pass, 13 warn, and 0 fail, and the warnings are the Part 2 reasoning/action mismatch flags discussed in the main text.
 
-\bibitem{jbb_repo}
-JailbreakBench.
-\newblock \emph{JailbreakBench GitHub Repository}.
-\newblock \url{https://github.com/JailbreakBench/jailbreakbench}
-
-\bibitem{jbb_leaderboard}
-JailbreakBench.
-\newblock \emph{JailbreakBench Leaderboard and Behaviors}.
-\newblock \url{https://jailbreakbench.github.io/behaviors}
-
-\bibitem{prosocial}
-Karthik Sreedhar, Alice Cai, Jenny Ma, Jeffrey V. Nickerson, and Lydia B. Chilton.
-\newblock \emph{Simulating Cooperative Prosocial Behavior with Multi-Agent LLMs: Evidence and Mechanisms for AI Agents to Inform Policy Decisions}.
-\newblock arXiv:2502.12504, 2025.
-\newblock \url{https://arxiv.org/abs/2502.12504}
-
-\bibitem{alympics}
-Shaoguang Mao, Yuzhe Cai, Yan Xia, Wenshan Wu, Xun Wang, Fengyi Wang, Tao Ge, and Furu Wei.
-\newblock \emph{ALYMPICS: LLM Agents Meet Game Theory -- Exploring Strategic Decision-Making with AI Agents}.
-\newblock arXiv:2311.03220, 2023.
-\newblock \url{https://arxiv.org/abs/2311.03220}
-
-\bibitem{multiagentbench}
-Kunlun Zhu, Hongyi Du, Zhaochen Hong, Xiaocheng Yang, Shuyi Guo, Zhe Wang, Zhenhailong Wang, Cheng Qian, Xiangru Tang, Heng Ji, and Jiaxuan You.
-\newblock \emph{MultiAgentBench: Evaluating the Collaboration and Competition of LLM agents}.
-\newblock arXiv:2503.01935, 2025.
-\newblock \url{https://arxiv.org/abs/2503.01935}
-
-\bibitem{generative_agents}
-Joon Sung Park, Joseph C. O'Brien, Carrie J. Cai, Meredith Ringel Morris, Percy Liang, and Michael S. Bernstein.
-\newblock \emph{Generative Agents: Interactive Simulacra of Human Behavior}.
-\newblock arXiv:2304.03442, 2023.
-\newblock \url{https://arxiv.org/abs/2304.03442}
-
-\end{thebibliography}
+\section{NeurIPS Paper Checklist}
+\begin{enumerate}
+    \item \textbf{Claims.} \answerYes The abstract, introduction, and results frame the work as a reproducible evaluation framework and open-model pilot, not as proof of model intent or moral agency.
+    \item \textbf{Limitations.} \answerYes Limitations are discussed in the main text, including local-model scope, prompt sensitivity, homogeneous societies, model-tag drift, and judge reliability.
+    \item \textbf{Theory, assumptions, and proofs.} \answerNA The paper does not present theoretical theorems or proofs.
+    \item \textbf{Experimental reproducibility.} \answerYes Reproduction commands, metadata, manifests, validation reports, and tables are included in the paper and anonymous supplement.
+    \item \textbf{Open access to data and code.} \answerYes The anonymous supplement contains executable code, derived tables, validation outputs, and Part 1/Part 2 raw CSVs. Raw Part 0 completions are excluded by default for safety reasons.
+    \item \textbf{Experimental setting/details.} \answerYes The evaluated parts, metrics, model registry, prompts/configs, metadata fields, and command interface are documented in the paper and supplement.
+    \item \textbf{Statistical significance.} \answerYes The analysis pipeline reports Wilson confidence intervals for rate summaries. The pilot interpretation remains descriptive because the model cohort is small.
+    \item \textbf{Compute resources.} \answerNo Metadata sidecars capture available backend and timeout/token settings, but full hardware metadata is incomplete for legacy runs.
+    \item \textbf{Code of ethics.} \answerYes The work is an evaluation audit and includes safety precautions for harmful prompts.
+    \item \textbf{Broader impacts.} \answerYes The ethics section discusses harmful prompt handling, misuse risk, and release restrictions.
+    \item \textbf{Safeguards.} \answerNA The paper does not release a new pretrained model. Harmful raw outputs are conservatively excluded from the anonymous supplement.
+    \item \textbf{Licenses.} \answerYes The supplement includes release documentation and cites external benchmark sources. Upstream prompt-source licensing should be rechecked before public camera-ready release.
+    \item \textbf{Assets.} \answerYes The data card and model registry document the released evaluation artifacts.
+    \item \textbf{Crowdsourcing and human subjects.} \answerNA No crowdsourcing or human-subject data collection is used.
+    \item \textbf{IRB approvals.} \answerNA No human-subject study is conducted.
+    \item \textbf{Declaration of LLM usage.} \answerYes LLMs are the objects of evaluation; the methods section describes how their outputs are generated and analyzed.
+\end{enumerate}
 
 \end{document}

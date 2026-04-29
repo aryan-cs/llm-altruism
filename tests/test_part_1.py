@@ -510,7 +510,11 @@ def test_run_part_1_resumes_from_partial_csv(
     assert len(rows) == _single_domain_game_prompt_count()
     assert rows[0]["justification"] == "Saved before interruption."
     assert rows[1]["justification"] == "Saved after resume."
-    assert not list((tmp_path / "data" / "raw" / "part_1").glob("*_meta.json"))
+    metadata_files = list((tmp_path / "data" / "raw" / "part_1").glob("*_meta.json"))
+    assert len(metadata_files) == 1
+    metadata = json.loads(metadata_files[0].read_text(encoding="utf-8"))
+    assert metadata["status"] == "complete"
+    assert metadata["completed_rows"] == _single_domain_game_prompt_count()
 
 
 def test_run_part_1_until_complete_retries_incomplete_runs(
@@ -671,7 +675,10 @@ def test_run_part_1_retries_invalid_responses_until_success(
     assert calls["count"] == 6
     assert len(rows) == _single_domain_game_prompt_count(presentations=1)
     assert rows[0]["justification"] == "Recovered after retries."
-    assert not list((tmp_path / "data" / "raw" / "part_1").glob("*_meta.json"))
+    metadata_files = list((tmp_path / "data" / "raw" / "part_1").glob("*_meta.json"))
+    assert len(metadata_files) == 1
+    metadata = json.loads(metadata_files[0].read_text(encoding="utf-8"))
+    assert metadata["status"] == "complete"
 
 
 def test_run_part_1_pauses_immediately_when_ollama_disconnects(

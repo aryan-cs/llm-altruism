@@ -118,7 +118,11 @@ def test_run_part_2_writes_multi_day_results(
     assert rows[0]["day"] == "1"
     assert rows[-1]["day"] == "2"
     assert {row["action"] for row in rows} == {"RESTRAIN"}
-    assert not list((tmp_path / "data" / "raw" / "part_2").glob("*_meta.json"))
+    metadata_files = list((tmp_path / "data" / "raw" / "part_2").glob("*_meta.json"))
+    assert len(metadata_files) == 1
+    metadata = json.loads(metadata_files[0].read_text(encoding="utf-8"))
+    assert metadata["status"] == "complete"
+    assert metadata["completed_rows"] == 6
 
 
 def test_parse_agent_response_maps_neutral_prompt_options_to_internal_actions() -> None:
@@ -185,7 +189,11 @@ def test_run_part_2_resumes_from_completed_days(
     assert len(rows) == 4
     assert [row["day"] for row in rows] == ["1", "1", "2", "2"]
     assert rows[-1]["reasoning"] == "Second day completes after resume."
-    assert not list((tmp_path / "data" / "raw" / "part_2").glob("*_meta.json"))
+    metadata_files = list((tmp_path / "data" / "raw" / "part_2").glob("*_meta.json"))
+    assert len(metadata_files) == 1
+    metadata = json.loads(metadata_files[0].read_text(encoding="utf-8"))
+    assert metadata["status"] == "complete"
+    assert metadata["completed_rows"] == 4
 
 
 def test_matching_part_2_metadata_ignores_stale_prompt_config(
@@ -508,4 +516,7 @@ def test_run_part_2_until_complete_resumes_matching_partial_run(
     with Path(final_path).open(newline="", encoding="utf-8") as handle:
         rows = list(csv.DictReader(handle))
     assert len(rows) == 4
-    assert not Path(final_path).with_name(f"{Path(final_path).stem}_meta.json").exists()
+    metadata_path = Path(final_path).with_name(f"{Path(final_path).stem}_meta.json")
+    assert metadata_path.exists()
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    assert metadata["status"] == "complete"

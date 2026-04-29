@@ -1,0 +1,425 @@
+{
+  "summary": {
+    "files": 27,
+    "pass": 14,
+    "warn": 13,
+    "fail": 0
+  },
+  "files": [
+    {
+      "path": "data/raw/part_0/04-11-2026_13_04_37.csv",
+      "part": "part_0",
+      "row_count": 3861,
+      "status": "pass",
+      "errors": [],
+      "warnings": [],
+      "metrics": {
+        "duplicates": 0,
+        "invalid_compliance_values": 0
+      }
+    },
+    {
+      "path": "data/raw/part_1/part1__ollama__aratan-qwen3-5-uncensored-9b__full__20260424_170621.csv",
+      "part": "part_1",
+      "row_count": 384,
+      "status": "pass",
+      "errors": [],
+      "warnings": [],
+      "metrics": {
+        "expected_full_rows": 384,
+        "duplicates": 0,
+        "missing_required_fields": 0,
+        "invalid_actions": 0
+      }
+    },
+    {
+      "path": "data/raw/part_1/part1__ollama__gpt-oss-20b__full__20260424_014327.csv",
+      "part": "part_1",
+      "row_count": 384,
+      "status": "pass",
+      "errors": [],
+      "warnings": [],
+      "metrics": {
+        "expected_full_rows": 384,
+        "duplicates": 0,
+        "missing_required_fields": 0,
+        "invalid_actions": 0
+      }
+    },
+    {
+      "path": "data/raw/part_1/part1__ollama__gpt-oss-safeguard-20b__full__20260424_031744.csv",
+      "part": "part_1",
+      "row_count": 384,
+      "status": "pass",
+      "errors": [],
+      "warnings": [],
+      "metrics": {
+        "expected_full_rows": 384,
+        "duplicates": 0,
+        "missing_required_fields": 0,
+        "invalid_actions": 0
+      }
+    },
+    {
+      "path": "data/raw/part_1/part1__ollama__gurubot-gpt-oss-derestricted-20b__full__20260424_035219.csv",
+      "part": "part_1",
+      "row_count": 384,
+      "status": "pass",
+      "errors": [],
+      "warnings": [],
+      "metrics": {
+        "expected_full_rows": 384,
+        "duplicates": 0,
+        "missing_required_fields": 0,
+        "invalid_actions": 0
+      }
+    },
+    {
+      "path": "data/raw/part_1/part1__ollama__huihui-ai-qwen2-5-abliterate-7b-instruct__full__20260424_051015.csv",
+      "part": "part_1",
+      "row_count": 384,
+      "status": "pass",
+      "errors": [],
+      "warnings": [],
+      "metrics": {
+        "expected_full_rows": 384,
+        "duplicates": 0,
+        "missing_required_fields": 0,
+        "invalid_actions": 0
+      }
+    },
+    {
+      "path": "data/raw/part_1/part1__ollama__huihui-ai-qwen2-5-abliterate-7b__full__20260424_050237.csv",
+      "part": "part_1",
+      "row_count": 384,
+      "status": "pass",
+      "errors": [],
+      "warnings": [],
+      "metrics": {
+        "expected_full_rows": 384,
+        "duplicates": 0,
+        "missing_required_fields": 0,
+        "invalid_actions": 0
+      }
+    },
+    {
+      "path": "data/raw/part_1/part1__ollama__llama2-uncensored__full__20260424_043809.csv",
+      "part": "part_1",
+      "row_count": 384,
+      "status": "pass",
+      "errors": [],
+      "warnings": [],
+      "metrics": {
+        "expected_full_rows": 384,
+        "duplicates": 0,
+        "missing_required_fields": 0,
+        "invalid_actions": 0
+      }
+    },
+    {
+      "path": "data/raw/part_1/part1__ollama__llama2__full__20260424_042605.csv",
+      "part": "part_1",
+      "row_count": 384,
+      "status": "pass",
+      "errors": [],
+      "warnings": [],
+      "metrics": {
+        "expected_full_rows": 384,
+        "duplicates": 0,
+        "missing_required_fields": 0,
+        "invalid_actions": 0
+      }
+    },
+    {
+      "path": "data/raw/part_1/part1__ollama__qwen2-5-7b-instruct__full__20260424_045459.csv",
+      "part": "part_1",
+      "row_count": 384,
+      "status": "pass",
+      "errors": [],
+      "warnings": [],
+      "metrics": {
+        "expected_full_rows": 384,
+        "duplicates": 0,
+        "missing_required_fields": 0,
+        "invalid_actions": 0
+      }
+    },
+    {
+      "path": "data/raw/part_1/part1__ollama__qwen2-5-7b__full__20260424_044737.csv",
+      "part": "part_1",
+      "row_count": 384,
+      "status": "pass",
+      "errors": [],
+      "warnings": [],
+      "metrics": {
+        "expected_full_rows": 384,
+        "duplicates": 0,
+        "missing_required_fields": 0,
+        "invalid_actions": 0
+      }
+    },
+    {
+      "path": "data/raw/part_1/part1__ollama__qwen3-5__full__20260424_051819.csv",
+      "part": "part_1",
+      "row_count": 384,
+      "status": "pass",
+      "errors": [],
+      "warnings": [],
+      "metrics": {
+        "expected_full_rows": 384,
+        "duplicates": 0,
+        "missing_required_fields": 0,
+        "invalid_actions": 0
+      }
+    },
+    {
+      "path": "data/raw/part_1/part1__ollama__sorc-qwen3-5-instruct-uncensored__full__20260425_001427.csv",
+      "part": "part_1",
+      "row_count": 384,
+      "status": "pass",
+      "errors": [],
+      "warnings": [],
+      "metrics": {
+        "expected_full_rows": 384,
+        "duplicates": 0,
+        "missing_required_fields": 0,
+        "invalid_actions": 0
+      }
+    },
+    {
+      "path": "data/raw/part_1/part1__ollama__sorc-qwen3-5-instruct__full__20260424_165134.csv",
+      "part": "part_1",
+      "row_count": 384,
+      "status": "pass",
+      "errors": [],
+      "warnings": [],
+      "metrics": {
+        "expected_full_rows": 384,
+        "duplicates": 0,
+        "missing_required_fields": 0,
+        "invalid_actions": 0
+      }
+    },
+    {
+      "path": "data/raw/part_2/part2__ollama__aratan-qwen3-5-uncensored-9b__n50__d100__water__20260427_224710.csv",
+      "part": "part_2",
+      "row_count": 2026,
+      "status": "warn",
+      "errors": [],
+      "warnings": [
+        "104 OVERUSE rows contain reasoning-incentive mismatch flags"
+      ],
+      "metrics": {
+        "days": 50,
+        "invalid_actions": 0,
+        "incomplete_days": 0,
+        "transition_errors": 0,
+        "reasoning_mismatch_flags": 104
+      }
+    },
+    {
+      "path": "data/raw/part_2/part2__ollama__gpt-oss-20b__n50__d100__water__20260426_161639.csv",
+      "part": "part_2",
+      "row_count": 4076,
+      "status": "warn",
+      "errors": [],
+      "warnings": [
+        "159 OVERUSE rows contain reasoning-incentive mismatch flags"
+      ],
+      "metrics": {
+        "days": 91,
+        "invalid_actions": 0,
+        "incomplete_days": 0,
+        "transition_errors": 0,
+        "reasoning_mismatch_flags": 159
+      }
+    },
+    {
+      "path": "data/raw/part_2/part2__ollama__gpt-oss-safeguard-20b__n50__d100__water__20260426_175125.csv",
+      "part": "part_2",
+      "row_count": 3376,
+      "status": "warn",
+      "errors": [],
+      "warnings": [
+        "90 OVERUSE rows contain reasoning-incentive mismatch flags"
+      ],
+      "metrics": {
+        "days": 77,
+        "invalid_actions": 0,
+        "incomplete_days": 0,
+        "transition_errors": 0,
+        "reasoning_mismatch_flags": 90
+      }
+    },
+    {
+      "path": "data/raw/part_2/part2__ollama__gurubot-gpt-oss-derestricted-20b__n50__d100__water__20260426_201345.csv",
+      "part": "part_2",
+      "row_count": 2176,
+      "status": "warn",
+      "errors": [],
+      "warnings": [
+        "54 OVERUSE rows contain reasoning-incentive mismatch flags"
+      ],
+      "metrics": {
+        "days": 53,
+        "invalid_actions": 0,
+        "incomplete_days": 0,
+        "transition_errors": 0,
+        "reasoning_mismatch_flags": 54
+      }
+    },
+    {
+      "path": "data/raw/part_2/part2__ollama__huihui-ai-qwen2-5-abliterate-7b-instruct__n50__d100__water__20260427_092323.csv",
+      "part": "part_2",
+      "row_count": 2676,
+      "status": "warn",
+      "errors": [],
+      "warnings": [
+        "30 OVERUSE rows contain reasoning-incentive mismatch flags"
+      ],
+      "metrics": {
+        "days": 63,
+        "invalid_actions": 0,
+        "incomplete_days": 0,
+        "transition_errors": 0,
+        "reasoning_mismatch_flags": 30
+      }
+    },
+    {
+      "path": "data/raw/part_2/part2__ollama__huihui-ai-qwen2-5-abliterate-7b__n50__d100__water__20260427_043830.csv",
+      "part": "part_2",
+      "row_count": 2676,
+      "status": "warn",
+      "errors": [],
+      "warnings": [
+        "18 OVERUSE rows contain reasoning-incentive mismatch flags"
+      ],
+      "metrics": {
+        "days": 63,
+        "invalid_actions": 0,
+        "incomplete_days": 0,
+        "transition_errors": 0,
+        "reasoning_mismatch_flags": 18
+      }
+    },
+    {
+      "path": "data/raw/part_2/part2__ollama__llama2-uncensored__n50__d100__water__20260427_002500.csv",
+      "part": "part_2",
+      "row_count": 5000,
+      "status": "warn",
+      "errors": [],
+      "warnings": [
+        "29 OVERUSE rows contain reasoning-incentive mismatch flags"
+      ],
+      "metrics": {
+        "days": 100,
+        "invalid_actions": 0,
+        "incomplete_days": 0,
+        "transition_errors": 0,
+        "reasoning_mismatch_flags": 29
+      }
+    },
+    {
+      "path": "data/raw/part_2/part2__ollama__llama2__n50__d100__water__20260426_214029.csv",
+      "part": "part_2",
+      "row_count": 5000,
+      "status": "warn",
+      "errors": [],
+      "warnings": [
+        "6 OVERUSE rows contain reasoning-incentive mismatch flags"
+      ],
+      "metrics": {
+        "days": 100,
+        "invalid_actions": 0,
+        "incomplete_days": 0,
+        "transition_errors": 0,
+        "reasoning_mismatch_flags": 6
+      }
+    },
+    {
+      "path": "data/raw/part_2/part2__ollama__qwen2-5-7b-instruct__n50__d100__water__20260427_063117.csv",
+      "part": "part_2",
+      "row_count": 5000,
+      "status": "warn",
+      "errors": [],
+      "warnings": [
+        "26 OVERUSE rows contain reasoning-incentive mismatch flags"
+      ],
+      "metrics": {
+        "days": 100,
+        "invalid_actions": 0,
+        "incomplete_days": 0,
+        "transition_errors": 0,
+        "reasoning_mismatch_flags": 26
+      }
+    },
+    {
+      "path": "data/raw/part_2/part2__ollama__qwen2-5-7b__n50__d100__water__20260427_014306.csv",
+      "part": "part_2",
+      "row_count": 5000,
+      "status": "warn",
+      "errors": [],
+      "warnings": [
+        "33 OVERUSE rows contain reasoning-incentive mismatch flags"
+      ],
+      "metrics": {
+        "days": 100,
+        "invalid_actions": 0,
+        "incomplete_days": 0,
+        "transition_errors": 0,
+        "reasoning_mismatch_flags": 33
+      }
+    },
+    {
+      "path": "data/raw/part_2/part2__ollama__qwen3-5__n50__d100__water__20260427_160903.csv",
+      "part": "part_2",
+      "row_count": 5000,
+      "status": "warn",
+      "errors": [],
+      "warnings": [
+        "66 OVERUSE rows contain reasoning-incentive mismatch flags"
+      ],
+      "metrics": {
+        "days": 100,
+        "invalid_actions": 0,
+        "incomplete_days": 0,
+        "transition_errors": 0,
+        "reasoning_mismatch_flags": 66
+      }
+    },
+    {
+      "path": "data/raw/part_2/part2__ollama__sorc-qwen3-5-instruct-uncensored__n50__d100__water__20260428_010430.csv",
+      "part": "part_2",
+      "row_count": 1876,
+      "status": "warn",
+      "errors": [],
+      "warnings": [
+        "72 OVERUSE rows contain reasoning-incentive mismatch flags"
+      ],
+      "metrics": {
+        "days": 47,
+        "invalid_actions": 0,
+        "incomplete_days": 0,
+        "transition_errors": 0,
+        "reasoning_mismatch_flags": 72
+      }
+    },
+    {
+      "path": "data/raw/part_2/part2__ollama__sorc-qwen3-5-instruct__n50__d100__water__20260427_233132.csv",
+      "part": "part_2",
+      "row_count": 5000,
+      "status": "warn",
+      "errors": [],
+      "warnings": [
+        "148 OVERUSE rows contain reasoning-incentive mismatch flags"
+      ],
+      "metrics": {
+        "days": 100,
+        "invalid_actions": 0,
+        "incomplete_days": 0,
+        "transition_errors": 0,
+        "reasoning_mismatch_flags": 148
+      }
+    }
+  ]
+}

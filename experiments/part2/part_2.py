@@ -16,6 +16,11 @@ from agents.agent_2 import Agent2
 from experiments.misc.preflight import run_experiment_preflight
 from experiments.misc.prompt_loader import load_prompt_config
 from experiments.misc.result_writer import IncrementalCsvWriter
+from experiments.misc.run_metadata import (
+    base_run_metadata,
+    mark_metadata_complete,
+    metadata_is_complete,
+)
 from experiments.misc.wizard import (
     SocietyConfig,
     choose_provider_and_model,
@@ -191,15 +196,20 @@ def _write_part_2_metadata(
     config: SocietyConfig,
     resource_capacity: int,
 ) -> None:
-    metadata = {
-        "timestamp": timestamp,
-        "csv_path": str(csv_path),
-        "provider": provider,
-        "model": model,
+    parameters = {
         "society_config": _config_to_metadata(config),
         "resource_capacity": resource_capacity,
-        "prompt_config_hash": PROMPT_CONFIG_HASH,
     }
+    metadata = base_run_metadata(
+        experiment="part_2",
+        timestamp=timestamp,
+        csv_path=csv_path,
+        provider=provider,
+        model=model,
+        parameters=parameters,
+        prompt_config_hash=PROMPT_CONFIG_HASH,
+    )
+    metadata.update(parameters)
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     Path(path).write_text(json.dumps(metadata, indent=2), encoding="utf-8")
 
@@ -222,6 +232,8 @@ def _latest_interrupted_part_2_metadata_path() -> Path:
     for metadata_path in PART_2_RESULTS_DIR.glob("*_meta.json"):
         try:
             metadata = _load_part_2_metadata(metadata_path)
+            if metadata_is_complete(metadata):
+                continue
             timestamp = str(metadata.get("timestamp", "")).strip()
             parsed = datetime.strptime(timestamp, PART_2_TIMESTAMP_FORMAT)
         except Exception:
@@ -251,6 +263,8 @@ def _matching_part_2_metadata_path(
     for metadata_path in PART_2_RESULTS_DIR.glob("*_meta.json"):
         try:
             metadata = _load_part_2_metadata(metadata_path)
+            if metadata_is_complete(metadata):
+                continue
             if str(metadata.get("provider", "")) != provider:
                 continue
             if str(metadata.get("model", "")) != model:
@@ -851,7 +865,11 @@ def run_part_2(
         society_config.days > 0 and completed_days >= society_config.days
     ):
         if metadata_path.exists():
-            metadata_path.unlink()
+            mark_metadata_complete(
+                metadata_path,
+                completed_rows=len(completed_rows),
+                extra={"completed_days": completed_days},
+            )
         console.print(
             Panel(
                 f"[green]{csv_path.resolve()}[/green]",
@@ -1061,7 +1079,16 @@ def run_part_2(
         )
     )
     if run_complete and metadata_path.exists():
-        metadata_path.unlink()
+        mark_metadata_complete(
+            metadata_path,
+            completed_rows=sum(1 for _ in _load_part_2_rows(csv_path)),
+            extra={
+                "completed_days": completed_days,
+                "final_population": len(agents),
+                "final_resource_units": resource_units,
+                "stop_reason": stop_reason,
+            },
+        )
 
     if not headless:
         console.print(
@@ -1165,7 +1192,13 @@ def run_part_2_until_complete(
         )
 
         metadata_path = _metadata_path_for_csv(csv_path)
-        if not metadata_path.exists():
+        metadata_complete = False
+        if metadata_path.exists():
+            try:
+                metadata_complete = metadata_is_complete(_load_part_2_metadata(metadata_path))
+            except Exception:
+                metadata_complete = False
+        if not metadata_path.exists() or metadata_complete:
             console.print(
                 f"[green]Completed part 2 run for {provider}/{model}: {csv_path}[/green]"
             )

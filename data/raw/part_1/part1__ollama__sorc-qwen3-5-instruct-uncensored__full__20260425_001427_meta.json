@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "experiment": "part_1",
+  "status": "complete",
+  "timestamp": "20260425_001427",
+  "created_at_utc": "2026-04-29T00:55:26+00:00",
+  "csv_path": "data/raw/part_1/part1__ollama__sorc-qwen3-5-instruct-uncensored__full__20260425_001427.csv",
+  "provider": "ollama",
+  "model": "sorc-qwen3-5-instruct-uncensored",
+  "parameters": {
+    "scope": "full",
+    "games": [
+      "prisoners_dilemma",
+      "temptation_or_commons"
+    ],
+    "frames": [
+      "self_direct",
+      "advice",
+      "observer_evaluation",
+      "prediction"
+    ],
+    "domains": [
+      "crime",
+      "sports",
+      "workplace",
+      "healthcare",
+      "education",
+      "neighborhood"
+    ],
+    "presentations": [
+      "narrative",
+      "structured"
+    ],
+    "limit": null,
+    "total_prompts": 384
+  },
+  "prompt_config_hash": null,
+  "git_commit": "64d0cb700dce4ff2708422d67f1438a4e5a30609",
+  "git_dirty": true,
+  "command": [
+    "analysis/backfill_metadata.py"
+  ],
+  "python": {
+    "version": "3.13.11",
+    "implementation": "CPython"
+  },
+  "platform": "Linux-6.8.0-106-generic-x86_64-with-glibc2.39",
+  "environment": {
+    "DEFAULT_PROVIDER": "openai",
+    "DEFAULT_MODEL": "gpt-4.1-mini",
+    "PART_1_PROVIDER": "openai",
+    "PART_1_MODEL": "gpt-4.1-mini",
+    "PART_2_PROVIDER": "openai",
+    "PART_2_MODEL": "gpt-4.1-mini",
+    "OLLAMA_BASE_URL": "http://localhost:11434"
+  },
+  "scope": "full",
+  "games": [
+    "prisoners_dilemma",
+    "temptation_or_commons"
+  ],
+  "frames": [
+    "self_direct",
+    "advice",
+    "observer_evaluation",
+    "prediction"
+  ],
+  "domains": [
+    "crime",
+    "sports",
+    "workplace",
+    "healthcare",
+    "education",
+    "neighborhood"
+  ],
+  "presentations": [
+    "narrative",
+    "structured"
+  ],
+  "limit": null,
+  "total_prompts": 384,
+  "backfilled": true,
+  "backfill_note": "Created from filename and available CSV row count. Provider runtime settings not captured by the original run remain unknown."
+}

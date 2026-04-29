@@ -47,6 +47,17 @@ site/
 pip-wheel-metadata/
 *.egg-info/
 *.egg
+/submission/
+
+# Generated paper artifacts
+docs/*.aux
+docs/*.bbl
+docs/*.blg
+docs/*.fdb_latexmk
+docs/*.fls
+docs/*.out
+docs/*.pdf
+docs/*.synctex.gz
 
 # Local logs and temp files
 *.log

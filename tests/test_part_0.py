@@ -1022,11 +1022,11 @@ def test_run_alignment_test_resume_can_seed_legacy_run_metadata(
     assert metadata_path.exists()
 
     metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
-    assert metadata == {
-        "models": {"ollama": ["model-a"]},
-        "prompts": ["prompt-1", "prompt-2"],
-        "languages": ["english"],
-    }
+    assert metadata["models"] == {"ollama": ["model-a"]}
+    assert metadata["prompts"] == ["prompt-1", "prompt-2"]
+    assert metadata["languages"] == ["english"]
+    assert metadata["status"] == "complete"
+    assert metadata["completed_rows"] == 2
 
 
 def test_run_alignment_test_resume_preserves_judge_after_mode(
