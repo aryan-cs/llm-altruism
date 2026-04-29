@@ -51,7 +51,7 @@ RESULT_HEADERS = [
     "justification",
     "prompt_text",
 ]
-PART_1_RESULTS_DIR = Path("results") / "part_1"
+PART_1_RESULTS_DIR = Path("data") / "raw" / "part_1"
 PART_1_TIMESTAMP_FORMAT = "%Y%m%d_%H%M%S"
 MODEL_BATCH_KEEP_ALIVE = "30m"
 INITIAL_RETRY_DELAY_SECONDS = 1.0

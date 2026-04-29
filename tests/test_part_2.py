@@ -118,7 +118,7 @@ def test_run_part_2_writes_multi_day_results(
     assert rows[0]["day"] == "1"
     assert rows[-1]["day"] == "2"
     assert {row["action"] for row in rows} == {"RESTRAIN"}
-    assert not list((tmp_path / "results" / "part_2").glob("*_meta.json"))
+    assert not list((tmp_path / "data" / "raw" / "part_2").glob("*_meta.json"))
 
 
 def test_parse_agent_response_maps_neutral_prompt_options_to_internal_actions() -> None:
@@ -163,7 +163,7 @@ def test_run_part_2_resumes_from_completed_days(
         community_benefit=5,
     )
 
-    metadata_files = list((tmp_path / "results" / "part_2").glob("*_meta.json"))
+    metadata_files = list((tmp_path / "data" / "raw" / "part_2").glob("*_meta.json"))
     assert len(metadata_files) == 1
     metadata = json.loads(metadata_files[0].read_text(encoding="utf-8"))
     assert metadata["prompt_config_hash"] == PROMPT_CONFIG_HASH
@@ -185,7 +185,7 @@ def test_run_part_2_resumes_from_completed_days(
     assert len(rows) == 4
     assert [row["day"] for row in rows] == ["1", "1", "2", "2"]
     assert rows[-1]["reasoning"] == "Second day completes after resume."
-    assert not list((tmp_path / "results" / "part_2").glob("*_meta.json"))
+    assert not list((tmp_path / "data" / "raw" / "part_2").glob("*_meta.json"))
 
 
 def test_matching_part_2_metadata_ignores_stale_prompt_config(
@@ -193,7 +193,7 @@ def test_matching_part_2_metadata_ignores_stale_prompt_config(
     tmp_path: Path,
 ) -> None:
     monkeypatch.chdir(tmp_path)
-    results_dir = tmp_path / "results" / "part_2"
+    results_dir = tmp_path / "data" / "raw" / "part_2"
     results_dir.mkdir(parents=True)
     stale_metadata = results_dir / "part2__ollama__gpt-oss-20b__n50__d100__water__20260425_204541_meta.json"
     stale_metadata.write_text(

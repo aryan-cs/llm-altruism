@@ -233,7 +233,7 @@ uv run python -m experiments.part0.part_0 --benchmark openai:gpt-4.1-mini --lang
 uv run python -m experiments.part0.part_0 --benchmark openai:gpt-4.1-mini --benchmark anthropic:claude-sonnet-4-5 --language english --language spanish
 ```
 
-part 0 now loads its benchmark prompts from every CSV in `data/raw/part_0`. each CSV must include a `prompt` column, and each row in that column is treated as one prompt. preflight only checks the benchmark models selected for the run; judge fallbacks are tried at runtime, and missing ollama judge models are deferred until the other configured judges have been tried first. when part 0 benchmarks multiple models, it now runs all prompts and selected languages for one benchmark model first, unloads that benchmark model, then runs the judge pass for that batch before moving to the next benchmark model. ollama requests also unload other loaded ollama models before each call, so the repo only keeps one ollama model resident at a time.
+part 0 now loads its benchmark prompts from every CSV in `data/raw/part_0/prompts`. each CSV must include a `prompt` column, and each row in that column is treated as one prompt. preflight only checks the benchmark models selected for the run; judge fallbacks are tried at runtime, and missing ollama judge models are deferred until the other configured judges have been tried first. when part 0 benchmarks multiple models, it now runs all prompts and selected languages for one benchmark model first, unloads that benchmark model, then runs the judge pass for that batch before moving to the next benchmark model. ollama requests also unload other loaded ollama models before each call, so the repo only keeps one ollama model resident at a time.
 
 for part 1, the wizard also asks whether to use a direct or indirect prompt framing. you can skip that prompt with:
 
@@ -281,8 +281,11 @@ Part 3, part 4, and part 5 are reserved for future experiments and are currently
 
 part 0 benchmark outputs are written into:
 
-- `results/alignment/` (timestamped `.csv` and `_meta.json` files).
+- `data/raw/part_0/` (timestamped `.csv` and `_meta.json` files).
 - `data/graphs/part_0/` (generated charts).
+
+part 0 source prompt CSVs live in `data/raw/part_0/prompts/` so they do not mix with generated benchmark output CSVs.
+part 0 graphs are saved into `master-plots/` plus model-family subfolders under `data/graphs/part_0/`.
 
 the graph script is:
 
@@ -293,13 +296,13 @@ it supports both explicit csv selection and automatic latest-csv discovery.
 run with the newest alignment file:
 
 ```bash
-uv run python data/graphs/part_0_graphs.py --alignment-dir results/alignment --graphs-dir data/graphs/part_0 --latest
+uv run python data/graphs/part_0_graphs.py --alignment-dir data/raw/part_0 --graphs-dir data/graphs/part_0 --latest
 ```
 
 run a specific timestamped results file:
 
 ```bash
-uv run python data/graphs/part_0_graphs.py --alignment-dir results/alignment --graphs-dir data/graphs/part_0 --csv 04-11-2026_13_04_37.csv
+uv run python data/graphs/part_0_graphs.py --alignment-dir data/raw/part_0 --graphs-dir data/graphs/part_0 --csv 04-11-2026_13_04_37.csv
 ```
 
 common options:
@@ -330,8 +333,10 @@ outputs include:
 
 part 1 prompt-matrix outputs are written into:
 
-- `results/part_1/` (timestamped `.csv` and `_meta.json` files).
+- `data/raw/part_1/` (timestamped `.csv` and `_meta.json` files).
 - `data/graphs/part_1/` (generated charts).
+
+part 1 graphs are saved into `master-plots/` plus model-family subfolders under `data/graphs/part_1/`.
 
 the graph script is:
 
@@ -342,13 +347,13 @@ by default, it compares the latest non-empty part 1 csv for each model and compu
 run with the latest full result for each model:
 
 ```bash
-uv run python data/graphs/part_1_graphs.py --latest --part1-dir results/part_1 --graphs-dir data/graphs/part_1
+uv run python data/graphs/part_1_graphs.py --latest --part1-dir data/raw/part_1 --graphs-dir data/graphs/part_1
 ```
 
 run one or more specific part 1 results files:
 
 ```bash
-uv run python data/graphs/part_1_graphs.py --part1-dir results/part_1 --graphs-dir data/graphs/part_1 --csv \
+uv run python data/graphs/part_1_graphs.py --part1-dir data/raw/part_1 --graphs-dir data/graphs/part_1 --csv \
   part1__ollama__llama2__full__20260419_210124.csv \
   part1__ollama__gpt-oss-20b__full__20260420_005501.csv
 ```
@@ -382,3 +387,22 @@ outputs include:
 3. `<prefix>_cooperation_by_model_and_frame.png`
 4. `<prefix>_cooperation_by_model_and_domain.png`
 5. `<prefix>_cooperation_by_model_and_presentation.png`
+
+## part 2 results and graphs
+
+part 2 society-run outputs are written into:
+
+- `data/raw/part_2/` (timestamped `.csv` and `_meta.json` files).
+- `data/graphs/part_2/` (generated charts).
+
+part 2 graphs are saved into `master-plots/` plus model-family subfolders under `data/graphs/part_2/`.
+
+the graph script is:
+
+- `data/graphs/part_2_graphs.py`
+
+run with the latest `n50`, `d100`, `water` result for each model:
+
+```bash
+uv run python data/graphs/part_2_graphs.py --latest --part2-dir data/raw/part_2 --graphs-dir data/graphs/part_2 --society-size 50 --days 100 --resource water
+```

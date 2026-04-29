@@ -460,7 +460,7 @@ def test_run_part_1_preserves_written_rows_when_interrupted(
     assert rows[0]["prompt_id"] == "prisoners_dilemma__self_direct__crime__interrogation__narrative"
     assert rows[0]["justification"] == "First row survives."
 
-    metadata_files = list((tmp_path / "results" / "part_1").glob("*_meta.json"))
+    metadata_files = list((tmp_path / "data" / "raw" / "part_1").glob("*_meta.json"))
     assert len(metadata_files) == 1
 
 
@@ -510,7 +510,7 @@ def test_run_part_1_resumes_from_partial_csv(
     assert len(rows) == _single_domain_game_prompt_count()
     assert rows[0]["justification"] == "Saved before interruption."
     assert rows[1]["justification"] == "Saved after resume."
-    assert not list((tmp_path / "results" / "part_1").glob("*_meta.json"))
+    assert not list((tmp_path / "data" / "raw" / "part_1").glob("*_meta.json"))
 
 
 def test_run_part_1_until_complete_retries_incomplete_runs(
@@ -522,8 +522,8 @@ def test_run_part_1_until_complete_retries_incomplete_runs(
         del args, kwargs
         attempts["count"] += 1
         if attempts["count"] == 1:
-            return "results/part_1/partial.csv"
-        return "results/part_1/final.csv"
+            return "data/raw/part_1/partial.csv"
+        return "data/raw/part_1/final.csv"
 
     def fake_load_rows(path):
         if str(path).endswith("partial.csv"):
@@ -534,9 +534,9 @@ def test_run_part_1_until_complete_retries_incomplete_runs(
     monkeypatch.setattr("experiments.part1.part_1._load_part_1_rows", fake_load_rows)
     monkeypatch.setattr(
         "experiments.part1.part_1._metadata_path_for_csv",
-        lambda path: Path("results/part_1/partial_meta.json")
+        lambda path: Path("data/raw/part_1/partial_meta.json")
         if str(path).endswith("partial.csv")
-        else Path("results/part_1/final_meta.json"),
+        else Path("data/raw/part_1/final_meta.json"),
     )
     monkeypatch.setattr(Path, "exists", lambda self: self.name == "partial_meta.json")
 
@@ -550,7 +550,7 @@ def test_run_part_1_until_complete_retries_incomplete_runs(
         headless=True,
     )
 
-    assert result == "results/part_1/final.csv"
+    assert result == "data/raw/part_1/final.csv"
     assert attempts["count"] == 2
 
 
@@ -671,7 +671,7 @@ def test_run_part_1_retries_invalid_responses_until_success(
     assert calls["count"] == 6
     assert len(rows) == _single_domain_game_prompt_count(presentations=1)
     assert rows[0]["justification"] == "Recovered after retries."
-    assert not list((tmp_path / "results" / "part_1").glob("*_meta.json"))
+    assert not list((tmp_path / "data" / "raw" / "part_1").glob("*_meta.json"))
 
 
 def test_run_part_1_pauses_immediately_when_ollama_disconnects(

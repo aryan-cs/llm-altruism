@@ -1,7 +1,7 @@
 """Render society-dynamics charts for part_2 benchmark outputs.
 
 The default mode selects the latest non-empty part_2 CSV for each model from
-``results/part_2`` and combines them into a single comparison set.
+``data/raw/part_2`` and combines them into a single comparison set.
 
 For each model, the script computes:
 
@@ -27,9 +27,10 @@ from pathlib import Path
 from typing import Literal
 
 TIMESTAMP_FORMAT = "%Y%m%d_%H%M%S"
-DEFAULT_PART_2_DIR = Path("results") / "part_2"
+DEFAULT_PART_2_DIR = Path("data") / "raw" / "part_2"
 DEFAULT_GRAPH_DIR = Path("data") / "graphs" / "part_2"
 DEFAULT_CI_METHOD: Literal["wilson", "wald"] = "wilson"
+MASTER_PLOTS_DIRNAME = "master-plots"
 OVERALL_TOP_PADDING = 6.0
 BREAKDOWN_TOP_PADDING = 10.0
 TEAL_PALETTE: tuple[str, ...] = (
@@ -43,12 +44,45 @@ TEAL_PALETTE: tuple[str, ...] = (
     "#2cd4b8",
 )
 HATCH_PALETTE: tuple[str, ...] = ("", "////", "xxxx", "....", "++++", "||||", "\\\\\\\\", "----")
-STANDARD_MODEL_COLOR = "#048a73"
-SAFEGUARD_MODEL_COLOR = "#01483d"
-UNRESTRICTED_MODEL_COLOR = "#34d6bc"
-EDGE_COLOR = "#025e4f"
-MODEL_BAR_WIDTH = 0.90
-MODEL_FAMILY_GAP = 0.35
+GPT_OSS_MODEL_COLORS = {
+    "standard": "#048a73",
+    "standard_instruct": "#03826a",
+    "safeguard": "#01483d",
+    "unrestricted": "#34d6bc",
+    "unrestricted_instruct": "#10c6a8",
+}
+QWEN25_MODEL_COLORS = {
+    "standard": "#7416c7",
+    "standard_instruct": "#5f12a3",
+    "safeguard": "#3f0b6e",
+    "unrestricted": "#a45ce0",
+    "unrestricted_instruct": "#8e38d8",
+}
+QWEN35_MODEL_COLORS = {
+    "standard": "#a707b5",
+    "standard_instruct": "#870592",
+    "safeguard": "#65036d",
+    "unrestricted": "#d15add",
+    "unrestricted_instruct": "#bf2ece",
+}
+LLAMA_MODEL_COLORS = {
+    "standard": "#105bcc",
+    "standard_instruct": "#0d4baa",
+    "safeguard": "#0a397f",
+    "unrestricted": "#5a95e8",
+    "unrestricted_instruct": "#377bdd",
+}
+FAMILY_COLOR_PALETTES = {
+    "GPT-OSS": GPT_OSS_MODEL_COLORS,
+    "Qwen 2.5": QWEN25_MODEL_COLORS,
+    "Qwen 3.5": QWEN35_MODEL_COLORS,
+    "Llama": LLAMA_MODEL_COLORS,
+}
+EDGE_COLOR = "#1f2937"
+INSTRUCT_EDGE_COLOR = "#000000"
+MODEL_BAR_WIDTH = 0.62
+MIN_MODEL_AXIS_SPAN = 6.0
+MIN_MODEL_DISPLAY_SLOTS = 6
 OVERALL_FIG_HEIGHT = 8.0
 LINE_STYLES: tuple[str, ...] = ("-", "--", ":", "-.")
 PART_2_CHARTS = (
@@ -61,6 +95,28 @@ PART_2_CHARTS = (
     "final-population",
     "collapse-day",
 )
+TIME_SERIES_SPECS: dict[str, tuple[str, str, str]] = {
+    "restraint-by-day": (
+        "Restraint-choice rate",
+        "Restraint choice rate (%)",
+        "restraint_by_day",
+    ),
+    "resource-by-day": (
+        "Shared reserve remaining",
+        "Resource remaining (%)",
+        "resource_by_day",
+    ),
+    "population-by-day": (
+        "Population remaining",
+        "Population remaining (%)",
+        "population_by_day",
+    ),
+    "deaths-by-day": (
+        "Daily deaths",
+        "Deaths",
+        "deaths_by_day",
+    ),
+}
 RESULT_HEADERS = [
     "provider",
     "model",
@@ -165,25 +221,25 @@ def parse_args() -> argparse.Namespace:
         "--csv",
         nargs="+",
         help=(
-            "One or more CSV filenames or paths inside results/part_2 to combine. "
+            "One or more CSV filenames or paths inside data/raw/part_2 to combine. "
             "Example: --csv part2__ollama__gpt-oss-20b__n50__d100__water__20260426_161639.csv"
         ),
     )
     source.add_argument(
         "--latest",
         action="store_true",
-        help="Use the latest non-empty CSV for each model in results/part_2.",
+        help="Use the latest non-empty CSV for each model in data/raw/part_2.",
     )
 
     parser.add_argument(
         "--part2-dir",
         default=str(DEFAULT_PART_2_DIR),
-        help="Directory containing part_2 CSV files (default: results/part_2).",
+        help="Directory containing part_2 CSV files (default: data/raw/part_2).",
     )
     parser.add_argument(
         "--graphs-dir",
         default=str(DEFAULT_GRAPH_DIR),
-        help="Directory for output graph files (default: data/graphs/part_2).",
+        help="Directory for output graph subfolders (default: data/graphs/part_2).",
     )
     parser.add_argument(
         "--society-size",
@@ -503,14 +559,99 @@ def _palette_for_count(count: int) -> list[str]:
     return [TEAL_PALETTE[index % len(TEAL_PALETTE)] for index in range(count)]
 
 
-def _model_bar_color(model_label: str) -> str:
-    """Choose a bar color based on model family variant."""
+def _model_leaf(model_label: str) -> str:
+    """Return the terminal model-name component without the provider prefix."""
+    _, _, model_path = model_label.partition("/")
+    model = model_path or model_label
+    _, _, leaf = model.rpartition("/")
+    return leaf or model
+
+
+def _model_family_name(model_label: str) -> str:
+    """Choose the display family used for color mapping."""
+    lowered = _model_leaf(model_label).lower()
+    if "qwen2.5" in lowered or "qwen2-5" in lowered:
+        return "Qwen 2.5"
+    if "qwen3.5" in lowered or "qwen3-5" in lowered:
+        return "Qwen 3.5"
+    if "llama" in lowered:
+        return "Llama"
+    return "GPT-OSS"
+
+
+def _model_color_variant(model_label: str) -> str:
+    """Choose the color shade within a model family."""
     lowered = model_label.lower()
+    is_instruct = "instruct" in lowered
+    is_unrestricted = (
+        "uncensored" in lowered
+        or "abliterate" in lowered
+        or "derestricted" in lowered
+    )
     if "safeguard" in lowered:
-        return SAFEGUARD_MODEL_COLOR
-    if "uncensored" in lowered or "abliterate" in lowered or "derestricted" in lowered:
-        return UNRESTRICTED_MODEL_COLOR
-    return STANDARD_MODEL_COLOR
+        return "safeguard"
+    if is_unrestricted and is_instruct:
+        return "unrestricted_instruct"
+    if is_unrestricted:
+        return "unrestricted"
+    if is_instruct:
+        return "standard_instruct"
+    return "standard"
+
+
+def _model_bar_color(model_label: str) -> str:
+    """Choose a bar color based on model family and variant."""
+    family = _model_family_name(model_label)
+    variant = _model_color_variant(model_label)
+    return FAMILY_COLOR_PALETTES[family][variant]
+
+
+def _model_plot_folder(model_label: str) -> str:
+    """Return the subfolder name for a model-family plot bundle."""
+    leaf = _model_leaf(model_label)
+    lowered = leaf.lower()
+    is_instruct = "instruct" in lowered
+
+    if "gpt-oss" in lowered:
+        size = "20b"
+        if ":" in leaf:
+            size = leaf.rsplit(":", 1)[1].lower()
+        return f"gpt-oss:{size}-plots"
+    if "llama2" in lowered:
+        return "llama2-plots"
+    if "qwen2.5" in lowered or "qwen2-5" in lowered:
+        return "qwen2.5-instruct-plots" if is_instruct else "qwen2.5-plots"
+    if "qwen3.5" in lowered or "qwen3-5" in lowered:
+        return "qwen3.5-instruct-plots" if is_instruct else "qwen3.5-plots"
+
+    safe = "".join(
+        character if character.isalnum() or character in ".:-_" else "-"
+        for character in lowered
+    ).strip("-")
+    return f"{safe or 'unknown'}-plots"
+
+
+def build_model_plot_groups(model_order: Sequence[str]) -> list[tuple[str, list[str]]]:
+    """Group sorted model labels into output plot folders."""
+    grouped: dict[str, list[str]] = {}
+    for model in model_order:
+        folder = _model_plot_folder(model)
+        grouped.setdefault(folder, []).append(model)
+    return list(grouped.items())
+
+
+def _model_bar_edge_color(model_label: str) -> str:
+    """Use a black bar border for instruct models."""
+    if "instruct" in model_label.lower():
+        return INSTRUCT_EDGE_COLOR
+    return EDGE_COLOR
+
+
+def _model_bar_line_width(model_label: str) -> float:
+    """Use a heavier outline when the black instruct border is active."""
+    if "instruct" in model_label.lower():
+        return 1.1
+    return 0.4
 
 
 def _model_bar_hatch(model_label: str) -> str:
@@ -531,6 +672,62 @@ def _model_line_style(model_label: str) -> str:
     if "uncensored" in lowered or "abliterate" in lowered or "derestricted" in lowered:
         return ":"
     return "-"
+
+
+def _model_legend_handles(model_labels: Sequence[str]) -> list[object]:
+    """Build family/color and variant/style legend handles for visible models."""
+    try:
+        from matplotlib.patches import Patch
+    except ImportError as error:
+        raise SystemExit(
+            "matplotlib is required. Install with uv: uv add matplotlib (or uv sync)."
+        ) from error
+
+    neutral = "#d1d5db"
+    present_families = {_model_family_name(label) for label in model_labels}
+    present_variants = {_model_color_variant(label) for label in model_labels}
+    has_instruct = any("instruct" in label.lower() for label in model_labels)
+
+    handles: list[object] = []
+    for family, palette in FAMILY_COLOR_PALETTES.items():
+        if family in present_families:
+            handles.append(
+                Patch(
+                    facecolor=palette["standard"],
+                    edgecolor=EDGE_COLOR,
+                    label=family,
+                )
+            )
+
+    if present_variants & {"standard", "standard_instruct"}:
+        handles.append(Patch(facecolor=neutral, edgecolor=EDGE_COLOR, label="Standard"))
+    if "safeguard" in present_variants:
+        handles.append(
+            Patch(facecolor=neutral, edgecolor=EDGE_COLOR, hatch="////", label="Safeguard")
+        )
+    if present_variants & {"unrestricted", "unrestricted_instruct"}:
+        handles.append(
+            Patch(facecolor=neutral, edgecolor=EDGE_COLOR, hatch="xxxx", label="Unrestricted")
+        )
+    if has_instruct:
+        handles.append(
+            Patch(
+                facecolor=neutral,
+                edgecolor=INSTRUCT_EDGE_COLOR,
+                linewidth=1.1,
+                label="Instruct border",
+            )
+        )
+
+    return handles
+
+
+def _apply_model_bar_styles(patches: Sequence[object], labels: Sequence[str]) -> None:
+    """Apply hatches and instruct borders to model bars."""
+    for patch, model in zip(patches, labels):
+        patch.set_hatch(_model_bar_hatch(model))
+        patch.set_edgecolor(_model_bar_edge_color(model))
+        patch.set_linewidth(_model_bar_line_width(model))
 
 
 def build_overall_title(*, source_note: str, ci_label: str) -> str:
@@ -616,27 +813,66 @@ def _model_sort_key(model_label: str) -> tuple[str, int, int]:
 
 
 def _grouped_bar_positions(labels: Sequence[str]) -> list[float]:
-    """Compute x positions so model variants in the same family touch."""
-    positions: list[float] = []
-    previous_group = None
-    index_in_family = 0
-    cursor_x = 0.0
+    """Compute evenly spaced x positions that use the chart width for small subsets."""
+    count = len(labels)
+    if count <= 0:
+        return []
+    if count == 1:
+        return [MIN_MODEL_DISPLAY_SLOTS / 2]
 
-    for model in labels:
-        family = _normalize_model_family(model)
-        group = _model_instruct_group(model)
-        family_group = (family, group)
-        if previous_group is None:
-            previous_group = family_group
-        elif family_group != previous_group:
-            cursor_x += (index_in_family * MODEL_BAR_WIDTH) + MODEL_FAMILY_GAP
-            previous_group = family_group
-            index_in_family = 0
+    if count <= MIN_MODEL_DISPLAY_SLOTS:
+        display_span = float(MIN_MODEL_DISPLAY_SLOTS)
+        margin = display_span / (count + 2)
+        step = (display_span - (2 * margin)) / (count - 1)
+        return [margin + (index * step) for index in range(count)]
 
-        positions.append(cursor_x + (index_in_family * MODEL_BAR_WIDTH))
-        index_in_family += 1
+    return [float(index) for index, _ in enumerate(labels)]
 
-    return positions
+
+def _minimum_x_limits(
+    left: float,
+    right: float,
+    *,
+    minimum_span: float = MIN_MODEL_AXIS_SPAN,
+) -> tuple[float, float]:
+    """Return x-limits with a stable minimum span for small model subsets."""
+    span = right - left
+    if span >= minimum_span:
+        return left, right
+
+    center = (left + right) / 2
+    half_span = minimum_span / 2
+    return center - half_span, center + half_span
+
+
+def _apply_minimum_x_span(
+    ax: object,
+    left: float,
+    right: float,
+    *,
+    minimum_span: float = MIN_MODEL_AXIS_SPAN,
+) -> None:
+    """Keep bars visually narrow when only a few models are plotted."""
+    ax.set_xlim(*_minimum_x_limits(left, right, minimum_span=minimum_span))
+
+
+def _apply_model_axis_spacing(
+    ax: object,
+    positions: Sequence[float],
+    *,
+    bar_width: float = MODEL_BAR_WIDTH,
+) -> None:
+    """Apply stable x-axis padding for model-level bar charts."""
+    if not positions:
+        return
+    left = min(positions) - (bar_width / 2)
+    right = max(positions) + (bar_width / 2)
+    _apply_minimum_x_span(ax, left, right)
+
+
+def _legend_column_count(handles: Sequence[object], maximum: int = 4) -> int:
+    """Choose a compact legend column count for the handles that are visible."""
+    return max(1, min(maximum, len(handles)))
 
 
 def build_model_rows(
@@ -769,6 +1005,36 @@ def build_collapse_day_rows(
     return labels, values, annotations
 
 
+def filter_model_rows(
+    labels: Sequence[str],
+    rates: Sequence[float],
+    errors: Sequence[float],
+    totals: Sequence[int],
+    keep_labels: Sequence[str],
+) -> tuple[list[str], list[float], list[float], list[int]]:
+    """Filter precomputed model rows while preserving a requested order."""
+    rows_by_model = {
+        model: (rate, error, total)
+        for model, rate, error, total in zip(labels, rates, errors, totals)
+    }
+    filtered_labels: list[str] = []
+    filtered_rates: list[float] = []
+    filtered_errors: list[float] = []
+    filtered_totals: list[int] = []
+
+    for model in keep_labels:
+        row = rows_by_model.get(model)
+        if row is None:
+            continue
+        rate, error, total = row
+        filtered_labels.append(model)
+        filtered_rates.append(rate)
+        filtered_errors.append(error)
+        filtered_totals.append(total)
+
+    return filtered_labels, filtered_rates, filtered_errors, filtered_totals
+
+
 def render_overall_chart(
     labels: Sequence[str],
     rates: Sequence[float],
@@ -782,7 +1048,6 @@ def render_overall_chart(
     del totals
     try:
         import matplotlib.pyplot as plt
-        from matplotlib.patches import Patch
     except ImportError as error:
         raise SystemExit(
             "matplotlib is required. Install with uv: uv add matplotlib (or uv sync)."
@@ -803,35 +1068,22 @@ def render_overall_chart(
         edgecolor=EDGE_COLOR,
         linewidth=0.4,
     )
-    for patch, model in zip(ax.patches, labels):
-        patch.set_hatch(_model_bar_hatch(model))
+    _apply_model_bar_styles(ax.patches, labels)
     _annotate_percent_bars(ax, x, rates, errors)
     ax.set_xticks(x)
     ax.set_xticklabels(labels, rotation=45, ha="right")
+    _apply_model_axis_spacing(ax, x)
     _apply_percent_axis_labels(ax, rates, errors)
     ax.set_ylabel("Restraint choice rate (%)")
     ax.grid(axis="y", alpha=0.3)
     fig.suptitle(title, y=0.985)
+    legend_handles = _model_legend_handles(labels)
     fig.legend(
-        handles=[
-            Patch(facecolor=STANDARD_MODEL_COLOR, edgecolor=EDGE_COLOR, label="Standard"),
-            Patch(
-                facecolor=SAFEGUARD_MODEL_COLOR,
-                edgecolor=EDGE_COLOR,
-                hatch="////",
-                label="Safeguard",
-            ),
-            Patch(
-                facecolor=UNRESTRICTED_MODEL_COLOR,
-                edgecolor=EDGE_COLOR,
-                hatch="xxxx",
-                label="Uncensored / Abliterate",
-            ),
-        ],
-        title="Model type",
+        handles=legend_handles,
+        title="Model family / style",
         loc="upper center",
         bbox_to_anchor=(0.5, 0.91),
-        ncol=3,
+        ncol=_legend_column_count(legend_handles),
         frameon=False,
     )
     fig.subplots_adjust(left=0.14, right=0.99, top=0.78, bottom=0.26)
@@ -854,7 +1106,6 @@ def render_percent_bar_chart(
         return
     try:
         import matplotlib.pyplot as plt
-        from matplotlib.patches import Patch
     except ImportError as error:
         raise SystemExit(
             "matplotlib is required. Install with uv: uv add matplotlib (or uv sync)."
@@ -872,35 +1123,22 @@ def render_percent_bar_chart(
         edgecolor=EDGE_COLOR,
         linewidth=0.4,
     )
-    for patch, model in zip(ax.patches, labels):
-        patch.set_hatch(_model_bar_hatch(model))
+    _apply_model_bar_styles(ax.patches, labels)
     _annotate_percent_bars(ax, x, values, errors)
     ax.set_xticks(x)
     ax.set_xticklabels(labels, rotation=45, ha="right")
+    _apply_model_axis_spacing(ax, x)
     _apply_percent_axis_labels(ax, values, errors)
     ax.set_ylabel(ylabel)
     ax.grid(axis="y", alpha=0.3)
     fig.suptitle(title, y=0.985)
+    legend_handles = _model_legend_handles(labels)
     fig.legend(
-        handles=[
-            Patch(facecolor=STANDARD_MODEL_COLOR, edgecolor=EDGE_COLOR, label="Standard"),
-            Patch(
-                facecolor=SAFEGUARD_MODEL_COLOR,
-                edgecolor=EDGE_COLOR,
-                hatch="////",
-                label="Safeguard",
-            ),
-            Patch(
-                facecolor=UNRESTRICTED_MODEL_COLOR,
-                edgecolor=EDGE_COLOR,
-                hatch="xxxx",
-                label="Uncensored / Abliterate",
-            ),
-        ],
-        title="Model type",
+        handles=legend_handles,
+        title="Model family / style",
         loc="upper center",
         bbox_to_anchor=(0.5, 0.91),
-        ncol=3,
+        ncol=_legend_column_count(legend_handles),
         frameon=False,
     )
     fig.subplots_adjust(left=0.14, right=0.99, top=0.78, bottom=0.26)
@@ -923,7 +1161,6 @@ def render_collapse_day_chart(
         return
     try:
         import matplotlib.pyplot as plt
-        from matplotlib.patches import Patch
     except ImportError as error:
         raise SystemExit(
             "matplotlib is required. Install with uv: uv add matplotlib (or uv sync)."
@@ -941,35 +1178,22 @@ def render_collapse_day_chart(
         edgecolor=EDGE_COLOR,
         linewidth=0.4,
     )
-    for patch, model in zip(ax.patches, labels):
-        patch.set_hatch(_model_bar_hatch(model))
+    _apply_model_bar_styles(ax.patches, labels)
     ax.set_xticks(x)
     ax.set_xticklabels(labels, rotation=45, ha="right")
+    _apply_model_axis_spacing(ax, x)
     ax.set_ylim(0.0, ymax + max(2.0, ymax * 0.12))
     _annotate_value_bars(ax, x, values, annotations)
     ax.set_ylabel("Day")
     ax.grid(axis="y", alpha=0.3)
     fig.suptitle(title, y=0.985)
+    legend_handles = _model_legend_handles(labels)
     fig.legend(
-        handles=[
-            Patch(facecolor=STANDARD_MODEL_COLOR, edgecolor=EDGE_COLOR, label="Standard"),
-            Patch(
-                facecolor=SAFEGUARD_MODEL_COLOR,
-                edgecolor=EDGE_COLOR,
-                hatch="////",
-                label="Safeguard",
-            ),
-            Patch(
-                facecolor=UNRESTRICTED_MODEL_COLOR,
-                edgecolor=EDGE_COLOR,
-                hatch="xxxx",
-                label="Uncensored / Abliterate",
-            ),
-        ],
-        title="Model type",
+        handles=legend_handles,
+        title="Model family / style",
         loc="upper center",
         bbox_to_anchor=(0.5, 0.91),
-        ncol=3,
+        ncol=_legend_column_count(legend_handles),
         frameon=False,
     )
     fig.subplots_adjust(left=0.14, right=0.99, top=0.78, bottom=0.26)
@@ -1033,11 +1257,10 @@ def render_time_series_chart(
             "matplotlib is required. Install with uv: uv add matplotlib (or uv sync)."
         ) from error
 
-    colors = _palette_for_count(len(models))
     fig, ax = plt.subplots(figsize=(max(10, len(models) * 0.6), 8))
     all_values: list[float] = []
 
-    for index, model in enumerate(models):
+    for model in models:
         days, values = _series_values(grouped[model], metric)
         if not days:
             continue
@@ -1046,7 +1269,7 @@ def render_time_series_chart(
             days,
             values,
             label=model,
-            color=colors[index % len(colors)],
+            color=_model_bar_color(model),
             linestyle=_model_line_style(model),
             linewidth=1.7,
             alpha=0.95,
@@ -1228,6 +1451,101 @@ def default_out_prefix(paths: Sequence[Path]) -> str:
     return "part2_latest_per_model"
 
 
+def render_chart_bundle(
+    *,
+    labels: Sequence[str],
+    rates: Sequence[float],
+    errors: Sequence[float],
+    totals: Sequence[int],
+    day_summaries: dict[tuple[str, int], DaySummary],
+    charts: set[str],
+    output_dir: Path,
+    prefix: str,
+    source_note: str,
+    ci_label: str,
+) -> list[Path]:
+    """Render the selected part_2 chart set into one output directory."""
+    written: list[Path] = []
+    if not labels:
+        return written
+
+    if "restraint" in charts:
+        output = output_dir / f"{prefix}_restraint_by_model.png"
+        render_overall_chart(
+            labels,
+            rates,
+            errors,
+            totals,
+            title=build_overall_title(source_note=source_note, ci_label=ci_label),
+            output=output,
+        )
+        written.append(output)
+
+    for chart, (metric_label, ylabel, filename_suffix) in TIME_SERIES_SPECS.items():
+        if chart not in charts:
+            continue
+        output = output_dir / f"{prefix}_{filename_suffix}.png"
+        render_time_series_chart(
+            day_summaries,
+            labels,
+            metric=chart,
+            title=build_time_series_title(metric_label=metric_label, source_note=source_note),
+            ylabel=ylabel,
+            output=output,
+        )
+        written.append(output)
+
+    if "final-resource" in charts:
+        resource_labels, resource_values = build_final_resource_rows(day_summaries, labels)
+        if resource_labels:
+            output = output_dir / f"{prefix}_final_resource_by_model.png"
+            render_percent_bar_chart(
+                resource_labels,
+                resource_values,
+                title=build_final_title(
+                    metric_label="Final shared reserve remaining",
+                    source_note=source_note,
+                ),
+                ylabel="Final resource remaining (%)",
+                output=output,
+            )
+            written.append(output)
+
+    if "final-population" in charts:
+        population_labels, population_values = build_final_population_rows(day_summaries, labels)
+        if population_labels:
+            output = output_dir / f"{prefix}_final_population_by_model.png"
+            render_percent_bar_chart(
+                population_labels,
+                population_values,
+                title=build_final_title(
+                    metric_label="Final population remaining",
+                    source_note=source_note,
+                ),
+                ylabel="Final population remaining (%)",
+                output=output,
+            )
+            written.append(output)
+
+    if "collapse-day" in charts:
+        collapse_labels, collapse_values, collapse_annotations = build_collapse_day_rows(
+            day_summaries,
+            labels,
+        )
+        if collapse_labels:
+            output = output_dir / f"{prefix}_collapse_day_by_model.png"
+            render_collapse_day_chart(
+                collapse_labels,
+                collapse_values,
+                collapse_annotations,
+                title=build_collapse_title(source_note=source_note),
+                output=output,
+            )
+            written.append(output)
+
+    return written
+
+
 def main() -> int:
     """Entry point for `uv run python data/graphs/part_2_graphs.py ...`."""
     args = parse_args()
@@ -1261,92 +1579,42 @@ def main() -> int:
 
     charts: set[str] = set(args.charts)
 
-    if "restraint" in charts:
-        output = graphs_dir / f"{prefix}_restraint_by_model.png"
-        render_overall_chart(
-            labels,
-            rates,
-            errors,
-            totals,
-            title=build_overall_title(source_note=source_note, ci_label=ci_label),
-            output=output,
-        )
+    master_outputs = render_chart_bundle(
+        labels=labels,
+        rates=rates,
+        errors=errors,
+        totals=totals,
+        day_summaries=day_summaries,
+        charts=charts,
+        output_dir=graphs_dir / MASTER_PLOTS_DIRNAME,
+        prefix=prefix,
+        source_note=source_note,
+        ci_label=ci_label,
+    )
+    for output in master_outputs:
         print(f"wrote: {output}")
 
-    time_series_specs: dict[str, tuple[str, str, str]] = {
-        "restraint-by-day": (
-            "Restraint-choice rate",
-            "Restraint choice rate (%)",
-            "restraint_by_day",
-        ),
-        "resource-by-day": (
-            "Shared reserve remaining",
-            "Resource remaining (%)",
-            "resource_by_day",
-        ),
-        "population-by-day": (
-            "Population remaining",
-            "Population remaining (%)",
-            "population_by_day",
-        ),
-        "deaths-by-day": (
-            "Daily deaths",
-            "Deaths",
-            "deaths_by_day",
-        ),
-    }
-    for chart, (metric_label, ylabel, filename_suffix) in time_series_specs.items():
-        if chart not in charts:
-            continue
-        output = graphs_dir / f"{prefix}_{filename_suffix}.png"
-        render_time_series_chart(
-            day_summaries,
-            labels,
-            metric=chart,
-            title=build_time_series_title(metric_label=metric_label, source_note=source_note),
-            ylabel=ylabel,
-            output=output,
+    for folder_name, group_models in build_model_plot_groups(labels):
+        (
+            group_labels,
+            group_rates,
+            group_errors,
+            group_totals,
+        ) = filter_model_rows(labels, rates, errors, totals, group_models)
+        group_outputs = render_chart_bundle(
+            labels=group_labels,
+            rates=group_rates,
+            errors=group_errors,
+            totals=group_totals,
+            day_summaries=day_summaries,
+            charts=charts,
+            output_dir=graphs_dir / folder_name,
+            prefix=prefix,
+            source_note=f"{len(group_labels)} model subset from {source_note}",
+            ci_label=ci_label,
         )
-        print(f"wrote: {output}")
-
-    if "final-resource" in charts:
-        resource_labels, resource_values = build_final_resource_rows(day_summaries, labels)
-        output = graphs_dir / f"{prefix}_final_resource_by_model.png"
-        render_percent_bar_chart(
-            resource_labels,
-            resource_values,
-            title=build_final_title(metric_label="Final shared reserve remaining", source_note=source_note),
-            ylabel="Final resource remaining (%)",
-            output=output,
-        )
-        print(f"wrote: {output}")
-
-    if "final-population" in charts:
-        population_labels, population_values = build_final_population_rows(day_summaries, labels)
-        output = graphs_dir / f"{prefix}_final_population_by_model.png"
-        render_percent_bar_chart(
-            population_labels,
-            population_values,
-            title=build_final_title(metric_label="Final population remaining", source_note=source_note),
-            ylabel="Final population remaining (%)",
-            output=output,
-        )
-        print(f"wrote: {output}")
-
-    if "collapse-day" in charts:
-        collapse_labels, collapse_values, collapse_annotations = build_collapse_day_rows(
-            day_summaries,
-            labels,
-        )
-        output = graphs_dir / f"{prefix}_collapse_day_by_model.png"
-        render_collapse_day_chart(
-            collapse_labels,
-            collapse_values,
-            collapse_annotations,
-            title=build_collapse_title(source_note=source_note),
-            output=output,
-        )
-        print(f"wrote: {output}")
+        for output in group_outputs:
+            print(f"wrote: {output}")
 
     return 0
 

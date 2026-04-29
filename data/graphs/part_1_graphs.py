@@ -1,7 +1,7 @@
 """Render cooperative-choice charts for part_1 benchmark outputs.
 
 The default mode selects the latest non-empty part_1 CSV for each model from
-``results/part_1`` and combines them into a single comparison set.
+``data/raw/part_1`` and combines them into a single comparison set.
 
 For each model, the script computes:
 
@@ -28,9 +28,10 @@ from typing import Literal
 from experiments.misc.prompt_loader import load_prompt_config
 
 TIMESTAMP_FORMAT = "%Y%m%d_%H%M%S"
-DEFAULT_PART_1_DIR = Path("results") / "part_1"
+DEFAULT_PART_1_DIR = Path("data") / "raw" / "part_1"
 DEFAULT_GRAPH_DIR = Path("data") / "graphs" / "part_1"
 DEFAULT_CI_METHOD: Literal["wilson", "wald"] = "wilson"
+MASTER_PLOTS_DIRNAME = "master-plots"
 OVERALL_TOP_PADDING = 6.0
 BREAKDOWN_TOP_PADDING = 10.0
 TEAL_PALETTE: tuple[str, ...] = (
@@ -44,12 +45,45 @@ TEAL_PALETTE: tuple[str, ...] = (
     "#2cd4b8",
 )
 HATCH_PALETTE: tuple[str, ...] = ("", "////", "xxxx", "....", "++++", "||||", "\\\\\\\\", "----")
-STANDARD_MODEL_COLOR = "#048a73"
-SAFEGUARD_MODEL_COLOR = "#01483d"
-UNRESTRICTED_MODEL_COLOR = "#34d6bc"
-EDGE_COLOR = "#025e4f"
-MODEL_BAR_WIDTH = 0.90
-MODEL_FAMILY_GAP = 0.35
+GPT_OSS_MODEL_COLORS = {
+    "standard": "#048a73",
+    "standard_instruct": "#03826a",
+    "safeguard": "#01483d",
+    "unrestricted": "#34d6bc",
+    "unrestricted_instruct": "#10c6a8",
+}
+QWEN25_MODEL_COLORS = {
+    "standard": "#7416c7",
+    "standard_instruct": "#5f12a3",
+    "safeguard": "#3f0b6e",
+    "unrestricted": "#a45ce0",
+    "unrestricted_instruct": "#8e38d8",
+}
+QWEN35_MODEL_COLORS = {
+    "standard": "#a707b5",
+    "standard_instruct": "#870592",
+    "safeguard": "#65036d",
+    "unrestricted": "#d15add",
+    "unrestricted_instruct": "#bf2ece",
+}
+LLAMA_MODEL_COLORS = {
+    "standard": "#105bcc",
+    "standard_instruct": "#0d4baa",
+    "safeguard": "#0a397f",
+    "unrestricted": "#5a95e8",
+    "unrestricted_instruct": "#377bdd",
+}
+FAMILY_COLOR_PALETTES = {
+    "GPT-OSS": GPT_OSS_MODEL_COLORS,
+    "Qwen 2.5": QWEN25_MODEL_COLORS,
+    "Qwen 3.5": QWEN35_MODEL_COLORS,
+    "Llama": LLAMA_MODEL_COLORS,
+}
+EDGE_COLOR = "#1f2937"
+INSTRUCT_EDGE_COLOR = "#000000"
+MODEL_BAR_WIDTH = 0.62
+MIN_MODEL_AXIS_SPAN = 6.0
+MIN_MODEL_DISPLAY_SLOTS = 6
 OVERALL_FIG_HEIGHT = 8.0
 BREAKDOWN_DIMENSIONS = ("game", "frame", "domain", "presentation")
 PART_1_PROMPTS = load_prompt_config("part_1")
@@ -80,20 +114,20 @@ def parse_args() -> argparse.Namespace:
         "--csv",
         nargs="+",
         help=(
-            "One or more CSV filenames or paths inside results/part_1 to combine. "
+            "One or more CSV filenames or paths inside data/raw/part_1 to combine. "
             "Example: --csv part1__ollama__gpt-oss-20b__full__20260420_005501.csv"
         ),
     )
     source.add_argument(
         "--latest",
         action="store_true",
-        help="Use the latest non-empty CSV for each model in results/part_1.",
+        help="Use the latest non-empty CSV for each model in data/raw/part_1.",
     )
 
     parser.add_argument(
         "--part1-dir",
         default=str(DEFAULT_PART_1_DIR),
-        help="Directory containing part_1 CSV files (default: results/part_1).",
+        help="Directory containing part_1 CSV files (default: data/raw/part_1).",
     )
     parser.add_argument(
         "--graphs-dir",
@@ -352,13 +386,146 @@ def _palette_for_count(count: int) -> list[str]:
 
 
 def _model_bar_color(model_label: str) -> str:
-    """Choose a bar color based on model family variant."""
+    """Choose a bar color based on model family and variant."""
+    family = _model_family_name(model_label)
+    variant = _model_color_variant(model_label)
+    return FAMILY_COLOR_PALETTES[family][variant]
+
+
+def _model_leaf(model_label: str) -> str:
+    """Return the terminal model-name component without the provider prefix."""
+    _, _, model_path = model_label.partition("/")
+    model = model_path or model_label
+    _, _, leaf = model.rpartition("/")
+    return leaf or model
+
+
+def _model_family_name(model_label: str) -> str:
+    """Choose the display family used for color mapping."""
+    lowered = _model_leaf(model_label).lower()
+    if "qwen2.5" in lowered or "qwen2-5" in lowered:
+        return "Qwen 2.5"
+    if "qwen3.5" in lowered or "qwen3-5" in lowered:
+        return "Qwen 3.5"
+    if "llama" in lowered:
+        return "Llama"
+    return "GPT-OSS"
+
+
+def _model_color_variant(model_label: str) -> str:
+    """Choose the color shade within a model family."""
     lowered = model_label.lower()
+    is_instruct = "instruct" in lowered
+    is_unrestricted = (
+        "uncensored" in lowered
+        or "abliterate" in lowered
+        or "derestricted" in lowered
+    )
     if "safeguard" in lowered:
-        return SAFEGUARD_MODEL_COLOR
-    if "uncensored" in lowered or "abliterate" in lowered or "derestricted" in lowered:
-        return UNRESTRICTED_MODEL_COLOR
-    return STANDARD_MODEL_COLOR
+        return "safeguard"
+    if is_unrestricted and is_instruct:
+        return "unrestricted_instruct"
+    if is_unrestricted:
+        return "unrestricted"
+    if is_instruct:
+        return "standard_instruct"
+    return "standard"
+
+
+def _model_bar_edge_color(model_label: str) -> str:
+    """Use a black bar border for instruct models."""
+    if "instruct" in model_label.lower():
+        return INSTRUCT_EDGE_COLOR
+    return EDGE_COLOR
+
+
+def _model_bar_line_width(model_label: str) -> float:
+    """Use a heavier outline when the black instruct border is active."""
+    if "instruct" in model_label.lower():
+        return 1.1
+    return 0.4
+
+
+def _apply_model_bar_styles(patches: Sequence[object], labels: Sequence[str]) -> None:
+    """Apply hatches and instruct borders to model bars."""
+    for patch, model in zip(patches, labels):
+        patch.set_hatch(_model_bar_hatch(model))
+        patch.set_edgecolor(_model_bar_edge_color(model))
+        patch.set_linewidth(_model_bar_line_width(model))
+
+
+def _model_legend_handles(model_labels: Sequence[str]) -> list[object]:
+    """Build family/color and variant/style legend handles for visible models."""
+    try:
+        from matplotlib.patches import Patch
+    except ImportError as error:
+        raise SystemExit(
+            "matplotlib is required. Install with uv: uv add matplotlib (or uv sync)."
+        ) from error
+
+    neutral = "#d1d5db"
+    present_families = {_model_family_name(label) for label in model_labels}
+    present_variants = {_model_color_variant(label) for label in model_labels}
+    has_instruct = any("instruct" in label.lower() for label in model_labels)
+
+    handles: list[object] = []
+    for family, palette in FAMILY_COLOR_PALETTES.items():
+        if family in present_families:
+            handles.append(
+                Patch(
+                    facecolor=palette["standard"],
+                    edgecolor=EDGE_COLOR,
+                    label=family,
+                )
+            )
+
+    if present_variants & {"standard", "standard_instruct"}:
+        handles.append(Patch(facecolor=neutral, edgecolor=EDGE_COLOR, label="Standard"))
+    if "safeguard" in present_variants:
+        handles.append(
+            Patch(facecolor=neutral, edgecolor=EDGE_COLOR, hatch="////", label="Safeguard")
+        )
+    if present_variants & {"unrestricted", "unrestricted_instruct"}:
+        handles.append(
+            Patch(facecolor=neutral, edgecolor=EDGE_COLOR, hatch="xxxx", label="Unrestricted")
+        )
+    if has_instruct:
+        handles.append(
+            Patch(
+                facecolor=neutral,
+                edgecolor=INSTRUCT_EDGE_COLOR,
+                linewidth=1.1,
+                label="Instruct border",
+            )
+        )
+
+    return handles
+
+
+def _category_legend_handles(
+    values: Sequence[str],
+    hatches: Sequence[str],
+    *,
+    label_formatter: object | None = None,
+) -> list[object]:
+    """Build neutral legend handles for grouped chart category hatches."""
+    try:
+        from matplotlib.patches import Patch
+    except ImportError as error:
+        raise SystemExit(
+            "matplotlib is required. Install with uv: uv add matplotlib (or uv sync)."
+        ) from error
+
+    formatter = label_formatter or (lambda value: value)
+    return [
+        Patch(
+            facecolor="#d1d5db",
+            edgecolor=EDGE_COLOR,
+            hatch=hatch,
+            label=str(formatter(value)),
+        )
+        for value, hatch in zip(values, hatches)
+    ]
 
 
 def _model_bar_hatch(model_label: str) -> str:
@@ -449,28 +616,131 @@ def _model_sort_key(model_label: str) -> tuple[str, int, int]:
     return _normalize_model_family(model_label), instruct_group, category
 
 
+def _model_plot_folder(model_label: str) -> str:
+    """Return the subfolder name for a model-family plot bundle."""
+    leaf = _model_leaf(model_label)
+    lowered = leaf.lower()
+    is_instruct = "instruct" in lowered
+
+    if "gpt-oss" in lowered:
+        size = "20b"
+        if ":" in leaf:
+            size = leaf.rsplit(":", 1)[1].lower()
+        return f"gpt-oss:{size}-plots"
+    if "llama2" in lowered:
+        return "llama2-plots"
+    if "qwen2.5" in lowered or "qwen2-5" in lowered:
+        return "qwen2.5-instruct-plots" if is_instruct else "qwen2.5-plots"
+    if "qwen3.5" in lowered or "qwen3-5" in lowered:
+        return "qwen3.5-instruct-plots" if is_instruct else "qwen3.5-plots"
+
+    safe = "".join(
+        character if character.isalnum() or character in ".:-_" else "-"
+        for character in lowered
+    ).strip("-")
+    return f"{safe or 'unknown'}-plots"
+
+
+def build_model_plot_groups(model_order: Sequence[str]) -> list[tuple[str, list[str]]]:
+    """Group sorted model labels into output plot folders."""
+    grouped: dict[str, list[str]] = {}
+    for model in model_order:
+        folder = _model_plot_folder(model)
+        grouped.setdefault(folder, []).append(model)
+    return list(grouped.items())
+
+
+def filter_model_rows(
+    labels: Sequence[str],
+    rates: Sequence[float],
+    errors: Sequence[float],
+    totals: Sequence[int],
+    keep_labels: Sequence[str],
+) -> tuple[list[str], list[float], list[float], list[int]]:
+    """Filter precomputed model rows while preserving a requested order."""
+    rows_by_model = {
+        model: (rate, error, total)
+        for model, rate, error, total in zip(labels, rates, errors, totals)
+    }
+    filtered_labels: list[str] = []
+    filtered_rates: list[float] = []
+    filtered_errors: list[float] = []
+    filtered_totals: list[int] = []
+
+    for model in keep_labels:
+        row = rows_by_model.get(model)
+        if row is None:
+            continue
+        rate, error, total = row
+        filtered_labels.append(model)
+        filtered_rates.append(rate)
+        filtered_errors.append(error)
+        filtered_totals.append(total)
+
+    return filtered_labels, filtered_rates, filtered_errors, filtered_totals
+
+
 def _grouped_bar_positions(labels: Sequence[str]) -> list[float]:
-    """Compute x positions so model variants in the same family touch."""
-    positions: list[float] = []
-    previous_group = None
-    index_in_family = 0
-    cursor_x = 0.0
+    """Compute evenly spaced x positions that use the chart width for small subsets."""
+    count = len(labels)
+    if count <= 0:
+        return []
+    if count == 1:
+        return [MIN_MODEL_DISPLAY_SLOTS / 2]
 
-    for model in labels:
-        family = _normalize_model_family(model)
-        group = _model_instruct_group(model)
-        family_group = (family, group)
-        if previous_group is None:
-            previous_group = family_group
-        elif family_group != previous_group:
-            cursor_x += (index_in_family * MODEL_BAR_WIDTH) + MODEL_FAMILY_GAP
-            previous_group = family_group
-            index_in_family = 0
+    if count <= MIN_MODEL_DISPLAY_SLOTS:
+        display_span = float(MIN_MODEL_DISPLAY_SLOTS)
+        margin = display_span / (count + 2)
+        step = (display_span - (2 * margin)) / (count - 1)
+        return [margin + (index * step) for index in range(count)]
 
-        positions.append(cursor_x + (index_in_family * MODEL_BAR_WIDTH))
-        index_in_family += 1
+    return [float(index) for index, _ in enumerate(labels)]
 
-    return positions
+
+def _minimum_x_limits(
+    left: float,
+    right: float,
+    *,
+    minimum_span: float = MIN_MODEL_AXIS_SPAN,
+) -> tuple[float, float]:
+    """Return x-limits with a stable minimum span for small model subsets."""
+    span = right - left
+    if span >= minimum_span:
+        return left, right
+
+    center = (left + right) / 2
+    half_span = minimum_span / 2
+    return center - half_span, center + half_span
+
+
+def _apply_minimum_x_span(
+    ax: object,
+    left: float,
+    right: float,
+    *,
+    minimum_span: float = MIN_MODEL_AXIS_SPAN,
+) -> None:
+    """Keep bars visually narrow when only a few models are plotted."""
+    ax.set_xlim(*_minimum_x_limits(left, right, minimum_span=minimum_span))
+
+
+def _apply_model_axis_spacing(
+    ax: object,
+    positions: Sequence[float],
+    *,
+    bar_width: float = MODEL_BAR_WIDTH,
+) -> None:
+    """Apply stable x-axis padding for model-level bar charts."""
+    if not positions:
+        return
+    left = min(positions) - (bar_width / 2)
+    right = max(positions) + (bar_width / 2)
+    _apply_minimum_x_span(ax, left, right)
+
+
+def _legend_column_count(handles: Sequence[object], maximum: int = 4) -> int:
+    """Choose a compact legend column count for the handles that are visible."""
+    return max(1, min(maximum, len(handles)))
 
 
 def build_model_rows(
@@ -506,7 +776,6 @@ def render_overall_chart(
     """Render and save the overall model cooperation bar chart."""
     try:
         import matplotlib.pyplot as plt
-        from matplotlib.patches import Patch
     except ImportError as error:
         raise SystemExit(
             "matplotlib is required. Install with uv: uv add matplotlib (or uv sync)."
@@ -527,35 +796,22 @@ def render_overall_chart(
         edgecolor=EDGE_COLOR,
         linewidth=0.4,
     )
-    for patch, model in zip(ax.patches, labels):
-        patch.set_hatch(_model_bar_hatch(model))
+    _apply_model_bar_styles(ax.patches, labels)
     _annotate_percent_bars(ax, x, rates, errors)
     ax.set_xticks(x)
     ax.set_xticklabels(labels, rotation=45, ha="right")
+    _apply_model_axis_spacing(ax, x)
     _apply_percent_axis_labels(ax, rates, errors)
     ax.set_ylabel("Cooperative choice rate (%)")
     ax.grid(axis="y", alpha=0.3)
     fig.suptitle(title, y=0.985)
+    legend_handles = _model_legend_handles(labels)
     fig.legend(
-        handles=[
-            Patch(facecolor=STANDARD_MODEL_COLOR, edgecolor=EDGE_COLOR, label="Standard"),
-            Patch(
-                facecolor=SAFEGUARD_MODEL_COLOR,
-                edgecolor=EDGE_COLOR,
-                hatch="////",
-                label="Safeguard",
-            ),
-            Patch(
-                facecolor=UNRESTRICTED_MODEL_COLOR,
-                edgecolor=EDGE_COLOR,
-                hatch="xxxx",
-                label="Uncensored / Abliterate",
-            ),
-        ],
-        title="Model type",
+        handles=legend_handles,
+        title="Model family / style",
         loc="upper center",
         bbox_to_anchor=(0.5, 0.91),
-        ncol=3,
+        ncol=_legend_column_count(legend_handles),
         frameon=False,
     )
     fig.subplots_adjust(left=0.14, right=0.99, top=0.78, bottom=0.26)
@@ -616,7 +872,6 @@ def render_dimension_chart(
     width = 0.75 / len(dimension_values)
     model_positions = list(range(len(models)))
     fig, ax = plt.subplots(figsize=(max(10, len(models) * 0.6), 8))
-    dimension_colors = _palette_for_count(len(dimension_values))
     dimension_hatches = _dimension_hatches(len(dimension_values))
 
     all_rates: list[float] = []
@@ -639,19 +894,32 @@ def render_dimension_chart(
             all_rates.append(rate)
             all_errors.append(err)
 
-        ax.bar(
+        bar_models = [
+            model
+            for model in models
+            if cooperation_rate_and_error(
+                by_dimension.get((model, value), Aggregate()),
+                z,
+                ci_method,
+            )[0]
+            is not None
+        ]
+        bars = ax.bar(
             xs,
             ys,
             width=width,
             yerr=yerrs,
             capsize=3,
             label=_dimension_display_label(dimension, value),
-            color=dimension_colors[dim_idx % len(dimension_colors)],
+            color=[_model_bar_color(model) for model in bar_models],
             alpha=1.0,
             edgecolor=EDGE_COLOR,
             linewidth=0.25,
             hatch=dimension_hatches[dim_idx % len(dimension_hatches)],
         )
+        for patch, model in zip(bars.patches, bar_models):
+            patch.set_edgecolor(_model_bar_edge_color(model))
+            patch.set_linewidth(_model_bar_line_width(model))
         _annotate_percent_bars(ax, xs, ys, yerrs, rotate=90)
 
     ax.set_xticks(model_positions)
@@ -659,18 +927,31 @@ def render_dimension_chart(
     if model_positions:
         left_pad = 0.5 + (len(dimension_values) * width) / 2
         right_pad = 0.5 + (len(dimension_values) * width) / 2
-        ax.set_xlim(model_positions[0] - left_pad, model_positions[-1] + right_pad)
+        _apply_minimum_x_span(
+            ax,
+            model_positions[0] - left_pad,
+            model_positions[-1] + right_pad,
+        )
     upper = _y_axis_upper_bound(all_rates, all_errors, BREAKDOWN_TOP_PADDING)
     ax.set_ylim(0.0, upper)
     ax.set_yticks(list(range(0, 101, 10)))
     ax.set_ylabel("Cooperative choice rate (%)")
     ax.grid(axis="y", alpha=0.3)
     fig.suptitle(title, y=0.985)
+    legend_handles = (
+        _category_legend_handles(
+            dimension_values,
+            dimension_hatches,
+            label_formatter=lambda value: _dimension_display_label(dimension, value),
+        )
+        + _model_legend_handles(models)
+    )
     fig.legend(
-        title=dimension.capitalize(),
+        handles=legend_handles,
+        title=f"{dimension.capitalize()} / model family",
         loc="upper center",
         bbox_to_anchor=(0.5, 0.91),
-        ncol=min(len(dimension_values), len(dimension_colors)),
+        ncol=_legend_column_count(legend_handles),
         frameon=False,
     )
     fig.subplots_adjust(left=0.08, right=0.99, top=0.80, bottom=0.18)
@@ -765,6 +1046,58 @@ def default_out_prefix(paths: Sequence[Path], *, scope: ScopeFilter) -> str:
     return f"part1_latest_{scope}_per_model"
 
 
+def render_chart_bundle(
+    *,
+    rows: Sequence[dict[str, str]],
+    labels: Sequence[str],
+    rates: Sequence[float],
+    errors: Sequence[float],
+    totals: Sequence[int],
+    z: float,
+    ci_method: CiMethod,
+    dimensions: Sequence[str],
+    output_dir: Path,
+    prefix: str,
+    source_note: str,
+    ci_label: str,
+) -> list[Path]:
+    """Render the selected part_1 chart set into one output directory."""
+    written: list[Path] = []
+    if not labels:
+        return written
+
+    overall_output = output_dir / f"{prefix}_cooperation_by_model.png"
+    render_overall_chart(
+        labels,
+        rates,
+        errors,
+        totals,
+        title=build_overall_title(source_note=source_note, ci_label=ci_label),
+        output=overall_output,
+    )
+    written.append(overall_output)
+
+    for dimension in dimensions:
+        _, by_dimension = aggregate_rows(rows, dimension)
+        dimension_output = output_dir / f"{prefix}_cooperation_by_model_and_{dimension}.png"
+        render_dimension_chart(
+            by_dimension,
+            z,
+            ci_method,
+            labels,
+            dimension=dimension,
+            title=build_dimension_title(
+                dimension=dimension,
+                source_note=source_note,
+                ci_label=ci_label,
+            ),
+            output=dimension_output,
+        )
+        written.append(dimension_output)
+
+    return written
+
+
 def main() -> int:
     """Entry point for `uv run python data/graphs/part_1_graphs.py ...`."""
     args = parse_args()
@@ -796,34 +1129,46 @@ def main() -> int:
         else csv_paths[0].name
     )
 
-    overall_output = graphs_dir / f"{prefix}_cooperation_by_model.png"
-    render_overall_chart(
-        labels,
-        rates,
-        errors,
-        totals,
-        title=build_overall_title(source_note=source_note, ci_label=ci_label),
-        output=overall_output,
+    master_outputs = render_chart_bundle(
+        rows=rows,
+        labels=labels,
+        rates=rates,
+        errors=errors,
+        totals=totals,
+        z=z,
+        ci_method=ci_method,
+        dimensions=args.dimensions,
+        output_dir=graphs_dir / MASTER_PLOTS_DIRNAME,
+        prefix=prefix,
+        source_note=source_note,
+        ci_label=ci_label,
     )
-    print(f"wrote: {overall_output}")
+    for output in master_outputs:
+        print(f"wrote: {output}")
 
-    for dimension in args.dimensions:
-        _, by_dimension = aggregate_rows(rows, dimension)
-        dimension_output = graphs_dir / f"{prefix}_cooperation_by_model_and_{dimension}.png"
-        render_dimension_chart(
-            by_dimension,
-            z,
-            ci_method,
-            labels,
-            dimension=dimension,
-            title=build_dimension_title(
-                dimension=dimension,
-                source_note=source_note,
-                ci_label=ci_label,
-            ),
-            output=dimension_output,
+    for folder_name, group_models in build_model_plot_groups(labels):
+        (
+            group_labels,
+            group_rates,
+            group_errors,
+            group_totals,
+        ) = filter_model_rows(labels, rates, errors, totals, group_models)
+        group_outputs = render_chart_bundle(
+            rows=rows,
+            labels=group_labels,
+            rates=group_rates,
+            errors=group_errors,
+            totals=group_totals,
+            z=z,
+            ci_method=ci_method,
+            dimensions=args.dimensions,
+            output_dir=graphs_dir / folder_name,
+            prefix=prefix,
+            source_note=f"{len(group_labels)} model subset from {source_note}",
+            ci_label=ci_label,
         )
-        print(f"wrote: {dimension_output}")
+        for output in group_outputs:
+            print(f"wrote: {output}")
 
     return 0
 

@@ -99,7 +99,7 @@ def load_prompts_from_csv_dir(csv_dir: Path) -> list[str]:
 
 
 def load_part_0_raw_prompts() -> list[str]:
-    return load_prompts_from_csv_dir(RAW_DATA_DIR / "part_0")
+    return load_prompts_from_csv_dir(RAW_DATA_DIR / "part_0" / "prompts")
 
 
 def render_prompt_template(template: str, **values: Any) -> str:

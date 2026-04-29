@@ -2,7 +2,13 @@ from pathlib import Path
 
 from data.graphs.part_2_graphs import (
     RESULT_HEADERS,
+    _grouped_bar_positions,
+    _minimum_x_limits,
+    _model_bar_color,
+    _model_bar_edge_color,
+    _model_legend_handles,
     aggregate_rows,
+    build_model_plot_groups,
     build_collapse_day_rows,
     build_final_population_rows,
     build_final_resource_rows,
@@ -199,14 +205,79 @@ def test_find_latest_nonempty_csvs_by_model_skips_header_only_and_interrupted_fi
 
 
 def test_default_out_prefix_uses_single_stem_or_latest_config_bundle() -> None:
-    single = [Path("results/part_2/part2__ollama__llama2__n50__d100__water__20260426_214029.csv")]
+    single = [Path("data/raw/part_2/part2__ollama__llama2__n50__d100__water__20260426_214029.csv")]
     multiple = [
-        Path("results/part_2/part2__ollama__llama2__n50__d100__water__20260426_214029.csv"),
-        Path("results/part_2/part2__ollama__gpt-oss-20b__n50__d100__water__20260426_161639.csv"),
+        Path("data/raw/part_2/part2__ollama__llama2__n50__d100__water__20260426_214029.csv"),
+        Path("data/raw/part_2/part2__ollama__gpt-oss-20b__n50__d100__water__20260426_161639.csv"),
     ]
 
     assert default_out_prefix(single) == "part2__ollama__llama2__n50__d100__water__20260426_214029"
     assert default_out_prefix(multiple) == "part2_latest_n50_d100_water_per_model"
+
+
+def test_model_colors_use_requested_family_palettes_and_instruct_border() -> None:
+    assert _model_bar_color("ollama/gpt-oss:20b") == "#048a73"
+    assert _model_bar_color("ollama/gpt-oss-safeguard:20b") == "#01483d"
+    assert _model_bar_color("ollama/gurubot/gpt-oss-derestricted:20b") == "#34d6bc"
+    assert _model_bar_color("ollama/qwen2.5:7b") == "#7416c7"
+    assert _model_bar_color("ollama/huihui_ai/qwen2.5-abliterate:7b-instruct") == "#8e38d8"
+    assert _model_bar_color("ollama/qwen3.5") == "#a707b5"
+    assert _model_bar_color("ollama/sorc/qwen3.5-instruct-uncensored") == "#bf2ece"
+    assert _model_bar_color("ollama/llama2") == "#105bcc"
+    assert _model_bar_color("ollama/llama2-uncensored") == "#5a95e8"
+    assert _model_bar_edge_color("ollama/qwen2.5:7b-instruct") == "#000000"
+    assert _model_bar_edge_color("ollama/qwen2.5:7b") != "#000000"
+
+
+def test_build_model_plot_groups_uses_requested_subfolders() -> None:
+    labels = [
+        "ollama/gpt-oss:20b",
+        "ollama/gpt-oss-safeguard:20b",
+        "ollama/gurubot/gpt-oss-derestricted:20b",
+        "ollama/llama2",
+        "ollama/llama2-uncensored",
+        "ollama/qwen2.5:7b",
+        "ollama/huihui_ai/qwen2.5-abliterate:7b",
+        "ollama/qwen2.5:7b-instruct",
+        "ollama/huihui_ai/qwen2.5-abliterate:7b-instruct",
+        "ollama/qwen3.5",
+        "ollama/aratan/qwen3.5-uncensored:9b",
+        "ollama/sorc/qwen3.5-instruct",
+        "ollama/sorc/qwen3.5-instruct-uncensored",
+    ]
+
+    assert build_model_plot_groups(labels) == [
+        ("gpt-oss:20b-plots", labels[0:3]),
+        ("llama2-plots", labels[3:5]),
+        ("qwen2.5-plots", labels[5:7]),
+        ("qwen2.5-instruct-plots", labels[7:9]),
+        ("qwen3.5-plots", labels[9:11]),
+        ("qwen3.5-instruct-plots", labels[11:13]),
+    ]
+
+
+def test_part_2_legends_and_axis_limits_only_reflect_visible_models() -> None:
+    handles = _model_legend_handles(["ollama/llama2", "ollama/llama2-uncensored"])
+
+    assert [handle.get_label() for handle in handles] == [
+        "Llama",
+        "Standard",
+        "Unrestricted",
+    ]
+
+    left, right = _minimum_x_limits(-0.45, 1.35)
+    assert round(right - left, 6) == 6.0
+    assert _minimum_x_limits(0.0, 8.0) == (0.0, 8.0)
+
+
+def test_part_2_model_bar_positions_are_evenly_spaced() -> None:
+    two_positions = _grouped_bar_positions(["ollama/llama2", "ollama/llama2-uncensored"])
+    three_positions = _grouped_bar_positions(
+        ["ollama/llama2", "ollama/llama2-uncensored", "ollama/qwen2.5:7b"]
+    )
+
+    assert two_positions == [1.5, 4.5]
+    assert [round(position, 6) for position in three_positions] == [1.2, 3.0, 4.8]
 
 
 def test_render_functions_write_part_2_graph_files(tmp_path: Path) -> None:

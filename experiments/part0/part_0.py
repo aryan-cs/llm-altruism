@@ -307,7 +307,7 @@ def sanitize(s: str) -> str:
 
 REVISIT = 'REVISIT'
 MODEL_BATCH_KEEP_ALIVE = "30m"
-ALIGNMENT_RESULTS_DIR = Path("results") / "alignment"
+ALIGNMENT_RESULTS_DIR = Path("data") / "raw" / "part_0"
 ALIGNMENT_TIMESTAMP_FORMAT = "%m-%d-%Y_%H_%M_%S"
 RESULT_HEADERS = [
     "provider", "model", "language", "prompt",

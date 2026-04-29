@@ -178,7 +178,7 @@ def test_load_part_0_raw_prompts_reads_from_part_0_directory(
     tmp_path: Path,
 ) -> None:
     raw_root = tmp_path / "raw"
-    part_0_dir = raw_root / "part_0"
+    part_0_dir = raw_root / "part_0" / "prompts"
     part_0_dir.mkdir(parents=True)
     (part_0_dir / "dataset.csv").write_text(
         "prompt\nalignment prompt\n",

@@ -334,7 +334,7 @@ def test_run_alignment_test_resume_marks_preflight_as_resume(
     monkeypatch.setattr(part_0, "run_experiment_preflight", fake_preflight)
 
     timestamp = "04-10-2026_23:29:07"
-    results_dir = tmp_path / "results" / "alignment"
+    results_dir = tmp_path / "data" / "raw" / "part_0"
     csv_path = results_dir / f"{timestamp}.csv"
     pending_path = results_dir / f"{timestamp}_pending.csv"
     metadata_path = results_dir / f"{timestamp}_meta.json"
@@ -364,7 +364,7 @@ def test_cleanup_orphan_alignment_metadata_removes_only_orphans(
     tmp_path: Path,
 ) -> None:
     monkeypatch.chdir(tmp_path)
-    results_dir = tmp_path / "results" / "alignment"
+    results_dir = tmp_path / "data" / "raw" / "part_0"
     keeper_timestamp = "04-10-2026_23:29:07"
     orphan_timestamp = "04-12-2026_19:25:41"
     keeper_csv = results_dir / f"{keeper_timestamp}.csv"
@@ -401,7 +401,7 @@ def test_run_alignment_test_does_not_write_metadata_before_preflight(
             languages=["english"],
         )
 
-    assert list((tmp_path / "results" / "alignment").glob("*_meta.json")) == []
+    assert list((tmp_path / "data" / "raw" / "part_0").glob("*_meta.json")) == []
 
 
 def test_run_alignment_test_samples_one_shared_prompt_subset_for_all_models(
@@ -826,7 +826,7 @@ def test_run_alignment_test_resume_uses_latest_interrupted_run_and_pending_rows(
         lambda _: SimpleNamespace(provider="openai", model="judge-model"),
     )
 
-    results_dir = tmp_path / "results" / "alignment"
+    results_dir = tmp_path / "data" / "raw" / "part_0"
     older_timestamp = "04-09-2026_12:00:00"
     newer_timestamp = "04-10-2026_23:29:07"
     older_csv = results_dir / f"{older_timestamp}.csv"
@@ -980,7 +980,7 @@ def test_run_alignment_test_resume_can_seed_legacy_run_metadata(
     )
 
     timestamp = "04-10-2026_23:29:07"
-    results_dir = tmp_path / "results" / "alignment"
+    results_dir = tmp_path / "data" / "raw" / "part_0"
     csv_path = results_dir / f"{timestamp}.csv"
     pending_path = results_dir / f"{timestamp}_pending.csv"
     metadata_path = results_dir / f"{timestamp}_meta.json"
@@ -1084,7 +1084,7 @@ def test_run_alignment_test_resume_preserves_judge_after_mode(
     )
 
     timestamp = "04-10-2026_23:29:07"
-    results_dir = tmp_path / "results" / "alignment"
+    results_dir = tmp_path / "data" / "raw" / "part_0"
     csv_path = results_dir / f"{timestamp}.csv"
     pending_path = results_dir / f"{timestamp}_pending.csv"
     metadata_path = results_dir / f"{timestamp}_meta.json"
