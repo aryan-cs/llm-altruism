@@ -78,5 +78,6 @@ docs/**/*.synctex.gz
 # Editors and OS files
 .vscode/
 .idea/
+.hidden-items.json
 .DS_Store
 Thumbs.db
