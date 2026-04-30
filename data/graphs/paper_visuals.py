@@ -28,6 +28,10 @@ OUTPUT_DIR = Path("data") / "graphs" / "paper_visuals"
 MODEL_DECISIONS_PER_FULL_COMMONS_RUN = 5000
 COMMONS_HORIZON_DAYS = 100
 COMMONS_SOCIETY_SIZE = 50
+LOW_SCORE_COLOR = "#f04357"
+HIGH_SCORE_COLOR = "#71e65a"
+MISSING_SCORE_COLOR = "#e5e7eb"
+NEUTRAL_SCORE_COLOR = "#f6f7fb"
 FRAME_ORDER = ("self_direct", "advice", "observer_evaluation", "prediction")
 FRAME_LABELS = {
     "self_direct": "Self-direct",
@@ -98,7 +102,7 @@ def _setup_matplotlib():
     )
     cmap = LinearSegmentedColormap.from_list(
         "prosocial_score",
-        ["#b94a48", "#f6f7fb", "#2f8f83"],
+        [LOW_SCORE_COLOR, NEUTRAL_SCORE_COLOR, HIGH_SCORE_COLOR],
         N=256,
     )
     return plt, cmap
@@ -192,7 +196,7 @@ def render_behavioral_fingerprint_heatmap() -> Path:
     for row_index in range(matrix.shape[0]):
         for col_index in range(matrix.shape[1]):
             value = matrix[row_index, col_index]
-            text_color = "white" if value < 24 or value > 78 else "#111827"
+            text_color = "white" if value < 28 else "#111827"
             ax.text(col_index, row_index, f"{value:.0f}", ha="center", va="center", fontsize=7, color=text_color)
 
     cbar = fig.colorbar(image, ax=ax, fraction=0.025, pad=0.02)
@@ -235,7 +239,7 @@ def render_frame_sensitivity_heatmap() -> Path:
     for row_index in range(matrix.shape[0]):
         for col_index in range(matrix.shape[1]):
             value = matrix[row_index, col_index]
-            text_color = "white" if value < 24 or value > 78 else "#111827"
+            text_color = "white" if value < 28 else "#111827"
             ax.text(col_index, row_index, f"{value:.0f}", ha="center", va="center", fontsize=7, color=text_color)
 
     cbar = fig.colorbar(image, ax=ax, fraction=0.04, pad=0.03)
@@ -383,7 +387,7 @@ def render_agent_day_raster() -> Path:
 
     plt, _cmap = _setup_matplotlib()
     models, _trajectories, raster = _part2_trajectories()
-    cmap = ListedColormap(["#c9514a", "#2f8f83", "#e5e7eb"])
+    cmap = ListedColormap([LOW_SCORE_COLOR, HIGH_SCORE_COLOR, MISSING_SCORE_COLOR])
     norm = BoundaryNorm([-0.5, 0.5, 1.5, 2.5], cmap.N)
     fig, ax = plt.subplots(figsize=(12.5, 10.8))
     ax.imshow(raster, cmap=cmap, norm=norm, aspect="auto", interpolation="nearest")
@@ -398,9 +402,9 @@ def render_agent_day_raster() -> Path:
     for boundary in range(1, len(models)):
         ax.axhline(boundary * COMMONS_SOCIETY_SIZE - 0.5, color="white", linewidth=1.1)
     handles = [
-        mpatches.Patch(color="#2f8f83", label="Restrain"),
-        mpatches.Patch(color="#c9514a", label="Overuse"),
-        mpatches.Patch(color="#e5e7eb", label="No active decision"),
+        mpatches.Patch(color=HIGH_SCORE_COLOR, label="Restrain"),
+        mpatches.Patch(color=LOW_SCORE_COLOR, label="Overuse"),
+        mpatches.Patch(color=MISSING_SCORE_COLOR, label="No active decision"),
     ]
     ax.legend(handles=handles, loc="upper center", bbox_to_anchor=(0.5, -0.065), ncol=3, frameon=False)
     fig.tight_layout()
@@ -461,7 +465,7 @@ def render_part2_restraint_choice_heatmap() -> Path:
                 matrix[model_index, day_index] = row["restraint_rate"]
 
     heatmap_cmap = cmap.copy()
-    heatmap_cmap.set_bad("#e5e7eb")
+    heatmap_cmap.set_bad(MISSING_SCORE_COLOR)
     fig, ax = plt.subplots(figsize=(12.2, 6.6))
     image = ax.imshow(
         matrix,
