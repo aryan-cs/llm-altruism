@@ -59,9 +59,10 @@ uv run python data/graphs/part_0_graphs.py --latest
 uv run python data/graphs/part_1_graphs.py --latest
 uv run python data/graphs/part_2_graphs.py --latest
 uv run python data/graphs/cross_part_graphs.py
+uv run python data/graphs/paper_visuals.py
 ```
 
-The main paper uses selected master plots plus readable individual cross-part scatterplots. The graph tree also contains model-family plots and the full set of individual cross-part scatterplots for reviewer inspection.
+The main paper uses selected master plots, readable individual cross-part scatterplots, and paper-specific visual diagnostics rendered by `data/graphs/paper_visuals.py`. The graph tree also contains model-family plots and the full set of individual cross-part scatterplots for reviewer inspection.
 
 ## Paper PDF
 

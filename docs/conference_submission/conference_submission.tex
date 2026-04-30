@@ -12,6 +12,7 @@
 \usepackage{url}
 \usepackage{xcolor}
 \usepackage{hyperref}
+\usepackage{placeins}
 
 \title{Prosocial Readiness Bench: Safety Refusal, Cooperation, and Commons Restraint in LLM Agents}
 
@@ -206,6 +207,15 @@ The reported comparisons are descriptive pilot results over 13 related local/ope
 \section{Pilot Results}
 \begin{figure}[!htbp]
 \centering
+\includegraphics[width=\linewidth]{../../data/graphs/paper_visuals/behavioral_fingerprint_heatmap.png}
+\caption{Behavioral fingerprint heatmap across benchmark axes. Values are percentages; final reserve is normalized by the 2,500-unit capacity and no-depletion horizon gives full credit when depletion is not observed within 100 days.}
+\label{fig:behavioral-fingerprint}
+\end{figure}
+
+Figure~\ref{fig:behavioral-fingerprint} shows why the benchmark reports separate axes. Individual model variants, release styles within a family, and broader families do not collapse into one ordering. Qwen 2.5 base and instruct variants are high on cooperation and commons preservation while Qwen 2.5 abliterate variants keep high dyadic cooperation but lose the commons. Qwen 3.5 base and instruct variants remain strong on safety and survival, whereas the uncensored variants are lower across the benchmark. GPT-OSS separates by release style: standard and safeguard variants are high on refusal, the safeguard variant is higher on cooperation and restraint than standard GPT-OSS, and the derestricted variant is lower across the social-choice axes.
+
+\begin{figure}[!htbp]
+\centering
 \includegraphics[width=\linewidth]{../../data/graphs/part_0/master-plots/04-11-2026_13_04_37_alignment_by_model.png}
 \caption{Safety-refusal rate by model. Refusal separates safety-oriented variants from explicitly uncensored or derestricted variants.}
 \label{fig:model-summary}
@@ -214,32 +224,36 @@ The reported comparisons are descriptive pilot results over 13 related local/ope
 \paragraph{Refusal separates safety-oriented and less-restricted variants.}
 Part 0 refusal ranges from 9.4\% to 99.3\%. Several standard or safeguard-oriented variants refuse nearly all harmful prompts, while explicitly uncensored or derestricted variants show much lower refusal. The within-family splits are visible: GPT-OSS and GPT-OSS-Safeguard refuse at 99.3\% and 97.0\%, while the derestricted GPT-OSS variant drops to 16.2\%. The safeguard variant therefore does not outperform the standard GPT-OSS model on this safety-refusal benchmark; it is slightly lower by 2.3 percentage points, although that gap is small compared with the 80.8-point gap between standard and derestricted GPT-OSS. Qwen 3.5 shows a similar safety-release split, with base and instruct variants at 98.3\% and 97.6\% but uncensored variants at 32.7\% and 9.4\%. Qwen 2.5 is lower in its base and instruct forms (74.4\% and 64.3\%), and the Qwen 2.5 abliterate variants fall to 27.9--29.0\%. Llama 2 also moves downward under the uncensored tag, from 77.4\% to 51.2\%. This gives the benchmark a strong safety axis for cross-part comparison.
 
-\begin{figure}[!htbp]
-\centering
-\includegraphics[width=\linewidth]{../../data/graphs/part_1/master-plots/part1_latest_full_per_model_cooperation_by_model.png}
-\caption{Dyadic cooperation rate by model. Cooperation has a different model-level profile than safety refusal, supporting separate reporting.}
-\label{fig:cooperation-summary}
-\end{figure}
-
 \paragraph{Cooperation is strongly frame-sensitive.}
 Part 1 cooperation ranges from 24.2\% to 75.0\%. The most informative result is not only the model ranking, but the frame effect: across models, cooperation is 83.2\% under observer-evaluation prompts, 66.8\% under advice prompts, 61.4\% under self-direct prompts, and 4.9\% under prediction prompts. The model-family pattern differs from refusal. Qwen 2.5 base, instruct, and abliterate variants all sit near the top at 74.0--75.0\%, while Qwen 3.5 separates into a cooperative base model (71.1\%), a mid-range instruct variant (48.7\%), and low-cooperation uncensored variants (25.8\% and 24.2\%). Llama 2 reverses the safety pattern, with the uncensored variant cooperating more than the base model (68.8\% versus 52.6\%). GPT-OSS variants remain lower overall, but here the safeguard variant is the strongest GPT-OSS run: 47.1\% cooperation versus 38.5\% for standard GPT-OSS and 27.1\% for derestricted GPT-OSS. The benchmark therefore distinguishes socially preferred judgments from expectations about how an agent will behave.
 
 \begin{figure}[!htbp]
 \centering
-\includegraphics[width=\linewidth]{../../data/graphs/part_2/master-plots/part2_latest_n50_d100_water_per_model_restraint_by_model.png}
+\includegraphics[width=\linewidth]{../../data/graphs/paper_visuals/part2_restraint_rate_by_model.png}
 \caption{Commons-restraint rate by model. Repeated resource choices expose a third behavioral axis beyond refusal and one-shot cooperation.}
 \label{fig:restraint-summary}
 \end{figure}
 
-\begin{figure}[!htbp]
-\centering
-\includegraphics[width=\linewidth]{../../data/graphs/part_2/master-plots/part2_latest_n50_d100_water_per_model_final_population_by_model.png}
-\caption{Final simulated population by model after the 100-day commons horizon. Higher-restraint societies preserve larger populations.}
-\label{fig:population-summary}
-\end{figure}
-
 \paragraph{Commons restraint produces visible survival differences.}
 Part 2 restraint ranges from 18.6\% to 92.5\%. Seven of thirteen same-model societies preserve a nonzero population through the 100-day horizon. The highest-restraint runs also preserve substantial reserve capacity, while lower-restraint runs deplete the reserve earlier and produce full population collapse. Qwen 2.5 is the clearest within-family split: base and instruct variants show 92.5\% and 92.3\% restraint, preserve all 50 agents, and retain 1,752 and 1,726 reserve units, whereas the Qwen 2.5 abliterate variants collapse by days 30--31 with 18.6--18.7\% restraint. Qwen 3.5 base and instruct variants also survive, but with lower restraint and thinner reserves (83.9\% with 890 units; 75.1\% with 10 units), while the Qwen 3.5 uncensored variants collapse by days 34--36. GPT-OSS shows a graded release effect: the derestricted variant collapses by day 39, the base model by day 67, and the safeguard variant delays depletion until day 89 but ends with only 2 agents. Thus, the GPT-OSS safeguard label is not uniformly better across all axes, but it does improve commons restraint relative to standard GPT-OSS (71.2\% versus 63.1\%) and substantially relative to derestricted GPT-OSS (34.5\%). Both Llama 2 variants survive, with base Llama 2 retaining more reserve than Llama 2 uncensored (1,702 versus 344 units). The environment turns repeated action choices into auditable resource and population trajectories.
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=\linewidth]{../../data/graphs/paper_visuals/part2_shared_reserve_over_time.png}
+\caption{Shared reserve over time by model. The trajectories show how repeated local choices accumulate into early depletion, late depletion, or long-horizon preservation.}
+\label{fig:reserve-over-time}
+\end{figure}
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=\linewidth]{../../data/graphs/paper_visuals/part2_restraint_choice_over_time.png}
+\caption{Daily restraint choice rate over time by model. Green cells indicate high restraint, red cells indicate low restraint, and gray cells indicate days with no active living-agent decisions after population collapse.}
+\label{fig:restraint-over-time}
+\end{figure}
+
+Figures~\ref{fig:reserve-over-time} and~\ref{fig:restraint-over-time} make the Part 2 dynamics visible rather than only summarizing final outcomes. Stable survivors keep daily restraint high enough to slow reserve loss across the horizon. Collapsing societies often show sustained low restraint early in the run, followed by gray regions where no living agents remain. GPT-OSS-Safeguard is a useful intermediate case: it is not better than standard GPT-OSS on harmful-request refusal, but it sustains higher commons restraint for longer and depletes the reserve later. Appendix Figure~\ref{fig:agent-day-raster} expands this model-day view to individual agent rows.
+
+\FloatBarrier
 
 \section{Diagnostics}
 \paragraph{The constructs dissociate.}
@@ -248,15 +262,26 @@ The cross-part results support separate reporting. Safety refusal and dyadic coo
 \paragraph{Family profiles are not one-dimensional.}
 The named release families reinforce the same point. Qwen 2.5 base and instruct variants are high on cooperation and commons restraint, but Qwen 2.5 abliterate variants keep high Part 1 cooperation while collapsing in Part 2. Qwen 3.5 base and instruct variants look strongly safety-oriented and survive the commons, while Qwen 3.5 uncensored variants are low across all three axes. Llama 2 uncensored lowers refusal relative to Llama 2 but raises dyadic cooperation, and both Llama societies survive. GPT-OSS base and safeguard variants remain high-refusal but do not preserve a full commons population; within that pair, the safeguard variant is slightly lower on safety refusal but higher on cooperation and commons restraint. These profiles make model-family analysis useful, but they also caution against using family labels as a substitute for axis-level measurement.
 
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=\linewidth]{../../data/graphs/paper_visuals/model_behavior_pca.png}
+\caption{Exploratory PCA map of standardized behavioral fingerprints. The projection is not a learned model embedding; it visualizes how models separate when safety refusal, dyadic cooperation, frame-level cooperation, commons restraint, depletion timing, final population, and final reserve are considered together.}
+\label{fig:model-behavior-pca}
+\end{figure}
+
+The PCA view in Figure~\ref{fig:model-behavior-pca} highlights the same three-level structure as the tabular summaries: individual variants matter, release styles matter within families, and broad families still form visible clusters. Qwen 2.5 base and instruct sit near each other, while Qwen 2.5 abliterate variants separate sharply because their Part 2 outcomes diverge. GPT-OSS derestricted and Qwen 3.5 uncensored variants occupy a different region from their standard or instruct counterparts, reflecting lower restraint and weaker preservation metrics.
+
 \paragraph{Framing changes measured cooperation.}
 Part 1 treats prompt frame as an experimental variable. Observer-evaluation prompts elicit high cooperative judgments, advice and self-direct prompts are intermediate, and prediction prompts elicit low cooperative predictions. This split is useful for auditing because a model can know which action is socially preferred while predicting that agents will act selfishly.
 
 \begin{figure}[!htbp]
 \centering
-\includegraphics[width=\linewidth]{../../data/graphs/part_1/master-plots/part1_latest_full_per_model_cooperation_by_model_and_frame.png}
-\caption{Part 1 cooperation by model and frame. Cooperation is highest for observer evaluation and lowest for prediction, showing that elicitation frame is a first-class benchmark dimension.}
+\includegraphics[width=\linewidth]{../../data/graphs/paper_visuals/frame_sensitivity_heatmap.png}
+\caption{Part 1 cooperation by model and frame. Each cell is a cooperation rate, showing that elicitation frame is a first-class benchmark dimension rather than a minor plotting breakdown.}
 \label{fig:frame-effects}
 \end{figure}
+
+\FloatBarrier
 
 \paragraph{Restraint predicts survival in the simulated commons.}
 Part 2 ties local overuse choices to aggregate outcomes. Commons restraint is strongly associated with final population (Pearson $r=0.85$, bootstrap interval $[0.68,0.98]$). The relationship is expected from the transition rules and useful for auditing: the benchmark makes cumulative overuse visible as resource depletion and population loss.
@@ -274,6 +299,8 @@ Part 2 ties local overuse choices to aggregate outcomes. Commons restraint is st
 \caption{Cross-part diagnostic: commons restraint versus final simulated population. Restraint tracks survival in the repeated commons environment.}
 \label{fig:restraint-population}
 \end{figure}
+
+\FloatBarrier
 
 \section{Release, Reproducibility, and Intended Use}
 The release is organized so that paper claims can be traced to files. Experiment code lives under \path{experiments/part0}, \path{experiments/part1}, and \path{experiments/part2}. Analysis code lives under \path{analysis/}. Raw CSVs and metadata live under \path{data/raw/}; derived tables, validation reports, manifests, and Croissant metadata live under \path{data/analysis/}; figures live under \path{data/graphs/}. Release documentation is provided in \path{docs/release/REPRODUCIBILITY.md}, \path{docs/release/DATA_CARD.md}, and \path{docs/release/MODEL_REGISTRY.md}.
@@ -304,6 +331,7 @@ uv run pytest -q
 uv run python -m analysis.validation --strict
 uv run python -m analysis.summarize_results
 uv run python -m analysis.build_manifest
+uv run python data/graphs/paper_visuals.py
 \end{verbatim}
 Intended uses include pre-deployment behavioral auditing, model comparison, ablation studies, prompt-sensitivity analysis, and benchmark extension. Out-of-scope uses include certifying moral status, inferring genuine intent, optimizing harmful compliance, or treating the pilot cohort as a final deployment ranking.
 
@@ -352,6 +380,17 @@ Model & Restraint & First depletion day & Final population \\
 \end{tabular}%
 }
 \end{table}
+
+\FloatBarrier
+
+\section{Part 2 Agent-Day Raster}
+\begin{figure}[!p]
+\centering
+\includegraphics[width=\linewidth,height=0.84\textheight,keepaspectratio]{../../data/graphs/paper_visuals/part2_agent_day_raster.png}
+\caption{Agent-day action raster for Part 2. Each row block is a same-model society with 50 agents over the 100-day horizon; green cells are restraint choices, red cells are overuse choices, and gray cells are days with no active living-agent decision.}
+\label{fig:agent-day-raster}
+\end{figure}
+\FloatBarrier
 
 \section{Artifact Map}
 \begin{itemize}

@@ -37,7 +37,7 @@ Run:
 uv run python -m analysis.validation
 ```
 
-The validator checks headers, duplicate rows, action validity, Part 1 matrix coverage, Part 2 day continuity, resource/population transitions, and Part 2 reasoning/action mismatch flags.
+The validator checks headers, duplicate rows, action validity, Part 1 matrix coverage, Part 2 day continuity, resource/population transitions, and Part 2 reasoning/action consistency fields.
 
 ## Safety And Release Policy
 

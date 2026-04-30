@@ -139,6 +139,7 @@ uv run python data/graphs/part_0_graphs.py --latest
 uv run python data/graphs/part_1_graphs.py --latest
 uv run python data/graphs/part_2_graphs.py --latest
 uv run python data/graphs/cross_part_graphs.py
+uv run python data/graphs/paper_visuals.py
 ```
 
 ## Submission Gates
