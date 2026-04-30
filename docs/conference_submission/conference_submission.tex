@@ -204,39 +204,37 @@ The reported comparisons are descriptive pilot results over 13 related local/ope
 \section{Pilot Results}
 \begin{figure}[H]
 \centering
-\begin{minipage}{0.48\linewidth}
-\centering
-\includegraphics[width=\linewidth]{../../data/graphs/part_0/master-plots/04-11-2026_13_04_37_alignment_by_model.png}\\
-\small (a) Safety refusal
-\end{minipage}
-\hfill
-\begin{minipage}{0.48\linewidth}
-\centering
-\includegraphics[width=\linewidth]{../../data/graphs/part_1/master-plots/part1_latest_full_per_model_cooperation_by_model.png}\\
-\small (b) Dyadic cooperation
-\end{minipage}
-
-\vspace{0.8em}
-\begin{minipage}{0.48\linewidth}
-\centering
-\includegraphics[width=\linewidth]{../../data/graphs/part_2/master-plots/part2_latest_n50_d100_water_per_model_restraint_by_model.png}\\
-\small (c) Commons restraint
-\end{minipage}
-\hfill
-\begin{minipage}{0.48\linewidth}
-\centering
-\includegraphics[width=\linewidth]{../../data/graphs/part_2/master-plots/part2_latest_n50_d100_water_per_model_final_population_by_model.png}\\
-\small (d) Final population
-\end{minipage}
-\caption{Model-level summaries across the three benchmark parts. The panels show that refusal, cooperation, commons restraint, and simulated survival have different model-level profiles.}
+\includegraphics[width=\linewidth]{../../data/graphs/part_0/master-plots/04-11-2026_13_04_37_alignment_by_model.png}
+\caption{Safety-refusal rate by model. Refusal separates safety-oriented variants from explicitly uncensored or derestricted variants.}
 \label{fig:model-summary}
 \end{figure}
 
 \paragraph{Refusal separates safety-oriented and less-restricted variants.}
 Part 0 refusal ranges from 9.4\% to 99.3\%. Several standard or safeguard-oriented variants refuse nearly all harmful prompts, while explicitly uncensored or derestricted variants show much lower refusal. This gives the benchmark a strong safety axis for cross-part comparison.
 
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{../../data/graphs/part_1/master-plots/part1_latest_full_per_model_cooperation_by_model.png}
+\caption{Dyadic cooperation rate by model. Cooperation has a different model-level profile than safety refusal, supporting separate reporting.}
+\label{fig:cooperation-summary}
+\end{figure}
+
 \paragraph{Cooperation is strongly frame-sensitive.}
 Part 1 cooperation ranges from 24.2\% to 75.0\%. The most informative result is not only the model ranking, but the frame effect: across models, cooperation is 83.2\% under observer-evaluation prompts, 66.8\% under advice prompts, 61.4\% under self-direct prompts, and 4.9\% under prediction prompts. The benchmark therefore distinguishes socially preferred judgments from expectations about how an agent will behave.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{../../data/graphs/part_2/master-plots/part2_latest_n50_d100_water_per_model_restraint_by_model.png}
+\caption{Commons-restraint rate by model. Repeated resource choices expose a third behavioral axis beyond refusal and one-shot cooperation.}
+\label{fig:restraint-summary}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{../../data/graphs/part_2/master-plots/part2_latest_n50_d100_water_per_model_final_population_by_model.png}
+\caption{Final simulated population by model after the 100-day commons horizon. Higher-restraint societies preserve larger populations.}
+\label{fig:population-summary}
+\end{figure}
 
 \paragraph{Commons restraint produces visible survival differences.}
 Part 2 restraint ranges from 18.6\% to 92.5\%. Seven of thirteen same-model societies preserve a nonzero population through the 100-day horizon. The highest-restraint runs also preserve substantial reserve capacity, while lower-restraint runs deplete the reserve earlier and produce full population collapse. The environment turns repeated action choices into auditable resource and population trajectories.
@@ -250,7 +248,7 @@ Part 1 treats prompt frame as an experimental variable. Observer-evaluation prom
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.92\linewidth]{../../data/graphs/part_1/master-plots/part1_latest_full_per_model_cooperation_by_model_and_frame.png}
+\includegraphics[width=\linewidth]{../../data/graphs/part_1/master-plots/part1_latest_full_per_model_cooperation_by_model_and_frame.png}
 \caption{Part 1 cooperation by model and frame. Cooperation is highest for observer evaluation and lowest for prediction, showing that elicitation frame is a first-class benchmark dimension.}
 \label{fig:frame-effects}
 \end{figure}
@@ -263,19 +261,16 @@ The validation pipeline flags \texttt{OVERUSE} rows whose reasoning describes th
 
 \begin{figure}[H]
 \centering
-\begin{minipage}{0.48\linewidth}
-\centering
-\includegraphics[width=\linewidth]{../../data/graphs/cross_part/individual-plots/safety_refusal_vs_restraint.png}\\
-\small (a) Refusal vs. commons restraint
-\end{minipage}
-\hfill
-\begin{minipage}{0.48\linewidth}
-\centering
-\includegraphics[width=\linewidth]{../../data/graphs/cross_part/individual-plots/restraint_vs_final_population.png}\\
-\small (b) Commons restraint vs. final population
-\end{minipage}
-\caption{Cross-part diagnostics. Refusal and commons restraint are positively associated in this cohort, and commons restraint tracks final simulated population.}
+\includegraphics[width=\linewidth]{../../data/graphs/cross_part/individual-plots/safety_refusal_vs_restraint.png}
+\caption{Cross-part diagnostic: safety refusal versus commons restraint. The two axes are positively associated in this cohort but remain separately reported benchmark measurements.}
 \label{fig:cross-diagnostics}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{../../data/graphs/cross_part/individual-plots/restraint_vs_final_population.png}
+\caption{Cross-part diagnostic: commons restraint versus final simulated population. Restraint tracks survival in the repeated commons environment.}
+\label{fig:restraint-population}
 \end{figure}
 
 \section{Release, Reproducibility, and Intended Use}
