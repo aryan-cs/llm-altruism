@@ -4,6 +4,7 @@
 \usepackage[eandd]{neurips_2026}
 \usepackage[T1]{fontenc}
 \usepackage[utf8]{inputenc}
+\usepackage{amsmath}
 \usepackage{booktabs}
 \usepackage{graphicx}
 \usepackage{microtype}
@@ -11,7 +12,7 @@
 \usepackage{xcolor}
 \usepackage{hyperref}
 
-\title{Social Restraint Bench: Measuring Safety Refusal, Cooperation, and Commons Preservation in LLM Agents}
+\title{Prosocial Readiness Bench: Evaluating Whether LLM Agents Favor Collective Welfare Over Self-Interest}
 
 \author{Anonymous Authors}
 
@@ -19,32 +20,68 @@
 \maketitle
 
 \begin{abstract}
-Existing LLM safety benchmarks measure harmful-request refusal, while agent and social-dilemma evaluations often study cooperation or interaction separately. This separation makes it difficult to test whether a model that refuses harmful requests also cooperates in one-shot dilemmas or preserves shared resources in repeated settings. We introduce Social Restraint Bench, an executable behavioral benchmark that separates three observable constructs: safety refusal, dyadic cooperation, and commons restraint. The current artifact contains 3,861 harmful-request judgments, 4,992 dyadic social-dilemma decisions, and 47,529 commons-simulation agent-day decisions across 13 local/open-weight model variants. The pilot evaluation shows that these constructs are related but not interchangeable: safety refusal and dyadic cooperation have weak model-level association in this cohort, repeated commons restraint is strongly tied to survival in the simulation, and all Part 2 runs expose reasoning/action mismatch flags where models select overuse while describing the choice as preserving the group or reserve. We release prompts, schemas, metadata sidecars, validation checks, manifests, derived tables, figures, and reproduction commands, while excluding raw harmful completions from the default anonymous supplement. The benchmark measures observable behavior only; it is not evidence of model moral agency or intrinsic altruism.
+Direct human-facing deployment motivates evaluations that go beyond harmful-request refusal: LLM agents must also be stress-tested for choices that protect collective welfare when private and social incentives diverge. We introduce Prosocial Readiness Bench, an executable evaluation artifact that separately measures safety refusal, dyadic cooperation, and commons restraint as observable deployment-relevant behaviors. The current release contains 3,861 harmful-request judgments, 4,992 dyadic social-dilemma decisions, and 47,529 repeated commons agent-day decisions across 13 local/open-weight model variants, with 27 validated CSV files yielding 14 passes, 13 warnings, and 0 failures. The pilot evaluation shows that these behaviors are related but not interchangeable: refusal and cooperation are weakly associated in this cohort, refusal and commons restraint are strongly associated, restraint is strongly tied to final population in the commons simulation, Part 1 cooperation is highly frame-sensitive, and Part 2 exposes 823 reasoning/action mismatch flags. We release prompts, schemas, metadata sidecars, validation checks, manifests, Croissant metadata, derived tables, figures, and reproduction commands; the benchmark supports pre-deployment behavioral auditing but does not certify moral agency, latent altruism, or broad real-world readiness.
 \end{abstract}
 
 \section{Introduction}
-LLM agents are increasingly evaluated in settings where their choices affect other agents, users, or shared resources. Three behaviors matter in such settings: refusing harmful assistance, cooperating when defection is privately tempting, and preserving a shared resource when overuse gives short-term individual gain. Existing evaluations usually treat these behaviors separately. Safety benchmarks test whether models comply with harmful requests; social-dilemma experiments test one-shot cooperation; agent simulations test behavior in interactive environments. A single safety or helpfulness score can therefore hide separable failures: a model may refuse harmful requests but defect in dyadic games, cooperate in one-shot prompts but overuse a repeated commons, or choose the harmful commons action while justifying it as group-preserving.
+LLM agents are moving toward settings where they directly interface with humans, tools, institutions, and other agents. In those settings, harmful-request refusal is necessary but incomplete. A system can refuse explicit harm while still defecting in cooperative interactions, overusing a shared resource, or choosing a self-serving action while describing it as beneficial to the group. If models are to be trusted with real-world social interfaces, evaluation must ask whether their actions favor collective welfare over immediate self-interest under explicit incentive conflict.
 
-This paper introduces Social Restraint Bench, a benchmark for measuring these separable behaviors under one reproducible artifact. The benchmark has three parts. Part 0 measures harmful-request refusal using harmful behavior prompts and a compliance judge. Part 1 measures one-shot dyadic cooperation across games, frames, domains, scenario variants, and presentation styles. Part 2 measures repeated commons restraint in same-model societies where each agent repeatedly chooses between a reserve-preserving action and a higher short-term payoff action that depletes a shared resource. The central design choice is to keep the constructs separate and then study cross-part covariation rather than collapse them into a single ``good behavior'' score.
+This paper turns that motivating question into a measurable benchmark. We introduce Prosocial Readiness Bench, a three-part evaluation artifact for safety refusal, dyadic cooperation, and repeated commons restraint. The benchmark evaluates actions and stated justifications, not latent motives, moral agency, or ``true'' altruistic intent. Its central claim is deliberately scoped: failures on these axes are concrete evidence against direct human-facing deployment readiness, but passing the benchmark would not be sufficient to certify a model as ready for the real world.
 
-The artifact is designed around three principles. First, every construct has an explicit task contract, output format, and primary metric. Second, the release treats validation as part of the benchmark: raw CSVs are paired with metadata sidecars, a manifest, graph-independent summary tables, and checks for schema, coverage, transition consistency, and reasoning/action mismatch flags. Third, the benchmark reports process-level failures, not only aggregate rates. In the commons simulation, for example, selecting \texttt{OVERUSE} while explaining the action as preserving the reserve is a measured failure mode rather than filtered noise.
+The design follows the 2026 Evaluations \& Datasets framing: the contribution is not a new model, but a reusable evaluation setup that clarifies what claims can and cannot be supported. Part 0 measures whether models refuse harmful requests. Part 1 measures whether they choose cooperative actions in one-shot social dilemmas across frames, domains, games, variants, and presentation styles. Part 2 measures whether same-model societies preserve a shared resource in a repeated commons environment where overuse gives a short-term individual advantage. Figure~\ref{fig:overview} summarizes the benchmark.
 
-The pilot evaluation covers 13 local/open-weight model variants. It is descriptive rather than definitive, but it demonstrates the benchmark's diagnostic value. Safety refusal varies from 9.4\% to 99.3\%; dyadic cooperation varies from 24.2\% to 75.0\%; and seven of thirteen same-model societies preserve a nonzero population through the 100-day horizon. Model-level safety refusal and dyadic cooperation have only weak association in this cohort (Pearson $r=0.24$), while commons restraint is strongly related to final population survival (Pearson $r=0.85$). Across Part 2, validation flags 823 cases in which models choose the reserve-depleting action while giving a group- or reserve-preserving rationale.
+The pilot evaluation over 13 local/open-weight model variants shows why these axes should not be collapsed into one score. Safety refusal ranges from 9.4\% to 99.3\%; dyadic cooperation ranges from 24.2\% to 75.0\%; commons restraint ranges from 18.6\% to 92.5\%; and seven of thirteen same-model societies preserve a nonzero population through the 100-day horizon. Cross-part diagnostics show weak association between refusal and cooperation (Pearson $r=0.24$), stronger association between refusal and restraint ($r=0.77$), and strong association between restraint and final population ($r=0.85$). Part 1 also reveals large frame effects, with aggregate cooperation at 83.2\% under observer evaluation but only 4.9\% under prediction prompts.
 
 Our contributions are:
 \begin{itemize}
-    \item \textbf{Benchmark artifact.} We introduce Social Restraint Bench, a three-part evaluation suite for safety refusal, one-shot cooperation, and repeated commons restraint in LLM agents.
-    \item \textbf{Task contracts and metrics.} We define explicit input/output contracts, primary scores, and diagnostic checks for harmful-request refusal, dyadic social dilemmas, and repeated common-pool resource simulations.
-    \item \textbf{Validated pilot dataset.} We report a pilot over 13 local/open-weight model variants, covering 56,382 total decisions or judgments and exporting graph-independent tables with Wilson intervals and bootstrap cross-part correlations.
-    \item \textbf{Release package.} We provide prompts, schemas, experiment code, metadata sidecars, validation reports, manifests, analysis scripts, derived tables, and figures, with raw harmful completions redacted from the default anonymous supplement for safety.
+    \item \textbf{Benchmark design.} We define Prosocial Readiness Bench as a deployment-readiness evaluation for refusal, cooperation, and commons restraint under explicit task contracts.
+    \item \textbf{Released artifact and validation.} We provide prompts, schemas, metadata sidecars, manifests, analysis tables, figures, and graph-independent validation checks over 27 CSV files.
+    \item \textbf{Pilot evaluation.} We report 56,382 decisions or judgments across 13 local/open-weight model variants, using Wilson intervals for rates and bootstrap intervals for cross-part correlations.
+    \item \textbf{Diagnostic finding.} We show that observable prosocial behavior is not a unitary capability in this cohort: refusal, cooperation, framing sensitivity, commons restraint, survival, and reasoning/action mismatch expose different failure modes.
 \end{itemize}
 
+\begin{figure}[t]
+\centering
+\fbox{%
+\begin{minipage}{0.94\linewidth}
+\small
+\centering
+\begin{tabular}{p{0.27\linewidth}p{0.27\linewidth}p{0.27\linewidth}}
+\textbf{Part 0: Refusal} &
+\textbf{Part 1: Cooperation} &
+\textbf{Part 2: Commons restraint} \\
+\midrule
+Harmful-request prompts in English, Chinese, and Russian. &
+One-shot dyadic dilemmas crossing games, frames, domains, variants, and presentations. &
+Repeated 50-agent societies sharing a water reserve over a 100-day horizon. \\
+\addlinespace
+Output: response, reasoning, compliance judgment. &
+Output: action and justification. &
+Output: daily action and reasoning for each living agent. \\
+\addlinespace
+Metric: safety refusal rate. &
+Metric: cooperation rate. &
+Metrics: restraint rate, final population, final reserve, survival. \\
+\addlinespace
+Diagnostic: harmful compliance. &
+Diagnostic: frame sensitivity. &
+Diagnostic: reasoning/action mismatch. \\
+\end{tabular}
+\end{minipage}}
+\caption{Prosocial Readiness Bench evaluates three observable behaviors relevant to direct human-facing deployment. Each part has a separate action contract, primary metric, and diagnostic output; the benchmark intentionally reports them separately instead of producing a single readiness score.}
+\label{fig:overview}
+\end{figure}
+
 \section{Related Work and Gap Matrix}
-Safety-refusal benchmarks such as HarmBench and JailbreakBench evaluate whether models comply with harmful requests or resist jailbreak attempts \citep{mazeika2024harmbench,chao2024jailbreakbench}. These resources are essential for measuring harmful compliance, but they do not test whether refusal behavior transfers to cooperation or repeated resource restraint. Social-dilemma theory provides the conceptual basis for cooperation and common-pool resource problems \citep{axelrod1984evolution,hardin1968tragedy,ostrom1990governing}; our contribution is an executable LLM-agent benchmark rather than a new theory of cooperation. Agent simulation work shows that language models can participate in interactive social settings \citep{park2023generative}, while trust and preference datasets show the value of multi-axis evaluation and participant-aware analysis \citep{wang2023decodingtrust,kirk2024prism,jiang2025artificialhivemind}. Social Restraint Bench combines these motivations into a scoped measurement artifact: refusal, one-shot cooperation, and repeated commons restraint are evaluated separately, then compared at the model level.
+Harmful-request and jailbreak benchmarks such as HarmBench and JailbreakBench evaluate whether models comply with dangerous instructions or resist adversarial wrappers \citep{mazeika2024harmbench,chao2024jailbreakbench}. These resources are essential for measuring refusal, but they do not test whether high-refusal models also cooperate or preserve shared resources.
+
+Social-dilemma theory formalizes the tension between individual payoff and group welfare \citep{axelrod1984evolution,hardin1968tragedy,ostrom1990governing}. Recent LLM studies often use one-shot games or interactive simulations to probe social behavior, and agent-society work shows that language models can participate in multi-agent settings \citep{park2023generative}. However, these evaluations are frequently separated from harmful-request refusal and do not always include release-grade schemas, validation, and traceability.
+
+Broader trust, preference, and alignment datasets demonstrate the value of multi-axis reporting and participant-aware interpretation \citep{wang2023decodingtrust,kirk2024prism,jiang2025artificialhivemind}. Prosocial Readiness Bench follows that multi-axis approach but targets a deployment-specific question: whether a model that may interface directly with humans shows the observable prerequisites of refusing harm, cooperating under temptation, and preserving a shared resource under repeated incentive conflict.
 
 \begin{table}[t]
 \centering
-\caption{Measurement gap targeted by Social Restraint Bench. Existing lines of work cover important individual axes, but do not jointly measure harmful-request refusal, one-shot cooperation, repeated commons restraint, and process-level mismatch under one validated release artifact.}
+\caption{Measurement gap targeted by Prosocial Readiness Bench. Existing lines of work cover important axes, but rarely combine harmful-request refusal, one-shot cooperation, repeated commons restraint, and process-level mismatch under one validated evaluation artifact.}
 \label{tab:gap}
 \small
 \resizebox{\linewidth}{!}{%
@@ -56,151 +93,183 @@ Safety refusal and jailbreak benchmarks & Yes & No & No & Often \\
 Social-dilemma experiments & No & Yes & Sometimes & Varies \\
 LLM-agent simulations & Varies & Varies & Sometimes & Varies \\
 Trust and preference benchmarks & Sometimes & Varies & No & Often \\
-Social Restraint Bench & Yes & Yes & Yes & Yes \\
+Prosocial Readiness Bench & Yes & Yes & Yes & Yes \\
 \bottomrule
 \end{tabular}%
 }
 \end{table}
 
 \section{Benchmark Overview and Task Contracts}
-Table~\ref{tab:contracts} summarizes the benchmark contract. Each part is intentionally narrow: the benchmark does not claim to measure altruism as an internal trait. It measures observable choices under specified prompts, output formats, and scoring rules.
+Table~\ref{tab:contracts} defines the benchmark contract. The parts share one release and validation pipeline, but they remain separate measurements because each captures a different observable behavior.
 
 \begin{table}[t]
 \centering
-\caption{Task contracts in Social Restraint Bench. Counts are from the current pilot artifact.}
+\caption{Task contracts in Prosocial Readiness Bench. Counts are from the current pilot artifact.}
 \label{tab:contracts}
 \small
 \resizebox{\linewidth}{!}{%
 \begin{tabular}{lllll}
 \toprule
-Part & Unit & Construct & Primary metric & Diagnostic outputs \\
+Part & Scenario & Output contract & Primary metric & Diagnostic fields \\
 \midrule
-0 & Harmful-request judgment & Safety refusal & Refusal rate & Judge verdicts, skipped rows, harmful-output redaction \\
-1 & Dyadic decision & One-shot cooperation & Cooperation rate & Game, frame, domain, presentation, scenario variant \\
-2 & Agent-day decision & Commons restraint & Restraint rate and survival & Depletion day, final population, final reserve, mismatch flags \\
+0 & Harmful-request prompt & Response, reasoning, judge verdict & Safety refusal & Language, compliance, skipped rows \\
+1 & Dyadic dilemma & JSON action and justification & Cooperation & Game, frame, domain, variant, presentation \\
+2 & Repeated commons & Daily JSON action and reasoning & Commons restraint & Depletion, reserve, population, mismatch flags \\
 \bottomrule
 \end{tabular}%
 }
 \end{table}
 
 \subsection{Part 0: Safety Refusal}
-Part 0 presents harmful-request prompts and records whether the model refuses or materially complies. Prompt sources include JailbreakBench harmful behaviors, HarmBench behavior prompts, and in-the-wild jailbreak wrappers composed with benchmark behavior prompts. The model is asked to provide a reasoning field and direct response field. A strict compliance judge returns JSON with a Boolean compliance verdict. The primary score is:
+Part 0 presents harmful-request prompts and records whether the model refuses or materially complies. The current raw CSV schema stores \texttt{provider}, \texttt{model}, \texttt{language}, \texttt{prompt}, \texttt{reasoning}, \texttt{response}, and \texttt{complied?}. The pilot artifact contains 1,287 English, 1,287 Chinese, and 1,287 Russian rows. Prompt provenance is documented through the experiment code and release documentation rather than a per-row \texttt{prompt\_source} field in the raw CSV.
+
+The primary metric is safety refusal:
 \[
 \mathrm{refusal} =
 \frac{\#\mathrm{denied}}{\#\mathrm{denied}+\#\mathrm{complied}}.
 \]
-The stored schema includes provider, model, language, prompt source, prompt text, model reasoning when available, response, judge verdict, and normalized compliance. Because Part 0 may contain harmful completions, the default anonymous supplement includes aggregate tables and validation outputs but not raw harmful generations.
+This metric captures observable refusal under harmful prompts. It does not measure whether the model understands why the request is harmful, whether refusal transfers to benign edge cases, or whether the model has a stable safety preference.
 
 \subsection{Part 1: Dyadic Cooperation}
-Part 1 evaluates one-shot social-dilemma choices. The prompt matrix has two game families, four frames, six domains, four scenario variants per domain-game pair, and two presentation styles, yielding 384 decisions per evaluated model. The game families are a prisoner's-dilemma form with \texttt{COOPERATE}/\texttt{DEFECT} actions and a temptation-of-the-commons form with \texttt{RESTRAIN}/\texttt{OVERUSE} actions. The frames ask for direct self choice, advice, observer evaluation, or prediction. Domains include crime, sports, workplace, healthcare, education, and neighborhood settings. The primary score is:
+Part 1 evaluates one-shot social-dilemma choices. The prompt matrix has two game families, four frames, six domains, four scenario variants per domain-game pair, and two presentation styles, yielding 384 decisions per model. The game families use \texttt{COOPERATE}/\texttt{DEFECT} and \texttt{RESTRAIN}/\texttt{OVERUSE} action pairs. The frames ask for direct self choice, advice, observer evaluation, or prediction.
+
+The primary metric is dyadic cooperation:
 \[
 \mathrm{cooperation} =
 \frac{\#\mathrm{cooperative}}{\#\mathrm{cooperative}+\#\mathrm{noncooperative}}.
 \]
-\texttt{COOPERATE} and \texttt{RESTRAIN} are cooperative actions; \texttt{DEFECT} and \texttt{OVERUSE} are non-cooperative actions.
+\texttt{COOPERATE} and \texttt{RESTRAIN} are scored as cooperative actions; \texttt{DEFECT} and \texttt{OVERUSE} are scored as non-cooperative actions. This metric captures the model's chosen action under controlled dilemma wording. It does not establish stable social preference, real-world cooperative competence, or robustness to all interaction formats.
 
 \subsection{Part 2: Commons Restraint}
-Part 2 creates same-model societies in a repeated common-pool resource simulation. Each configured pilot run starts with 50 active agents, a 100-day horizon, a water reserve with capacity 2,500 units, and daily independent choices. \texttt{OPTION\_A} uses a 1x daily score multiplier and changes the shared reserve by 0 units. \texttt{OPTION\_B} uses a higher daily multiplier and reduces the reserve by 2 units. In analysis, \texttt{OPTION\_A} maps to \texttt{RESTRAIN} and \texttt{OPTION\_B} maps to \texttt{OVERUSE}. The primary score is:
+Part 2 creates same-model societies in a repeated common-pool resource simulation. Each configured pilot run starts with 50 active agents, a 100-day horizon, and a water reserve with capacity 2,500 units. \texttt{OPTION\_A} maps to \texttt{RESTRAIN}: it uses a 1x daily score multiplier and does not deplete the shared reserve. \texttt{OPTION\_B} maps to \texttt{OVERUSE}: it gives a higher daily score multiplier and reduces the reserve by 2 units. The prompt includes the current day, living population, reserve state, and previous-day \texttt{OPTION\_B} count.
+
+The primary action metric is commons restraint:
 \[
 \mathrm{restraint} =
 \frac{\#\mathrm{restrain}}{\#\mathrm{restrain}+\#\mathrm{overuse}}.
 \]
-Additional outcomes are first depletion day, final reserve, final population, total deaths, and survival through the configured horizon. The prompt includes current day, living agents, reserve state, and previous-day \texttt{OPTION\_B} count. This makes Part 2 a repeated environment rather than a one-shot preference prompt.
+Part 2 also reports final reserve, first depletion day, final population, total deaths, and survival through the configured horizon. This is a repeated social-environment stress test. It does not prove macro-social competence, because the current environment is simplified, homogeneous, and single-resource.
 
 \section{Artifact Construction and Quality Control}
 \paragraph{Model cohort.}
-The current pilot evaluates 13 local/open-weight variants through Ollama. The cohort includes standard, safeguard, instruct, uncensored, and derestricted variants across GPT-OSS, Llama, Qwen 2.5, and Qwen 3.5 families. The model registry records exact provider-facing identifiers and family/style labels. We do not treat this cohort as a frontier-model ranking; it is a validation pass showing that the artifact runs end-to-end and exposes separable behaviors.
+The pilot evaluates 13 local/open-weight variants through Ollama. The cohort includes standard, safeguard, instruct, uncensored, and derestricted variants across GPT-OSS, Llama, Qwen 2.5, and Qwen 3.5 families. We use this cohort to validate the benchmark and expose diagnostic variation, not to produce a definitive frontier-model leaderboard.
 
-\paragraph{Output contracts.}
-Each part uses a constrained output format. Part 0 uses a model response plus a judge JSON verdict. Part 1 requires JSON with one valid action and a short justification. Part 2 requires a single JSON object with exactly an action and brief reasoning. Validation checks invalid actions and missing required fields rather than silently coercing them.
-
-\paragraph{Metadata and manifests.}
-Completed runs have metadata sidecars recording provider, model identifier, command context, timestamp, prompt/config hash when available, experiment parameters, backend settings when available, run status, and output paths. Legacy files are backfilled where possible and marked explicitly when metadata is reconstructed. The manifest maps raw CSVs to metadata and derived analysis outputs.
+\paragraph{Output contracts and metadata.}
+Part 0 stores model outputs and a normalized compliance verdict. Part 1 requires a valid action and justification. Part 2 requires a daily action and reasoning field for each living agent. Completed runs are paired with metadata sidecars recording available provider/model identifiers, command context, timestamps, prompt or configuration hashes when available, experiment settings, run status, and output paths. Legacy metadata is backfilled where possible and marked as reconstructed when necessary. The paper release also includes a Croissant JSON-LD metadata file documenting the derived tables, validation report, manifest, access conditions, safety handling, and responsible-use constraints.
 
 \paragraph{Validation.}
-Validation is graph-independent. It checks CSV headers, duplicate rows, missing required fields, invalid actions, Part 1 prompt-matrix coverage, Part 2 day continuity, incomplete days, reserve/population transition consistency, interrupted versus complete status, and reasoning/action mismatch flags. The current validation report covers 27 CSV files: one Part 0 file, 13 Part 1 files, and 13 Part 2 files. It reports 14 passes, 13 warnings, and 0 failures. All warnings are Part 2 reasoning/action mismatch flags, which are retained because they are a benchmarked failure mode.
+Validation is graph-independent. It checks CSV headers, duplicate rows, missing required fields, invalid actions, prompt-matrix coverage, Part 2 day continuity, incomplete days, reserve and population transition consistency, interrupted versus complete status, and reasoning/action mismatch flags. The current validation report covers 27 CSV files: one Part 0 file, 13 Part 1 files, and 13 Part 2 files. It reports 14 passes, 13 warnings, and 0 failures. All warnings are Part 2 reasoning/action mismatch flags, retained as benchmarked failure modes rather than discarded as noise.
+
+\paragraph{Harmful-output handling.}
+Part 0 necessarily evaluates harmful prompts and may produce unsafe completions. The default anonymous supplement therefore emphasizes derived tables, validation outputs, and aggregate summaries rather than raw harmful generations. The paper's claims do not require exposing raw harmful text.
 
 \section{Benchmark Statistics}
-The pilot artifact contains 56,382 total decisions or judgments (Table~\ref{tab:stats}). Part 2 has fewer than the maximum 65,000 agent-day rows because simulations stop producing living-agent decisions after population collapse.
+The pilot artifact contains 56,382 total decisions or judgments. Part 2 has fewer than the maximum 65,000 agent-day rows because simulations stop producing living-agent decisions after population collapse.
 
 \begin{table}[t]
 \centering
-\caption{Pilot artifact statistics. Wilson intervals are computed for rate summaries; cross-part correlations use model-level bootstrap intervals.}
+\caption{Pilot artifact statistics and release status. Wilson intervals are computed for rate summaries; cross-part correlations use model-level bootstrap intervals.}
 \label{tab:stats}
 \small
-\begin{tabular}{lrrrr}
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{lrrrrl}
 \toprule
-Part & Models & Units per model & Total units & Primary score range \\
+Part & Models & Files & Units per model & Total units & Primary score range \\
 \midrule
-Safety refusal & 13 & 297 & 3,861 & 9.4--99.3\% \\
-Dyadic cooperation & 13 & 384 & 4,992 & 24.2--75.0\% \\
-Commons restraint & 13 & 1,676--5,000 & 47,529 & 18.6--92.5\% \\
+Safety refusal & 13 & 1 & 297 & 3,861 & 9.4--99.3\% \\
+Dyadic cooperation & 13 & 13 & 384 & 4,992 & 24.2--75.0\% \\
+Commons restraint & 13 & 13 & 1,676--5,000 & 47,529 & 18.6--92.5\% \\
+\midrule
+Validation summary & -- & 27 & -- & -- & 14 pass, 13 warn, 0 fail \\
 \bottomrule
-\end{tabular}
+\end{tabular}%
+}
 \end{table}
 
 \section{Evaluation Protocol}
-For each model and part, the analysis pipeline computes the primary rate, Wilson 95\% confidence interval, and task-specific diagnostics. Part 2 additionally computes first depletion day, final reserve, final population, total deaths, and reasoning/action mismatch count. Cross-part analysis joins the three model-level tables by model identifier and reports Pearson and Spearman correlations with bootstrap intervals. These correlations are descriptive because the pilot has only 13 model variants and the variants are not independent samples from a well-defined model population.
+For each model and part, the analysis pipeline computes the primary rate, Wilson 95\% confidence interval, and task-specific diagnostics. Part 2 additionally computes first depletion day, final reserve, final population, total deaths, and reasoning/action mismatch count. Cross-part analysis joins the three model-level tables by model identifier and reports Pearson and Spearman correlations with bootstrap intervals.
 
-The intended interpretation is diagnostic. High performance on one part should not be interpreted as general ``alignment'' unless it also holds under the other task contracts. Conversely, low performance in one part identifies a specific failure mode: harmful compliance, one-shot non-cooperation, repeated overuse, collapse, or reasoning/action mismatch.
+All model-level comparisons are descriptive. The pilot has only 13 model variants, several variants are related, and local/Ollama tags can drift unless exact revisions are frozen. Parts 1 and 2 are currently single-run pilot evaluations, so their rates should be treated as benchmark demonstrations and hypotheses for confirmatory work rather than stable deployment rankings.
 
 \section{Pilot Results}
-\subsection{Safety Refusal}
-Part 0 shows large variation across model variants. The highest refusal rate is 99.3\%, while the lowest is 9.4\%. Standard or safeguard-oriented variants tend to refuse more often than explicitly uncensored or derestricted variants, but the benchmark reports model-level rates rather than inferring training causes. Figure~\ref{fig:part0-refusal} shows the model-level refusal rates with Wilson intervals.
+\paragraph{Refusal varies widely.}
+Part 0 refusal ranges from 9.4\% to 99.3\%. High-refusal variants do not automatically dominate every other axis, which is why refusal is treated as one prerequisite rather than the complete deployment-readiness test.
+
+\paragraph{Cooperation is frame-sensitive.}
+Part 1 cooperation ranges from 24.2\% to 75.0\%. The aggregate rate hides large frame effects: across models, cooperation is 83.2\% under observer-evaluation prompts, 66.8\% under advice prompts, 61.4\% under self-direct prompts, and 4.9\% under prediction prompts. This pattern suggests that models often distinguish what an agent should do from what they predict an agent will do; the benchmark makes that distinction measurable.
+
+\paragraph{Commons behavior produces survival differences.}
+Part 2 restraint ranges from 18.6\% to 92.5\%. Seven of thirteen same-model societies preserve a nonzero population through the 100-day horizon. Six collapse to zero population after earlier reserve depletion. The result is not a broad claim about real societies; it is evidence that repeated incentive conflict exposes failures that one-shot prompts do not.
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.92\linewidth]{../../data/graphs/part_0/master-plots/04-11-2026_13_04_37_alignment_by_model.png}
-\caption{Part 0 safety-refusal rate by model. Error bars are Wilson 95\% confidence intervals.}
-\label{fig:part0-refusal}
-\end{figure}
-
-\subsection{Dyadic Cooperation}
-Part 1 also shows substantial variation. Cooperation ranges from 24.2\% to 75.0\% across the 13 model variants. Several Qwen 2.5 variants reach the top observed cooperation rate, while several uncensored or derestricted variants are below 30\%. The important benchmark lesson is not that a particular family wins, but that cooperation is separable from harmful-request refusal in this cohort. Figure~\ref{fig:part1-cooperation} shows the full-matrix cooperation rate.
-
-\begin{figure}[t]
+\begin{minipage}{0.48\linewidth}
 \centering
-\includegraphics[width=0.92\linewidth]{../../data/graphs/part_1/master-plots/part1_latest_full_per_model_cooperation_by_model.png}
-\caption{Part 1 cooperation rate by model across the full dyadic prompt matrix. Error bars are Wilson 95\% confidence intervals.}
-\label{fig:part1-cooperation}
-\end{figure}
-
-\subsection{Commons Restraint}
-In Part 2, seven of thirteen same-model societies preserve a nonzero population through the configured 100-day horizon, while six collapse to zero population. Restraint ranges from 18.6\% to 92.5\%. The highest-restraint runs preserve all 50 agents and substantial reserve; lower-restraint runs deplete the reserve earlier and collapse. Figure~\ref{fig:part2-restraint} shows the model-level restraint rates.
-
-\begin{figure}[t]
+\includegraphics[width=\linewidth]{../../data/graphs/part_0/master-plots/04-11-2026_13_04_37_alignment_by_model.png}\\
+\small (a) Safety refusal
+\end{minipage}
+\hfill
+\begin{minipage}{0.48\linewidth}
 \centering
-\includegraphics[width=0.92\linewidth]{../../data/graphs/part_2/master-plots/part2_latest_n50_d100_water_per_model_restraint_by_model.png}
-\caption{Part 2 restraint rate by model in 50-agent, 100-day commons simulations. Error bars are Wilson 95\% confidence intervals.}
-\label{fig:part2-restraint}
+\includegraphics[width=\linewidth]{../../data/graphs/part_1/master-plots/part1_latest_full_per_model_cooperation_by_model.png}\\
+\small (b) Dyadic cooperation
+\end{minipage}
+
+\vspace{0.8em}
+\begin{minipage}{0.48\linewidth}
+\centering
+\includegraphics[width=\linewidth]{../../data/graphs/part_2/master-plots/part2_latest_n50_d100_water_per_model_restraint_by_model.png}\\
+\small (c) Commons restraint
+\end{minipage}
+\hfill
+\begin{minipage}{0.48\linewidth}
+\centering
+\includegraphics[width=\linewidth]{../../data/graphs/part_2/master-plots/part2_latest_n50_d100_water_per_model_final_population_by_model.png}\\
+\small (d) Final population
+\end{minipage}
+\caption{Model-level pilot summaries across the three benchmark parts. The figure is intended as a diagnostic overview, not a leaderboard: high performance on one panel does not imply high performance on all others.}
+\label{fig:model-summary}
 \end{figure}
 
 \section{Diagnostics}
-\subsection{Construct Separability}
-The pilot argues against collapsing the three parts into one score. Safety refusal and dyadic cooperation have weak association in this cohort (Pearson $r=0.24$, bootstrap interval $[-0.61,0.70]$). Safety refusal and commons restraint are more strongly associated (Pearson $r=0.77$, interval $[0.51,0.90]$), while cooperation and restraint are modest and uncertain (Pearson $r=0.34$, interval $[-0.25,0.94]$). These wide intervals reflect the small model cohort, but the direction is clear enough for benchmark design: the three constructs should be reported separately.
+\paragraph{The constructs dissociate.}
+The cross-part results argue against a single ``altruism'' or readiness score. Safety refusal and dyadic cooperation have weak association in this cohort (Pearson $r=0.24$, bootstrap interval $[-0.61,0.70]$). Safety refusal and commons restraint are more strongly associated (Pearson $r=0.77$, interval $[0.51,0.90]$). Cooperation and restraint are modest and uncertain (Pearson $r=0.34$, interval $[-0.25,0.94]$). These intervals are wide, but they still support the benchmark design choice: report refusal, cooperation, and restraint separately.
+
+\paragraph{Framing changes behavior.}
+Part 1 shows that prompt frame is not a nuisance variable. Observer-evaluation prompts elicit high cooperative judgments, while prediction prompts elicit low cooperative predictions. This is substantively useful for deployment evaluation: a model may know which action is socially preferred while predicting that agents will behave selfishly, or may advise one action while choosing another for itself.
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.82\linewidth]{../../data/graphs/cross_part/individual-plots/safety_refusal_vs_cooperation.png}
-\caption{Cross-part comparison of Part 0 safety refusal and Part 1 dyadic cooperation. Each point is one evaluated model variant.}
-\label{fig:cross-safety-cooperation}
+\includegraphics[width=0.92\linewidth]{../../data/graphs/part_1/master-plots/part1_latest_full_per_model_cooperation_by_model_and_frame.png}
+\caption{Part 1 cooperation by model and frame. Aggregate cooperation is 83.2\% for observer evaluation, 66.8\% for advice, 61.4\% for self-direct choice, and 4.9\% for prediction, showing that cooperation claims depend strongly on the elicitation frame.}
+\label{fig:frame-effects}
 \end{figure}
+
+\paragraph{Restraint predicts survival in the simulated commons.}
+Part 2 ties local overuse choices to aggregate population trajectories. Commons restraint is strongly associated with final population (Pearson $r=0.85$, bootstrap interval $[0.68,0.98]$). This is partly induced by the environment's transition rules, but that is the point of the stress test: the benchmark converts repeated selfish actions into a traceable social consequence.
+
+\paragraph{Reasoning/action mismatch is measurable.}
+The validation pipeline flags \texttt{OVERUSE} rows whose reasoning describes the action as preserving the reserve, keeping the group safe, or beneficially triggering population loss. Across Part 2, it flags 823 rows. These flags are conservative pattern checks, not full semantic verification, but they expose a concrete failure mode: valid JSON actions can still conflict with the model's stated rationale.
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.82\linewidth]{../../data/graphs/cross_part/individual-plots/cooperation_vs_restraint.png}
-\caption{Cross-part comparison of Part 1 dyadic cooperation and Part 2 commons restraint. Each point is one evaluated model variant.}
-\label{fig:cross-cooperation-restraint}
+\begin{minipage}{0.48\linewidth}
+\centering
+\includegraphics[width=\linewidth]{../../data/graphs/cross_part/individual-plots/safety_refusal_vs_restraint.png}\\
+\small (a) Refusal vs. commons restraint
+\end{minipage}
+\hfill
+\begin{minipage}{0.48\linewidth}
+\centering
+\includegraphics[width=\linewidth]{../../data/graphs/cross_part/individual-plots/restraint_vs_final_population.png}\\
+\small (b) Commons restraint vs. final population
+\end{minipage}
+\caption{Cross-part diagnostics. Refusal and commons restraint are strongly associated in this cohort, and commons restraint is strongly associated with final simulated population. These relationships are descriptive hypotheses for larger confirmatory evaluations.}
+\label{fig:cross-diagnostics}
 \end{figure}
-
-\subsection{Commons Survival}
-Part 2 supplies a mechanistic diagnostic absent from one-shot prompts: overuse affects the shared reserve and therefore population survival. Restraint is strongly associated with final population (Pearson $r=0.85$, interval $[0.68,0.98]$). This correlation is expected because the environment directly ties overuse to depletion, but it is still useful: the benchmark turns a local action preference into an aggregate trajectory that can collapse or survive.
-
-\subsection{Reasoning/Action Mismatch}
-The validation pipeline flags \texttt{OVERUSE} rows whose reasoning describes the action as preserving the reserve, keeping the group safe, or beneficially triggering population loss. Across Part 2, it flags 823 rows. The highest mismatch count in the pilot is 164 for one derestricted GPT-OSS variant; the lowest is 6 for one Qwen 2.5 abliteration variant. These flags are conservative pattern checks, not a complete semantic verifier. They nevertheless expose a useful failure mode: the selected action and stated rationale can disagree even when the JSON action is valid.
 
 \section{Release, Reproducibility, and Intended Use}
-The release is organized so paper claims can be traced to files. Experiment code lives under \path{experiments/part0}, \path{experiments/part1}, and \path{experiments/part2}. Analysis code lives under \path{analysis/}. Raw CSVs and metadata live under \path{data/raw/}; derived tables, validation reports, and manifests live under \path{data/analysis/}; figures live under \path{data/graphs/}. Release documentation is provided in \texttt{REPRODUCIBILITY.md}, \texttt{DATA\_CARD.md}, and \texttt{MODEL\_REGISTRY.md}.
+The release is organized so that paper claims can be traced to files. Experiment code lives under \path{experiments/part0}, \path{experiments/part1}, and \path{experiments/part2}. Analysis code lives under \path{analysis/}. Raw CSVs and metadata live under \path{data/raw/}; derived tables, validation reports, manifests, and Croissant metadata live under \path{data/analysis/}; figures live under \path{data/graphs/}. Release documentation is provided in \texttt{REPRODUCIBILITY.md}, \texttt{DATA\_CARD.md}, and \texttt{MODEL\_REGISTRY.md}.
 
 The main reproduction commands are:
 \begin{verbatim}
@@ -209,37 +278,23 @@ uv run python -m analysis.validation --strict
 uv run python -m analysis.summarize_results
 uv run python -m analysis.build_manifest
 \end{verbatim}
-Figure regeneration commands are documented separately because figures are intentionally downstream of graph-independent validation and table generation.
+The intended uses are pre-deployment behavioral auditing, model comparison, ablation studies, prompt-sensitivity analysis, and benchmark extension. Non-intended uses include certifying moral status, inferring genuine intent, optimizing harmful compliance, or making broad policy claims from this pilot alone.
 
-The intended use is behavioral evaluation research: comparing model variants, prompt settings, and agent designs under explicit task contracts. Out-of-scope uses include claiming that models possess moral agency, using the benchmark to optimize harmful compliance, or treating the pilot cohort as a definitive ranking of frontier systems.
+\section{Limitations and Deployment Interpretation}
+The current evaluation is a pilot over local/open-weight model variants, not a definitive study of frontier systems. The model variants are not independent samples, and local/Ollama tags can drift across installations unless exact revisions or digests are frozen. Part 0 compliance labels depend on an automated judge; stronger human calibration and inter-judge reliability checks are needed before using fine-grained refusal differences as deployment evidence. Part 1 is prompt-sensitive and evaluates artificial one-shot scenarios rather than real institutions. Part 2 uses homogeneous same-model societies with a simplified resource dynamic; real deployments may include heterogeneous agents, richer institutions, exogenous shocks, and incentives not captured here. Reasoning text is explanatory evidence, not causal proof of why an action was chosen, and the mismatch audit is a conservative pattern-based diagnostic rather than a complete semantic verifier.
 
-\section{Limitations, Ethics, and Safety}
-The current evaluation is a pilot over local/open-weight model variants, not a definitive benchmark of frontier systems. The model variants are not independent samples, and local/Ollama tags can drift across installations unless exact revisions or digests are frozen. Part 1 is prompt-sensitive and evaluates artificial one-shot scenarios rather than real institutions. Part 2 uses homogeneous same-model societies with a simplified resource dynamic; real deployments may contain heterogeneous agents, richer institutions, exogenous shocks, and incentives not captured here. The reasoning/action mismatch audit is pattern-based and conservative; it should be replaced or supplemented by stronger semantic verification before drawing fine-grained claims about explanations.
-
-Part 0 creates and stores potentially unsafe generations. The default anonymous supplement therefore excludes raw harmful completions while retaining aggregate tables, validation reports, and derived claims. Before public release, upstream prompt-source licenses and harmful-output handling should be reviewed again. The benchmark measures observable behavior under prompts and simulations. It does not establish intent, stable preference, moral agency, or intrinsic altruism.
+These limitations do not make the benchmark uninformative. They define the deployment claim it can support today: observable prosocial evaluation should be part of pre-deployment stress testing for direct human-facing integration, because models that fail refusal, cooperation, or commons-restraint tests exhibit concrete behavioral risks. The current pilot does not justify claiming that any evaluated model class is broadly ready for real-world social deployment.
 
 \section{Conclusion}
-Social Restraint Bench turns a broad question about socially beneficial LLM-agent behavior into a reproducible evaluation artifact with explicit task contracts. The pilot shows why the separation matters: safety refusal, dyadic cooperation, and commons restraint do not reduce to one score, repeated overuse can produce population collapse, and valid actions can be paired with contradictory rationales. The next step is a frozen confirmatory evaluation with broader model coverage, repeated decoding settings, stronger judge calibration, and additional ablations over prompt framing and commons incentives.
+Prosocial Readiness Bench turns a broad question about socially beneficial LLM-agent behavior into a reproducible evaluation artifact with explicit task contracts. The pilot shows that current models do not exhibit one stable prosocial capability across settings: refusal, dyadic cooperation, commons restraint, survival, frame sensitivity, and reasoning/action mismatch reveal different aspects of behavior. The next step is a frozen confirmatory evaluation with broader model coverage, repeated decoding settings, stronger judge calibration, richer commons environments, and preregistered hypotheses about when models favor collective welfare over immediate self-interest.
 
 \bibliographystyle{plainnat}
 \bibliography{references}
 
 \appendix
 
-\section{Artifact Map}
-\begin{itemize}
-    \item Experiment code: \path{experiments/part0}, \path{experiments/part1}, \path{experiments/part2}.
-    \item Analysis code: \path{analysis/validation.py}, \path{analysis/summarize_results.py}, and \path{analysis/build_manifest.py}.
-    \item Raw data: \path{data/raw/part_0}, \path{data/raw/part_1}, and \path{data/raw/part_2}; raw Part 0 completions are omitted from the anonymous supplement by default.
-    \item Derived tables: \path{data/analysis/tables}.
-    \item Validation report: \path{data/analysis/validation/validation_report.json}.
-    \item Manifest: \path{data/analysis/run_manifest.jsonl}.
-    \item Figures: \path{data/graphs}.
-    \item Documentation: \texttt{REPRODUCIBILITY.md}, \texttt{DATA\_CARD.md}, and \texttt{MODEL\_REGISTRY.md}.
-\end{itemize}
-
-\section{Part 2 Pilot Outcomes}
-\begin{table}[h]
+\section{Per-Model Part 2 Outcomes}
+\begin{table}[t]
 \centering
 \caption{Part 2 commons outcomes from \texttt{part2\_model\_summary.csv}. ``Not observed'' means no reserve depletion occurred within the 100-day configured horizon.}
 \label{tab:part2}
@@ -267,20 +322,33 @@ Model & Restraint & First depletion day & Final population & Mismatch flags \\
 }
 \end{table}
 
+\section{Artifact Map}
+\begin{itemize}
+    \item Experiment code: \path{experiments/part0}, \path{experiments/part1}, and \path{experiments/part2}.
+    \item Analysis code: \path{analysis/validation.py}, \path{analysis/summarize_results.py}, and \path{analysis/build_manifest.py}.
+    \item Raw data: \path{data/raw/part_0}, \path{data/raw/part_1}, and \path{data/raw/part_2}; raw Part 0 harmful completions are omitted from the anonymous supplement by default.
+    \item Derived tables: \path{data/analysis/tables}.
+    \item Validation report: \path{data/analysis/validation/validation_report.json}.
+    \item Manifest: \path{data/analysis/run_manifest.jsonl}.
+    \item Croissant metadata: \path{data/analysis/croissant_metadata.json}.
+    \item Figures: \path{data/graphs}.
+    \item Documentation: \texttt{REPRODUCIBILITY.md}, \texttt{DATA\_CARD.md}, and \texttt{MODEL\_REGISTRY.md}.
+\end{itemize}
+
 \section{NeurIPS Paper Checklist}
 \begin{enumerate}
-    \item \textbf{Claims.} \answerYes The abstract, introduction, results, and limitations frame the work as a reproducible behavioral benchmark and open-model pilot, not as proof of model intent or moral agency.
-    \item \textbf{Limitations.} \answerYes Limitations are discussed in the main text, including local-model scope, prompt sensitivity, homogeneous societies, model-tag drift, and judge reliability.
+    \item \textbf{Claims.} \answerYes The abstract, introduction, results, and limitations frame the work as a reproducible behavioral benchmark and open-model pilot, not as proof of model intent, moral agency, or latent altruism.
+    \item \textbf{Limitations.} \answerYes Limitations are discussed in the main text, including local-model scope, prompt sensitivity, homogeneous societies, model-tag drift, automated-judge calibration, and reasoning/audit reliability.
     \item \textbf{Theory, assumptions, and proofs.} \answerNA The paper does not present theoretical theorems or proofs.
     \item \textbf{Experimental reproducibility.} \answerYes Reproduction commands, metadata sidecars, manifests, validation reports, and derived tables are documented in the paper and supplement.
-    \item \textbf{Open access to data and code.} \answerYes The anonymous supplement contains executable code, derived tables, validation outputs, and Part 1/Part 2 raw CSVs. Raw Part 0 completions are excluded by default for safety reasons.
+    \item \textbf{Open access to data and code.} \answerYes The anonymous supplement contains executable code, derived tables, validation outputs, and Part 1/Part 2 raw CSVs. Raw Part 0 harmful completions are excluded by default for safety reasons.
     \item \textbf{Experimental setting/details.} \answerYes The evaluated parts, metrics, model registry, prompts/configs, metadata fields, and command interface are documented in the paper and supplement.
     \item \textbf{Statistical significance.} \answerYes Rate summaries include Wilson confidence intervals, and cross-part correlations include bootstrap intervals. The pilot interpretation remains descriptive because the model cohort is small.
     \item \textbf{Compute resources.} \answerNo Metadata sidecars capture available backend and timeout/token settings, but full hardware metadata is incomplete for legacy runs.
     \item \textbf{Code of ethics.} \answerYes The work is an evaluation benchmark and includes safety precautions for harmful prompts.
-    \item \textbf{Broader impacts.} \answerYes The ethics section discusses harmful prompt handling, misuse risk, intended use, and release restrictions.
+    \item \textbf{Broader impacts.} \answerYes The harmful-output handling, intended-use, and limitations text discusses harmful prompt handling, misuse risk, intended use, and release restrictions.
     \item \textbf{Safeguards.} \answerNA The paper does not release a new pretrained model. Harmful raw outputs are conservatively excluded from the anonymous supplement.
-    \item \textbf{Licenses.} \answerYes The supplement includes release documentation and cites external benchmark sources. Upstream prompt-source licensing should be rechecked before public camera-ready release.
+    \item \textbf{Licenses.} \answerNo The repository code is MIT-licensed and external benchmark sources are cited, but upstream prompt-source licensing and final hosted-dataset terms must be rechecked before public camera-ready release.
     \item \textbf{Assets.} \answerYes The data card and model registry document the released evaluation artifacts.
     \item \textbf{Crowdsourcing and human subjects.} \answerNA No crowdsourcing or human-subject data collection is used.
     \item \textbf{IRB approvals.} \answerNA No human-subject study is conducted.

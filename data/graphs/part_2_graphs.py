@@ -530,6 +530,39 @@ def _annotate_value_bars(
         )
 
 
+def _annotate_collapse_bars(
+    ax: object,
+    xs: Sequence[float],
+    ys: Sequence[float],
+    labels: Sequence[str],
+) -> None:
+    """Add first-depletion labels, rotating censored no-depletion labels."""
+    _, ymax = ax.get_ylim()
+    for x_pos, value, label in zip(xs, ys, labels):
+        y_pos = min(value + (ymax * 0.015), ymax - (ymax * 0.005))
+        if label == "No depletion":
+            ax.text(
+                x_pos,
+                y_pos,
+                label,
+                ha="center",
+                va="bottom",
+                fontsize=8,
+                clip_on=False,
+                rotation=90,
+            )
+        else:
+            ax.text(
+                x_pos,
+                y_pos,
+                label,
+                ha="center",
+                va="bottom",
+                fontsize=8,
+                clip_on=False,
+            )
+
+
 def _ci_label(ci_method: CiMethod, confidence: float) -> str:
     """Human-readable interval label for titles."""
     method = "Wilson" if ci_method == "wilson" else "Wald"
@@ -720,7 +753,7 @@ def build_collapse_title() -> str:
     """Build a descriptive title for the first-depletion chart."""
     return (
         "First Resource Depletion Day by Model\n"
-        "Higher bars indicate the shared resource lasted longer."
+        "No depletion means the reserve never reached zero within the run horizon."
     )
 
 
@@ -983,7 +1016,7 @@ def build_collapse_day_rows(
         elif final is not None:
             labels.append(model)
             values.append(float(final.day))
-            annotations.append(f">{final.day}")
+            annotations.append("No depletion")
 
     return labels, values, annotations
 
@@ -1170,8 +1203,8 @@ def render_collapse_day_chart(
     ax.set_xticks(x)
     ax.set_xticklabels(labels, rotation=45, ha="right")
     _apply_bar_xlim(ax, x)
-    ax.set_ylim(0.0, ymax + max(2.0, ymax * 0.12))
-    _annotate_value_bars(ax, x, values, annotations)
+    ax.set_ylim(0.0, ymax + max(8.0, ymax * 0.28))
+    _annotate_collapse_bars(ax, x, values, annotations)
     ax.set_ylabel("Day")
     ax.grid(axis="y", alpha=0.3)
     fig.suptitle(title, y=0.985)

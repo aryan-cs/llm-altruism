@@ -20,7 +20,7 @@ uv run pytest -q
 Expected status at the time of this update:
 
 ```text
-151 passed
+155 passed
 ```
 
 ## Metadata, Validation, Tables, Manifest
@@ -48,6 +48,7 @@ Outputs:
 - `data/analysis/tables/cross_part_model_summary.csv`
 - `data/analysis/tables/cross_part_correlations.csv`
 - `data/analysis/run_manifest.jsonl`
+- `data/analysis/croissant_metadata.json`
 
 ## Figures
 
@@ -84,4 +85,5 @@ A result is paper-ready only when:
 - validation has no failures,
 - the source CSV has a metadata sidecar,
 - the source CSV appears in `data/analysis/run_manifest.jsonl`,
+- the paper-facing Croissant metadata is present at `data/analysis/croissant_metadata.json`,
 - any validation warnings are either resolved or explicitly discussed.

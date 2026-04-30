@@ -12,7 +12,8 @@ Derived, graph-independent artifacts are stored under `data/analysis/`:
 
 - validation reports,
 - summary tables,
-- run manifest entries.
+- run manifest entries,
+- Croissant metadata for the paper-facing release.
 
 Graphs are stored separately under `data/graphs/`.
 
@@ -42,10 +43,11 @@ The validator checks headers, duplicate rows, action validity, Part 1 matrix cov
 
 Part 0 includes harmful-request evaluation prompts and may contain harmful model completions. For paper release, prefer aggregate tables and selected, filtered qualitative examples. Do not publish raw harmful completions unless the release has been reviewed for safety and upstream benchmark license compatibility.
 
+The paper-facing Croissant metadata is stored at `data/analysis/croissant_metadata.json`. It documents the derived tables, validation report, manifest, access conditions, and responsible-use constraints used for the current anonymous submission package.
+
 ## Known Limitations
 
 - Current results are pilot data unless final reruns are explicitly frozen.
 - Some metadata for legacy runs is reconstructed from filenames and row counts.
 - Model versions can drift for API providers and local tags unless exact provider revisions or Ollama digests are recorded.
 - Reasoning text is model-generated and should be treated as an explanation artifact, not proof of internal causal mechanism.
-

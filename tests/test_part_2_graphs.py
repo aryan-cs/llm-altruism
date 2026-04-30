@@ -163,7 +163,7 @@ def test_final_and_collapse_rows_use_completed_day_summaries() -> None:
     assert build_collapse_day_rows(day_summaries, model_order) == (
         model_order,
         [2.0, 1.0],
-        ["2", ">1"],
+        ["2", "No depletion"],
     )
 
 
