@@ -7,7 +7,6 @@
 \usepackage{amsmath}
 \usepackage{array}
 \usepackage{booktabs}
-\usepackage{float}
 \usepackage{graphicx}
 \usepackage{microtype}
 \usepackage{url}
@@ -42,7 +41,7 @@ Our contributions are:
     \item \textbf{Diagnostic findings.} We show that refusal, cooperation, frame sensitivity, commons restraint, and survival capture different aspects of observable agent behavior.
 \end{itemize}
 
-\begin{figure}[H]
+\begin{figure}[!htbp]
 \centering
 \fbox{%
 \begin{minipage}{0.95\linewidth}
@@ -79,7 +78,7 @@ Social-dilemma theory studies cooperation when private incentives conflict with 
 
 Broader trust, preference, and alignment datasets illustrate the value of multi-axis evaluation and careful artifact documentation \citep{wang2023decodingtrust,kirk2024prism,jiang2025artificialhivemind}. Prosocial Readiness Bench follows that pattern for agentic social behavior: it treats task definitions, metadata, validation, and diagnostic breakdowns as part of the artifact, not as post hoc analysis.
 
-\begin{table}[H]
+\begin{table}[!htbp]
 \centering
 \caption{Measurement gap targeted by Prosocial Readiness Bench. Existing lines of work cover important axes; the benchmark combines refusal, one-shot cooperation, repeated commons restraint, and traceable outputs within one validated release.}
 \label{tab:gap}
@@ -112,7 +111,7 @@ Each run produces structured CSV output and metadata sidecars. The analysis pipe
 \paragraph{Keep trace-level outputs.}
 The benchmark stores actions, justifications, run metadata, and derived summaries so downstream users can audit each reported claim without relying on plot files alone.
 
-\begin{table}[t]
+\begin{table}[!htbp]
 \centering
 \caption{Task contracts in Prosocial Readiness Bench. Counts are from the current release.}
 \label{tab:contracts}
@@ -205,7 +204,7 @@ For each model and part, the analysis pipeline computes the primary rate, Wilson
 The reported comparisons are descriptive pilot results over 13 related local/open-weight variants. The paper uses them to demonstrate benchmark behavior, reveal diagnostic variation, and generate hypotheses for broader confirmatory evaluation. Family-level readings below group models by visible release lineage and should be interpreted as descriptive clusters, not independent estimates of vendor or architecture effects.
 
 \section{Pilot Results}
-\begin{figure}[H]
+\begin{figure}[!htbp]
 \centering
 \includegraphics[width=\linewidth]{../../data/graphs/part_0/master-plots/04-11-2026_13_04_37_alignment_by_model.png}
 \caption{Safety-refusal rate by model. Refusal separates safety-oriented variants from explicitly uncensored or derestricted variants.}
@@ -215,7 +214,7 @@ The reported comparisons are descriptive pilot results over 13 related local/ope
 \paragraph{Refusal separates safety-oriented and less-restricted variants.}
 Part 0 refusal ranges from 9.4\% to 99.3\%. Several standard or safeguard-oriented variants refuse nearly all harmful prompts, while explicitly uncensored or derestricted variants show much lower refusal. The within-family splits are visible: GPT-OSS and GPT-OSS-Safeguard refuse at 99.3\% and 97.0\%, while the derestricted GPT-OSS variant drops to 16.2\%. The safeguard variant therefore does not outperform the standard GPT-OSS model on this safety-refusal benchmark; it is slightly lower by 2.3 percentage points, although that gap is small compared with the 80.8-point gap between standard and derestricted GPT-OSS. Qwen 3.5 shows a similar safety-release split, with base and instruct variants at 98.3\% and 97.6\% but uncensored variants at 32.7\% and 9.4\%. Qwen 2.5 is lower in its base and instruct forms (74.4\% and 64.3\%), and the Qwen 2.5 abliterate variants fall to 27.9--29.0\%. Llama 2 also moves downward under the uncensored tag, from 77.4\% to 51.2\%. This gives the benchmark a strong safety axis for cross-part comparison.
 
-\begin{figure}[H]
+\begin{figure}[!htbp]
 \centering
 \includegraphics[width=\linewidth]{../../data/graphs/part_1/master-plots/part1_latest_full_per_model_cooperation_by_model.png}
 \caption{Dyadic cooperation rate by model. Cooperation has a different model-level profile than safety refusal, supporting separate reporting.}
@@ -225,14 +224,14 @@ Part 0 refusal ranges from 9.4\% to 99.3\%. Several standard or safeguard-orient
 \paragraph{Cooperation is strongly frame-sensitive.}
 Part 1 cooperation ranges from 24.2\% to 75.0\%. The most informative result is not only the model ranking, but the frame effect: across models, cooperation is 83.2\% under observer-evaluation prompts, 66.8\% under advice prompts, 61.4\% under self-direct prompts, and 4.9\% under prediction prompts. The model-family pattern differs from refusal. Qwen 2.5 base, instruct, and abliterate variants all sit near the top at 74.0--75.0\%, while Qwen 3.5 separates into a cooperative base model (71.1\%), a mid-range instruct variant (48.7\%), and low-cooperation uncensored variants (25.8\% and 24.2\%). Llama 2 reverses the safety pattern, with the uncensored variant cooperating more than the base model (68.8\% versus 52.6\%). GPT-OSS variants remain lower overall, but here the safeguard variant is the strongest GPT-OSS run: 47.1\% cooperation versus 38.5\% for standard GPT-OSS and 27.1\% for derestricted GPT-OSS. The benchmark therefore distinguishes socially preferred judgments from expectations about how an agent will behave.
 
-\begin{figure}[H]
+\begin{figure}[!htbp]
 \centering
 \includegraphics[width=\linewidth]{../../data/graphs/part_2/master-plots/part2_latest_n50_d100_water_per_model_restraint_by_model.png}
 \caption{Commons-restraint rate by model. Repeated resource choices expose a third behavioral axis beyond refusal and one-shot cooperation.}
 \label{fig:restraint-summary}
 \end{figure}
 
-\begin{figure}[H]
+\begin{figure}[!htbp]
 \centering
 \includegraphics[width=\linewidth]{../../data/graphs/part_2/master-plots/part2_latest_n50_d100_water_per_model_final_population_by_model.png}
 \caption{Final simulated population by model after the 100-day commons horizon. Higher-restraint societies preserve larger populations.}
@@ -252,7 +251,7 @@ The named release families reinforce the same point. Qwen 2.5 base and instruct 
 \paragraph{Framing changes measured cooperation.}
 Part 1 treats prompt frame as an experimental variable. Observer-evaluation prompts elicit high cooperative judgments, advice and self-direct prompts are intermediate, and prediction prompts elicit low cooperative predictions. This split is useful for auditing because a model can know which action is socially preferred while predicting that agents will act selfishly.
 
-\begin{figure}[H]
+\begin{figure}[!htbp]
 \centering
 \includegraphics[width=\linewidth]{../../data/graphs/part_1/master-plots/part1_latest_full_per_model_cooperation_by_model_and_frame.png}
 \caption{Part 1 cooperation by model and frame. Cooperation is highest for observer evaluation and lowest for prediction, showing that elicitation frame is a first-class benchmark dimension.}
@@ -262,14 +261,14 @@ Part 1 treats prompt frame as an experimental variable. Observer-evaluation prom
 \paragraph{Restraint predicts survival in the simulated commons.}
 Part 2 ties local overuse choices to aggregate outcomes. Commons restraint is strongly associated with final population (Pearson $r=0.85$, bootstrap interval $[0.68,0.98]$). The relationship is expected from the transition rules and useful for auditing: the benchmark makes cumulative overuse visible as resource depletion and population loss.
 
-\begin{figure}[H]
+\begin{figure}[!htbp]
 \centering
 \includegraphics[width=\linewidth]{../../data/graphs/cross_part/individual-plots/safety_refusal_vs_restraint.png}
 \caption{Cross-part diagnostic: safety refusal versus commons restraint. The two axes are positively associated in this cohort but remain separately reported benchmark measurements.}
 \label{fig:cross-diagnostics}
 \end{figure}
 
-\begin{figure}[H]
+\begin{figure}[!htbp]
 \centering
 \includegraphics[width=\linewidth]{../../data/graphs/cross_part/individual-plots/restraint_vs_final_population.png}
 \caption{Cross-part diagnostic: commons restraint versus final simulated population. Restraint tracks survival in the repeated commons environment.}
@@ -279,7 +278,7 @@ Part 2 ties local overuse choices to aggregate outcomes. Commons restraint is st
 \section{Release, Reproducibility, and Intended Use}
 The release is organized so that paper claims can be traced to files. Experiment code lives under \path{experiments/part0}, \path{experiments/part1}, and \path{experiments/part2}. Analysis code lives under \path{analysis/}. Raw CSVs and metadata live under \path{data/raw/}; derived tables, validation reports, manifests, and Croissant metadata live under \path{data/analysis/}; figures live under \path{data/graphs/}. Release documentation is provided in \path{docs/release/REPRODUCIBILITY.md}, \path{docs/release/DATA_CARD.md}, and \path{docs/release/MODEL_REGISTRY.md}.
 
-\begin{table}[H]
+\begin{table}[!htbp]
 \centering
 \caption{Release contract for the reported paper claims.}
 \label{tab:release}
@@ -326,7 +325,7 @@ Prosocial Readiness Bench provides a concrete, reproducible way to evaluate thre
 \appendix
 
 \section{Per-Model Part 2 Outcomes}
-\begin{table}[t]
+\begin{table}[!htbp]
 \centering
 \caption{Part 2 commons outcomes from \texttt{part2\_model\_summary.csv}. ``Not observed'' means no reserve depletion occurred within the 100-day configured horizon.}
 \label{tab:part2}
