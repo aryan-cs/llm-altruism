@@ -39,7 +39,7 @@ Our contributions are:
     \item \textbf{Benchmark artifact.} We release Prosocial Readiness Bench, a three-part evaluation for safety refusal, dyadic cooperation, and commons restraint under explicit action contracts.
     \item \textbf{Traceable release package.} We provide prompts, schemas, metadata sidecars, manifests, validation output, derived tables, figures, and reproduction commands aligned with the reported claims.
     \item \textbf{Open-model pilot.} We report 56,382 decisions or judgments across 13 local/open-weight model variants, using Wilson intervals for rates and bootstrap intervals for model-level cross-part correlations.
-    \item \textbf{Diagnostic findings.} We show that refusal, cooperation, frame sensitivity, commons restraint, survival, and reasoning/action mismatch capture different aspects of observable agent behavior.
+    \item \textbf{Diagnostic findings.} We show that refusal, cooperation, frame sensitivity, commons restraint, and survival capture different aspects of observable agent behavior.
 \end{itemize}
 
 \begin{figure}[H]
@@ -53,7 +53,7 @@ Our contributions are:
 \midrule
 harmful requests; dyadic dilemmas; repeated commons states &
 response, JSON action, and reasoning fields &
-schema checks, coverage checks, transition checks, mismatch flags &
+schema checks, coverage checks, transition checks, metadata &
 rates, intervals, tables, figures, metadata, manifest
 \end{tabular}
 
@@ -81,7 +81,7 @@ Broader trust, preference, and alignment datasets illustrate the value of multi-
 
 \begin{table}[H]
 \centering
-\caption{Measurement gap targeted by Prosocial Readiness Bench. Existing lines of work cover important axes; the benchmark combines refusal, one-shot cooperation, repeated commons restraint, and process-level mismatch within one validated release.}
+\caption{Measurement gap targeted by Prosocial Readiness Bench. Existing lines of work cover important axes; the benchmark combines refusal, one-shot cooperation, repeated commons restraint, and traceable outputs within one validated release.}
 \label{tab:gap}
 \small
 \resizebox{\linewidth}{!}{%
@@ -109,8 +109,8 @@ Safety refusal, dyadic cooperation, and commons restraint are related deployment
 \paragraph{Make each claim traceable.}
 Each run produces structured CSV output and metadata sidecars. The analysis pipeline writes derived tables, validation reports, and figures from those files, so paper claims can be audited against concrete artifacts.
 
-\paragraph{Preserve process diagnostics.}
-The benchmark keeps reasoning/action mismatch flags as diagnostic evidence. These flags are not used to discard rows; they identify cases where a valid action conflicts with the stated rationale.
+\paragraph{Keep trace-level outputs.}
+The benchmark stores actions, justifications, run metadata, and derived summaries so downstream users can audit each reported claim without relying on plot files alone.
 
 \begin{table}[t]
 \centering
@@ -124,7 +124,7 @@ Part & Scenario & Output contract & Primary metric & Diagnostic fields \\
 \midrule
 0 & Harmful-request prompt & Response, reasoning, judge verdict & Safety refusal & Language, compliance, skipped rows \\
 1 & Dyadic dilemma & JSON action and justification & Cooperation & Game, frame, domain, variant, presentation \\
-2 & Repeated commons & Daily JSON action and reasoning & Commons restraint & Depletion, reserve, population, mismatch flags \\
+2 & Repeated commons & Daily JSON action and reasoning & Commons restraint & Depletion, reserve, population, survival \\
 \bottomrule
 \end{tabular}%
 }
@@ -168,7 +168,7 @@ The pilot evaluates 13 local/open-weight variants through Ollama. The cohort inc
 Part 0 stores model outputs and a normalized compliance verdict. Part 1 requires a valid action and justification. Part 2 requires a daily action and reasoning field for each living agent. Completed runs are paired with metadata sidecars recording available provider/model identifiers, command context, timestamps, prompt or configuration hashes when available, experiment settings, run status, and output paths. Legacy metadata is backfilled where possible and marked as reconstructed when necessary. The release also includes a Croissant JSON-LD metadata file documenting derived tables, validation reports, manifests, access conditions, safety handling, and responsible-use constraints.
 
 \paragraph{Validation.}
-Validation is graph-independent. It checks CSV headers, duplicate rows, missing required fields, invalid actions, prompt-matrix coverage, Part 2 day continuity, incomplete days, reserve and population transition consistency, interrupted versus complete status, and reasoning/action mismatch flags. The current validation report covers 27 CSV files: one Part 0 file, 13 Part 1 files, and 13 Part 2 files. It reports 14 passes, 13 files with warning-level mismatch findings, and 0 failures. Those findings are retained because they are a measured diagnostic output of Part 2.
+Validation is graph-independent. It checks CSV headers, duplicate rows, missing required fields, invalid actions, prompt-matrix coverage, Part 2 day continuity, incomplete days, reserve and population transition consistency, and interrupted versus complete status. The current validation report covers 27 CSV files: one Part 0 file, 13 Part 1 files, and 13 Part 2 files, with 0 failures.
 
 \paragraph{Harmful-output handling.}
 Part 0 evaluates harmful prompts and may produce unsafe completions. The anonymous supplement therefore emphasizes derived tables, validation outputs, and aggregate summaries rather than raw harmful generations. This release choice preserves the evidence used in the paper while limiting unnecessary redistribution of harmful text.
@@ -190,14 +190,14 @@ Safety refusal & 13 & 1 & 297 & 3,861 & 9.4--99.3\% \\
 Dyadic cooperation & 13 & 13 & 384 & 4,992 & 24.2--75.0\% \\
 Commons restraint & 13 & 13 & 1,676--5,000 & 47,529 & 18.6--92.5\% \\
 \midrule
-Validation summary & -- & 27 & -- & -- & 14 pass, 13 warn, 0 fail \\
+Validation summary & -- & 27 & -- & -- & 0 failures \\
 \bottomrule
 \end{tabular}%
 }
 \end{table}
 
 \section{Evaluation Protocol}
-For each model and part, the analysis pipeline computes the primary rate, Wilson 95\% confidence interval, and task-specific diagnostics. Part 2 additionally computes first depletion day, final reserve, final population, total deaths, and reasoning/action mismatch count. Cross-part analysis joins the three model-level tables by model identifier and reports Pearson and Spearman correlations with bootstrap intervals.
+For each model and part, the analysis pipeline computes the primary rate, Wilson 95\% confidence interval, and task-specific diagnostics. Part 2 additionally computes first depletion day, final reserve, final population, and total deaths. Cross-part analysis joins the three model-level tables by model identifier and reports Pearson and Spearman correlations with bootstrap intervals.
 
 The reported comparisons are descriptive pilot results over 13 related local/open-weight variants. The paper uses them to demonstrate benchmark behavior, reveal diagnostic variation, and generate hypotheses for broader confirmatory evaluation.
 
@@ -256,9 +256,6 @@ Part 1 treats prompt frame as an experimental variable. Observer-evaluation prom
 \paragraph{Restraint predicts survival in the simulated commons.}
 Part 2 ties local overuse choices to aggregate outcomes. Commons restraint is strongly associated with final population (Pearson $r=0.85$, bootstrap interval $[0.68,0.98]$). The relationship is expected from the transition rules and useful for auditing: the benchmark makes cumulative overuse visible as resource depletion and population loss.
 
-\paragraph{Reasoning/action mismatch is measurable.}
-The validation pipeline flags \texttt{OVERUSE} rows whose reasoning describes the action as preserving the reserve, keeping the group safe, or beneficially triggering population loss. Across Part 2, it flags 823 rows. These conservative pattern checks expose a concrete process-level signal: a model can emit valid JSON while giving a rationale that conflicts with the selected action's incentives.
-
 \begin{figure}[H]
 \centering
 \includegraphics[width=\linewidth]{../../data/graphs/cross_part/individual-plots/safety_refusal_vs_restraint.png}
@@ -289,7 +286,7 @@ Artifact & Path & Purpose & Audits \\
 Experiment code & \path{experiments/part0}, \path{experiments/part1}, \path{experiments/part2} & Run each benchmark part & Task construction \\
 Raw outputs and sidecars & \path{data/raw/} & Store CSVs and run metadata & Model decisions, provenance \\
 Derived tables & \path{data/analysis/tables/} & Summarize model and cross-part metrics & Counts, rates, intervals \\
-Validation report & \path{data/analysis/validation/validation_report.json} & Check schemas and transitions & Release integrity, mismatch flags \\
+Validation report & \path{data/analysis/validation/validation_report.json} & Check schemas and transitions & Release integrity \\
 Figures & \path{data/graphs/} & Render paper plots & Visual claims \\
 \bottomrule
 \end{tabular}%
@@ -308,7 +305,7 @@ Intended uses include pre-deployment behavioral auditing, model comparison, abla
 \section{Scope and Responsible Use}
 Prosocial Readiness Bench is an evaluation artifact for observable actions and justifications. Its current release is strongest as a reproducible open-model pilot and benchmark package. The model cohort is local/open-weight, several variants are related, and local/Ollama tags can vary across installations unless exact revisions or digests are frozen. These factors affect leaderboard-style interpretation, but they do not affect the artifact contribution: the task contracts, schemas, validation checks, and analysis pipeline remain reusable for broader model cohorts.
 
-The three benchmark parts also define clear scope boundaries. Part 0 uses automated compliance judgments that should be further calibrated for borderline, multilingual, or refusal-style cases. Part 1 evaluates artificial one-shot scenarios, making it well suited for controlled frame and domain comparisons but not a substitute for observing real institutions. Part 2 uses homogeneous same-model societies and one resource dynamic, making action-to-outcome trajectories easy to audit while leaving heterogeneous agents, institutions, shocks, and richer incentives for future extensions. Reasoning text is treated as process evidence, and the mismatch audit is a conservative pattern-based diagnostic rather than a complete semantic verifier.
+The three benchmark parts also define clear scope boundaries. Part 0 uses automated compliance judgments that should be further calibrated for borderline, multilingual, or refusal-style cases. Part 1 evaluates artificial one-shot scenarios, making it well suited for controlled frame and domain comparisons but not a substitute for observing real institutions. Part 2 uses homogeneous same-model societies and one resource dynamic, making action-to-outcome trajectories easy to audit while leaving heterogeneous agents, institutions, shocks, and richer incentives for future extensions. Reasoning text is treated as process evidence rather than a complete semantic account of model behavior.
 
 The safety component requires careful release handling because harmful prompts can elicit unsafe completions. The anonymous supplement therefore provides the evidence needed for the paper's aggregate claims while limiting redistribution of raw harmful generations. The benchmark should be used to identify behavioral risks and compare mitigation strategies, not to improve harmful compliance.
 
@@ -327,23 +324,23 @@ Prosocial Readiness Bench provides a concrete, reproducible way to evaluate thre
 \label{tab:part2}
 \small
 \resizebox{\linewidth}{!}{%
-\begin{tabular}{lrrrr}
+\begin{tabular}{lrrr}
 \toprule
-Model & Restraint & First depletion day & Final population & Mismatch flags \\
+Model & Restraint & First depletion day & Final population \\
 \midrule
-\texttt{qwen2.5:7b} & 92.5\% & Not observed & 50 & 26 \\
-\texttt{qwen2.5:7b-instruct} & 92.3\% & Not observed & 50 & 15 \\
-\texttt{llama2} & 92.0\% & Not observed & 50 & 18 \\
-\texttt{qwen3.5} & 83.9\% & Not observed & 50 & 58 \\
-\texttt{llama2-uncensored} & 78.4\% & Not observed & 50 & 42 \\
-\texttt{sorc/qwen3.5-instruct} & 75.1\% & Not observed & 50 & 142 \\
-\texttt{gpt-oss-safeguard:20b} & 71.2\% & 89 & 2 & 49 \\
-\texttt{gpt-oss:20b} & 63.1\% & 67 & 0 & 83 \\
-\texttt{gurubot/gpt-oss-derestricted:20b} & 34.5\% & 39 & 0 & 164 \\
-\texttt{sorc/qwen3.5-instruct-uncensored} & 33.2\% & 34 & 0 & 91 \\
-\texttt{aratan/qwen3.5-uncensored:9b} & 30.0\% & 36 & 0 & 114 \\
-\texttt{huihui\_ai/qwen2.5-abliterate:7b-instruct} & 18.7\% & 31 & 0 & 15 \\
-\texttt{huihui\_ai/qwen2.5-abliterate:7b} & 18.6\% & 30 & 0 & 6 \\
+\texttt{qwen2.5:7b} & 92.5\% & Not observed & 50 \\
+\texttt{qwen2.5:7b-instruct} & 92.3\% & Not observed & 50 \\
+\texttt{llama2} & 92.0\% & Not observed & 50 \\
+\texttt{qwen3.5} & 83.9\% & Not observed & 50 \\
+\texttt{llama2-uncensored} & 78.4\% & Not observed & 50 \\
+\texttt{sorc/qwen3.5-instruct} & 75.1\% & Not observed & 50 \\
+\texttt{gpt-oss-safeguard:20b} & 71.2\% & 89 & 2 \\
+\texttt{gpt-oss:20b} & 63.1\% & 67 & 0 \\
+\texttt{gurubot/gpt-oss-derestricted:20b} & 34.5\% & 39 & 0 \\
+\texttt{sorc/qwen3.5-instruct-uncensored} & 33.2\% & 34 & 0 \\
+\texttt{aratan/qwen3.5-uncensored:9b} & 30.0\% & 36 & 0 \\
+\texttt{huihui\_ai/qwen2.5-abliterate:7b-instruct} & 18.7\% & 31 & 0 \\
+\texttt{huihui\_ai/qwen2.5-abliterate:7b} & 18.6\% & 30 & 0 \\
 \bottomrule
 \end{tabular}%
 }
@@ -365,7 +362,7 @@ Model & Restraint & First depletion day & Final population & Mismatch flags \\
 \section{NeurIPS Paper Checklist}
 \begin{enumerate}
     \item \textbf{Claims.} \answerYes The abstract, introduction, results, and scope sections frame the work as a reproducible behavioral benchmark and open-model pilot over observable actions and justifications.
-    \item \textbf{Limitations.} \answerYes Scope boundaries are discussed in the main text, including local-model coverage, prompt sensitivity, homogeneous societies, model-tag drift, automated-judge calibration, and reasoning/audit reliability.
+    \item \textbf{Limitations.} \answerYes Scope boundaries are discussed in the main text, including local-model coverage, prompt sensitivity, homogeneous societies, model-tag drift, automated-judge calibration, and reasoning-text interpretation.
     \item \textbf{Theory, assumptions, and proofs.} \answerNA The paper does not present theoretical theorems or proofs.
     \item \textbf{Experimental reproducibility.} \answerYes Reproduction commands, metadata sidecars, manifests, validation reports, and derived tables are documented in the paper and supplement.
     \item \textbf{Open access to data and code.} \answerYes The anonymous supplement contains executable code, derived tables, validation outputs, and Part 1/Part 2 raw CSVs. Raw Part 0 harmful completions are excluded by default for safety reasons.
