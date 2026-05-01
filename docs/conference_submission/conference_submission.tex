@@ -270,7 +270,7 @@ The cross-part results support separate reporting. Safety refusal and dyadic coo
 \paragraph{Family profiles are not one-dimensional.}
 The named release families reinforce the same point. Qwen 2.5 base and instruct variants are high on cooperation and commons restraint, but Qwen 2.5 abliterate variants keep high Part 1 cooperation while collapsing in Part 2. Qwen 3.5 base and instruct variants look strongly safety-oriented and survive the commons, while Qwen 3.5 uncensored variants are low across all three axes. Llama 2 uncensored lowers refusal relative to Llama 2 but raises dyadic cooperation, and both Llama societies survive. GPT-OSS base and safeguard variants remain high-refusal but do not preserve a full commons population; within that pair, the safeguard variant is slightly lower on safety refusal but higher on cooperation and commons restraint. These profiles make model-family analysis useful, but they also caution against using family labels as a substitute for axis-level measurement.
 
-\begin{figure}[!htbp]
+\begin{figure}[!htb]
 \centering
 \includegraphics[width=\linewidth]{../../data/graphs/paper_visuals/model_behavior_pca.png}
 \caption{Exploratory PCA map of standardized behavioral fingerprints. The projection is not a learned model embedding; it visualizes how models separate when safety refusal, dyadic cooperation, frame-level cooperation, commons restraint, depletion timing, final population, and final reserve are considered together.}
@@ -284,7 +284,7 @@ The PCA is useful because it puts the counterexamples near the surface. The Qwen
 \paragraph{Framing changes measured cooperation.}
 Part 1 treats prompt frame as an experimental variable. Observer-evaluation prompts elicit high cooperative judgments, advice and self-direct prompts are intermediate, and prediction prompts elicit low cooperative predictions. This split is useful for auditing because a model can know which action is socially preferred while predicting that agents will act selfishly.
 
-\begin{figure}[!htbp]
+\begin{figure}[!htb]
 \centering
 \includegraphics[width=\linewidth]{../../data/graphs/paper_visuals/frame_sensitivity_heatmap.png}
 \caption{Part 1 cooperation by model and frame. Each cell is a cooperation rate, showing that elicitation frame is a first-class benchmark dimension rather than a minor plotting breakdown.}
@@ -293,30 +293,24 @@ Part 1 treats prompt frame as an experimental variable. Observer-evaluation prom
 
 Figure~\ref{fig:frame-effects} shows that the prediction column is not a bug in scoring but a distinct prompt interpretation. Nearly every model predicts selfish immediate-payoff behavior under the prediction frame, even when it cooperates under self-direct, advice, or observer-evaluation frames. \texttt{llama2-uncensored} is the main exception, with 58.3\% prediction-frame cooperation, while \path{qwen2.5:7b}, \path{qwen2.5:7b-instruct}, \path{qwen3.5}, and both Qwen 2.5 abliterate variants are nearly saturated on the non-prediction frames. The uncensored Qwen 3.5 variants are visibly lower across frames, especially under self-direct prompts.
 
-\FloatBarrier
-
 \paragraph{Restraint predicts survival in the simulated commons.}
 Part 2 ties local overuse choices to aggregate outcomes. Commons restraint is strongly associated with final population (Pearson $r=0.85$, bootstrap interval $[0.68,0.98]$). The relationship is expected from the transition rules and useful for auditing: the benchmark makes cumulative overuse visible as resource depletion and population loss.
 
-\begin{figure}[!htbp]
+\begin{figure}[!htb]
 \centering
 \includegraphics[width=\linewidth]{../../data/graphs/cross_part/individual-plots/safety_refusal_vs_restraint.png}
 \caption{Cross-part diagnostic: safety refusal versus commons restraint. The two axes are positively associated in this cohort but remain separately reported benchmark measurements.}
 \label{fig:cross-diagnostics}
 \end{figure}
 
-\FloatBarrier
-
 Figure~\ref{fig:cross-diagnostics} shows both association and exceptions. High refusal does not guarantee high dyadic cooperation or full commons preservation: standard GPT-OSS and GPT-OSS-Safeguard are high-refusal but only midrange on cooperation and do not preserve a full 50-agent commons population. The low-refusal uncensored and derestricted variants mostly sit in the lower-restraint region, but the Qwen 2.5 abliterate models are the clearest warning against simple interpretation because they pair low refusal with high Part 1 cooperation and poor Part 2 restraint.
 
-\begin{figure}[!htbp]
+\begin{figure}[!htb]
 \centering
 \includegraphics[width=\linewidth]{../../data/graphs/cross_part/individual-plots/restraint_vs_final_population.png}
 \caption{Cross-part diagnostic: commons restraint versus final simulated population. Restraint tracks survival in the repeated commons environment.}
 \label{fig:restraint-population}
 \end{figure}
-
-\FloatBarrier
 
 Figure~\ref{fig:restraint-population} is much more direct because it reflects the Part 2 transition rules: societies above roughly three-quarters restraint generally survive, while low-restraint Qwen 2.5 abliterate, Qwen 3.5 uncensored, and GPT-OSS derestricted runs collapse. The small high-restraint differences still matter, as \path{sorc/qwen3.5-instruct} survives with only 10 reserve units while the Qwen 2.5 and Llama high-restraint runs preserve far more capacity.
 
@@ -404,15 +398,14 @@ Model & Restraint & First depletion day & Final population \\
 \FloatBarrier
 
 \section{Part 2 Agent-Day Raster}
-\begin{figure}[!p]
+\begin{figure}[!htb]
 \centering
-\includegraphics[width=\linewidth,height=0.84\textheight,keepaspectratio]{../../data/graphs/paper_visuals/part2_agent_day_raster.png}
+\includegraphics[width=\linewidth,height=0.72\textheight,keepaspectratio]{../../data/graphs/paper_visuals/part2_agent_day_raster.png}
 \caption{Agent-day action raster for Part 2. Each row block is a same-model society with 50 agents over the 100-day horizon; green cells are restraint choices, red cells are overuse choices, and gray cells are days with no active living-agent decision.}
 \label{fig:agent-day-raster}
 \end{figure}
 
 The raster shows whether a model-level rate is produced by broad agreement or by a mixed society. The high-restraint Qwen 2.5 and Llama rows are green across most agents and most days, indicating society-wide restraint rather than a few restrained agents carrying the average. The collapsing rows show the opposite texture: overuse is distributed across many agents early, so depletion occurs before later restraint can recover the reserve. This is clearest for \path{sorc/qwen3.5-instruct-uncensored}, where the later green shift is visible but appears after the run has already entered the collapse path.
-\FloatBarrier
 
 \section{Artifact Map}
 \begin{itemize}
