@@ -24,6 +24,7 @@ from data.graphs.part_2_graphs import (
 )
 
 TABLES_DIR = Path("data") / "analysis" / "tables"
+RAW_PART0_PATH = Path("data") / "raw" / "part_0" / "04-11-2026_13_04_37.csv"
 OUTPUT_DIR = Path("data") / "graphs" / "paper_visuals"
 MODEL_DECISIONS_PER_FULL_COMMONS_RUN = 5000
 COMMONS_HORIZON_DAYS = 100
@@ -39,6 +40,17 @@ FRAME_LABELS = {
     "advice": "Advice",
     "observer_evaluation": "Observer eval.",
     "prediction": "Prediction",
+}
+LANGUAGE_ORDER = ("english", "chinese", "russian")
+LANGUAGE_LABELS = {
+    "english": "English",
+    "chinese": "Chinese",
+    "russian": "Russian",
+}
+GAME_ORDER = ("prisoners_dilemma", "temptation_or_commons")
+GAME_LABELS = {
+    "prisoners_dilemma": "Prisoner's dilemma",
+    "temptation_or_commons": "Temptation / commons",
 }
 
 
@@ -128,6 +140,34 @@ def _frame_rates() -> dict[tuple[str, str], float]:
             continue
         rates[(row["model"], row["value"])] = float(row["cooperation_rate"]) * 100.0
     return rates
+
+
+def _part1_dimension_rates(dimension: str) -> dict[tuple[str, str], float]:
+    rows = _read_rows(TABLES_DIR / "part1_dimension_summary.csv")
+    rates: dict[tuple[str, str], float] = {}
+    for row in rows:
+        if row["dimension"] != dimension:
+            continue
+        rates[(row["model"], row["value"])] = float(row["cooperation_rate"]) * 100.0
+    return rates
+
+
+def _part0_language_rates() -> dict[tuple[str, str], float]:
+    counts: dict[tuple[str, str], list[int]] = defaultdict(lambda: [0, 0])
+    for row in _read_rows(RAW_PART0_PATH):
+        model = row["model"]
+        language = row["language"]
+        complied = row.get("complied?", "").strip().lower()
+        if complied not in {"true", "false"}:
+            continue
+        counts[(model, language)][1] += 1
+        if complied == "false":
+            counts[(model, language)][0] += 1
+    return {
+        key: denied / total * 100.0
+        for key, (denied, total) in counts.items()
+        if total
+    }
 
 
 def _cross_part_rows() -> dict[str, dict[str, str]]:
@@ -256,6 +296,88 @@ def render_frame_sensitivity_heatmap() -> Path:
     cbar.set_label("Cooperation rate (%)")
     fig.tight_layout()
     output = OUTPUT_DIR / "frame_sensitivity_heatmap.png"
+    output.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output, bbox_inches="tight")
+    plt.close(fig)
+    return output
+
+
+def render_part0_language_heatmap() -> Path:
+    plt, cmap = _setup_matplotlib()
+    rates = _part0_language_rates()
+    models = _model_order({model for model, _language in rates})
+    matrix = np.asarray(
+        [
+            [rates.get((model, language), 0.0) for language in LANGUAGE_ORDER]
+            for model in models
+        ],
+        dtype=float,
+    )
+
+    fig, ax = plt.subplots(figsize=(6.8, 6.2))
+    image = ax.imshow(matrix, cmap=cmap, vmin=0, vmax=100, aspect="auto")
+    ax.set_xticks(range(len(LANGUAGE_ORDER)))
+    ax.set_xticklabels([LANGUAGE_LABELS[language] for language in LANGUAGE_ORDER], rotation=25, ha="right")
+    ax.set_yticks(range(len(models)))
+    ax.set_yticklabels([_short_model_label(model) for model in models])
+    ax.set_title("Safety refusal by language and model")
+    ax.set_xlabel("Prompt language")
+    ax.set_ylabel("Model")
+    ax.set_xticks(np.arange(-0.5, len(LANGUAGE_ORDER), 1), minor=True)
+    ax.set_yticks(np.arange(-0.5, len(models), 1), minor=True)
+    ax.grid(which="minor", color="white", linewidth=1.0)
+    ax.tick_params(which="minor", bottom=False, left=False)
+
+    for row_index in range(matrix.shape[0]):
+        for col_index in range(matrix.shape[1]):
+            value = matrix[row_index, col_index]
+            ax.text(col_index, row_index, f"{value:.0f}", ha="center", va="center", fontsize=7, color="#111827")
+
+    cbar = fig.colorbar(image, ax=ax, fraction=0.04, pad=0.03)
+    cbar.set_label("Safety-refusal rate (%)")
+    fig.tight_layout()
+    output = OUTPUT_DIR / "part0_refusal_by_language_heatmap.png"
+    output.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output, bbox_inches="tight")
+    plt.close(fig)
+    return output
+
+
+def render_part1_game_heatmap() -> Path:
+    plt, cmap = _setup_matplotlib()
+    rates = _part1_dimension_rates("game")
+    models = _model_order({model for model, _game in rates})
+    matrix = np.asarray(
+        [
+            [rates.get((model, game), 0.0) for game in GAME_ORDER]
+            for model in models
+        ],
+        dtype=float,
+    )
+
+    fig, ax = plt.subplots(figsize=(6.8, 6.2))
+    image = ax.imshow(matrix, cmap=cmap, vmin=0, vmax=100, aspect="auto")
+    ax.set_xticks(range(len(GAME_ORDER)))
+    ax.set_xticklabels([GAME_LABELS[game] for game in GAME_ORDER], rotation=25, ha="right")
+    ax.set_yticks(range(len(models)))
+    ax.set_yticklabels([_short_model_label(model) for model in models])
+    ax.set_title("Dyadic cooperation by game family")
+    ax.set_xlabel("Game family")
+    ax.set_ylabel("Model")
+    ax.set_xticks(np.arange(-0.5, len(GAME_ORDER), 1), minor=True)
+    ax.set_yticks(np.arange(-0.5, len(models), 1), minor=True)
+    ax.grid(which="minor", color="white", linewidth=1.0)
+    ax.tick_params(which="minor", bottom=False, left=False)
+
+    for row_index in range(matrix.shape[0]):
+        for col_index in range(matrix.shape[1]):
+            value = matrix[row_index, col_index]
+            ax.text(col_index, row_index, f"{value:.0f}", ha="center", va="center", fontsize=7, color="#111827")
+
+    cbar = fig.colorbar(image, ax=ax, fraction=0.04, pad=0.03)
+    cbar.set_label("Cooperation rate (%)")
+    fig.tight_layout()
+    output = OUTPUT_DIR / "part1_cooperation_by_game_heatmap.png"
     output.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(output, bbox_inches="tight")
     plt.close(fig)
@@ -452,6 +574,9 @@ def render_part2_line_chart(metric: str, ylabel: str, title: str, filename: str)
     if metric in {"restraint_rate", "resource_percent"}:
         ax.set_ylim(0, 105)
         ax.set_yticks(range(0, 101, 10))
+    elif metric == "population":
+        ax.set_ylim(0, COMMONS_SOCIETY_SIZE + 2)
+        ax.set_yticks(range(0, COMMONS_SOCIETY_SIZE + 1, 10))
     elif metric == "resource_units_remaining":
         ax.set_ylim(0, 2600)
     ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.16), ncol=4, frameon=False)
@@ -553,14 +678,22 @@ def render_part2_restraint_bar() -> Path:
 def main() -> int:
     outputs = [
         render_behavioral_fingerprint_heatmap(),
+        render_part0_language_heatmap(),
         render_model_behavior_pca(),
         render_frame_sensitivity_heatmap(),
+        render_part1_game_heatmap(),
         render_agent_day_raster(),
         render_part2_line_chart(
             "resource_units_remaining",
             "Shared reserve units",
             "Shared reserve over time by model",
             "part2_shared_reserve_over_time.png",
+        ),
+        render_part2_line_chart(
+            "population",
+            "Living population",
+            "Living population over time by model",
+            "part2_population_over_time.png",
         ),
         render_part2_restraint_bar(),
         render_part2_restraint_choice_heatmap(),
