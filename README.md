@@ -1,43 +1,47 @@
-# LLM Altruism
+# Prosocial Readiness Bench
 
-This repository studies whether safety refusal, cooperation, and common-resource restraint are related behavioral patterns in LLM agents. The current submission scope is Parts 0-2:
+Prosocial Readiness Bench is a behavioral evaluation suite for asking whether large language model agents that refuse harmful requests also cooperate in social dilemmas and preserve shared resources over repeated interaction.
 
-- **Part 0:** harmful-request refusal and compliance measurement.
-- **Part 1:** one-shot dyadic social dilemmas across games, frames, domains, and prompt presentations.
-- **Part 2:** repeated common-pool resource simulations with larger same-model societies.
+The project started under the working name `llm-altruism`, but the benchmark does not claim to measure intrinsic altruism or moral character. It measures observable behaviors under explicit task contracts:
 
-The paper should treat "altruism" as an interpreted umbrella term. Primary reported constructs are safety refusal, cooperation, restraint, resource preservation, and survival.
+- **Part 0: Safety refusal.** Models answer multilingual harmful-request prompts; outputs are scored as refusal or compliance.
+- **Part 1: Dyadic cooperation.** Models choose actions in one-shot social dilemmas across games, frames, domains, presentations, and scenario variants.
+- **Part 2: Commons restraint.** Same-model societies repeatedly choose whether to restrain or overuse a shared resource, producing resource and population trajectories.
 
-Parts 3-5 are roadmap items and should be described as future work unless they are implemented, validated, and rerun before submission.
+The paper-facing claim is that these axes can dissociate. A model can refuse harmful prompts while still defecting in game settings or overusing a shared resource. The codebase is organized to make that claim auditable from raw traces, metadata sidecars, validation reports, summary tables, figures, and a packaged supplement.
 
-## Repository Layout
+## What Is In This Repository
 
 ```text
-agents/                 Provider-agnostic model wrappers and model config
-experiments/part0/      Safety/refusal experiment
-experiments/part1/      Dyadic game experiment
-experiments/part2/      Commons simulation
-analysis/               Graph-independent validation, manifests, and tables
-data/raw/part_0/        Local Part 0 CSVs and metadata; raw harmful completions are redacted from the anonymous supplement
-data/raw/part_1/        Raw Part 1 CSVs and metadata
-data/raw/part_2/        Raw Part 2 CSVs and metadata
-data/analysis/          Validation reports, summary tables, run manifest
-data/graphs/            Figure outputs
-docs/conference_submission/  NeurIPS submission source and style files
-docs/release/           Data card, model registry, compute note, release terms, and reproducibility notes
-tests/                  Unit and integration tests
+agents/                       Provider-agnostic agent wrappers and model config
+providers/                    API/Ollama call adapters
+experiments/part0/            Harmful-request refusal experiment
+experiments/part1/            One-shot social dilemma experiment
+experiments/part2/            Repeated common-pool resource simulation
+experiments/misc/             Shared prompt loading, result writing, metadata, preflight checks
+analysis/                     Validation, summary tables, manifests, supplement build, figure syncing
+data/raw/part_0/              Local Part 0 CSVs and metadata
+data/raw/part_1/              Raw Part 1 CSVs and metadata
+data/raw/part_2/              Raw Part 2 CSVs and metadata
+data/analysis/                Validation reports, derived tables, Croissant metadata, manifests
+data/graphs/                  Generated figures and diagnostics
+docs/conference_submission/   NeurIPS submission source, figures, PDF, and supplement zip
+docs/release/                 Data card, model registry, compute note, release terms
+tests/                        Unit and integration tests
 ```
+
+Parts 3-5 are roadmap placeholders. Treat Parts 0-2 as the validated benchmark scope unless additional parts are implemented, validated, and rerun.
 
 ## Setup
 
-Install dependencies with `uv`:
+Install dependencies with `uv` from the repository root:
 
 ```bash
 uv sync
 cp .env.example .env
 ```
 
-Fill in only the provider keys you intend to use. Local Ollama runs do not require cloud API keys.
+Fill in only the provider credentials you plan to use. Local Ollama runs do not require cloud API keys, but they do require Ollama to be installed and the requested model tag to be available locally.
 
 Run the test suite:
 
@@ -45,7 +49,7 @@ Run the test suite:
 uv run pytest -q
 ```
 
-Experiment commands run a preflight test gate by default. To skip that gate during controlled local development, set:
+Experiment entry points run a preflight test gate by default. During controlled local development, you can skip that gate with:
 
 ```bash
 export LLM_ALTRUISM_SKIP_PREFLIGHT=1
@@ -53,7 +57,7 @@ export LLM_ALTRUISM_SKIP_PREFLIGHT=1
 
 ## Running Experiments
 
-Part 0:
+Part 0 evaluates harmful-request refusal for one model/language configuration:
 
 ```bash
 uv run python -m experiments.part0.part_0 \
@@ -61,7 +65,7 @@ uv run python -m experiments.part0.part_0 \
   --language english
 ```
 
-Part 1:
+Part 1 runs the dyadic social dilemma prompt matrix:
 
 ```bash
 uv run python -m experiments.part1.part_1 \
@@ -70,7 +74,7 @@ uv run python -m experiments.part1.part_1 \
   --headless
 ```
 
-Part 2:
+Part 2 runs a repeated commons simulation:
 
 ```bash
 uv run python -m experiments.part2.part_2 \
@@ -85,82 +89,120 @@ uv run python -m experiments.part2.part_2 \
   --headless
 ```
 
-Interrupted runs can be resumed with `--resume`. Result CSVs are written incrementally, and metadata sidecars are retained after completion with `status: "complete"` so tables and figures can be traced back to their run context.
+Interrupted runs can be resumed with `--resume`. Result CSVs are written incrementally. Completed runs retain metadata sidecars with provider/model identifiers, command context, timestamps, prompt/config hashes when available, status, and output paths.
 
-## Reproducibility Pipeline
+## Reproducing The Paper Artifacts
 
-Backfill metadata for legacy CSVs:
-
-```bash
-uv run python -m analysis.backfill_metadata
-```
-
-Validate all raw CSVs:
+The graph-independent pipeline validates raw traces, builds derived tables, and writes a manifest:
 
 ```bash
-uv run python -m analysis.validation
-```
-
-Use strict mode when a clean validation gate is required:
-
-```bash
+uv run pytest -q
 uv run python -m analysis.validation --strict
-```
-
-Build graph-independent paper tables:
-
-```bash
 uv run python -m analysis.summarize_results
-```
-
-Build the CSV-to-metadata manifest:
-
-```bash
 uv run python -m analysis.build_manifest
 ```
 
-Current generated outputs:
+The current validation report is written to:
 
-- `data/analysis/validation/validation_report.json`
-- `data/analysis/tables/part0_model_summary.csv`
-- `data/analysis/tables/part0_language_robustness.csv`
-- `data/analysis/tables/part1_model_summary.csv`
-- `data/analysis/tables/part1_dimension_summary.csv`
-- `data/analysis/tables/part1_frame_effects.csv`
-- `data/analysis/tables/part1_prompt_sensitivity.csv`
-- `data/analysis/tables/part1_factor_decomposition.csv`
-- `data/analysis/tables/part2_model_summary.csv`
-- `data/analysis/tables/cross_part_model_summary.csv`
-- `data/analysis/tables/cross_part_correlations.csv`
-- `data/analysis/run_manifest.jsonl`
+```text
+data/analysis/validation/validation_report.json
+```
 
-Figure scripts live under `data/graphs/`. Graph styling and final figure selection are intentionally separate from the validation and table pipeline. Master plots are used for the main per-part summaries; model-family and individual cross-part plots are included for reviewer inspection.
+The main derived tables are written under:
 
-Regenerate figures:
+```text
+data/analysis/tables/
+```
+
+Important table outputs include:
+
+- `part0_model_summary.csv`
+- `part0_language_robustness.csv`
+- `part1_model_summary.csv`
+- `part1_dimension_summary.csv`
+- `part1_frame_effects.csv`
+- `part1_prompt_sensitivity.csv`
+- `part1_factor_decomposition.csv`
+- `part2_model_summary.csv`
+- `cross_part_model_summary.csv`
+- `cross_part_correlations.csv`
+
+Regenerate the figures used by the paper and sync them into the LaTeX figure directory:
 
 ```bash
-uv run python data/graphs/part_0_graphs.py --latest
-uv run python data/graphs/part_1_graphs.py --latest
-uv run python data/graphs/part_2_graphs.py --latest
-uv run python data/graphs/cross_part_graphs.py
 uv run python data/graphs/paper_visuals.py
+uv run python data/graphs/cross_part_graphs.py
+uv run python -m analysis.sync_conference_figures
 ```
+
+The first two commands render figures under `data/graphs/`. The sync command copies the paper-used PNGs into:
+
+```text
+docs/conference_submission/figures/
+```
+
+Build the anonymous supplement:
+
+```bash
+uv run python -m analysis.build_supplement
+```
+
+The output is:
+
+```text
+docs/conference_submission/supplement.zip
+```
+
+## Figure And Paper Workflow
+
+The paper source lives in `docs/conference_submission/conference_submission.tex`. To rebuild the PDF after changing text, references, or figures:
+
+```bash
+cd docs/conference_submission
+pdflatex -interaction=nonstopmode conference_submission.tex
+bibtex conference_submission
+pdflatex -interaction=nonstopmode conference_submission.tex
+pdflatex -interaction=nonstopmode conference_submission.tex
+```
+
+The LaTeX source intentionally uses local paths like `figures/part0_refusal_rate_by_model.png` so the conference submission directory is self-contained. If you regenerate plots under `data/graphs/`, run `uv run python -m analysis.sync_conference_figures` from the repository root before compiling the paper.
+
+## Validation Philosophy
+
+Validation is separate from plotting. `analysis.validation` checks artifact structure and transition consistency before figures are rendered:
+
+- CSV headers and required fields
+- duplicate rows
+- valid Part 1 and Part 2 actions
+- Part 1 prompt-matrix coverage
+- Part 2 day continuity
+- incomplete days
+- reserve/population transition consistency
+- interrupted versus complete run status
+
+This validation does not prove that the automated Part 0 judge is semantically correct. It verifies that the recorded artifacts are internally consistent and suitable for downstream analysis.
+
+## Data And Safety
+
+Part 0 uses harmful-request prompts and model completions for safety evaluation. Do not casually republish raw harmful prompts or completions. The anonymous supplement excludes raw Part 0 prompt-source CSVs, raw Part 0 metadata sidecars, and raw Part 0 harmful completions by default. It includes derived Part 0 aggregate tables and figures plus Part 1/Part 2 raw CSVs and metadata.
+
+Part 1 and Part 2 prompts, traces, and metadata are intended for auditability. Treat the current results as a pilot snapshot, not a final leaderboard. The Part 2 runs in the paper are point estimates from one same-model trajectory per model unless explicitly stated otherwise.
+
+## Useful Release Documents
+
+- `docs/release/DATA_CARD.md`: datasheet-style overview of the benchmark and release.
+- `docs/release/MODEL_REGISTRY.md`: model tags, families, parameter notes, and source links.
+- `docs/release/COMPUTE.md`: compute and execution notes.
+- `docs/release/LICENSES_AND_TERMS.md`: code, data, and upstream artifact terms.
+- `docs/release/REPRODUCIBILITY.md`: expanded reproduction notes for reviewers.
 
 ## Submission Gates
 
-Before using any result in the paper:
+Before using new results in a paper or release:
 
-1. `uv run pytest -q` must pass.
-2. `uv run python -m analysis.validation --strict` must pass, or exceptions must be documented.
-3. Every paper-used CSV must have a metadata sidecar and a manifest entry.
-4. Every central paper claim must trace to a table, validation report, or figure.
-5. The anonymous supplement must build with `uv run python -m analysis.build_supplement`.
-6. The NeurIPS submission must be anonymous, include the checklist, and avoid overclaiming moral agency or intrinsic altruism.
-
-## Data And Safety Notes
-
-Part 0 uses harmful-request prompts for safety evaluation. Raw harmful outputs should not be republished casually. Prefer aggregate statistics, filtered examples, or controlled supplementary access that respects upstream benchmark licenses and safety norms.
-
-The default anonymous supplement excludes raw Part 0 prompt-source CSVs, raw Part 0 metadata sidecars, and raw Part 0 harmful completions. It includes derived Part 0 aggregates plus Part 1/Part 2 raw CSVs and metadata.
-
-Current results are a validated pilot snapshot for the paper-facing submission package; interpret them as descriptive benchmark runs rather than final leaderboard estimates.
+1. `uv run pytest -q` passes.
+2. `uv run python -m analysis.validation --strict` passes, or exceptions are documented.
+3. Every paper-used CSV has a metadata sidecar and manifest entry.
+4. Every central paper claim traces to a table, validation report, figure, or documented source file.
+5. Paper figures are regenerated and synced with `analysis.sync_conference_figures`.
+6. The supplement builds with `uv run python -m analysis.build_supplement`.

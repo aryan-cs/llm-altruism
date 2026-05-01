@@ -1,6 +1,6 @@
 # Reproducibility
 
-This document records the commands needed to reproduce the graph-independent checks and paper tables from a clean clone.
+This document records the commands needed to reproduce the graph-independent checks, paper tables, figures, and supplement from a clean clone. Unless a section says otherwise, run commands from the repository root.
 
 ## Environment
 
@@ -64,9 +64,10 @@ uv run python data/graphs/part_1_graphs.py --latest
 uv run python data/graphs/part_2_graphs.py --latest
 uv run python data/graphs/cross_part_graphs.py
 uv run python data/graphs/paper_visuals.py
+uv run python -m analysis.sync_conference_figures
 ```
 
-The main paper uses selected master plots, readable individual cross-part scatterplots, and paper-specific visual diagnostics rendered by `data/graphs/paper_visuals.py`. The graph tree also contains model-family plots and the full set of individual cross-part scatterplots for reviewer inspection.
+The main paper uses selected master plots, readable individual cross-part scatterplots, and paper-specific visual diagnostics rendered by `data/graphs/paper_visuals.py`. The sync command copies the exact paper-used PNGs into `docs/conference_submission/figures/`, which is the directory read by the LaTeX source. The graph tree also contains model-family plots and the full set of individual cross-part scatterplots for reviewer inspection.
 
 ## Paper PDF
 

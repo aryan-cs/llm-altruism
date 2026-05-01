@@ -667,7 +667,7 @@ Short label & Exact tag & Family & Parameter/quantization note \\
     \item Anonymous supplement: \path{docs/conference_submission/supplement.zip}, generated from the repository root with \texttt{uv run python -m analysis.build\_supplement}. The revision build produced a 19.9 MiB zip with 283 entries, including the manifest; \texttt{ZipFile.testzip()} returned no corrupt member.
 \end{itemize}
 
-The main reproduction commands are:
+From the repository root, the main reproduction commands are:
 \begingroup\small
 \begin{verbatim}
 uv run pytest -q
@@ -675,6 +675,8 @@ uv run python -m analysis.validation --strict
 uv run python -m analysis.summarize_results
 uv run python -m analysis.build_manifest
 uv run python data/graphs/paper_visuals.py
+uv run python data/graphs/cross_part_graphs.py
+uv run python -m analysis.sync_conference_figures
 uv run python -m analysis.build_supplement
 \end{verbatim}
 \endgroup
