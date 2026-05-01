@@ -15,7 +15,7 @@
 \usepackage{hyperref}
 \usepackage{placeins}
 \usepackage{tikz}
-\usetikzlibrary{arrows.meta,positioning,shapes.geometric}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric,calc}
 
 \definecolor{prbBlue}{HTML}{0072B2}
 \definecolor{prbOrange}{HTML}{E69F00}
@@ -58,29 +58,44 @@ Our contributions are:
 \centering
 \resizebox{\linewidth}{!}{%
 \begin{tikzpicture}[
-    font=\small,
-    node distance=0.65cm and 0.8cm,
-    part/.style={draw=#1!70!black, fill=#1!12, rounded corners=2pt, minimum width=3.35cm, minimum height=1.45cm, align=center, line width=0.8pt},
-    process/.style={draw=black!45, fill=black!3, rounded corners=2pt, minimum width=3.35cm, minimum height=1.05cm, align=center, line width=0.7pt},
-    arrow/.style={-{Latex[length=2.2mm]}, line width=0.8pt, draw=black!65}
+    font=\small\sffamily,
+    phase/.style={font=\footnotesize\bfseries\sffamily, text=black!58, align=center},
+    part/.style={draw=#1!75!black, fill=#1!12, rounded corners=3pt, text width=3.05cm, minimum height=1.18cm, align=center, line width=0.8pt},
+    trace/.style={draw=black!45, fill=black!4, rounded corners=3pt, text width=2.65cm, minimum height=1.10cm, align=center, line width=0.7pt},
+    metric/.style={draw=#1!60!black, fill=#1!7, rounded corners=3pt, text width=2.65cm, minimum height=1.10cm, align=center, line width=0.7pt},
+    package/.style={draw=prbTeal!60!black, fill=prbTeal!8, rounded corners=4pt, text width=2.95cm, minimum height=4.00cm, align=center, line width=0.9pt},
+    arrow/.style={-{Latex[length=2.1mm]}, line width=0.75pt, draw=black!62}
 ]
-\node[part=prbBlue] (p0) {\textbf{Part 0}\\harmful prompts\\multilingual refusal};
-\node[part=prbOrange, right=of p0] (p1) {\textbf{Part 1}\\dyadic dilemmas\\cooperation};
-\node[part=prbTeal, right=of p1] (p2) {\textbf{Part 2}\\repeated commons\\restraint};
-\node[process, below=of p0] (a0) {responses\\reasoning\\judge verdicts};
-\node[process, below=of p1] (a1) {JSON action\\justification\\prompt metadata};
-\node[process, below=of p2] (a2) {daily actions\\reserve\\population};
-\node[process, below=0.9cm of a1, minimum width=10.2cm] (validation) {schema, coverage, transition, and metadata validation};
-\node[process, below=0.7cm of validation, minimum width=10.2cm, fill=prbTeal!7, draw=prbTeal!45!black] (outputs) {auditable summaries: rates, Wilson intervals, bootstrap correlations, figures, manifests, Croissant metadata};
-\draw[arrow] (p0) -- (a0);
-\draw[arrow] (p1) -- (a1);
-\draw[arrow] (p2) -- (a2);
-\draw[arrow] (a0) |- (validation);
-\draw[arrow] (a1) -- (validation);
-\draw[arrow] (a2) |- (validation);
-\draw[arrow] (validation) -- (outputs);
+\node[phase] at (0,3.10) {Prompted task};
+\node[phase] at (3.45,3.10) {Recorded trace};
+\node[phase] at (6.75,3.10) {Scored output};
+\node[phase] at (10.10,3.10) {Release check};
+
+\node[part=prbBlue] (p0) at (0,2.15) {\textbf{Part 0}\\Safety refusal\\{\footnotesize harmful prompts, EN/ZH/RU}};
+\node[part=prbOrange] (p1) at (0,0.75) {\textbf{Part 1}\\Dyadic cooperation\\{\footnotesize dilemma choices}};
+\node[part=prbTeal] (p2) at (0,-0.65) {\textbf{Part 2}\\Commons restraint\\{\footnotesize 50-agent simulations}};
+
+\node[trace] (t0) at (3.45,2.15) {model response\\reasoning\\judge verdict};
+\node[trace] (t1) at (3.45,0.75) {JSON action\\justification\\prompt metadata};
+\node[trace] (t2) at (3.45,-0.65) {daily actions\\reserve\\population};
+
+\node[metric=prbBlue] (m0) at (6.75,2.15) {refusal rate\\Wilson CI\\language gap};
+\node[metric=prbOrange] (m1) at (6.75,0.75) {cooperation rate\\frame sensitivity\\game/domain splits};
+\node[metric=prbTeal] (m2) at (6.75,-0.65) {restraint rate\\survival\\AURC/AUPC};
+
+\node[package] (release) at (10.10,0.75) {\textbf{Validated artifact}\\schemas\\coverage\\transition checks\\[0.25em]\textbf{Released outputs}\\tables and figures\\manifests\\Croissant metadata};
+
+\draw[arrow] (p0.east) -- (t0.west);
+\draw[arrow] (p1.east) -- (t1.west);
+\draw[arrow] (p2.east) -- (t2.west);
+\draw[arrow] (t0.east) -- (m0.west);
+\draw[arrow] (t1.east) -- (m1.west);
+\draw[arrow] (t2.east) -- (m2.west);
+\draw[arrow] (m0.east) -- ([yshift=1.40cm]release.west);
+\draw[arrow] (m1.east) -- (release.west);
+\draw[arrow] (m2.east) -- ([yshift=-1.40cm]release.west);
 \end{tikzpicture}}
-\caption{Prosocial Readiness Bench is organized as a benchmark artifact rather than a single leaderboard. Each part maps prompts to constrained actions, validates the resulting files, and produces auditable summaries for a distinct observable behavior.}
+\caption{Prosocial Readiness Bench pipeline. Each task family produces structured traces, part-specific metrics, and one validated release package with tables, figures, manifests, and metadata.}
 \label{fig:overview}
 \end{figure}
 
