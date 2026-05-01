@@ -32,6 +32,7 @@ LOW_SCORE_COLOR = "#f04357"
 HIGH_SCORE_COLOR = "#0c9430"
 MISSING_SCORE_COLOR = "#e5e7eb"
 NEUTRAL_SCORE_COLOR = "#f6f7fb"
+DISPLAY_BLEND_AMOUNT = 0.38
 FRAME_ORDER = ("self_direct", "advice", "observer_evaluation", "prediction")
 FRAME_LABELS = {
     "self_direct": "Self-direct",
@@ -39,6 +40,17 @@ FRAME_LABELS = {
     "observer_evaluation": "Observer eval.",
     "prediction": "Prediction",
 }
+
+
+def _blend_hex(foreground: str, background: str = NEUTRAL_SCORE_COLOR, amount: float = DISPLAY_BLEND_AMOUNT) -> str:
+    fg = np.array([int(foreground[index : index + 2], 16) for index in (1, 3, 5)], dtype=float)
+    bg = np.array([int(background[index : index + 2], 16) for index in (1, 3, 5)], dtype=float)
+    rgb = np.rint(fg * (1.0 - amount) + bg * amount).astype(int)
+    return f"#{rgb[0]:02x}{rgb[1]:02x}{rgb[2]:02x}"
+
+
+LOW_SCORE_DISPLAY_COLOR = _blend_hex(LOW_SCORE_COLOR)
+HIGH_SCORE_DISPLAY_COLOR = _blend_hex(HIGH_SCORE_COLOR)
 
 
 def _read_rows(path: Path) -> list[dict[str, str]]:
@@ -102,7 +114,7 @@ def _setup_matplotlib():
     )
     cmap = LinearSegmentedColormap.from_list(
         "prosocial_score",
-        [LOW_SCORE_COLOR, NEUTRAL_SCORE_COLOR, HIGH_SCORE_COLOR],
+        [LOW_SCORE_DISPLAY_COLOR, NEUTRAL_SCORE_COLOR, HIGH_SCORE_DISPLAY_COLOR],
         N=256,
     )
     return plt, cmap
@@ -196,8 +208,7 @@ def render_behavioral_fingerprint_heatmap() -> Path:
     for row_index in range(matrix.shape[0]):
         for col_index in range(matrix.shape[1]):
             value = matrix[row_index, col_index]
-            text_color = "white" if value < 28 else "#111827"
-            ax.text(col_index, row_index, f"{value:.0f}", ha="center", va="center", fontsize=7, color=text_color)
+            ax.text(col_index, row_index, f"{value:.0f}", ha="center", va="center", fontsize=7, color="#111827")
 
     cbar = fig.colorbar(image, ax=ax, fraction=0.025, pad=0.02)
     cbar.set_label("Score (%)")
@@ -239,8 +250,7 @@ def render_frame_sensitivity_heatmap() -> Path:
     for row_index in range(matrix.shape[0]):
         for col_index in range(matrix.shape[1]):
             value = matrix[row_index, col_index]
-            text_color = "white" if value < 28 else "#111827"
-            ax.text(col_index, row_index, f"{value:.0f}", ha="center", va="center", fontsize=7, color=text_color)
+            ax.text(col_index, row_index, f"{value:.0f}", ha="center", va="center", fontsize=7, color="#111827")
 
     cbar = fig.colorbar(image, ax=ax, fraction=0.04, pad=0.03)
     cbar.set_label("Cooperation rate (%)")
@@ -387,7 +397,7 @@ def render_agent_day_raster() -> Path:
 
     plt, _cmap = _setup_matplotlib()
     models, _trajectories, raster = _part2_trajectories()
-    cmap = ListedColormap([LOW_SCORE_COLOR, HIGH_SCORE_COLOR, MISSING_SCORE_COLOR])
+    cmap = ListedColormap([LOW_SCORE_DISPLAY_COLOR, HIGH_SCORE_DISPLAY_COLOR, MISSING_SCORE_COLOR])
     norm = BoundaryNorm([-0.5, 0.5, 1.5, 2.5], cmap.N)
     fig, ax = plt.subplots(figsize=(12.5, 10.8))
     ax.imshow(raster, cmap=cmap, norm=norm, aspect="auto", interpolation="nearest")
@@ -402,8 +412,8 @@ def render_agent_day_raster() -> Path:
     for boundary in range(1, len(models)):
         ax.axhline(boundary * COMMONS_SOCIETY_SIZE - 0.5, color="white", linewidth=1.1)
     handles = [
-        mpatches.Patch(color=HIGH_SCORE_COLOR, label="Restrain"),
-        mpatches.Patch(color=LOW_SCORE_COLOR, label="Overuse"),
+        mpatches.Patch(color=HIGH_SCORE_DISPLAY_COLOR, label="Restrain"),
+        mpatches.Patch(color=LOW_SCORE_DISPLAY_COLOR, label="Overuse"),
         mpatches.Patch(color=MISSING_SCORE_COLOR, label="No active decision"),
     ]
     ax.legend(handles=handles, loc="upper center", bbox_to_anchor=(0.5, -0.065), ncol=3, frameon=False)
