@@ -1,8 +1,10 @@
 import csv
 import json
+import zipfile
 from pathlib import Path
 
 from analysis.build_manifest import build_manifest
+from analysis.build_supplement import MANIFEST_NAME, build_supplement, collect_supplement_files
 from analysis.summarize_results import (
     _part1_factor_decomposition_rows,
     _part2_normalized_auc,
@@ -81,6 +83,51 @@ def test_manifest_links_metadata_without_embedding_raw_metadata(tmp_path: Path) 
     assert len(entries) == 1
     assert entries[0]["metadata_status"] == "complete"
     assert "metadata" not in entries[0]
+
+
+def test_supplement_builder_excludes_part0_raw_and_generated_artifacts(tmp_path: Path) -> None:
+    root = tmp_path / "repo"
+    for relative_path, content in {
+        "README.md": "readme",
+        "LICENSE": "license",
+        ".env.example": "ENV=value\n",
+        "pyproject.toml": "[project]\nname='example'\n",
+        "uv.lock": "",
+        "analysis/tool.py": "print('ok')\n",
+        "analysis/__pycache__/tool.pyc": "cache",
+        "docs/release/README.md": "# release\n",
+        "docs/conference_submission/conference_submission.tex": "paper",
+        "docs/conference_submission/conference_submission.pdf": "pdf",
+        "docs/conference_submission/references.bib": "",
+        "docs/conference_submission/neurips_2026.sty": "",
+        "data/raw/part_0/harmful.csv": "prompt,response\n",
+        "data/raw/part_1/results.csv": "model,choice\n",
+        "data/raw/part_2/results_meta.json": "{}",
+        "data/analysis/tables/summary.csv": "model,rate\n",
+        "data/graphs/plot.png": "png",
+    }.items():
+        path = root / relative_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+
+    output_path = root / "docs" / "conference_submission" / "supplement.zip"
+    files = {path.as_posix() for path in collect_supplement_files(root, output_path)}
+
+    assert "data/raw/part_1/results.csv" in files
+    assert "data/raw/part_2/results_meta.json" in files
+    assert "data/raw/part_0/harmful.csv" not in files
+    assert "docs/conference_submission/conference_submission.pdf" not in files
+    assert "analysis/__pycache__/tool.pyc" not in files
+
+    build_supplement(root, output_path)
+
+    with zipfile.ZipFile(output_path) as zf:
+        names = set(zf.namelist())
+
+    assert MANIFEST_NAME in names
+    assert "data/raw/part_1/results.csv" in names
+    assert "data/raw/part_0/harmful.csv" not in names
+    assert "supplement.zip" not in names
 
 
 def test_wilson_interval_handles_empty_and_nonempty_rates() -> None:

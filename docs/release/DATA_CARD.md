@@ -43,6 +43,8 @@ The validator checks headers, duplicate rows, action validity, Part 1 matrix cov
 
 Part 0 includes harmful-request evaluation prompts and may contain harmful model completions. For paper release, prefer aggregate tables and selected, filtered qualitative examples. Do not publish raw harmful completions unless the release has been reviewed for safety and upstream benchmark license compatibility.
 
+The anonymous supplement is built with `uv run python -m analysis.build_supplement`. It includes derived Part 0 aggregate artifacts, Part 1/Part 2 raw CSVs and metadata sidecars, code, tests, figures, validation outputs, and release documentation. It excludes raw Part 0 CSVs, raw Part 0 metadata sidecars, and raw Part 0 prompt-source CSVs by default.
+
 The paper-facing Croissant metadata is stored at `data/analysis/croissant_metadata.json`. It documents the derived tables, validation report, manifest, access conditions, and responsible-use constraints used for the current anonymous submission package.
 
 ## Known Limitations

@@ -24,7 +24,7 @@ data/raw/part_2/        Raw Part 2 CSVs and metadata
 data/analysis/          Validation reports, summary tables, run manifest
 data/graphs/            Figure outputs
 docs/conference_submission/  NeurIPS submission source and style files
-docs/release/           Data card, model registry, and reproducibility notes
+docs/release/           Data card, model registry, compute note, release terms, and reproducibility notes
 tests/                  Unit and integration tests
 ```
 
@@ -154,10 +154,13 @@ Before using any result in the paper:
 2. `uv run python -m analysis.validation --strict` must pass, or exceptions must be documented.
 3. Every paper-used CSV must have a metadata sidecar and a manifest entry.
 4. Every central paper claim must trace to a table, validation report, or figure.
-5. The NeurIPS submission must be anonymous, include the checklist, and avoid overclaiming moral agency or intrinsic altruism.
+5. The anonymous supplement must build with `uv run python -m analysis.build_supplement`.
+6. The NeurIPS submission must be anonymous, include the checklist, and avoid overclaiming moral agency or intrinsic altruism.
 
 ## Data And Safety Notes
 
 Part 0 uses harmful-request prompts for safety evaluation. Raw harmful outputs should not be republished casually. Prefer aggregate statistics, filtered examples, or controlled supplementary access that respects upstream benchmark licenses and safety norms.
+
+The default anonymous supplement excludes raw Part 0 prompt-source CSVs, raw Part 0 metadata sidecars, and raw Part 0 harmful completions. It includes derived Part 0 aggregates plus Part 1/Part 2 raw CSVs and metadata.
 
 Current raw results should be treated as pilot data until validation warnings are reviewed and final reruns are frozen.

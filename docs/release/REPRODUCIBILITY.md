@@ -20,7 +20,7 @@ uv run pytest -q
 Expected status at the time of this update:
 
 ```text
-155 passed
+158 passed
 ```
 
 ## Metadata, Validation, Tables, Manifest
@@ -82,6 +82,16 @@ pdflatex -interaction=nonstopmode conference_submission.tex
 
 The upload PDF is `docs/conference_submission/conference_submission.pdf`. The anonymous supplement package should be staged in the same folder as `docs/conference_submission/supplement.zip`.
 
+## Anonymous Supplement
+
+Build the supplement archive from the repository root:
+
+```bash
+uv run python -m analysis.build_supplement
+```
+
+The output is `docs/conference_submission/supplement.zip`. The package contains executable code, release documentation, tests, derived analysis artifacts, figures, and Part 1/Part 2 raw CSVs with metadata sidecars. Raw Part 0 harmful prompts, prompt-source CSVs, and model completions are excluded by policy; the ZIP includes `SUPPLEMENT_MANIFEST.json` documenting included files and exclusions.
+
 ## Acceptance Criteria
 
 A result is paper-ready only when:
@@ -91,4 +101,5 @@ A result is paper-ready only when:
 - the source CSV has a metadata sidecar,
 - the source CSV appears in `data/analysis/run_manifest.jsonl`,
 - the paper-facing Croissant metadata is present at `data/analysis/croissant_metadata.json`,
+- the anonymous supplement builds successfully with `uv run python -m analysis.build_supplement`,
 - any validation warnings are either resolved or explicitly discussed.
