@@ -218,15 +218,15 @@ def test_default_out_prefix_uses_single_stem_or_latest_config_bundle() -> None:
 
 
 def test_model_colors_use_requested_family_palettes_without_bar_borders() -> None:
-    assert _model_bar_color("ollama/gpt-oss:20b") == "#0072B2"
-    assert _model_bar_color("ollama/gpt-oss-safeguard:20b") == "#005A8F"
-    assert _model_bar_color("ollama/gurubot/gpt-oss-derestricted:20b") == "#56B4E9"
-    assert _model_bar_color("ollama/qwen2.5:7b") == "#E69F00"
-    assert _model_bar_color("ollama/huihui_ai/qwen2.5-abliterate:7b-instruct") == "#F6D58B"
-    assert _model_bar_color("ollama/qwen3.5") == "#CC79A7"
-    assert _model_bar_color("ollama/sorc/qwen3.5-instruct-uncensored") == "#E6B8D7"
-    assert _model_bar_color("ollama/llama2") == "#009E73"
-    assert _model_bar_color("ollama/llama2-uncensored") == "#66C2A5"
+    assert _model_bar_color("ollama/gpt-oss:20b") == "#4fc9b0"
+    assert _model_bar_color("ollama/gpt-oss-safeguard:20b") == "#1f9e83"
+    assert _model_bar_color("ollama/gurubot/gpt-oss-derestricted:20b") == "#7edcc8"
+    assert _model_bar_color("ollama/qwen2.5:7b") == "#a47bd6"
+    assert _model_bar_color("ollama/huihui_ai/qwen2.5-abliterate:7b-instruct") == "#b18edc"
+    assert _model_bar_color("ollama/qwen3.5") == "#cc7bd6"
+    assert _model_bar_color("ollama/sorc/qwen3.5-instruct-uncensored") == "#d48edf"
+    assert _model_bar_color("ollama/llama2") == "#7aade8"
+    assert _model_bar_color("ollama/llama2-uncensored") == "#9ec3ef"
     assert _model_bar_edge_color("ollama/qwen2.5:7b-instruct") == "none"
     assert _model_bar_edge_color("ollama/qwen2.5:7b") == "none"
 

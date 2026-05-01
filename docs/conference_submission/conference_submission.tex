@@ -205,7 +205,7 @@ Model & Safety refusal & Dyadic cooperation & Commons restraint \\
 \end{table}
 
 \section{Pilot Results}
-\begin{figure}[!t]
+\begin{figure}[!htbp]
 \centering
 \includegraphics[width=\linewidth]{figures/part0_refusal_rate_by_model.png}
 \caption{Safety-refusal rate by model. Whiskers are Wilson 95\% confidence intervals.}
@@ -268,27 +268,7 @@ Part~1 treats prompt frame as an experimental variable (Figure~\ref{fig:frame-ef
 
 Appendix Figure~\ref{fig:frame-effects} gives the model-by-frame heatmap. Nearly every model predicts selfish behavior under the prediction frame, even when it cooperates under other frames. \texttt{llama2-uncensored} is the main exception (58.3\% prediction-frame cooperation). The uncensored Qwen~3.5 variants have lower cooperation across all frames, especially under self-direct prompts.
 
-\begin{table}[!htbp]
-\centering
-\caption{ANOVA-style decomposition of Part 1 binary cooperation. Variance shares are descriptive sums of squares over the balanced prompt matrix. The model$\times$frame row is separated because the heatmap suggests frame sensitivity varies by model.}
-\label{tab:part1-decomposition}
-\small
-\begin{tabular}{lrrr}
-\toprule
-Term & Levels & df & Variance share \\
-\midrule
-Frame & 4 & 3 & 35.1\% \\
-Model & 13 & 12 & 15.3\% \\
-Model $\times$ frame & 52 & 36 & 9.6\% \\
-Game & 2 & 1 & 4.3\% \\
-Domain & 6 & 5 & 0.5\% \\
-Presentation & 2 & 1 & 0.0\% \\
-Residual and unmodeled & -- & 4933 & 35.2\% \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-Table~\ref{tab:part1-decomposition} quantifies the same pattern. Frame is the largest measured main effect, accounting for 35.1\% of the binary outcome variance in this balanced matrix. Model identity accounts for 15.3\%, the model$\times$frame interaction accounts for 9.6\%, game family for 4.3\%, domain for 0.5\%, and presentation style for less than 0.1\%. The residual share remains large, which is expected for binary choices and also reflects scenario-variant effects and higher-order interactions. Per-model prompt-sensitivity ranges are reported in Appendix Table~\ref{tab:prompt-sensitivity}; frame is the maximum sensitivity dimension for 12 of 13 models, while \texttt{llama2-uncensored} is most sensitive to game family.
+Appendix Table~\ref{tab:part1-decomposition} quantifies the same pattern. Frame is the largest measured main effect, accounting for 35.1\% of the binary outcome variance in this balanced matrix. Model identity accounts for 15.3\%, the model$\times$frame interaction accounts for 9.6\%, game family for 4.3\%, domain for 0.5\%, and presentation style for less than 0.1\%. Per-model prompt-sensitivity ranges are reported in Appendix Table~\ref{tab:prompt-sensitivity}; frame is the maximum sensitivity dimension for 12 of 13 models, while \texttt{llama2-uncensored} is most sensitive to game family.
 
 \paragraph{Restraint predicts survival in the simulated commons.}
 Part 2 ties local overuse choices to aggregate outcomes. Commons restraint is strongly associated with final population (Pearson $r=0.85$, bootstrap interval $[0.68,0.98]$). The relationship is expected from the transition rules and supports auditing by representing cumulative overuse as resource depletion and population loss.
@@ -305,7 +285,7 @@ Across the diagnostics, the central interpretation is that alignment may be patt
 Prosocial Readiness Bench evaluates observable actions, not intent or moral status. The current release is an open-model pilot: related variants and local/Ollama tag drift limit leaderboard claims; Part 0 uses automated response-only judge labels without human calibration; multilingual harmful-request evaluation needs language-specific expert review before stronger cross-cultural claims; Part 1 uses artificial one-shot scenarios; and Part 2 uses one homogeneous same-model trajectory per model with no repeated seeds. The benchmark should be used to audit behavioral risks and compare mitigations, not to improve harmful compliance.
 
 \section{Conclusion}
-Prosocial Readiness Bench packages code, schemas, metadata, validation, tables, figures, and reproduction commands for auditing refusal, dyadic cooperation, and commons restraint. The pilot shows that these axes dissociate and that prompt framing strongly changes measured cooperation. Broader model coverage, repeated seeds, fixed decoding settings, and reputation-aware commons environments are the next confirmatory steps.
+Prosocial Readiness Bench packages traceable artifacts for auditing refusal, dyadic cooperation, and commons restraint. The pilot shows axis dissociation and strong frame sensitivity, motivating broader model coverage, repeated seeds, fixed decoding settings, and richer commons environments.
 
 \bibliographystyle{plainnat}
 \bibliography{references}
@@ -313,7 +293,7 @@ Prosocial Readiness Bench packages code, schemas, metadata, validation, tables, 
 \appendix
 
 \section{Additional Diagnostic Figures}
-All continuous heatmaps in the paper use the perceptually ordered, colorblind-safer \texttt{cividis} colormap. Model-family bars and lines use an Okabe--Ito-derived qualitative palette, and the Part~2 action raster uses blue for restraint and orange for overuse.
+All continuous heatmaps in the paper use the perceptually ordered, colorblind-safer \texttt{cividis} colormap. Model-family bars and lines use the pastel family palette used in the original paper figures, and the Part~2 action raster uses blue for restraint and orange for overuse.
 
 \begin{figure}[!htbp]
 \centering
@@ -384,6 +364,29 @@ All continuous heatmaps in the paper use the perceptually ordered, colorblind-sa
 \caption{Cross-part diagnostic: commons restraint versus final simulated population. Restraint tracks survival in the repeated commons environment.}
 \label{fig:restraint-population}
 \end{figure}
+
+\FloatBarrier
+
+\section{Part 1 Variance Decomposition}
+\begin{table}[!htbp]
+\centering
+\caption{ANOVA-style decomposition of Part 1 binary cooperation. Variance shares are descriptive sums of squares over the balanced prompt matrix. The model$\times$frame row is separated because the heatmap suggests frame sensitivity varies by model.}
+\label{tab:part1-decomposition}
+\small
+\begin{tabular}{lrrr}
+\toprule
+Term & Levels & df & Variance share \\
+\midrule
+Frame & 4 & 3 & 35.1\% \\
+Model & 13 & 12 & 15.3\% \\
+Model $\times$ frame & 52 & 36 & 9.6\% \\
+Game & 2 & 1 & 4.3\% \\
+Domain & 6 & 5 & 0.5\% \\
+Presentation & 2 & 1 & 0.0\% \\
+Residual and unmodeled & -- & 4933 & 35.2\% \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \FloatBarrier
 

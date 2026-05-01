@@ -456,7 +456,7 @@ def render_model_behavior_pca() -> Path:
         "sorc/qwen3.5-instruct-uncensored": (7, -10),
     }
 
-    fig, ax = plt.subplots(figsize=(9.2, 6.2))
+    fig, ax = plt.subplots(figsize=(10.4, 6.0))
     for model, (x_pos, y_pos) in zip(models, scores[:, :2]):
         style_label = _model_label_for_style(model)
         x_offset, y_offset = label_offsets.get(model, (5, 4))
@@ -487,8 +487,15 @@ def render_model_behavior_pca() -> Path:
     ax.set_xlabel(f"PC1 ({explained[0] * 100:.1f}% variance)")
     ax.set_ylabel(f"PC2 ({explained[1] * 100:.1f}% variance)")
     handles = _family_legend_handles(models)
-    ax.legend(handles=handles, title="Model family", loc="best", frameon=False)
-    fig.tight_layout()
+    ax.legend(
+        handles=handles,
+        title="Model family",
+        loc="upper left",
+        bbox_to_anchor=(1.01, 1.0),
+        borderaxespad=0.0,
+        frameon=False,
+    )
+    fig.tight_layout(rect=(0.0, 0.0, 0.84, 1.0))
     output = OUTPUT_DIR / "model_behavior_pca.png"
     output.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(output, bbox_inches="tight")
@@ -691,7 +698,7 @@ def render_part2_restraint_bar() -> Path:
     )
     x_positions = np.arange(len(models))
 
-    fig, ax = plt.subplots(figsize=(12.4, 6.6))
+    fig, ax = plt.subplots(figsize=(13.8, 5.4))
     ax.bar(
         x_positions,
         values,
@@ -702,17 +709,25 @@ def render_part2_restraint_bar() -> Path:
         edgecolor="none",
         width=0.74,
     )
-    for x_pos, value in zip(x_positions, values):
-        ax.text(x_pos, min(103, value + 2.0), f"{value:.1f}", ha="center", va="bottom", fontsize=7, rotation=90)
+    for x_pos, value, high in zip(x_positions, values, highs):
+        label_y = min(104.5, max(value, high) + 1.4)
+        ax.text(x_pos, label_y, f"{value:.1f}", ha="center", va="bottom", fontsize=7, rotation=90)
     ax.set_xticks(x_positions)
     ax.set_xticklabels([_short_model_label(model) for model in models], rotation=45, ha="right")
-    ax.set_ylim(0, 108)
+    ax.set_ylim(0, 112)
     ax.set_yticks(range(0, 101, 10))
     ax.set_ylabel("Restraint choice rate (%)")
     ax.set_title("Commons restraint rate by model")
     ax.grid(axis="y", alpha=0.3)
-    ax.legend(handles=_family_legend_handles(models), title="Model family", loc="upper left", frameon=False)
-    fig.tight_layout()
+    ax.legend(
+        handles=_family_legend_handles(models),
+        title="Model family",
+        loc="upper left",
+        bbox_to_anchor=(1.01, 1.0),
+        borderaxespad=0.0,
+        frameon=False,
+    )
+    fig.tight_layout(rect=(0.0, 0.0, 0.84, 1.0))
     output = OUTPUT_DIR / "part2_restraint_rate_by_model.png"
     output.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(output, bbox_inches="tight")
@@ -735,7 +750,7 @@ def render_part0_refusal_bar() -> Path:
     )
     x_positions = np.arange(len(models))
 
-    fig, ax = plt.subplots(figsize=(12.4, 6.6))
+    fig, ax = plt.subplots(figsize=(13.8, 5.4))
     ax.bar(
         x_positions,
         values,
@@ -746,17 +761,25 @@ def render_part0_refusal_bar() -> Path:
         edgecolor="none",
         width=0.74,
     )
-    for x_pos, value in zip(x_positions, values):
-        ax.text(x_pos, min(103, value + 2.0), f"{value:.1f}", ha="center", va="bottom", fontsize=7, rotation=90)
+    for x_pos, value, high in zip(x_positions, values, highs):
+        label_y = min(104.5, max(value, high) + 1.4)
+        ax.text(x_pos, label_y, f"{value:.1f}", ha="center", va="bottom", fontsize=7, rotation=90)
     ax.set_xticks(x_positions)
     ax.set_xticklabels([_short_model_label(model) for model in models], rotation=45, ha="right")
-    ax.set_ylim(0, 108)
+    ax.set_ylim(0, 112)
     ax.set_yticks(range(0, 101, 10))
     ax.set_ylabel("Safety-refusal rate (%)")
     ax.set_title("Safety-refusal rate by model")
     ax.grid(axis="y", alpha=0.3)
-    ax.legend(handles=_family_legend_handles(models), title="Model family", loc="upper left", frameon=False)
-    fig.tight_layout()
+    ax.legend(
+        handles=_family_legend_handles(models),
+        title="Model family",
+        loc="upper left",
+        bbox_to_anchor=(1.01, 1.0),
+        borderaxespad=0.0,
+        frameon=False,
+    )
+    fig.tight_layout(rect=(0.0, 0.0, 0.84, 1.0))
     output = OUTPUT_DIR / "part0_refusal_rate_by_model.png"
     output.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(output, bbox_inches="tight")
