@@ -72,6 +72,8 @@ One-shot dilemmas across games, frames, domains, variants, and presentations; me
 \label{fig:overview}
 \end{figure}
 
+The overview is meant to be read as a contract diagram: every part starts from an explicit prompt, requires a constrained output, and writes enough metadata to validate the run later. This is why the benchmark can compare safety refusal, dyadic cooperation, and commons restraint without pretending they are the same construct.
+
 \section{Related Work and Gap Matrix}
 Harmful-request and jailbreak benchmarks such as HarmBench and JailbreakBench provide standardized ways to evaluate whether models comply with dangerous instructions or resist adversarial wrappers \citep{mazeika2024harmbench,chao2024jailbreakbench}. Prosocial Readiness Bench builds on this safety-refusal tradition by placing refusal next to two additional social-choice measurements.
 
@@ -214,6 +216,8 @@ The reported comparisons are descriptive pilot results over 13 related local/ope
 
 Figure~\ref{fig:behavioral-fingerprint} shows why the benchmark reports separate axes. Individual model variants, release styles within a family, and broader families do not collapse into one ordering. Qwen 2.5 base and instruct variants are high on cooperation and commons preservation while Qwen 2.5 abliterate variants keep high dyadic cooperation but lose the commons. Qwen 3.5 base and instruct variants remain strong on safety and survival, whereas the uncensored variants are lower across the benchmark. GPT-OSS separates by release style: standard and safeguard variants are high on refusal, the safeguard variant is higher on cooperation and restraint than standard GPT-OSS, and the derestricted variant is lower across the social-choice axes.
 
+The most useful reading of the heatmap is therefore horizontal rather than only vertical. A row such as \path{qwen2.5:7b} is broadly green across cooperation and commons outcomes, while \path{huihui_ai/qwen2.5-abliterate:7b} combines high one-shot cooperation with poor commons survival. That contrast is exactly the kind of behavioral split a single aggregate score would hide.
+
 \begin{figure}[!htbp]
 \centering
 \includegraphics[width=\linewidth]{../../data/graphs/part_0/master-plots/04-11-2026_13_04_37_alignment_by_model.png}
@@ -237,6 +241,8 @@ Part 1 cooperation ranges from 24.2\% to 75.0\%. The most informative result is 
 \paragraph{Commons restraint produces visible survival differences.}
 Part 2 restraint ranges from 18.6\% to 92.5\%. Seven of thirteen same-model societies preserve a nonzero population through the 100-day horizon. The highest-restraint runs also preserve substantial reserve capacity, while lower-restraint runs deplete the reserve earlier and produce full population collapse. Qwen 2.5 is the clearest within-family split: base and instruct variants show 92.5\% and 92.3\% restraint, preserve all 50 agents, and retain 1,752 and 1,726 reserve units, whereas the Qwen 2.5 abliterate variants collapse by days 30--31 with 18.6--18.7\% restraint. Qwen 3.5 base and instruct variants also survive, but with lower restraint and thinner reserves (83.9\% with 890 units; 75.1\% with 10 units), while the Qwen 3.5 uncensored variants collapse by days 34--36. GPT-OSS shows a graded release effect: the derestricted variant collapses by day 39, the base model by day 67, and the safeguard variant delays depletion until day 89 but ends with only 2 agents. Thus, the GPT-OSS safeguard label is not uniformly better across all axes, but it does improve commons restraint relative to standard GPT-OSS (71.2\% versus 63.1\%) and substantially relative to derestricted GPT-OSS (34.5\%). Both Llama 2 variants survive, with base Llama 2 retaining more reserve than Llama 2 uncensored (1,702 versus 344 units). The environment turns repeated action choices into auditable resource and population trajectories.
 
+The restraint-rate bars separate into interpretable groups. \path{qwen2.5:7b}, \path{qwen2.5:7b-instruct}, and \texttt{llama2} are consistently high-restraint societies above 92\%, with \texttt{llama2-uncensored} and \texttt{qwen3.5} also high enough to survive. The two Qwen 2.5 abliterate variants are the opposite case: they are near 18.6--18.7\% restraint and collapse early despite looking cooperative in Part 1. GPT-OSS sits between those extremes, where the safeguard variant raises restraint and delays depletion relative to standard GPT-OSS, but still does not preserve the society.
+
 \begin{figure}[!htbp]
 \centering
 \includegraphics[width=\linewidth]{../../data/graphs/paper_visuals/part2_shared_reserve_over_time.png}
@@ -251,7 +257,9 @@ Part 2 restraint ranges from 18.6\% to 92.5\%. Seven of thirteen same-model soci
 \label{fig:restraint-over-time}
 \end{figure}
 
-Figures~\ref{fig:reserve-over-time} and~\ref{fig:restraint-over-time} make the Part 2 dynamics visible rather than only summarizing final outcomes. Stable survivors keep daily restraint high enough to slow reserve loss across the horizon. Collapsing societies often show sustained low restraint early in the run, followed by gray regions where no living agents remain. GPT-OSS-Safeguard is a useful intermediate case: it is not better than standard GPT-OSS on harmful-request refusal, but it sustains higher commons restraint for longer and depletes the reserve later. Appendix Figure~\ref{fig:agent-day-raster} expands this model-day view to individual agent rows.
+Figures~\ref{fig:reserve-over-time} and~\ref{fig:restraint-over-time} make the Part 2 dynamics visible rather than only summarizing final outcomes. The consistently green rows are the stable high-restraint societies: \texttt{llama2}, \path{qwen2.5:7b}, and \path{qwen2.5:7b-instruct} stay green across almost the full horizon, while \texttt{llama2-uncensored} remains mostly green but preserves less reserve. The consistently red or pale rows are the low-restraint societies: both Qwen 2.5 abliterate variants, \path{aratan/qwen3.5-uncensored:9b}, and GPT-OSS derestricted deplete early and then move into gray no-decision regions after collapse.
+
+The most interesting rows are the strategy-shift cases. \path{sorc/qwen3.5-instruct} starts with low restraint in the first 10 days (29.0\%) but rises to near-universal restraint by the final 10 days (98.8\%), surviving with only 10 reserve units left. \path{sorc/qwen3.5-instruct-uncensored} shows the pattern the heatmap makes especially visible: it begins with very low early restraint (16.2\%), switches to high late restraint (97.0\% over its final 10 active days), but crosses the depletion threshold on day 34 and ultimately collapses. GPT-OSS-Safeguard is another intermediate case: it is not better than standard GPT-OSS on harmful-request refusal, but it sustains higher commons restraint for longer and depletes the reserve later. Appendix Figure~\ref{fig:agent-day-raster} expands this model-day view to individual agent rows.
 
 \FloatBarrier
 
@@ -271,6 +279,8 @@ The named release families reinforce the same point. Qwen 2.5 base and instruct 
 
 The PCA view in Figure~\ref{fig:model-behavior-pca} highlights the same three-level structure as the tabular summaries: individual variants matter, release styles matter within families, and broad families still form visible clusters. Qwen 2.5 base and instruct sit near each other, while Qwen 2.5 abliterate variants separate sharply because their Part 2 outcomes diverge. GPT-OSS derestricted and Qwen 3.5 uncensored variants occupy a different region from their standard or instruct counterparts, reflecting lower restraint and weaker preservation metrics.
 
+The PCA is useful because it puts the counterexamples near the surface. The Qwen 2.5 abliterate models are not near the Qwen 2.5 base models even though their Part 1 cooperation is similar, because their commons trajectories collapse. Conversely, \texttt{llama2-uncensored} moves away from base \texttt{llama2} on refusal and one-shot cooperation but still remains in the surviving-commons region.
+
 \paragraph{Framing changes measured cooperation.}
 Part 1 treats prompt frame as an experimental variable. Observer-evaluation prompts elicit high cooperative judgments, advice and self-direct prompts are intermediate, and prediction prompts elicit low cooperative predictions. This split is useful for auditing because a model can know which action is socially preferred while predicting that agents will act selfishly.
 
@@ -280,6 +290,8 @@ Part 1 treats prompt frame as an experimental variable. Observer-evaluation prom
 \caption{Part 1 cooperation by model and frame. Each cell is a cooperation rate, showing that elicitation frame is a first-class benchmark dimension rather than a minor plotting breakdown.}
 \label{fig:frame-effects}
 \end{figure}
+
+Figure~\ref{fig:frame-effects} shows that the prediction column is not a bug in scoring but a distinct prompt interpretation. Nearly every model predicts selfish immediate-payoff behavior under the prediction frame, even when it cooperates under self-direct, advice, or observer-evaluation frames. \texttt{llama2-uncensored} is the main exception, with 58.3\% prediction-frame cooperation, while \path{qwen2.5:7b}, \path{qwen2.5:7b-instruct}, \path{qwen3.5}, and both Qwen 2.5 abliterate variants are nearly saturated on the non-prediction frames. The uncensored Qwen 3.5 variants are visibly lower across frames, especially under self-direct prompts.
 
 \FloatBarrier
 
@@ -293,12 +305,20 @@ Part 2 ties local overuse choices to aggregate outcomes. Commons restraint is st
 \label{fig:cross-diagnostics}
 \end{figure}
 
+\FloatBarrier
+
+Figure~\ref{fig:cross-diagnostics} shows both association and exceptions. High refusal does not guarantee high dyadic cooperation or full commons preservation: standard GPT-OSS and GPT-OSS-Safeguard are high-refusal but only midrange on cooperation and do not preserve a full 50-agent commons population. The low-refusal uncensored and derestricted variants mostly sit in the lower-restraint region, but the Qwen 2.5 abliterate models are the clearest warning against simple interpretation because they pair low refusal with high Part 1 cooperation and poor Part 2 restraint.
+
 \begin{figure}[!htbp]
 \centering
 \includegraphics[width=\linewidth]{../../data/graphs/cross_part/individual-plots/restraint_vs_final_population.png}
 \caption{Cross-part diagnostic: commons restraint versus final simulated population. Restraint tracks survival in the repeated commons environment.}
 \label{fig:restraint-population}
 \end{figure}
+
+\FloatBarrier
+
+Figure~\ref{fig:restraint-population} is much more direct because it reflects the Part 2 transition rules: societies above roughly three-quarters restraint generally survive, while low-restraint Qwen 2.5 abliterate, Qwen 3.5 uncensored, and GPT-OSS derestricted runs collapse. The small high-restraint differences still matter, as \path{sorc/qwen3.5-instruct} survives with only 10 reserve units while the Qwen 2.5 and Llama high-restraint runs preserve far more capacity.
 
 \FloatBarrier
 
@@ -390,6 +410,8 @@ Model & Restraint & First depletion day & Final population \\
 \caption{Agent-day action raster for Part 2. Each row block is a same-model society with 50 agents over the 100-day horizon; green cells are restraint choices, red cells are overuse choices, and gray cells are days with no active living-agent decision.}
 \label{fig:agent-day-raster}
 \end{figure}
+
+The raster shows whether a model-level rate is produced by broad agreement or by a mixed society. The high-restraint Qwen 2.5 and Llama rows are green across most agents and most days, indicating society-wide restraint rather than a few restrained agents carrying the average. The collapsing rows show the opposite texture: overuse is distributed across many agents early, so depletion occurs before later restraint can recover the reserve. This is clearest for \path{sorc/qwen3.5-instruct-uncensored}, where the later green shift is visible but appears after the run has already entered the collapse path.
 \FloatBarrier
 
 \section{Artifact Map}
