@@ -308,7 +308,7 @@ Prosocial Readiness Bench packages traceable artifacts for auditing refusal, dya
 \appendix
 
 \section{Additional Diagnostic Figures}
-All continuous heatmaps in the paper use the perceptually ordered, colorblind-safer \texttt{cividis} colormap. Model-family bars and lines use the pastel family palette used in the original paper figures, and the Part~2 action raster uses blue for restraint and orange for overuse.
+Continuous heatmaps and the Part~2 action raster use the pastel red/green value palette used in the original paper figures, with red for lower or overuse values and green for higher or restraint values. Model-family bars and lines use the pastel family palette.
 
 \begin{figure}[!htbp]
 \centering
@@ -348,7 +348,7 @@ All continuous heatmaps in the paper use the perceptually ordered, colorblind-sa
 \begin{figure}[!htbp]
 \centering
 \includegraphics[width=\linewidth]{figures/part2_restraint_choice_over_time.png}
-\caption{Daily restraint choice rate over time by model. Higher cividis intensity indicates higher restraint; gray cells indicate days with no active living-agent decisions after population collapse.}
+\caption{Daily restraint choice rate over time by model. Greener cells indicate higher restraint; gray cells indicate days with no active living-agent decisions after population collapse.}
 \label{fig:restraint-over-time}
 \end{figure}
 
@@ -564,11 +564,11 @@ justification to a brief explanation of 1-3 sentences.
 \begin{figure}[!htb]
 \centering
 \includegraphics[width=\linewidth,height=0.72\textheight,keepaspectratio]{figures/part2_agent_day_raster.png}
-\caption{Agent-day action raster for Part 2. Each row block is a same-model society with 50 agents over the 100-day horizon; blue cells are restraint choices, orange cells are overuse choices, and gray cells are days with no active living-agent decision.}
+\caption{Agent-day action raster for Part 2. Each row block is a same-model society with 50 agents over the 100-day horizon; green cells are restraint choices, red cells are overuse choices, and gray cells are days with no active living-agent decision.}
 \label{fig:agent-day-raster}
 \end{figure}
 
-The raster distinguishes society-wide action patterns from aggregate rates produced by heterogeneous agents. The high-restraint Qwen~2.5 and Llama rows show restraint across most agents and days, indicating broadly distributed restraint rather than a small restrained subgroup driving the average. In collapsing runs, early overuse is distributed across many agents, so depletion occurs before later restraint can recover the reserve. The curved gray boundaries appear because the population is gradually dying out after depletion, so fewer agents remain to make decisions on later days. Several rows show a visual flip from orange to blue as the reserve declines, especially Qwen~3.5 instruct, Qwen~3.5 instruct uncensored, and GPT-OSS safeguard. This pattern is most consequential for \modeltag{sorc/qwen3.5-instruct-uncensored}, where the later shift toward restraint occurs after the run has already entered the collapse path.
+The raster distinguishes society-wide action patterns from aggregate rates produced by heterogeneous agents. The high-restraint Qwen~2.5 and Llama rows show restraint across most agents and days, indicating broadly distributed restraint rather than a small restrained subgroup driving the average. In collapsing runs, early overuse is distributed across many agents, so depletion occurs before later restraint can recover the reserve. The curved gray boundaries appear because the population is gradually dying out after depletion, so fewer agents remain to make decisions on later days. Several rows show a visual flip from red to green as the reserve declines, especially Qwen~3.5 instruct, Qwen~3.5 instruct uncensored, and GPT-OSS safeguard. This pattern is most consequential for \modeltag{sorc/qwen3.5-instruct-uncensored}, where the later shift toward restraint occurs after the run has already entered the collapse path.
 
 \section{Artifact Map}
 \label{app:artifact-map}

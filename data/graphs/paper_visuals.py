@@ -34,8 +34,6 @@ HIGH_SCORE_COLOR = "#0c9430"
 MISSING_SCORE_COLOR = "#e5e7eb"
 NEUTRAL_SCORE_COLOR = "#f6f7fb"
 DISPLAY_BLEND_AMOUNT = 0.38
-LOW_ACTION_COLOR = "#D55E00"
-HIGH_ACTION_COLOR = "#0072B2"
 FRAME_ORDER = ("self_direct", "advice", "observer_evaluation", "prediction")
 FRAME_LABELS = {
     "self_direct": "Self-direct",
@@ -65,6 +63,8 @@ def _blend_hex(foreground: str, background: str = NEUTRAL_SCORE_COLOR, amount: f
 
 LOW_SCORE_DISPLAY_COLOR = _blend_hex(LOW_SCORE_COLOR)
 HIGH_SCORE_DISPLAY_COLOR = _blend_hex(HIGH_SCORE_COLOR)
+LOW_ACTION_COLOR = LOW_SCORE_DISPLAY_COLOR
+HIGH_ACTION_COLOR = HIGH_SCORE_DISPLAY_COLOR
 
 
 def _read_rows(path: Path) -> list[dict[str, str]]:
@@ -111,6 +111,7 @@ def _family_legend_handles(models: Iterable[str]) -> list[object]:
 
 def _setup_matplotlib():
     import matplotlib.pyplot as plt
+    from matplotlib.colors import LinearSegmentedColormap
 
     plt.rcParams.update(
         {
@@ -125,12 +126,16 @@ def _setup_matplotlib():
             "axes.spines.right": False,
         }
     )
-    cmap = plt.get_cmap("cividis").copy()
+    cmap = LinearSegmentedColormap.from_list(
+        "pastel_red_green",
+        [LOW_SCORE_DISPLAY_COLOR, NEUTRAL_SCORE_COLOR, HIGH_SCORE_DISPLAY_COLOR],
+        N=256,
+    )
     return plt, cmap
 
 
 def _heatmap_text_color(value: float) -> str:
-    return "#f9fafb" if value < 35.0 else "#111827"
+    return "#111827"
 
 
 def _frame_rates() -> dict[tuple[str, str], float]:
