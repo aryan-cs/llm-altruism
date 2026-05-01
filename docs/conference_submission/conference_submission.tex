@@ -12,8 +12,10 @@
 \usepackage{microtype}
 \usepackage{url}
 \usepackage{xcolor}
+\usepackage{float}
 \usepackage{hyperref}
 \usepackage{placeins}
+\usepackage{needspace}
 \usepackage{tikz}
 \usetikzlibrary{arrows.meta,positioning,shapes.geometric,calc}
 
@@ -306,13 +308,19 @@ Prosocial Readiness Bench packages traceable artifacts for auditing refusal, dya
 \bibliography{references}
 
 \appendix
+\raggedbottom
+\setlength{\floatsep}{8pt plus 2pt minus 2pt}
+\setlength{\textfloatsep}{8pt plus 2pt minus 2pt}
+\setlength{\intextsep}{8pt plus 2pt minus 2pt}
+\setlength{\abovecaptionskip}{4pt}
+\setlength{\belowcaptionskip}{0pt}
 
 \section{Additional Diagnostic Figures}
 Continuous heatmaps and the Part~2 action raster use the pastel red/green value palette used in the original paper figures, with red for lower or overuse values and green for higher or restraint values. Model-family bars and lines use the pastel family palette.
 
 \begin{figure}[!htbp]
 \centering
-\includegraphics[width=\linewidth]{figures/behavioral_fingerprint_heatmap.png}
+\includegraphics[width=0.94\linewidth]{figures/behavioral_fingerprint_heatmap.png}
 \caption{Behavioral fingerprint heatmap across benchmark axes. Values are percentages; reserve AUC and population AUC are normalized trajectory summaries, final reserve is normalized by the 2,500-unit capacity, and no-depletion horizon gives full credit when depletion is not observed within 100 days.}
 \label{fig:behavioral-fingerprint}
 \end{figure}
@@ -383,7 +391,7 @@ Continuous heatmaps and the Part~2 action raster use the pastel red/green value 
 \FloatBarrier
 
 \section{Part 1 Variance Decomposition}
-\begin{table}[!htbp]
+\begin{table}[H]
 \centering
 \caption{ANOVA-style decomposition of Part 1 binary cooperation. Variance shares are descriptive sums of squares over the balanced prompt matrix. The model$\times$frame row is separated because the heatmap suggests frame sensitivity varies by model.}
 \label{tab:part1-decomposition}
@@ -405,8 +413,9 @@ Residual and unmodeled & -- & 4933 & 35.2\% \\
 
 \FloatBarrier
 
+\Needspace{0.34\textheight}
 \section{Per-Model Part 2 Outcomes}
-\begin{table}[!htbp]
+\begin{table}[H]
 \centering
 \caption{Part 2 commons outcomes from \texttt{part2\_model\_summary.csv}. AURC and AUPC are normalized percentages over the 100-day configured horizon. The half-point-looking AUPC values are one-decimal rounded daily end-of-day averages over a discrete 50-agent, 100-day simulation, not binned or multi-seed estimates. ``Not observed'' means no reserve depletion occurred within that horizon.}
 \label{tab:part2}
@@ -436,8 +445,9 @@ Model & Restraint & First depletion day & Final population & Final reserve & AUR
 
 \FloatBarrier
 
+\Needspace{0.28\textheight}
 \section{Part 0 Multilingual Robustness}
-\begin{table}[!htbp]
+\begin{table}[H]
 \centering
 \caption{Part 0 multilingual robustness from \texttt{part0\_language\_robustness.csv}. Mean, minimum-language refusal, and max--min language gap are computed over English, Chinese, and Russian prompt rows.}
 \label{tab:part0-language-robustness}
@@ -467,6 +477,7 @@ Model & Mean refusal & Minimum-language refusal & Language gap \\
 
 \FloatBarrier
 
+\Needspace{0.34\textheight}
 \section{Part 1 Prompt Sensitivity}
 \begin{table}[!htbp]
 \centering
@@ -570,9 +581,13 @@ justification to a brief explanation of 1-3 sentences.
 
 The raster distinguishes society-wide action patterns from aggregate rates produced by heterogeneous agents. The high-restraint Qwen~2.5 and Llama rows show restraint across most agents and days, indicating broadly distributed restraint rather than a small restrained subgroup driving the average. In collapsing runs, early overuse is distributed across many agents, so depletion occurs before later restraint can recover the reserve. The curved gray boundaries appear because the population is gradually dying out after depletion, so fewer agents remain to make decisions on later days. Several rows show a visual flip from red to green as the reserve declines, especially Qwen~3.5 instruct, Qwen~3.5 instruct uncensored, and GPT-OSS safeguard. This pattern is most consequential for \modeltag{sorc/qwen3.5-instruct-uncensored}, where the later shift toward restraint occurs after the run has already entered the collapse path.
 
+\FloatBarrier
+\Needspace{0.38\textheight}
 \section{Artifact Map}
 \label{app:artifact-map}
 \begin{itemize}
+\setlength{\itemsep}{1pt plus 0.5pt}
+\setlength{\parsep}{0pt}
     \item Experiment code: \path{experiments/part0}, \path{experiments/part1}, and \path{experiments/part2}.
     \item Analysis code: \path{analysis/validation.py}, \path{analysis/summarize_results.py}, \path{analysis/build_manifest.py}, and \path{analysis/build_supplement.py}.
     \item Raw data: \path{data/raw/part_0}, \path{data/raw/part_1}, and \path{data/raw/part_2}; the anonymous supplement includes Part 1/Part 2 raw CSVs and omits raw Part 0 harmful prompts, metadata, and completions by default.
@@ -586,6 +601,7 @@ The raster distinguishes society-wide action patterns from aggregate rates produ
 \end{itemize}
 
 The main reproduction commands are:
+\begingroup\small
 \begin{verbatim}
 uv run pytest -q
 uv run python -m analysis.validation --strict
@@ -594,25 +610,30 @@ uv run python -m analysis.build_manifest
 uv run python data/graphs/paper_visuals.py
 uv run python -m analysis.build_supplement
 \end{verbatim}
+\endgroup
 
 \section{NeurIPS Paper Checklist}
+\begingroup\small
 \begin{enumerate}
-    \item \textbf{Claims.} \answerYes The abstract, introduction, results, and scope sections frame the work as a reproducible behavioral benchmark and open-model pilot over observable actions and justifications.
-    \item \textbf{Limitations.} \answerYes Scope boundaries are discussed in the main text, including local-model coverage, prompt sensitivity, homogeneous societies, model-tag drift, automated-judge calibration, and reasoning-text interpretation.
-    \item \textbf{Theory, assumptions, and proofs.} \answerNA The paper does not present theoretical theorems or proofs.
-    \item \textbf{Experimental reproducibility.} \answerYes Reproduction commands, metadata sidecars, manifests, validation reports, derived tables, and the supplement build command are documented in the paper and supplement.
-    \item \textbf{Open access to data and code.} \answerYes The anonymous supplement at \path{docs/conference_submission/supplement.zip} contains executable code, release documentation, tests, derived tables, validation outputs, figures, and Part 1/Part 2 raw CSVs with metadata sidecars. Raw Part 0 harmful prompts, source prompt CSVs, metadata sidecars, and completions are excluded by default for safety reasons.
-    \item \textbf{Experimental setting/details.} \answerYes The evaluated parts, metrics, model registry, prompts/configs, metadata fields, and command interface are documented in the paper and supplement.
-    \item \textbf{Statistical significance.} \answerYes Rate summaries include Wilson confidence intervals, and cross-part correlations include bootstrap intervals. The pilot interpretation remains descriptive because the model cohort is small.
-    \item \textbf{Compute resources.} \answerYes The main text and \path{docs/release/COMPUTE.md} report local Ollama execution, the visible GPU, the cgroup RAM/no-swap/CPU quota, and model-selection implications. Metadata sidecars capture backend and run settings, but full per-run hardware metadata remains incomplete for legacy runs.
-    \item \textbf{Code of ethics.} \answerYes The work is an evaluation benchmark and includes safety precautions for harmful prompts.
-    \item \textbf{Broader impacts.} \answerYes Harmful-output handling, intended-use, and responsible-use text discuss harmful prompt handling, misuse risk, intended use, and release restrictions.
-    \item \textbf{Safeguards.} \answerNA The paper does not release a new pretrained model. Harmful raw outputs are conservatively excluded from the anonymous supplement.
-    \item \textbf{Licenses.} \answerYes The repository code is MIT-licensed. \path{docs/release/LICENSES_AND_TERMS.md} documents release terms, public MIT license labels for the Part 0 source datasets, and the policy excluding raw Part 0 harmful prompts and completions from the default anonymous supplement.
-    \item \textbf{Assets.} \answerYes The data card, model registry, compute note, and license/release-terms document the released evaluation artifacts.
-    \item \textbf{Crowdsourcing and human subjects.} \answerNA No crowdsourcing or human-subject data collection is used.
-    \item \textbf{IRB approvals.} \answerNA No human-subject study is conducted.
-    \item \textbf{Declaration of LLM usage.} \answerYes LLMs are the objects of evaluation; the benchmark sections describe how their outputs are generated and analyzed.
+\setlength{\itemsep}{1pt plus 0.5pt}
+\setlength{\parsep}{0pt}
+    \item \textbf{Claims.} \answerYes{} The abstract, introduction, results, and scope sections frame the work as a reproducible behavioral benchmark and open-model pilot over observable actions and justifications.
+    \item \textbf{Limitations.} \answerYes{} Scope boundaries are discussed in the main text, including local-model coverage, prompt sensitivity, homogeneous societies, model-tag drift, automated-judge calibration, and reasoning-text interpretation.
+    \item \textbf{Theory, assumptions, and proofs.} \answerNA{} The paper does not present theoretical theorems or proofs.
+    \item \textbf{Experimental reproducibility.} \answerYes{} Reproduction commands, metadata sidecars, manifests, validation reports, derived tables, and the supplement build command are documented in the paper and supplement.
+    \item \textbf{Open access to data and code.} \answerYes{} The anonymous supplement at \path{docs/conference_submission/supplement.zip} contains executable code, release documentation, tests, derived tables, validation outputs, figures, and Part 1/Part 2 raw CSVs with metadata sidecars. Raw Part 0 harmful prompts, source prompt CSVs, metadata sidecars, and completions are excluded by default for safety reasons.
+    \item \textbf{Experimental setting/details.} \answerYes{} The evaluated parts, metrics, model registry, prompts/configs, metadata fields, and command interface are documented in the paper and supplement.
+    \item \textbf{Statistical significance.} \answerYes{} Rate summaries include Wilson confidence intervals, and cross-part correlations include bootstrap intervals. The pilot interpretation remains descriptive because the model cohort is small.
+    \item \textbf{Compute resources.} \answerYes{} The main text and \path{docs/release/COMPUTE.md} report local Ollama execution, the visible GPU, the cgroup RAM/no-swap/CPU quota, and model-selection implications. Metadata sidecars capture backend and run settings, but full per-run hardware metadata remains incomplete for legacy runs.
+    \item \textbf{Code of ethics.} \answerYes{} The work is an evaluation benchmark and includes safety precautions for harmful prompts.
+    \item \textbf{Broader impacts.} \answerYes{} Harmful-output handling, intended-use, and responsible-use text discuss harmful prompt handling, misuse risk, intended use, and release restrictions.
+    \item \textbf{Safeguards.} \answerNA{} The paper does not release a new pretrained model. Harmful raw outputs are conservatively excluded from the anonymous supplement.
+    \item \textbf{Licenses.} \answerYes{} The repository code is MIT-licensed. \path{docs/release/LICENSES_AND_TERMS.md} documents release terms, public MIT license labels for the Part 0 source datasets, and the policy excluding raw Part 0 harmful prompts and completions from the default anonymous supplement.
+    \item \textbf{Assets.} \answerYes{} The data card, model registry, compute note, and license/release-terms document the released evaluation artifacts.
+    \item \textbf{Crowdsourcing and human subjects.} \answerNA{} No crowdsourcing or human-subject data collection is used.
+    \item \textbf{IRB approvals.} \answerNA{} No human-subject study is conducted.
+    \item \textbf{Declaration of LLM usage.} \answerYes{} LLMs are the objects of evaluation; the benchmark sections describe how their outputs are generated and analyzed.
 \end{enumerate}
+\endgroup
 
 \end{document}
