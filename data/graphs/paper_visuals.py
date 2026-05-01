@@ -198,6 +198,8 @@ def _fingerprint_matrix() -> tuple[list[str], list[str], np.ndarray]:
         "Prediction",
         "Commons restraint",
         "No-depletion horizon",
+        "Reserve AUC",
+        "Population AUC",
         "Final population",
         "Final reserve",
     ]
@@ -220,6 +222,8 @@ def _fingerprint_matrix() -> tuple[list[str], list[str], np.ndarray]:
             frame_rates.get((model, "prediction"), 0.0),
             float(cross[model]["restraint_rate"]) * 100.0,
             depletion_score,
+            float(part2[model]["normalized_aurc"]) * 100.0,
+            float(part2[model]["normalized_aupc"]) * 100.0,
             float(cross[model]["final_population"]) / COMMONS_SOCIETY_SIZE * 100.0,
             final_reserve,
         ]

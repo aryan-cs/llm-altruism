@@ -42,8 +42,12 @@ Outputs:
 
 - `data/analysis/validation/validation_report.json`
 - `data/analysis/tables/part0_model_summary.csv`
+- `data/analysis/tables/part0_language_robustness.csv`
 - `data/analysis/tables/part1_model_summary.csv`
 - `data/analysis/tables/part1_dimension_summary.csv`
+- `data/analysis/tables/part1_frame_effects.csv`
+- `data/analysis/tables/part1_prompt_sensitivity.csv`
+- `data/analysis/tables/part1_factor_decomposition.csv`
 - `data/analysis/tables/part2_model_summary.csv`
 - `data/analysis/tables/cross_part_model_summary.csv`
 - `data/analysis/tables/cross_part_correlations.csv`

@@ -141,6 +141,7 @@ The primary metric is safety refusal:
 \frac{\#\mathrm{denied}}{\#\mathrm{denied}+\#\mathrm{complied}}.
 \]
 This metric gives a direct, auditable measure of refusal on the harmful-request set and provides the safety axis used in cross-part analysis.
+For multilingual robustness, the analysis also reports the mean refusal rate across languages, the minimum-language refusal rate, and the max--min language gap for each model.
 
 \subsection{Part 1: Dyadic Cooperation}
 Part 1 evaluates one-shot social-dilemma choices. The prompt matrix has two game families, four frames, six domains, four scenario variants per domain-game pair, and two presentation styles, yielding 384 decisions per model. The game families use \texttt{COOPERATE}/\texttt{DEFECT} and \texttt{RESTRAIN}/\texttt{OVERUSE} action pairs. The frames ask for direct self choice, advice, observer evaluation, or prediction.
@@ -151,6 +152,15 @@ The primary metric is dyadic cooperation:
 \frac{\#\mathrm{cooperative}}{\#\mathrm{cooperative}+\#\mathrm{noncooperative}}.
 \]
 \texttt{COOPERATE} and \texttt{RESTRAIN} are scored as cooperative actions; \texttt{DEFECT} and \texttt{OVERUSE} are scored as non-cooperative actions. The frame, domain, game, variant, and presentation fields make prompt sensitivity measurable rather than implicit.
+Frame effect sizes are reported as percentage-point differences from the prediction frame, e.g.,
+\[
+\Delta_{f,\mathrm{prediction}} = 100(r_f-r_{\mathrm{prediction}}),
+\]
+where $r_f$ is the cooperation rate under frame $f$. Prompt sensitivity is reported for each model and dimension as
+\[
+S_{m,d}=100\left(\max_v r_{m,d=v}-\min_v r_{m,d=v}\right),
+\]
+computed over frames, games, domains, and presentation styles. Because the prompt matrix is balanced, the paper also reports a descriptive main-effect variance decomposition for \(\mathrm{cooperate}\sim\mathrm{model}+\mathrm{frame}+\mathrm{game}+\mathrm{domain}+\mathrm{presentation}\). The decomposition is not used for causal attribution; it quantifies how much observed binary outcome variance is associated with each balanced factor in this pilot.
 
 \subsection{Part 2: Commons Restraint}
 Part 2 creates same-model societies in a repeated common-pool resource simulation. Each configured run starts with 50 active agents, a 100-day horizon, and a water reserve with capacity 2,500 units. \texttt{OPTION\_A} maps to \texttt{RESTRAIN}: it uses a 1x daily score multiplier and leaves the reserve unchanged. \texttt{OPTION\_B} maps to \texttt{OVERUSE}: it gives a higher daily score multiplier and reduces the reserve by 2 units. The prompt includes the current day, living population, reserve state, and previous-day \texttt{OPTION\_B} count.
@@ -161,6 +171,12 @@ The primary action metric is commons restraint:
 \frac{\#\mathrm{restrain}}{\#\mathrm{restrain}+\#\mathrm{overuse}}.
 \]
 Part 2 also reports final reserve, first depletion day, final population, total deaths, and survival through the configured horizon. This makes repeated local choices visible as aggregate population and resource trajectories.
+To summarize trajectories rather than endpoints alone, we also compute normalized area under the reserve curve (AURC) and population curve (AUPC):
+\[
+\mathrm{AURC}=\frac{1}{T}\sum_{t=1}^{T}\frac{R_t}{R_{\max}}, \qquad
+\mathrm{AUPC}=\frac{1}{T}\sum_{t=1}^{T}\frac{P_t}{P_0}.
+\]
+Here $R_t$ and $P_t$ are end-of-day reserve and population, $R_{\max}$ is reserve capacity, $P_0$ is initial population, and missing post-collapse days contribute zero.
 
 \section{Artifact Construction and Quality Control}
 \paragraph{Model cohort.}
@@ -202,7 +218,7 @@ Validation summary & -- & 27 & -- & -- & 0 failures \\
 \end{table}
 
 \section{Evaluation Protocol}
-For each model and part, the analysis pipeline computes the primary rate, Wilson 95\% confidence interval, and task-specific diagnostics. Part 2 additionally computes first depletion day, final reserve, final population, and total deaths. Cross-part analysis joins the three model-level tables by model identifier and reports Pearson and Spearman correlations with bootstrap intervals.
+For each model and part, the analysis pipeline computes the primary rate, Wilson 95\% confidence interval, and task-specific diagnostics. Part 0 additionally computes multilingual robustness metrics. Part 1 computes frame effect sizes, prompt-sensitivity indices, and a balanced main-effect variance decomposition. Part 2 additionally computes first depletion day, final reserve, final population, total deaths, AURC, and AUPC. Cross-part analysis joins the three model-level tables by model identifier and reports Pearson and Spearman correlations with bootstrap intervals.
 
 The reported comparisons are descriptive pilot results over 13 related local/open-weight variants. The paper uses them to demonstrate benchmark behavior, reveal diagnostic variation, and generate hypotheses for broader confirmatory evaluation. Family-level readings below group models by visible release lineage and should be interpreted as descriptive clusters, not independent estimates of vendor or architecture effects.
 
@@ -210,7 +226,7 @@ The reported comparisons are descriptive pilot results over 13 related local/ope
 \begin{figure}[!htbp]
 \centering
 \includegraphics[width=\linewidth]{../../data/graphs/paper_visuals/behavioral_fingerprint_heatmap.png}
-\caption{Behavioral fingerprint heatmap across benchmark axes. Values are percentages; final reserve is normalized by the 2,500-unit capacity and no-depletion horizon gives full credit when depletion is not observed within 100 days.}
+\caption{Behavioral fingerprint heatmap across benchmark axes. Values are percentages; reserve AUC and population AUC are normalized trajectory summaries, final reserve is normalized by the 2,500-unit capacity, and no-depletion horizon gives full credit when depletion is not observed within 100 days.}
 \label{fig:behavioral-fingerprint}
 \end{figure}
 
@@ -235,10 +251,10 @@ Part 0 refusal ranges from 9.4\% to 99.3\%. Several standard or safeguard-orient
 \label{fig:refusal-language}
 \end{figure}
 
-Figure~\ref{fig:refusal-language} shows that multilingual refusal is broadly consistent for the strongest safety-oriented variants but less stable for mid-range and uncensored variants. GPT-OSS, Qwen 3.5, and Qwen 3.5 instruct remain near saturation across all three languages. GPT-OSS-Safeguard remains high but is lower on Russian (91.9\%) than on English (100.0\%). Qwen 2.5 base and instruct variants refuse more often on Russian than English, while \texttt{llama2-uncensored} shows the largest cross-language spread, with 36.4\% refusal on English and 67.7\% on Chinese.
+Figure~\ref{fig:refusal-language} shows that multilingual refusal is broadly consistent for the strongest safety-oriented variants but less stable for mid-range and uncensored variants. GPT-OSS, Qwen 3.5, and Qwen 3.5 instruct remain near saturation across all three languages. GPT-OSS has a 99.3\% mean language refusal rate, a 99.0\% minimum-language refusal rate, and a 1.0-point language gap; Qwen 3.5 has the same 1.0-point gap. GPT-OSS-Safeguard remains high but is lower on Russian (91.9\%) than on English (100.0\%), giving an 8.1-point gap. Qwen 2.5 base and instruct variants refuse more often on Russian than English and have larger multilingual gaps of 26.3 and 22.2 points. \texttt{llama2-uncensored} shows the largest cross-language spread, with 36.4\% refusal on English, 67.7\% on Chinese, and a 31.3-point gap.
 
 \paragraph{Cooperation is strongly frame-sensitive.}
-Part 1 cooperation ranges from 24.2\% to 75.0\%. The principal Part 1 pattern is the frame effect: across models, cooperation is 83.2\% under observer-evaluation prompts, 66.8\% under advice prompts, 61.4\% under self-direct prompts, and 4.9\% under prediction prompts. The model-family pattern differs from refusal. Qwen 2.5 base, instruct, and abliterate variants all sit near the top at 74.0--75.0\%, while Qwen 3.5 separates into a cooperative base model (71.1\%), a mid-range instruct variant (48.7\%), and low-cooperation uncensored variants (25.8\% and 24.2\%). Llama 2 reverses the safety pattern, with the uncensored variant cooperating more than the base model (68.8\% versus 52.6\%). GPT-OSS variants remain lower overall, but here the safeguard variant is the strongest GPT-OSS run: 47.1\% cooperation versus 38.5\% for standard GPT-OSS and 27.1\% for derestricted GPT-OSS. The benchmark therefore distinguishes socially preferred judgments from expectations about how an agent will behave.
+Part 1 cooperation ranges from 24.2\% to 75.0\%. The principal Part 1 pattern is the frame effect: across models, cooperation is 83.2\% under observer-evaluation prompts, 66.8\% under advice prompts, 61.4\% under self-direct prompts, and 4.9\% under prediction prompts. Relative to prediction, the absolute frame effects are 78.3 percentage points for observer evaluation, 61.9 points for advice, and 56.5 points for self-direct choice. The model-family pattern differs from refusal. Qwen 2.5 base, instruct, and abliterate variants all sit near the top at 74.0--75.0\%, while Qwen 3.5 separates into a cooperative base model (71.1\%), a mid-range instruct variant (48.7\%), and low-cooperation uncensored variants (25.8\% and 24.2\%). Llama 2 reverses the safety pattern, with the uncensored variant cooperating more than the base model (68.8\% versus 52.6\%). GPT-OSS variants remain lower overall, but here the safeguard variant is the strongest GPT-OSS run: 47.1\% cooperation versus 38.5\% for standard GPT-OSS and 27.1\% for derestricted GPT-OSS. The benchmark therefore distinguishes socially preferred judgments from expectations about how an agent will behave.
 
 \begin{figure}[!htbp]
 \centering
@@ -257,7 +273,7 @@ Figure~\ref{fig:game-family} shows that the temptation/commons game family elici
 \end{figure}
 
 \paragraph{Commons restraint produces survival differences.}
-Part 2 restraint ranges from 18.6\% to 92.5\%. Seven of thirteen same-model societies preserve a nonzero population through the 100-day horizon. The highest-restraint runs also preserve substantial reserve capacity, while lower-restraint runs deplete the reserve earlier and produce full population collapse. Qwen 2.5 is the clearest within-family split: base and instruct variants show 92.5\% and 92.3\% restraint, preserve all 50 agents, and retain 1,752 and 1,726 reserve units, whereas the Qwen 2.5 abliterate variants collapse by days 30--31 with 18.6--18.7\% restraint. Qwen 3.5 base and instruct variants also survive, but with lower restraint and thinner reserves (83.9\% with 890 units; 75.1\% with 10 units), while the Qwen 3.5 uncensored variants collapse by days 34--36. GPT-OSS shows a graded release effect: the derestricted variant collapses by day 39, the base model by day 67, and the safeguard variant delays depletion until day 89 but ends with only 2 agents. Thus, the GPT-OSS safeguard label is not uniformly better across all axes, but it does improve commons restraint relative to standard GPT-OSS (71.2\% versus 63.1\%) and substantially relative to derestricted GPT-OSS (34.5\%). Both Llama 2 variants survive, with base Llama 2 retaining more reserve than Llama 2 uncensored (1,702 versus 344 units). The environment turns repeated action choices into auditable resource and population trajectories.
+Part 2 restraint ranges from 18.6\% to 92.5\%. Seven of thirteen same-model societies preserve a nonzero population through the 100-day horizon. The highest-restraint runs also preserve substantial reserve capacity, while lower-restraint runs deplete the reserve earlier and produce full population collapse. Qwen 2.5 is the clearest within-family split: base and instruct variants show 92.5\% and 92.3\% restraint, preserve all 50 agents, and retain 1,752 and 1,726 reserve units, whereas the Qwen 2.5 abliterate variants collapse by days 30--31 with 18.6--18.7\% restraint. Qwen 2.5 base, Qwen 2.5 instruct, and Llama 2 have the strongest trajectory summaries, with AURC between 84.3\% and 85.3\% and AUPC at 100.0\%. Qwen 3.5 base also preserves the full population with 67.8\% AURC. Qwen 3.5 instruct illustrates why endpoint survival is incomplete: it has AUPC of 100.0\% but AURC of only 19.8\% and ends with 10 reserve units. GPT-OSS shows a graded release effect: the derestricted variant collapses by day 39, the base model by day 67, and the safeguard variant delays depletion until day 89 but ends with only 2 agents. The safeguard variant improves both trajectory metrics relative to standard GPT-OSS (33.3\% versus 29.9\% AURC; 91.5\% versus 69.5\% AUPC), while remaining far below the high-preservation Qwen 2.5 and Llama runs. Thus, the GPT-OSS safeguard label is not uniformly better across all axes, but it does improve commons restraint relative to standard GPT-OSS (71.2\% versus 63.1\%) and substantially relative to derestricted GPT-OSS (34.5\%). Both Llama 2 variants survive, with base Llama 2 retaining more reserve than Llama 2 uncensored (1,702 versus 344 units). The environment turns repeated action choices into auditable resource and population trajectories.
 
 The restraint-rate bars separate into interpretable groups. \path{qwen2.5:7b}, \path{qwen2.5:7b-instruct}, and \texttt{llama2} are consistently high-restraint societies above 92\%, with \texttt{llama2-uncensored} and \texttt{qwen3.5} also high enough to survive. The two Qwen 2.5 abliterate variants form the low-restraint group: they remain near 18.6--18.7\% restraint and collapse early despite high Part 1 cooperation. GPT-OSS variants occupy an intermediate range, where the safeguard variant raises restraint and delays depletion relative to standard GPT-OSS but still does not preserve the full society.
 
@@ -298,7 +314,7 @@ The named release families reinforce the same point. Qwen 2.5 base and instruct 
 \begin{figure}[!htb]
 \centering
 \includegraphics[width=\linewidth]{../../data/graphs/paper_visuals/model_behavior_pca.png}
-\caption{Exploratory PCA map of standardized behavioral fingerprints. The projection is not a learned model embedding; it visualizes how models separate when safety refusal, dyadic cooperation, frame-level cooperation, commons restraint, depletion timing, final population, and final reserve are considered together.}
+\caption{Exploratory PCA map of standardized behavioral fingerprints. The projection is not a learned model embedding; it visualizes how models separate when safety refusal, dyadic cooperation, frame-level cooperation, commons restraint, depletion timing, AURC/AUPC, final population, and final reserve are considered together.}
 \label{fig:model-behavior-pca}
 \end{figure}
 
@@ -317,6 +333,27 @@ Part 1 treats prompt frame as an experimental variable. Observer-evaluation prom
 \end{figure}
 
 Figure~\ref{fig:frame-effects} shows that the prediction column reflects a distinct elicitation condition rather than a scoring artifact. Nearly every model predicts selfish immediate-payoff behavior under the prediction frame, even when it cooperates under self-direct, advice, or observer-evaluation frames. \texttt{llama2-uncensored} is the main exception, with 58.3\% prediction-frame cooperation, while \path{qwen2.5:7b}, \path{qwen2.5:7b-instruct}, \path{qwen3.5}, and both Qwen 2.5 abliterate variants are nearly saturated on the non-prediction frames. The uncensored Qwen 3.5 variants have lower cooperation across frames, especially under self-direct prompts.
+
+\begin{table}[!htbp]
+\centering
+\caption{ANOVA-style main-effect decomposition of Part 1 binary cooperation. Variance shares are descriptive sums of squares over the balanced prompt matrix; residual variance includes interactions, scenario-variant effects, and row-level binary variation.}
+\label{tab:part1-decomposition}
+\small
+\begin{tabular}{lrrr}
+\toprule
+Term & Levels & df & Variance share \\
+\midrule
+Frame & 4 & 3 & 35.1\% \\
+Model & 13 & 12 & 15.3\% \\
+Game & 2 & 1 & 4.3\% \\
+Domain & 6 & 5 & 0.5\% \\
+Presentation & 2 & 1 & 0.0\% \\
+Residual, interactions, and unmodeled & -- & 4969 & 44.8\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:part1-decomposition} quantifies the same pattern. Frame is the largest measured main effect, accounting for 35.1\% of the binary outcome variance in this balanced matrix. Model identity accounts for 15.3\%, game family for 4.3\%, domain for 0.5\%, and presentation style for less than 0.1\%. The residual share remains large, which is expected for binary choices and also reflects interactions and scenario-variant heterogeneity not included in the requested main-effect formula. Per-model prompt-sensitivity ranges are reported in Appendix Table~\ref{tab:prompt-sensitivity}; frame is the maximum sensitivity dimension for 12 of 13 models, while \texttt{llama2-uncensored} is most sensitive to game family.
 
 \paragraph{Restraint predicts survival in the simulated commons.}
 Part 2 ties local overuse choices to aggregate outcomes. Commons restraint is strongly associated with final population (Pearson $r=0.85$, bootstrap interval $[0.68,0.98]$). The relationship is expected from the transition rules and supports auditing by representing cumulative overuse as resource depletion and population loss.
@@ -394,27 +431,89 @@ Prosocial Readiness Bench provides a concrete, reproducible way to evaluate thre
 \section{Per-Model Part 2 Outcomes}
 \begin{table}[!htbp]
 \centering
-\caption{Part 2 commons outcomes from \texttt{part2\_model\_summary.csv}. ``Not observed'' means no reserve depletion occurred within the 100-day configured horizon.}
+\caption{Part 2 commons outcomes from \texttt{part2\_model\_summary.csv}. AURC and AUPC are normalized percentages over the 100-day configured horizon. ``Not observed'' means no reserve depletion occurred within that horizon.}
 \label{tab:part2}
+\small
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{lrrrrrr}
+\toprule
+Model & Restraint & First depletion day & Final population & Final reserve & AURC & AUPC \\
+\midrule
+\texttt{qwen2.5:7b} & 92.5\% & Not observed & 50 & 1,752 & 84.8\% & 100.0\% \\
+\texttt{qwen2.5-inst} & 92.3\% & Not observed & 50 & 1,726 & 85.3\% & 100.0\% \\
+\texttt{llama2} & 92.0\% & Not observed & 50 & 1,702 & 84.3\% & 100.0\% \\
+\texttt{qwen3.5} & 83.9\% & Not observed & 50 & 890 & 67.8\% & 100.0\% \\
+\texttt{llama2-uncensored} & 78.4\% & Not observed & 50 & 344 & 57.3\% & 100.0\% \\
+\texttt{qwen3.5-inst} & 75.1\% & Not observed & 50 & 10 & 19.8\% & 100.0\% \\
+\texttt{gpt-oss-sg} & 71.2\% & 89 & 2 & 0 & 33.3\% & 91.5\% \\
+\texttt{gpt-oss:20b} & 63.1\% & 67 & 0 & 0 & 29.9\% & 69.5\% \\
+\texttt{gpt-oss-der} & 34.5\% & 39 & 0 & 0 & 19.6\% & 41.5\% \\
+\texttt{qwen3.5-inst-unc} & 33.2\% & 34 & 0 & 0 & 14.5\% & 36.5\% \\
+\texttt{qwen3.5-unc} & 30.0\% & 36 & 0 & 0 & 17.1\% & 38.5\% \\
+\texttt{qwen2.5-abl-inst} & 18.7\% & 31 & 0 & 0 & 14.6\% & 33.5\% \\
+\texttt{qwen2.5-abl} & 18.6\% & 30 & 0 & 0 & 14.5\% & 32.5\% \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+\FloatBarrier
+
+\section{Part 0 Multilingual Robustness}
+\begin{table}[!htbp]
+\centering
+\caption{Part 0 multilingual robustness from \texttt{part0\_language\_robustness.csv}. Mean, minimum-language refusal, and max--min language gap are computed over English, Chinese, and Russian prompt rows.}
+\label{tab:part0-language-robustness}
 \small
 \resizebox{\linewidth}{!}{%
 \begin{tabular}{lrrr}
 \toprule
-Model & Restraint & First depletion day & Final population \\
+Model & Mean refusal & Minimum-language refusal & Language gap \\
 \midrule
-\texttt{qwen2.5:7b} & 92.5\% & Not observed & 50 \\
-\texttt{qwen2.5:7b-instruct} & 92.3\% & Not observed & 50 \\
-\texttt{llama2} & 92.0\% & Not observed & 50 \\
-\texttt{qwen3.5} & 83.9\% & Not observed & 50 \\
-\texttt{llama2-uncensored} & 78.4\% & Not observed & 50 \\
-\texttt{sorc/qwen3.5-instruct} & 75.1\% & Not observed & 50 \\
-\texttt{gpt-oss-safeguard:20b} & 71.2\% & 89 & 2 \\
-\texttt{gpt-oss:20b} & 63.1\% & 67 & 0 \\
-\texttt{gurubot/gpt-oss-derestricted:20b} & 34.5\% & 39 & 0 \\
-\texttt{sorc/qwen3.5-instruct-uncensored} & 33.2\% & 34 & 0 \\
-\texttt{aratan/qwen3.5-uncensored:9b} & 30.0\% & 36 & 0 \\
-\texttt{huihui\_ai/qwen2.5-abliterate:7b-instruct} & 18.7\% & 31 & 0 \\
-\texttt{huihui\_ai/qwen2.5-abliterate:7b} & 18.6\% & 30 & 0 \\
+\texttt{qwen3.5-unc} & 9.4\% & 6.1\% (English) & 6.1 pp \\
+\texttt{gpt-oss-sg} & 97.0\% & 91.9\% (Russian) & 8.1 pp \\
+\texttt{gpt-oss:20b} & 99.3\% & 99.0\% (Chinese) & 1.0 pp \\
+\texttt{gpt-oss-der} & 16.2\% & 12.1\% (English) & 8.1 pp \\
+\texttt{qwen2.5-abl} & 27.9\% & 16.2\% (English) & 20.2 pp \\
+\texttt{qwen2.5-abl-inst} & 29.0\% & 18.2\% (English) & 17.2 pp \\
+\texttt{llama2} & 77.4\% & 74.7\% (Chinese) & 5.1 pp \\
+\texttt{llama2-uncensored} & 51.2\% & 36.4\% (English) & 31.3 pp \\
+\texttt{qwen2.5:7b} & 74.4\% & 59.6\% (English) & 26.3 pp \\
+\texttt{qwen2.5-inst} & 64.3\% & 51.5\% (English) & 22.2 pp \\
+\texttt{qwen3.5} & 98.3\% & 98.0\% (Chinese) & 1.0 pp \\
+\texttt{qwen3.5-inst} & 97.6\% & 93.9\% (Chinese) & 6.1 pp \\
+\texttt{qwen3.5-inst-unc} & 32.7\% & 22.2\% (English) & 22.2 pp \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+\FloatBarrier
+
+\section{Part 1 Prompt Sensitivity}
+\begin{table}[!htbp]
+\centering
+\caption{Per-model prompt-sensitivity indices from \texttt{part1\_prompt\_sensitivity.csv}. Each entry is the max--min cooperation-rate range, in percentage points, across values of the named dimension.}
+\label{tab:prompt-sensitivity}
+\small
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{lrrrr}
+\toprule
+Model & Frame & Game & Domain & Presentation \\
+\midrule
+\texttt{qwen3.5-unc} & 65.6 & 29.7 & 18.8 & 3.6 \\
+\texttt{gpt-oss-sg} & 93.8 & 45.3 & 12.5 & 1.6 \\
+\texttt{gpt-oss:20b} & 87.5 & 37.5 & 10.9 & 2.1 \\
+\texttt{gpt-oss-der} & 45.8 & 39.6 & 7.8 & 2.1 \\
+\texttt{qwen2.5-abl} & 97.9 & 0.0 & 3.1 & 0.0 \\
+\texttt{qwen2.5-abl-inst} & 97.9 & 2.1 & 3.1 & 2.1 \\
+\texttt{llama2} & 81.2 & 9.4 & 20.3 & 2.1 \\
+\texttt{llama2-uncensored} & 20.8 & 22.9 & 10.9 & 2.1 \\
+\texttt{qwen2.5:7b} & 100.0 & 0.0 & 0.0 & 0.0 \\
+\texttt{qwen2.5-inst} & 99.0 & 1.0 & 0.0 & 1.0 \\
+\texttt{qwen3.5} & 96.9 & 5.7 & 18.8 & 2.6 \\
+\texttt{qwen3.5-inst} & 79.2 & 41.1 & 29.7 & 2.6 \\
+\texttt{qwen3.5-inst-unc} & 59.4 & 34.9 & 18.8 & 5.7 \\
 \bottomrule
 \end{tabular}%
 }

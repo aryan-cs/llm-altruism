@@ -3,7 +3,13 @@ import json
 from pathlib import Path
 
 from analysis.build_manifest import build_manifest
-from analysis.summarize_results import _pearson_correlation, _spearman_correlation, _wilson_interval
+from analysis.summarize_results import (
+    _part1_factor_decomposition_rows,
+    _part2_normalized_auc,
+    _pearson_correlation,
+    _spearman_correlation,
+    _wilson_interval,
+)
 from analysis.validation import validate_part2_file
 from experiments.part2.part_2 import RESULT_HEADERS
 
@@ -91,3 +97,62 @@ def test_cross_part_correlation_helpers_handle_rank_and_linear_relationships() -
     assert round(_pearson_correlation(xs, ys), 6) == 1.0
     assert round(_spearman_correlation(xs, ys), 6) == 1.0
     assert round(_spearman_correlation(tied, tied), 6) == 1.0
+
+
+def test_part2_auc_normalizes_over_configured_horizon() -> None:
+    day_rows = {
+        1: [{"resource_units_remaining": "8", "population_end": "4"}],
+        2: [{"resource_units_remaining": "4", "population_end": "2"}],
+    }
+
+    reserve_auc, population_auc = _part2_normalized_auc(
+        day_rows,
+        horizon=4,
+        society_size=4,
+        resource_capacity=8,
+    )
+
+    assert reserve_auc == 0.375
+    assert population_auc == 0.375
+
+
+def test_part1_decomposition_preserves_total_variance_share() -> None:
+    observations = [
+        {
+            "model": "a",
+            "frame": "self_direct",
+            "game": "prisoners_dilemma",
+            "domain": "workplace",
+            "presentation": "structured",
+            "cooperate": 1,
+        },
+        {
+            "model": "a",
+            "frame": "prediction",
+            "game": "prisoners_dilemma",
+            "domain": "workplace",
+            "presentation": "structured",
+            "cooperate": 0,
+        },
+        {
+            "model": "b",
+            "frame": "self_direct",
+            "game": "temptation_or_commons",
+            "domain": "healthcare",
+            "presentation": "narrative",
+            "cooperate": 1,
+        },
+        {
+            "model": "b",
+            "frame": "prediction",
+            "game": "temptation_or_commons",
+            "domain": "healthcare",
+            "presentation": "narrative",
+            "cooperate": 0,
+        },
+    ]
+
+    rows = _part1_factor_decomposition_rows(observations)
+
+    assert rows[-1]["term"] == "total"
+    assert rows[-1]["variance_share"] == 1.0
