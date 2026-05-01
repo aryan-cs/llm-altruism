@@ -30,6 +30,7 @@ INCLUDE_PATHS = (
     Path("data") / "graphs",
     Path("data") / "raw" / "part_1",
     Path("data") / "raw" / "part_2",
+    Path("data") / "archive" / "part_2_before_rerun_20260429_050907",
 )
 
 EXCLUDED_DIR_NAMES = {

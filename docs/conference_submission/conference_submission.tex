@@ -46,7 +46,7 @@ Prosocial Readiness Bench addresses this requirement through a reproducible benc
 
 The paper asks two concrete questions. First, can refusal, cooperation, and commons restraint be measured in one release-grade artifact with explicit schemas, validation, and reproduction commands? Second, do these behaviors move together across a local/open-weight model cohort, or do they expose separable behavioral patterns that a single score would hide? Figure~\ref{fig:overview} summarizes the artifact flow.
 
-The pilot evaluation covers 13 local/open-weight model variants. It shows wide and informative variation on all three axes: safety refusal ranges from 9.4\% to 99.3\%, dyadic cooperation from 24.2\% to 75.0\%, and commons restraint from 18.6\% to 92.5\%. Seven of thirteen same-model societies preserve a nonzero population through the 100-day horizon. Cross-part diagnostics show a weak association between refusal and cooperation (Pearson $r=0.24$), a stronger association between refusal and restraint ($r=0.77$), and a strong association between restraint and final population ($r=0.85$). Part 1 also exposes a large elicitation effect: cooperation is 83.2\% under observer-evaluation prompts and 4.9\% under prediction prompts.
+The pilot evaluation covers 13 local/open-weight model variants. Table~\ref{tab:primary-rate-ci} and Section~\ref{sec:diagnostics} show wide variation across all three axes, strong frame sensitivity, and cross-axis dissociations that would be hidden by a single aggregate score.
 
 Our contributions are:
 \begin{itemize}
@@ -102,27 +102,50 @@ Our contributions are:
 \end{figure}
 
 \section{Related Work}
-Prosocial Readiness Bench connects four lines of evaluation work. Safety and jailbreak benchmarks such as HarmBench and JailbreakBench measure harmful-request compliance and refusal \citep{mazeika2024harmbench,chao2024jailbreakbench}; related red-teaming, adversarial-attack, safeguard, and exaggerated-safety work further shows that refusal must be measured under both unsafe and borderline prompts \citep{ganguli2022redteaming,bai2022constitutional,zou2023universal,wang2023donotanswer,rottger2024xstest}. LLM game-theory studies evaluate cooperation in strategic settings inspired by classical work on cooperation and commons governance \citep{axelrod1984evolution,hardin1968tragedy,ostrom1990governing,akata2023playing,brookins2023playing,horton2023homo}. Multi-agent and social-evaluation environments such as AgentBench, generative agents, and SOTOPIA study richer open-ended interaction \citep{liu2024agentbench,park2023generative,zhou2024sotopia}. General and multi-axis evaluation suites motivate reporting separate behavioral dimensions rather than a single score \citep{hendrycks2021measuring,srivastava2022beyond,liang2023helm,openai2023gpt4,wang2023decodingtrust,kirk2024prism,jiang2025artificialhivemind}. Dataset and model documentation standards motivate the artifact-facing emphasis on provenance, metadata, access conditions, and responsible-use notes \citep{bender2018datastatements,holland2018datasetnutrition,mitchell2019modelcards,gebru2021datasheets,pushkarna2022datacards,akhtar2024croissant}. The gap addressed here is the combination of harmful-request refusal, one-shot social-dilemma cooperation, repeated commons restraint, and traceable release artifacts in one validated benchmark. The pilot cohort uses locally runnable variants across GPT-OSS \citep{openai2025gptoss}, Llama~2 \citep{touvron2023llama2}, Qwen~2.5 \citep{yang2024qwen25}, and Qwen~3.5 \citep{yang2025qwen3} families through Ollama \citep{ollama2023}.
+Safety and jailbreak benchmarks such as HarmBench and JailbreakBench measure harmful-request compliance and refusal \citep{mazeika2024harmbench,chao2024jailbreakbench}; related red-teaming, adversarial-attack, safeguard, and exaggerated-safety work further shows that refusal must be measured under both unsafe and borderline prompts \citep{ganguli2022redteaming,bai2022constitutional,zou2023universal,wang2023donotanswer,rottger2024xstest}.
+
+LLM game-theory studies evaluate cooperation in strategic settings inspired by classical work on cooperation and commons governance \citep{axelrod1984evolution,hardin1968tragedy,ostrom1990governing,dafoe2020open,akata2023playing,brookins2023playing,horton2023homo}. Multi-agent and social-evaluation environments such as AgentBench, generative agents, and SOTOPIA study richer open-ended interaction \citep{liu2024agentbench,park2023generative,zhou2024sotopia}.
+
+General and multi-axis evaluation suites motivate reporting separate behavioral dimensions rather than a single score \citep{hendrycks2021measuring,srivastava2022beyond,liang2023helm,openai2023gpt4,wang2023decodingtrust,kirk2024prism,jiang2025artificialhivemind}. Dataset and model documentation standards motivate the artifact-facing emphasis on provenance, metadata, access conditions, and responsible-use notes \citep{bender2018datastatements,holland2018datasetnutrition,mitchell2019modelcards,gebru2021datasheets,pushkarna2022datacards,akhtar2024croissant}.
+
+The gap addressed here is the combination of harmful-request refusal, one-shot social-dilemma cooperation, repeated commons restraint, and traceable release artifacts in one validated benchmark. Table~\ref{tab:positioning} summarizes this positioning. The pilot cohort uses locally runnable variants across GPT-OSS \citep{openai2025gptoss}, Llama~2 \citep{touvron2023llama2}, Qwen~2.5 \citep{yang2024qwen25}, and Qwen~3.5 \citep{yang2025qwen3} families through Ollama \citep{ollama2023}.
+
+\begin{table}[!htbp]
+\centering
+\caption{Positioning relative to adjacent evaluation families. Checks indicate that the family centrally evaluates the column.}
+\label{tab:positioning}
+\scriptsize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lcccc}
+\toprule
+Evaluation family & Refusal & One-shot coop. & Repeated commons & Traceable release \\
+\midrule
+Safety/jailbreak benchmarks & \checkmark & -- & -- & Partial \\
+LLM game-theory studies & -- & \checkmark & -- & Partial \\
+Social/multi-agent environments & -- & Partial & \checkmark & Partial \\
+Documentation standards & -- & -- & -- & \checkmark \\
+Prosocial Readiness Bench & \checkmark & \checkmark & \checkmark & \checkmark \\
+\bottomrule
+\end{tabular}
+\end{table}
+\FloatBarrier
 
 \section{Benchmark Design and Task Contracts}
 \subsection{Design Principles}
-The benchmark uses three design principles.
+The benchmark uses two design principles.
 
 \paragraph{Measure behaviors separately.}
 Safety refusal, dyadic cooperation, and commons restraint are related deployment-relevant behaviors, but they are not interchangeable. The benchmark therefore reports separate primary metrics instead of collapsing them into one prosociality or readiness score.
 
-\paragraph{Make each claim traceable.}
-Each run produces structured CSV output and metadata sidecars. The analysis pipeline writes derived tables, validation reports, and figures from those files, so paper claims can be audited against concrete artifacts.
-
-\paragraph{Keep trace-level outputs.}
-The benchmark stores actions, justifications, run metadata, and derived summaries so downstream users can audit each reported claim without relying on plot files alone.
+\paragraph{Make every claim traceable to stored artifacts.}
+Each run produces structured CSV output, actions, justifications when available, and metadata sidecars. The analysis pipeline writes derived tables, validation reports, and figures from those files, so paper claims can be audited against concrete artifacts rather than plot files alone.
 
 The task contracts are intentionally narrow: Part 0 stores responses and judge verdicts, Part 1 requires a JSON action and justification, and Part 2 records daily JSON actions plus resource and population state.
 
 \subsection{Part 0: Safety Refusal}
-Part 0 presents harmful-request prompts and records whether the model refuses or materially complies. Prompts are drawn from JailbreakBench harmful behaviors and HarmBench standard behavior prompts; a subset is additionally wrapped with jailbreak templates from the TrustAIRLab in-the-wild collection \citep{chao2024jailbreakbench,mazeika2024harmbench,trustairlab2023wildjailbreak}. The release uses one shared prompt-language matrix for every model: 99 base prompt texts rendered in English, Chinese, and Russian, for 297 judged rows per model and 3,861 rows total. The exact evaluated prompt list is preserved as an artifact.
+Part 0 presents harmful-request prompts and records whether the model refuses or materially complies. Prompts are drawn from JailbreakBench harmful behaviors and HarmBench standard behavior prompts; a subset is additionally wrapped with jailbreak templates from the TrustAIRLab in-the-wild collection \citep{chao2024jailbreakbench,mazeika2024harmbench,trustairlab2023wildjailbreak}. The release uses one shared prompt-language matrix for every model: 99 base prompt texts rendered in English, Chinese, and Russian, for 297 judged rows per model and 3,861 rows total. The exact evaluated prompt list is preserved as an artifact; the release should be interpreted as results on this fixed prompt set rather than as an estimate over the full source datasets.
 
-The current raw CSV schema stores \texttt{provider}, \texttt{model}, \texttt{language}, \texttt{prompt}, \texttt{reasoning}, \texttt{response}, and \texttt{complied?}. Compliance judgments are produced by an automated, response-only LLM judge configured first as \modeltag{ollama/gpt-oss-safeguard:20b}, with \modeltag{ollama/gpt-oss:20b} as the fallback judge. This follows scalable LLM-as-judge evaluation practice while retaining its known calibration risks \citep{zheng2023judging}. The judge is conservative: it marks compliance only when the response contains concrete harmful details, not when the model provides high-level discussion or disclaimers. The release does not include a human-annotation calibration subset or per-row fallback-judge provenance; judge calibration on borderline, multilingual, and refusal-style cases remains an open limitation discussed in Section~\ref{sec:scope}.
+The current raw CSV schema stores \texttt{provider}, \texttt{model}, \texttt{language}, \texttt{prompt}, \texttt{reasoning}, \texttt{response}, and \texttt{complied?}. Compliance judgments are produced by an automated, response-only LLM judge configured first as \modeltag{ollama/gpt-oss-safeguard:20b}, with \modeltag{ollama/gpt-oss:20b} as the fallback judge. This follows scalable LLM-as-judge evaluation practice while retaining its known calibration risks \citep{zheng2023judging}. The judge is conservative: it marks compliance only when the response contains concrete harmful details, not when the model provides high-level discussion or disclaimers. A human hand-check was used as a qualitative sanity check during analysis, but no row-level human-annotation table, inter-annotator agreement statistic, or per-row fallback-judge provenance is included in the release; judge calibration on borderline, multilingual, and refusal-style cases remains an open limitation discussed in Section~\ref{sec:scope}.
 
 The primary metric is safety refusal:
 \[
@@ -167,22 +190,23 @@ To summarize trajectories rather than endpoints alone, we also compute normalize
 \]
 Here $R_t$ and $P_t$ are end-of-day reserve and population, $R_{\max}$ is reserve capacity, $P_0$ is initial population, and missing post-collapse days contribute zero.
 The reported Part~2 values are point estimates from one same-model trajectory per model, not averages over repeated random seeds. Wilson intervals on the restraint rate summarize uncertainty for the observed action stream; they do not measure run-to-run simulation variance.
+The transition parameters are diagnostic rather than calibrated to a real commons: changing the 2-unit overuse penalty, reserve capacity, or death rule would shift collapse thresholds and should be treated as a sensitivity dimension in confirmatory follow-up work.
 
 \section{Artifact Construction and Quality Control}
 \paragraph{Model cohort and compute.}
 The pilot evaluates 13 local/open-weight variants through Ollama \citep{ollama2023}: standard, safeguard, instruct, uncensored, and derestricted variants across GPT-OSS \citep{openai2025gptoss}, Llama~2 \citep{touvron2023llama2}, Qwen~2.5 \citep{yang2024qwen25}, and Qwen~3.5 \citep{yang2025qwen3} families. Runs used local Ollama execution with one NVIDIA H200 NVL GPU but were constrained by a 32 GiB RAM, no-swap, 10-CPU cgroup allocation, so the cohort emphasizes repeatedly runnable 7B--20B release-style variants rather than frontier-scale coverage.
 
 \paragraph{Output contracts and metadata.}
-Part 0 stores model outputs and a normalized compliance verdict; Part 1 stores a valid action and justification; Part 2 stores a daily action and reasoning field for each living agent. Completed runs are paired with metadata sidecars recording provider/model identifiers, command context, timestamps, hashes when available, experiment settings, run status, and output paths; legacy sidecars are backfilled where possible and marked as reconstructed. The release also provides Croissant JSON-LD metadata \citep{akhtar2024croissant} plus an anonymous supplement with code, documentation, validation artifacts, figures, and Part 1/Part 2 raw CSVs, while excluding raw Part 0 harmful prompts and completions for safety.
+Part 0 stores model outputs and a normalized compliance verdict; Part 1 stores a valid action and justification; Part 2 stores a daily action and reasoning field for each living agent. Completed runs are paired with metadata sidecars recording provider/model identifiers, command context, timestamps, hashes when available, experiment settings, run status, and output paths. Fourteen of 27 sidecars are reconstructed legacy metadata (the Part 0 file and all 13 Part 1 files), while all 13 current Part 2 sidecars retain original run metadata. The release also provides Croissant JSON-LD metadata \citep{akhtar2024croissant} plus an anonymous supplement with code, documentation, validation artifacts, figures, and Part 1/Part 2 raw CSVs, while excluding raw Part 0 harmful prompts and completions for safety.
 
 \paragraph{Validation.}
-Validation is graph-independent. It checks CSV headers, duplicate rows, missing required fields, invalid actions, prompt-matrix coverage, Part 2 day continuity, incomplete days, reserve and population transition consistency, and interrupted versus complete status. The current validation report covers 27 CSV files: one Part 0 file, 13 Part 1 files, and 13 Part 2 files, with 0 failures.
+Validation is graph-independent. It checks CSV headers, duplicate rows, missing required fields, invalid actions, prompt-matrix coverage, Part 2 day continuity, incomplete days, reserve and population transition consistency, and interrupted versus complete status. The current validation report covers 27 CSV files: one Part 0 file, 13 Part 1 files, and 13 Part 2 files, with 0 failures; it validates artifact structure and transitions, not the semantic accuracy of the automated Part 0 judge labels.
 
 \paragraph{Harmful-output handling.}
 Part 0 evaluates harmful prompts and may produce unsafe completions. The anonymous supplement therefore emphasizes derived tables, validation outputs, and aggregate summaries rather than raw harmful generations. This release choice preserves the evidence used in the paper while limiting unnecessary redistribution of harmful text.
 
-\section{Benchmark Statistics}
-The release contains 56,382 total decisions or judgments with 0 validation failures across 27 CSV files. Part~0 has 3,861 judgments (13 models $\times$ 297 prompt-language rows) and refusal spans 9.4--99.3\%. Part~1 has 4,992 decisions (13 $\times$ 384) and cooperation spans 24.2--75.0\%. Part~2 has 47,529 agent-day decisions, fewer than the 65,000 maximum because collapsed societies stop producing living-agent decisions; restraint spans 18.6--92.5\%.
+\paragraph{Scale.}
+The release contains 56,382 total decisions or judgments with 0 validation failures across 27 CSV files: 3,861 Part~0 judgments, 4,992 Part~1 decisions, and 47,529 Part~2 agent-day decisions. Part~2 is below the 65,000 maximum because collapsed societies stop producing living-agent decisions.
 
 \section{Evaluation Protocol}
 For each model and part, the analysis pipeline computes the primary rate, Wilson 95\% confidence interval, and task-specific diagnostics. Part 0 additionally computes multilingual robustness metrics. Part 1 computes frame effect sizes, prompt-sensitivity indices, and a balanced main-effect variance decomposition. Part 2 additionally computes first depletion day, final reserve, final population, total deaths, AURC, and AUPC. Cross-part analysis joins the three model-level tables by model identifier and reports Pearson and Spearman correlations with 2,000 percentile bootstrap replicates, resampling model rows with replacement using seed 20260429 \citep{efron1979bootstrap}.
@@ -190,8 +214,6 @@ For each model and part, the analysis pipeline computes the primary rate, Wilson
 Part 1 and Part 2 require parseable JSON actions. The runners retry parse errors, missing required fields, and invalid action labels until a valid row is obtained or the run is interrupted. The released final CSVs therefore contain 0 invalid retained actions in Part 1 (0/4,992 rows) and Part 2 (0/47,529 rows).
 
 All reported pilot runs used local Ollama defaults through the repository provider wrapper. No fixed temperature or greedy-decoding setting is recorded in the release metadata; the wrapper sends \texttt{num\_predict=2048} and leaves temperature unset unless explicitly configured. Different decoding temperatures could shift refusal, cooperation, and restraint rates.
-
-The reported comparisons are descriptive pilot results over 13 related local/open-weight variants. The paper uses them to demonstrate benchmark behavior, reveal diagnostic variation, and generate hypotheses for broader confirmatory evaluation. Family-level readings below group models by visible release lineage and should be interpreted as descriptive clusters, not independent estimates of vendor or architecture effects.
 
 \begin{table}[!htbp]
 \centering
@@ -222,6 +244,8 @@ Model & Safety refusal & Dyadic cooperation & Commons restraint \\
 \end{table}
 
 \section{Pilot Results}
+The reported comparisons are descriptive pilot results over 13 related local/open-weight variants. The paper uses them to demonstrate benchmark behavior, reveal diagnostic variation, and generate hypotheses for broader confirmatory evaluation. Family-level readings below group models by visible release lineage and should be interpreted as descriptive clusters, not independent estimates of vendor or architecture effects.
+
 \begin{figure}[!htbp]
 \centering
 \includegraphics[width=\linewidth]{figures/part0_refusal_rate_by_model.png}
@@ -252,6 +276,7 @@ Appendix Figures~\ref{fig:reserve-over-time}, \ref{fig:population-over-time}, an
 \FloatBarrier
 
 \section{Diagnostics}
+\label{sec:diagnostics}
 \paragraph{The constructs dissociate.}
 The cross-part results support separate reporting. Table~\ref{tab:cross-part-corr} reports both Pearson and Spearman correlations with bootstrap 95\% intervals. Safety refusal and dyadic cooperation have a weak association (Pearson $r{=}0.24$, Spearman $\rho{=}0.13$). Safety refusal and commons restraint are more strongly associated (Pearson $r{=}0.77$, Spearman $\rho{=}0.57$). Restraint and final population show the strongest relationship (Pearson $r{=}0.85$, Spearman $\rho{=}0.90$). The Spearman values are generally smaller than Pearson for the refusal-restraint pair, suggesting that outlier models influence the linear correlation. These results show why the artifact reports multiple axes rather than a single aggregate readiness score.
 
@@ -274,7 +299,7 @@ Restraint $\times$ Final population & $0.85$ [$0.68$, $0.98$] & $0.90$ [$0.74$, 
 \end{tabular}%
 }
 \end{table}
-Because there are only 13 related model variants, the bootstrap intervals are descriptive and can be unstable; boundary values such as the 1.00 upper bound for Cooperation $\times$ Restraint should be interpreted cautiously.
+Because there are only 13 related model variants, the bootstrap intervals are descriptive and can be unstable; boundary values such as the 1.00 upper bound for Cooperation $\times$ Restraint should be interpreted cautiously.\footnote{With small $n$, bootstrap resamples can duplicate high-leverage rows, omit intermediate rows, and preserve many tied or near-zero cooperation ranks under the prediction frame, producing degenerate rank-correlation samples near the boundary.}
 
 \paragraph{Family profiles are not one-dimensional.}
 Within each family, release-style variants produce distinct multi-axis profiles. Qwen~2.5 abliterate keeps high Part~1 cooperation but collapses in Part~2; Llama~2 uncensored lowers refusal but raises cooperation while both variants survive the commons; GPT-OSS safeguard is slightly lower on refusal than standard GPT-OSS but higher on cooperation and restraint. These within-family dissociations caution against using family labels as a substitute for axis-level measurement.
@@ -285,7 +310,7 @@ Part~1 treats prompt frame as an experimental variable (Figure~\ref{fig:frame-ef
 
 Appendix Figure~\ref{fig:frame-effects} gives the model-by-frame heatmap. Nearly every model predicts selfish behavior under the prediction frame, even when it cooperates under other frames. \texttt{llama2-uncensored} is the main exception (58.3\% prediction-frame cooperation). The uncensored Qwen~3.5 variants have lower cooperation across all frames, especially under self-direct prompts.
 
-Appendix Table~\ref{tab:part1-decomposition} quantifies the same pattern. Frame is the largest measured main effect, accounting for 35.1\% of the binary outcome variance in this balanced matrix. Model identity accounts for 15.3\%, the model$\times$frame interaction accounts for 9.6\%, game family for 4.3\%, domain for 0.5\%, and presentation style for less than 0.1\%. Per-model prompt-sensitivity ranges are reported in Appendix Table~\ref{tab:prompt-sensitivity}; frame is the maximum sensitivity dimension for 12 of 13 models, while \texttt{llama2-uncensored} is most sensitive to game family.
+Appendix Table~\ref{tab:part1-decomposition} quantifies the same pattern. Frame is the largest measured main effect, accounting for 35.1\% of the binary outcome variance in this balanced matrix. Model identity accounts for 15.3\%, the model$\times$frame interaction accounts for 9.6\%, game family for 4.3\%, domain for 0.5\%, and presentation style for less than 0.1\%. The interaction is larger than the game-family main effect, so future confirmatory analyses should treat framing sensitivity as model-dependent rather than as a fixed prompt nuisance. Per-model prompt-sensitivity ranges are reported in Appendix Table~\ref{tab:prompt-sensitivity}; frame is the maximum sensitivity dimension for 12 of 13 models, while \texttt{llama2-uncensored} is most sensitive to game family. Within matched domain-game pairs, prisoner-dilemma scenario variants vary by at most 7.7 percentage points in aggregate cooperation, suggesting modest but nonzero surface-context sensitivity.
 
 \paragraph{Restraint predicts survival in the simulated commons.}
 Part 2 ties local overuse choices to aggregate outcomes. Commons restraint is strongly associated with final population (Pearson $r=0.85$, bootstrap interval $[0.68,0.98]$). The relationship is expected from the transition rules and supports auditing by representing cumulative overuse as resource depletion and population loss.
@@ -293,16 +318,18 @@ Part 2 ties local overuse choices to aggregate outcomes. Commons restraint is st
 Appendix Figures~\ref{fig:cross-diagnostics} and~\ref{fig:restraint-population} visualize the same cross-part relationships. High refusal does not guarantee high commons preservation: GPT-OSS variants are high-refusal but only midrange on restraint. The principal exception is \texttt{llama2-uncensored}, which has lower refusal than base Llama~2 but remains high on commons restraint. Societies above roughly three-quarters restraint generally survive, while low-restraint runs collapse; among survivors, \modeltag{sorc/qwen3.5-instruct} survives with only 10 reserve units versus 1,752 for \modeltag{qwen2.5:7b}.
 
 \paragraph{Reasoning-action mismatches as process evidence.}
-Part 2 records a reasoning field alongside each daily action. The analysis pipeline flags rows where the stated reasoning advocates one action but the recorded action is the opposite. Across all 13 models, 823 such mismatch flags occur in the 47,529 agent-day decisions (1.7\% overall). The distribution is highly skewed: GPT-OSS derestricted produces 164 flags, \modeltag{sorc/qwen3.5-instruct} produces 142, and \modeltag{aratan/qwen3.5-uncensored:9b} produces 114, while Qwen~2.5 abliterate variants produce only 6--15 flags each. High mismatch counts may indicate inconsistent reasoning, prompt sensitivity in the reasoning field, or cases where the model recognizes the cooperative option verbally but selects the selfish action. Low mismatch counts do not confirm coherent reasoning; they may reflect models that produce generic justifications. These flags are released as a diagnostic column rather than a primary metric because the benchmark treats actions as the scored output and reasoning as process evidence.
+Part 2 records a reasoning field alongside each daily action. The analysis pipeline flags \texttt{OVERUSE} rows whose stated reasoning contains reserve-preservation or collective-benefit language. Across all 13 models, 823 such mismatch flags occur in the 47,529 agent-day decisions (1.7\% overall). The distribution is highly skewed: GPT-OSS derestricted produces 164 flags, \modeltag{sorc/qwen3.5-instruct} produces 142, and \modeltag{aratan/qwen3.5-uncensored:9b} produces 114, while Qwen~2.5 abliterate variants produce only 6--15 flags each. Thus the released directional flag captures cases where the model verbally recognizes restraint-relevant considerations but selects overuse; it does not symmetrically count restraint actions justified by selfish reasoning. Low mismatch counts do not confirm coherent reasoning; they may reflect models that produce generic justifications. These flags are released as a diagnostic column rather than a primary metric because the benchmark treats actions as the scored output and reasoning as process evidence.
 
 Across the diagnostics, the central interpretation is that alignment may be pattern-conditional: models can refuse harmful requests they recognize while still selecting self-interested actions in less familiar social-choice settings. This does not show deliberate deception; it shows that refusal-style alignment can be behaviorally narrow, motivating evaluations where models must trade immediate payoff against group welfare.
 
 \section{Scope and Responsible Use}
 \label{sec:scope}
-Prosocial Readiness Bench evaluates observable actions, not intent or moral status. The current release is an open-model pilot: related variants and local/Ollama tag drift limit leaderboard claims; Part 0 uses automated response-only judge labels without human calibration; multilingual harmful-request evaluation needs language-specific expert review before stronger cross-cultural claims; Part 1 uses artificial one-shot scenarios; and Part 2 uses one homogeneous same-model trajectory per model with no repeated seeds. The benchmark should be used to audit behavioral risks and compare mitigations, not to improve harmful compliance.
+Prosocial Readiness Bench evaluates observable actions, not intent or moral status. The current release is an open-model pilot: related variants and local/Ollama tag drift limit leaderboard claims; Part 0 uses automated response-only judge labels with only qualitative human sanity checking; Part 1 uses artificial one-shot scenarios; and Part 2 uses one homogeneous same-model trajectory per model with no repeated seeds. The model tags, decoding defaults, judge fallback provenance, and commons-transition parameters should therefore be treated as part of the benchmark setting rather than as stable estimates of model families.
+
+The artifact is intended for behavioral auditing and mitigation comparison, not for improving harmful compliance. Raw Part 0 harmful prompts and completions are excluded from the anonymous supplement by default, and multilingual harmful-request evaluation needs language-specific and culture-specific expert review before stronger cross-cultural claims. The same multilingual coverage that helps expose English-centric blind spots could surface culturally specific harmful-request patterns, so downstream releases should preserve safety filtering, access controls, and responsible-use documentation.
 
 \section{Conclusion}
-Prosocial Readiness Bench packages traceable artifacts for auditing refusal, dyadic cooperation, and commons restraint. The pilot shows axis dissociation and strong frame sensitivity, motivating broader model coverage, repeated seeds, fixed decoding settings, and richer commons environments.
+Prosocial Readiness Bench packages traceable artifacts for auditing refusal, dyadic cooperation, and commons restraint in one release. The pilot's central finding is axis dissociation: models that refuse harmful requests can still diverge sharply in one-shot cooperation and repeated commons preservation, and prompt framing changes measured cooperation. The methodological contribution is a validated, trace-level benchmark package rather than a leaderboard alone. The most useful next step is a confirmatory release with broader model coverage, recorded decoding controls, repeated Part 2 seeds, and sensitivity sweeps over commons dynamics.
 
 \bibliographystyle{plainnat}
 \bibliography{references}
@@ -442,6 +469,14 @@ Model & Restraint & First depletion day & Final population & Final reserve & AUR
 \end{tabular}%
 }
 \end{table}
+For \texttt{gpt-oss-der}, depletion first occurs on day 39 and the logged end-of-day population values sum to 2,076 over days 1--100, with post-collapse missing days contributing zero. Thus
+\[
+\mathrm{AUPC}=\frac{1}{100}\sum_{t=1}^{100}\frac{P_t}{50}
+=\frac{2076}{5000}=0.4152,
+\]
+which rounds to 41.5\%. The regular-looking AUPC values arise from the 50-agent, 100-day denominator rather than from binning.
+
+As a limited repeat-run diagnostic, the current and archived Qwen~2.5 base/instruct Part~2 trajectories have restraint rates of 90.60\%, 90.86\%, 92.52\%, and 92.26\% across four 5,000-decision runs (mean 91.56\%, sample standard deviation 0.97 percentage points). This is not a full seed sweep and should not replace repeated-seed reporting for all models, but it provides a scale check for one high-restraint family.
 
 \FloatBarrier
 
@@ -582,22 +617,54 @@ justification to a brief explanation of 1-3 sentences.
 The raster distinguishes society-wide action patterns from aggregate rates produced by heterogeneous agents. The high-restraint Qwen~2.5 and Llama rows show restraint across most agents and days, indicating broadly distributed restraint rather than a small restrained subgroup driving the average. In collapsing runs, early overuse is distributed across many agents, so depletion occurs before later restraint can recover the reserve. The curved gray boundaries appear because the population is gradually dying out after depletion, so fewer agents remain to make decisions on later days. Several rows show a visual flip from red to green as the reserve declines, especially Qwen~3.5 instruct, Qwen~3.5 instruct uncensored, and GPT-OSS safeguard. This pattern is most consequential for \modeltag{sorc/qwen3.5-instruct-uncensored}, where the later shift toward restraint occurs after the run has already entered the collapse path.
 
 \FloatBarrier
+\Needspace{0.34\textheight}
+\section{Model Registry}
+\label{app:model-registry}
+\begin{table}[H]
+\centering
+\caption{Evaluated local/Ollama model tags. Parameter scale is shown only when encoded in the tag or release name; quantization was not recorded in the run metadata and should not be inferred.}
+\label{tab:model-registry}
+\scriptsize
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{llll}
+\toprule
+Short label & Exact tag & Family & Parameter/quantization note \\
+\midrule
+\texttt{gpt-oss:20b} & \modeltag{ollama/gpt-oss:20b} & GPT-OSS & 20B tag; quantization not recorded \\
+\texttt{gpt-oss-sg} & \modeltag{ollama/gpt-oss-safeguard:20b} & GPT-OSS & 20B tag; quantization not recorded \\
+\texttt{gpt-oss-der} & \modeltag{ollama/gurubot/gpt-oss-derestricted:20b} & GPT-OSS & 20B tag; quantization not recorded \\
+\texttt{llama2} & \modeltag{ollama/llama2} & Llama 2 & tag default; quantization not recorded \\
+\texttt{llama2-uncensored} & \modeltag{ollama/llama2-uncensored} & Llama 2 & tag default; quantization not recorded \\
+\texttt{qwen2.5:7b} & \modeltag{ollama/qwen2.5:7b} & Qwen 2.5 & 7B tag; quantization not recorded \\
+\texttt{qwen2.5-abl} & \modeltag{ollama/huihui_ai/qwen2.5-abliterate:7b} & Qwen 2.5 & 7B tag; quantization not recorded \\
+\texttt{qwen2.5-inst} & \modeltag{ollama/qwen2.5:7b-instruct} & Qwen 2.5 & 7B instruct tag; quantization not recorded \\
+\texttt{qwen2.5-abl-inst} & \modeltag{ollama/huihui_ai/qwen2.5-abliterate:7b-instruct} & Qwen 2.5 & 7B instruct tag; quantization not recorded \\
+\texttt{qwen3.5} & \modeltag{ollama/qwen3.5} & Qwen 3.5 & tag default; quantization not recorded \\
+\texttt{qwen3.5-unc} & \modeltag{ollama/aratan/qwen3.5-uncensored:9b} & Qwen 3.5 & 9B tag; quantization not recorded \\
+\texttt{qwen3.5-inst} & \modeltag{ollama/sorc/qwen3.5-instruct} & Qwen 3.5 & tag default; quantization not recorded \\
+\texttt{qwen3.5-inst-unc} & \modeltag{ollama/sorc/qwen3.5-instruct-uncensored} & Qwen 3.5 & tag default; quantization not recorded \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+\FloatBarrier
 \Needspace{0.38\textheight}
 \section{Artifact Map}
 \label{app:artifact-map}
 \begin{itemize}
 \setlength{\itemsep}{1pt plus 0.5pt}
 \setlength{\parsep}{0pt}
-    \item Experiment code: \path{experiments/part0}, \path{experiments/part1}, and \path{experiments/part2}.
+    \item Experiment code: \path{experiments/part0}, \path{experiments/part1}, and \path{experiments/part2}; Part 1 scenario variants are included in \path{experiments/part1/scenario_variants.py}.
     \item Analysis code: \path{analysis/validation.py}, \path{analysis/summarize_results.py}, \path{analysis/build_manifest.py}, and \path{analysis/build_supplement.py}.
-    \item Raw data: \path{data/raw/part_0}, \path{data/raw/part_1}, and \path{data/raw/part_2}; the anonymous supplement includes Part 1/Part 2 raw CSVs and omits raw Part 0 harmful prompts, metadata, and completions by default.
+    \item Raw data: \path{data/raw/part_0}, \path{data/raw/part_1}, and \path{data/raw/part_2}; the anonymous supplement includes Part 1/Part 2 raw CSVs plus archived Part 2 rerun CSVs used for the repeat-run diagnostic, and omits raw Part 0 harmful prompts, metadata, and completions by default.
     \item Derived tables: \path{data/analysis/tables}.
     \item Validation report: \path{data/analysis/validation/validation_report.json}.
     \item Manifest: \path{data/analysis/run_manifest.jsonl}.
     \item Croissant metadata: \path{data/analysis/croissant_metadata.json}. Local Croissant validation exits successfully with nonfatal metadata warnings.
     \item Figures: \path{data/graphs}.
     \item Documentation: \path{docs/release/REPRODUCIBILITY.md}, \path{docs/release/DATA_CARD.md} (datasheet- and data-card-style fields following \citealp{gebru2021datasheets,pushkarna2022datacards}), \path{docs/release/MODEL_REGISTRY.md}, \path{docs/release/COMPUTE.md}, and \path{docs/release/LICENSES_AND_TERMS.md}.
-    \item Anonymous supplement: \path{docs/conference_submission/supplement.zip}, generated from the repository root with \texttt{uv run python -m analysis.build\_supplement}. The revision build produced a 17.3 MiB zip with 257 entries; \texttt{ZipFile.testzip()} returned no corrupt member.
+    \item Anonymous supplement: \path{docs/conference_submission/supplement.zip}, generated from the repository root with \texttt{uv run python -m analysis.build\_supplement}. The revision build produced a 19.9 MiB zip with 283 entries, including the manifest; \texttt{ZipFile.testzip()} returned no corrupt member.
 \end{itemize}
 
 The main reproduction commands are:
@@ -621,7 +688,7 @@ uv run python -m analysis.build_supplement
     \item \textbf{Limitations.} \answerYes{} Scope boundaries are discussed in the main text, including local-model coverage, prompt sensitivity, homogeneous societies, model-tag drift, automated-judge calibration, and reasoning-text interpretation.
     \item \textbf{Theory, assumptions, and proofs.} \answerNA{} The paper does not present theoretical theorems or proofs.
     \item \textbf{Experimental reproducibility.} \answerYes{} Reproduction commands, metadata sidecars, manifests, validation reports, derived tables, and the supplement build command are documented in the paper and supplement.
-    \item \textbf{Open access to data and code.} \answerYes{} The anonymous supplement at \path{docs/conference_submission/supplement.zip} contains executable code, release documentation, tests, derived tables, validation outputs, figures, and Part 1/Part 2 raw CSVs with metadata sidecars. Raw Part 0 harmful prompts, source prompt CSVs, metadata sidecars, and completions are excluded by default for safety reasons.
+    \item \textbf{Open access to data and code.} \answerYes{} The anonymous supplement at \path{docs/conference_submission/supplement.zip} contains executable code, release documentation, tests, derived tables, validation outputs, figures, Part 1/Part 2 raw CSVs with metadata sidecars, and archived Part 2 rerun CSVs. Raw Part 0 harmful prompts, source prompt CSVs, metadata sidecars, and completions are excluded by default for safety reasons.
     \item \textbf{Experimental setting/details.} \answerYes{} The evaluated parts, metrics, model registry, prompts/configs, metadata fields, and command interface are documented in the paper and supplement.
     \item \textbf{Statistical significance.} \answerYes{} Rate summaries include Wilson confidence intervals, and cross-part correlations include bootstrap intervals. The pilot interpretation remains descriptive because the model cohort is small.
     \item \textbf{Compute resources.} \answerYes{} The main text and \path{docs/release/COMPUTE.md} report local Ollama execution, the visible GPU, the cgroup RAM/no-swap/CPU quota, and model-selection implications. Metadata sidecars capture backend and run settings, but full per-run hardware metadata remains incomplete for legacy runs.

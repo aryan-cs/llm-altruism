@@ -82,7 +82,7 @@
       "description": "Part 1 cooperation rates by model and dimension.",
       "contentUrl": "data/analysis/tables/part1_dimension_summary.csv",
       "encodingFormat": "text/csv",
-      "sha256": "f7a20188af0f6370af124e66b384d813551ea7491f5f89cfc7e52f381acd6ed5"
+      "sha256": "0296ed84b7396321c4260492c80998b21ad0c64cd4adfb98dfaea7bb45dd7ca0"
     },
     {
       "@type": "cr:FileObject",
@@ -109,7 +109,7 @@
       "description": "Descriptive balanced main-effect variance decomposition for Part 1 binary cooperation.",
       "contentUrl": "data/analysis/tables/part1_factor_decomposition.csv",
       "encodingFormat": "text/csv",
-      "sha256": "e0dce47398742f5616ca257a25946f415b845621d9d9fd44f34d59fedf2ebfe4"
+      "sha256": "bfa30c9df9c1cb41579038f5c9f33d757b589b5875b0b13e48d0b84f61ec347d"
     },
     {
       "@type": "cr:FileObject",

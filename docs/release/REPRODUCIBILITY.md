@@ -90,7 +90,7 @@ Build the supplement archive from the repository root:
 uv run python -m analysis.build_supplement
 ```
 
-The output is `docs/conference_submission/supplement.zip`. The package contains executable code, release documentation, tests, derived analysis artifacts, figures, and Part 1/Part 2 raw CSVs with metadata sidecars. Raw Part 0 harmful prompts, prompt-source CSVs, and model completions are excluded by policy; the ZIP includes `SUPPLEMENT_MANIFEST.json` documenting included files and exclusions.
+The output is `docs/conference_submission/supplement.zip`. The package contains executable code, release documentation, tests, derived analysis artifacts, figures, Part 1/Part 2 raw CSVs with metadata sidecars, and archived Part 2 rerun CSVs used only for the repeat-run diagnostic. Raw Part 0 harmful prompts, prompt-source CSVs, and model completions are excluded by policy; the ZIP includes `SUPPLEMENT_MANIFEST.json` documenting included files and exclusions.
 
 ## Acceptance Criteria
 
