@@ -234,9 +234,9 @@ Figure~\ref{fig:behavioral-fingerprint} shows why the benchmark reports separate
 
 The heatmap is most informative when read at the row level. For example, \path{qwen2.5:7b} scores highly across cooperation and commons outcomes, whereas \path{huihui_ai/qwen2.5-abliterate:7b} combines high one-shot cooperation with poor commons survival. The prediction-frame column is near zero for almost all models, while a compact Qwen 2.5 cluster remains near saturation on self-direct, advice, observer-evaluation, and overall cooperation. A related high-score block appears in the commons trajectory columns for Qwen 2.5 base/instruct, Llama 2, Qwen 3.5 base, and several non-uncensored variants, but the abliterate, uncensored, and derestricted releases often lose that pattern. This contrast illustrates why the benchmark reports separate behavioral axes rather than a single aggregate score.
 
-\begin{figure}[!htbp]
+\begin{figure}[!t]
 \centering
-\includegraphics[width=\linewidth]{../../data/graphs/part_0/master-plots/04-11-2026_13_04_37_alignment_by_model.png}
+\includegraphics[width=\linewidth,trim={0 0.4cm 0 2.3cm},clip]{../../data/graphs/part_0/master-plots/04-11-2026_13_04_37_alignment_by_model.png}
 \caption{Safety-refusal rate by model. Refusal separates safety-oriented variants from explicitly uncensored or derestricted variants.}
 \label{fig:model-summary}
 \end{figure}
@@ -253,13 +253,15 @@ Part 0 refusal ranges from 9.4\% to 99.3\%. Several standard or safeguard-orient
 
 Figure~\ref{fig:refusal-language} shows that multilingual refusal is broadly consistent for the strongest safety-oriented variants but less stable for mid-range and uncensored variants. GPT-OSS, Qwen 3.5, and Qwen 3.5 instruct remain near saturation across all three languages. GPT-OSS has a 99.3\% mean language refusal rate, a 99.0\% minimum-language refusal rate, and a 1.0-point language gap; Qwen 3.5 has the same 1.0-point gap. GPT-OSS-Safeguard remains high but is lower on Russian (91.9\%) than on English (100.0\%), giving an 8.1-point gap. Qwen 2.5 base and instruct variants refuse more often on Russian than English and have larger multilingual gaps of 26.3 and 22.2 points. \texttt{llama2-uncensored} shows the largest cross-language spread, with 36.4\% refusal on English, 67.7\% on Chinese, and a 31.3-point gap. Within the evaluated cohort, Qwen 3.5 is much closer to GPT-OSS on multilingual refusal than Qwen 2.5 is, consistent with the Qwen technical reports' emphasis on extensive post-training and expanded multilingual coverage in later releases \citep{yang2024qwen25,yang2025qwen3}. The benchmark cannot attribute the change to a specific alignment method, but the cross-generation contrast is a useful diagnostic target for future controlled evaluations.
 
+\enlargethispage{2\baselineskip}
+
 \paragraph{Cooperation is strongly frame-sensitive.}
 Part 1 cooperation ranges from 24.2\% to 75.0\%. The principal Part 1 pattern is the frame effect: across models, cooperation is 83.2\% under observer-evaluation prompts, 66.8\% under advice prompts, 61.4\% under self-direct prompts, and 4.9\% under prediction prompts. Relative to prediction, the absolute frame effects are 78.3 percentage points for observer evaluation, 61.9 points for advice, and 56.5 points for self-direct choice. The model-family pattern differs from refusal. Qwen 2.5 base, instruct, and abliterate variants all sit near the top at 74.0--75.0\%, while Qwen 3.5 separates into a cooperative base model (71.1\%), a mid-range instruct variant (48.7\%), and low-cooperation uncensored variants (25.8\% and 24.2\%). Llama 2 reverses the safety pattern, with the uncensored variant cooperating more than the base model (68.8\% versus 52.6\%). GPT-OSS variants remain lower overall, but here the safeguard variant is the strongest GPT-OSS run: 47.1\% cooperation versus 38.5\% for standard GPT-OSS and 27.1\% for derestricted GPT-OSS. The benchmark therefore distinguishes socially preferred judgments from expectations about how an agent will behave.
 
 \begin{figure}[!htbp]
 \centering
-\includegraphics[width=\linewidth]{../../data/graphs/paper_visuals/part1_cooperation_by_game_heatmap.png}
-\caption{Part 1 cooperation by game family and model. The two columns separate \texttt{COOPERATE}/\texttt{DEFECT} prisoner-dilemma prompts from \texttt{RESTRAIN}/\texttt{OVERUSE} temptation/commons prompts.}
+\includegraphics[width=\linewidth,trim={0 0.3cm 0 0.9cm},clip]{../../data/graphs/paper_visuals/part1_cooperation_by_game_heatmap.png}
+\caption{Part 1 cooperation by game family and model. The columns compare prisoner-dilemma prompts with temptation/commons prompts.}
 \label{fig:game-family}
 \end{figure}
 
@@ -325,9 +327,9 @@ The PCA highlights counterexamples to simple family-level interpretation. The Qw
 \paragraph{Framing changes measured cooperation.}
 Part 1 treats prompt frame as an experimental variable. Observer-evaluation prompts elicit high cooperative judgments, advice and self-direct prompts are intermediate, and prediction prompts elicit low cooperative predictions. This split is useful for auditing because a model can know which action is socially preferred while predicting that agents will act selfishly.
 
-\begin{figure}[!htb]
+\begin{figure}[!t]
 \centering
-\includegraphics[width=\linewidth]{../../data/graphs/paper_visuals/frame_sensitivity_heatmap.png}
+\includegraphics[width=\linewidth,trim={0 0.5cm 0 1.1cm},clip]{../../data/graphs/paper_visuals/frame_sensitivity_heatmap.png}
 \caption{Part 1 cooperation by model and frame. Each cell is a cooperation rate, showing that elicitation frame is a first-class benchmark dimension.}
 \label{fig:frame-effects}
 \end{figure}
@@ -377,8 +379,6 @@ Figure~\ref{fig:cross-diagnostics} shows both association and exceptions. High r
 Figure~\ref{fig:restraint-population} shows a stronger action-outcome relationship because it reflects the Part 2 transition rules. Societies above roughly three-quarters restraint generally survive, while low-restraint Qwen 2.5 abliterate, Qwen 3.5 uncensored, and GPT-OSS derestricted runs collapse. Differences among high-restraint survivors remain substantively important: \path{sorc/qwen3.5-instruct} survives with only 10 reserve units, whereas the Qwen 2.5 and Llama high-restraint runs preserve substantially more capacity.
 
 Across the diagnostics, the central interpretation is not that one model family is intrinsically more prosocial. Instead, inconsistencies across refusal, language robustness, frame sensitivity, one-shot cooperation, and repeated commons restraint suggest that alignment may be pattern-conditional: models can refuse harmful requests they recognize while still selecting self-interested or resource-depleting actions in less familiar social-choice settings. This does not show deliberate deception or intentional feigning. It does show that refusal-style alignment can be behaviorally narrow, and that agentic evaluations should include situations where the model must trade immediate payoff against group welfare.
-
-\FloatBarrier
 
 \section{Release, Reproducibility, and Intended Use}
 The release is organized so that paper claims can be traced to files. Experiment code lives under \path{experiments/part0}, \path{experiments/part1}, and \path{experiments/part2}. Analysis code lives under \path{analysis/}. Raw CSVs and metadata live under \path{data/raw/}; derived tables, validation reports, manifests, and Croissant metadata live under \path{data/analysis/}; figures live under \path{data/graphs/}. Release documentation is provided in \path{docs/release/REPRODUCIBILITY.md}, \path{docs/release/DATA_CARD.md}, and \path{docs/release/MODEL_REGISTRY.md}.
