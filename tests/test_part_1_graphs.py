@@ -144,10 +144,10 @@ def test_part_1_model_colors_and_plot_groups_match_shared_style() -> None:
         "ollama/sorc/qwen3.5-instruct-uncensored",
     ]
 
-    assert _model_bar_color("ollama/gpt-oss:20b") == "#4fc9b0"
-    assert _model_bar_color("ollama/qwen2.5:7b") == "#a47bd6"
-    assert _model_bar_color("ollama/qwen3.5") == "#cc7bd6"
-    assert _model_bar_color("ollama/llama2") == "#7aade8"
+    assert _model_bar_color("ollama/gpt-oss:20b") == "#0072B2"
+    assert _model_bar_color("ollama/qwen2.5:7b") == "#E69F00"
+    assert _model_bar_color("ollama/qwen3.5") == "#CC79A7"
+    assert _model_bar_color("ollama/llama2") == "#009E73"
     assert _model_bar_edge_color("ollama/qwen2.5:7b-instruct") == "none"
     assert build_model_plot_groups(labels) == [
         ("gpt-oss:20b-plots", labels[0:3]),

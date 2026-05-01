@@ -37,32 +37,32 @@ OVERALL_TOP_PADDING = 6.0
 LANGUAGE_TOP_PADDING = 10.0
 HATCH_PALETTE: tuple[str, ...] = ("", "//", "xx", "..", "++", "||", "\\\\", "--")
 GPT_OSS_MODEL_COLORS = {
-    "standard": "#4fc9b0",
-    "standard_instruct": "#3bbfa5",
-    "safeguard": "#1f9e83",
-    "unrestricted": "#7edcc8",
-    "unrestricted_instruct": "#66d4bd",
+    "standard": "#0072B2",
+    "standard_instruct": "#0066A3",
+    "safeguard": "#005A8F",
+    "unrestricted": "#56B4E9",
+    "unrestricted_instruct": "#88CCEE",
 }
 QWEN25_MODEL_COLORS = {
-    "standard": "#a47bd6",
-    "standard_instruct": "#9468cc",
-    "safeguard": "#7544b8",
-    "unrestricted": "#bea0e2",
-    "unrestricted_instruct": "#b18edc",
+    "standard": "#E69F00",
+    "standard_instruct": "#D89000",
+    "safeguard": "#B77900",
+    "unrestricted": "#F0C36A",
+    "unrestricted_instruct": "#F6D58B",
 }
 QWEN35_MODEL_COLORS = {
-    "standard": "#cc7bd6",
-    "standard_instruct": "#be68cc",
-    "safeguard": "#a344b5",
-    "unrestricted": "#dca0e5",
-    "unrestricted_instruct": "#d48edf",
+    "standard": "#CC79A7",
+    "standard_instruct": "#B85F94",
+    "safeguard": "#A64C85",
+    "unrestricted": "#DDA0C8",
+    "unrestricted_instruct": "#E6B8D7",
 }
 LLAMA_MODEL_COLORS = {
-    "standard": "#7aade8",
-    "standard_instruct": "#6a9fe2",
-    "safeguard": "#4a84d2",
-    "unrestricted": "#9ec3ef",
-    "unrestricted_instruct": "#8db8ec",
+    "standard": "#009E73",
+    "standard_instruct": "#008D67",
+    "safeguard": "#007A5A",
+    "unrestricted": "#66C2A5",
+    "unrestricted_instruct": "#8DD3C7",
 }
 FAMILY_COLOR_PALETTES = {
     "GPT-OSS": GPT_OSS_MODEL_COLORS,

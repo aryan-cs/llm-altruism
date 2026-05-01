@@ -305,10 +305,16 @@ def _part1_factor_decomposition_rows(observations: list[dict[str, object]]) -> l
     used_df = 0
     rows: list[dict[str, object]] = []
 
+    factor_grouped: dict[str, dict[str, list[float]]] = {}
+    factor_means: dict[tuple[str, str], float] = {}
+
     for factor in PART1_FACTORS:
         grouped: dict[str, list[float]] = defaultdict(list)
         for observation, outcome in zip(observations, outcomes):
             grouped[str(observation[factor])].append(outcome)
+        factor_grouped[factor] = grouped
+        for level, values in grouped.items():
+            factor_means[(factor, level)] = sum(values) / len(values)
         factor_ss = sum(
             len(values) * ((sum(values) / len(values)) - grand_mean) ** 2
             for values in grouped.values()
@@ -326,6 +332,37 @@ def _part1_factor_decomposition_rows(observations: list[dict[str, object]]) -> l
                 "mean_square": factor_ss / df if df else "",
             }
         )
+
+    model_frame_grouped: dict[tuple[str, str], list[float]] = defaultdict(list)
+    for observation, outcome in zip(observations, outcomes):
+        model_frame_grouped[(str(observation["model"]), str(observation["frame"]))].append(outcome)
+    model_frame_ss = sum(
+        len(values)
+        * (
+            (sum(values) / len(values))
+            - factor_means[("model", model)]
+            - factor_means[("frame", frame)]
+            + grand_mean
+        )
+        ** 2
+        for (model, frame), values in model_frame_grouped.items()
+    )
+    model_frame_df = (
+        max(0, len(factor_grouped.get("model", {})) - 1)
+        * max(0, len(factor_grouped.get("frame", {})) - 1)
+    )
+    explained_ss += model_frame_ss
+    used_df += model_frame_df
+    rows.append(
+        {
+            "term": "model_frame_interaction",
+            "levels": len(model_frame_grouped),
+            "df": model_frame_df,
+            "sum_squares": model_frame_ss,
+            "variance_share": model_frame_ss / total_ss if total_ss else "",
+            "mean_square": model_frame_ss / model_frame_df if model_frame_df else "",
+        }
+    )
 
     residual_ss = max(0.0, total_ss - explained_ss)
     residual_df = max(0, len(outcomes) - 1 - used_df)
@@ -398,6 +435,7 @@ def summarize_part1(raw_dir: Path, output_dir: Path) -> tuple[Path, Path, Path, 
     for (model, dimension, value), counter in sorted(dimension_counts.items()):
         cooperate = counter["cooperate"]
         total = cooperate + counter["defect_or_overuse"]
+        low, high = _wilson_interval(cooperate, total)
         dimension_rows.append(
             {
                 "model": model,
@@ -406,6 +444,8 @@ def summarize_part1(raw_dir: Path, output_dir: Path) -> tuple[Path, Path, Path, 
                 "total": total,
                 "cooperative": cooperate,
                 "cooperation_rate": cooperate / total if total else "",
+                "wilson_low": low if total else "",
+                "wilson_high": high if total else "",
             }
         )
 
@@ -430,7 +470,16 @@ def summarize_part1(raw_dir: Path, output_dir: Path) -> tuple[Path, Path, Path, 
     )
     _write_csv(
         dimension_path,
-        ["model", "dimension", "value", "total", "cooperative", "cooperation_rate"],
+        [
+            "model",
+            "dimension",
+            "value",
+            "total",
+            "cooperative",
+            "cooperation_rate",
+            "wilson_low",
+            "wilson_high",
+        ],
         dimension_rows,
     )
     _write_csv(

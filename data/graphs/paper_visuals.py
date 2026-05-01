@@ -34,6 +34,8 @@ HIGH_SCORE_COLOR = "#0c9430"
 MISSING_SCORE_COLOR = "#e5e7eb"
 NEUTRAL_SCORE_COLOR = "#f6f7fb"
 DISPLAY_BLEND_AMOUNT = 0.38
+LOW_ACTION_COLOR = "#D55E00"
+HIGH_ACTION_COLOR = "#0072B2"
 FRAME_ORDER = ("self_direct", "advice", "observer_evaluation", "prediction")
 FRAME_LABELS = {
     "self_direct": "Self-direct",
@@ -109,7 +111,6 @@ def _family_legend_handles(models: Iterable[str]) -> list[object]:
 
 def _setup_matplotlib():
     import matplotlib.pyplot as plt
-    from matplotlib.colors import LinearSegmentedColormap
 
     plt.rcParams.update(
         {
@@ -124,12 +125,12 @@ def _setup_matplotlib():
             "axes.spines.right": False,
         }
     )
-    cmap = LinearSegmentedColormap.from_list(
-        "prosocial_score",
-        [LOW_SCORE_DISPLAY_COLOR, NEUTRAL_SCORE_COLOR, HIGH_SCORE_DISPLAY_COLOR],
-        N=256,
-    )
+    cmap = plt.get_cmap("cividis").copy()
     return plt, cmap
+
+
+def _heatmap_text_color(value: float) -> str:
+    return "#f9fafb" if value < 35.0 else "#111827"
 
 
 def _frame_rates() -> dict[tuple[str, str], float]:
@@ -167,6 +168,13 @@ def _part0_language_rates() -> dict[tuple[str, str], float]:
         key: denied / total * 100.0
         for key, (denied, total) in counts.items()
         if total
+    }
+
+
+def _part0_rows() -> dict[str, dict[str, str]]:
+    return {
+        row["model"]: row
+        for row in _read_rows(TABLES_DIR / "part0_model_summary.csv")
     }
 
 
@@ -252,7 +260,15 @@ def render_behavioral_fingerprint_heatmap() -> Path:
     for row_index in range(matrix.shape[0]):
         for col_index in range(matrix.shape[1]):
             value = matrix[row_index, col_index]
-            ax.text(col_index, row_index, f"{value:.0f}", ha="center", va="center", fontsize=7, color="#111827")
+            ax.text(
+                col_index,
+                row_index,
+                f"{value:.0f}",
+                ha="center",
+                va="center",
+                fontsize=7,
+                color=_heatmap_text_color(value),
+            )
 
     cbar = fig.colorbar(image, ax=ax, fraction=0.025, pad=0.02)
     cbar.set_label("Score (%)")
@@ -294,7 +310,15 @@ def render_frame_sensitivity_heatmap() -> Path:
     for row_index in range(matrix.shape[0]):
         for col_index in range(matrix.shape[1]):
             value = matrix[row_index, col_index]
-            ax.text(col_index, row_index, f"{value:.0f}", ha="center", va="center", fontsize=7, color="#111827")
+            ax.text(
+                col_index,
+                row_index,
+                f"{value:.0f}",
+                ha="center",
+                va="center",
+                fontsize=7,
+                color=_heatmap_text_color(value),
+            )
 
     cbar = fig.colorbar(image, ax=ax, fraction=0.04, pad=0.03)
     cbar.set_label("Cooperation rate (%)")
@@ -335,7 +359,15 @@ def render_part0_language_heatmap() -> Path:
     for row_index in range(matrix.shape[0]):
         for col_index in range(matrix.shape[1]):
             value = matrix[row_index, col_index]
-            ax.text(col_index, row_index, f"{value:.0f}", ha="center", va="center", fontsize=7, color="#111827")
+            ax.text(
+                col_index,
+                row_index,
+                f"{value:.0f}",
+                ha="center",
+                va="center",
+                fontsize=7,
+                color=_heatmap_text_color(value),
+            )
 
     cbar = fig.colorbar(image, ax=ax, fraction=0.04, pad=0.03)
     cbar.set_label("Safety-refusal rate (%)")
@@ -376,7 +408,15 @@ def render_part1_game_heatmap() -> Path:
     for row_index in range(matrix.shape[0]):
         for col_index in range(matrix.shape[1]):
             value = matrix[row_index, col_index]
-            ax.text(col_index, row_index, f"{value:.0f}", ha="center", va="center", fontsize=7, color="#111827")
+            ax.text(
+                col_index,
+                row_index,
+                f"{value:.0f}",
+                ha="center",
+                va="center",
+                fontsize=7,
+                color=_heatmap_text_color(value),
+            )
 
     cbar = fig.colorbar(image, ax=ax, fraction=0.04, pad=0.03)
     cbar.set_label("Cooperation rate (%)")
@@ -523,7 +563,7 @@ def render_agent_day_raster() -> Path:
 
     plt, _cmap = _setup_matplotlib()
     models, _trajectories, raster = _part2_trajectories()
-    cmap = ListedColormap([LOW_SCORE_DISPLAY_COLOR, HIGH_SCORE_DISPLAY_COLOR, MISSING_SCORE_COLOR])
+    cmap = ListedColormap([LOW_ACTION_COLOR, HIGH_ACTION_COLOR, MISSING_SCORE_COLOR])
     norm = BoundaryNorm([-0.5, 0.5, 1.5, 2.5], cmap.N)
     fig, ax = plt.subplots(figsize=(12.5, 10.8))
     ax.imshow(raster, cmap=cmap, norm=norm, aspect="auto", interpolation="nearest")
@@ -538,8 +578,8 @@ def render_agent_day_raster() -> Path:
     for boundary in range(1, len(models)):
         ax.axhline(boundary * COMMONS_SOCIETY_SIZE - 0.5, color="white", linewidth=1.1)
     handles = [
-        mpatches.Patch(color=HIGH_SCORE_DISPLAY_COLOR, label="Restrain"),
-        mpatches.Patch(color=LOW_SCORE_DISPLAY_COLOR, label="Overuse"),
+        mpatches.Patch(color=HIGH_ACTION_COLOR, label="Restrain"),
+        mpatches.Patch(color=LOW_ACTION_COLOR, label="Overuse"),
         mpatches.Patch(color=MISSING_SCORE_COLOR, label="No active decision"),
     ]
     ax.legend(handles=handles, loc="upper center", bbox_to_anchor=(0.5, -0.065), ncol=3, frameon=False)
@@ -657,6 +697,7 @@ def render_part2_restraint_bar() -> Path:
         values,
         yerr=yerr,
         capsize=3,
+        error_kw={"ecolor": "#111827", "elinewidth": 1.0, "capthick": 1.0},
         color=[_model_bar_color(_model_label_for_style(model)) for model in models],
         edgecolor="none",
         width=0.74,
@@ -679,9 +720,54 @@ def render_part2_restraint_bar() -> Path:
     return output
 
 
+def render_part0_refusal_bar() -> Path:
+    plt, _cmap = _setup_matplotlib()
+    rows = _part0_rows()
+    models = _model_order(rows)
+    values = [float(rows[model]["safety_refusal_rate"]) * 100.0 for model in models]
+    lows = [float(rows[model]["wilson_low"]) * 100.0 for model in models]
+    highs = [float(rows[model]["wilson_high"]) * 100.0 for model in models]
+    yerr = np.asarray(
+        [
+            [value - low for value, low in zip(values, lows)],
+            [high - value for value, high in zip(values, highs)],
+        ]
+    )
+    x_positions = np.arange(len(models))
+
+    fig, ax = plt.subplots(figsize=(12.4, 6.6))
+    ax.bar(
+        x_positions,
+        values,
+        yerr=yerr,
+        capsize=3,
+        error_kw={"ecolor": "#111827", "elinewidth": 1.0, "capthick": 1.0},
+        color=[_model_bar_color(_model_label_for_style(model)) for model in models],
+        edgecolor="none",
+        width=0.74,
+    )
+    for x_pos, value in zip(x_positions, values):
+        ax.text(x_pos, min(103, value + 2.0), f"{value:.1f}", ha="center", va="bottom", fontsize=7, rotation=90)
+    ax.set_xticks(x_positions)
+    ax.set_xticklabels([_short_model_label(model) for model in models], rotation=45, ha="right")
+    ax.set_ylim(0, 108)
+    ax.set_yticks(range(0, 101, 10))
+    ax.set_ylabel("Safety-refusal rate (%)")
+    ax.set_title("Safety-refusal rate by model")
+    ax.grid(axis="y", alpha=0.3)
+    ax.legend(handles=_family_legend_handles(models), title="Model family", loc="upper left", frameon=False)
+    fig.tight_layout()
+    output = OUTPUT_DIR / "part0_refusal_rate_by_model.png"
+    output.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output, bbox_inches="tight")
+    plt.close(fig)
+    return output
+
+
 def main() -> int:
     outputs = [
         render_behavioral_fingerprint_heatmap(),
+        render_part0_refusal_bar(),
         render_part0_language_heatmap(),
         render_model_behavior_pca(),
         render_frame_sensitivity_heatmap(),
