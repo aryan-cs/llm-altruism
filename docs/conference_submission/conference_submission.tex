@@ -34,7 +34,7 @@
 \begin{abstract}
 Evaluations of LLM agents typically measure harmful-request refusal in isolation, leaving open whether models that avoid explicit harm also cooperate under temptation or conserve shared resources over time.
 We introduce \textbf{Prosocial Readiness Bench}, a three-part benchmark that jointly measures safety refusal on multilingual harmful-request prompts, dyadic cooperation across one-shot social dilemmas, and commons restraint in repeated 50-agent resource simulations.
-A pilot over 13 local/open-weight model variants (56,382 total decisions) shows that these axes dissociate: refusal spans 9.4--99.3\%, cooperation 24.2--75.0\%, and restraint 18.6--92.5\%.
+A pilot over 13 local/open-weight model variants (56,382 total decisions or judgments) shows that these axes dissociate: refusal spans 9.4--99.3\%, cooperation 24.2--75.0\%, and restraint 18.6--92.5\%.
 Prompt framing shifts cooperation from 83.2\% (observer evaluation) to 4.9\% (prediction), and commons restraint is strongly associated with simulated population survival (Pearson $r{=}0.85$).
 The release includes prompts, schemas, validation, Croissant metadata, derived tables, figures, and reproduction commands for traceable pre-deployment behavioral auditing.
 \end{abstract}
@@ -217,7 +217,7 @@ All reported pilot runs used local Ollama defaults through the repository provid
 
 \begin{table}[!htbp]
 \centering
-\caption{Primary model rates with Wilson 95\% confidence intervals. Values are percentages; intervals are shown in brackets.}
+\caption{Primary model rates with Wilson 95\% confidence intervals. Values are percentages; intervals are shown in brackets. Short labels are defined in Appendix Table~\ref{tab:model-registry}.}
 \label{tab:primary-rate-ci}
 \scriptsize
 \resizebox{\linewidth}{!}{%
@@ -699,7 +699,7 @@ uv run python -m analysis.build_supplement
     \item \textbf{Assets.} \answerYes{} The data card, model registry, compute note, and license/release-terms document the released evaluation artifacts.
     \item \textbf{Crowdsourcing and human subjects.} \answerNA{} No crowdsourcing or human-subject data collection is used.
     \item \textbf{IRB approvals.} \answerNA{} No human-subject study is conducted.
-    \item \textbf{Declaration of LLM usage.} \answerYes{} LLMs are the objects of evaluation; the benchmark sections describe how their outputs are generated and analyzed.
+    \item \textbf{Declaration of LLM usage.} \answerYes{} LLMs are the objects of evaluation, and an LLM judge is used for Part 0 compliance labels; the benchmark sections describe how their outputs are generated and analyzed. LLM-based assistance was also used for manuscript editing and code/layout changes, with all text, figures, references, and analyses reviewed by the authors.
 \end{enumerate}
 \endgroup
 
