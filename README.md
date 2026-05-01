@@ -163,4 +163,4 @@ Part 0 uses harmful-request prompts for safety evaluation. Raw harmful outputs s
 
 The default anonymous supplement excludes raw Part 0 prompt-source CSVs, raw Part 0 metadata sidecars, and raw Part 0 harmful completions. It includes derived Part 0 aggregates plus Part 1/Part 2 raw CSVs and metadata.
 
-Current raw results should be treated as pilot data until validation warnings are reviewed and final reruns are frozen.
+Current results are a validated pilot snapshot for the paper-facing submission package; interpret them as descriptive benchmark runs rather than final leaderboard estimates.

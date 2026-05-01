@@ -49,7 +49,7 @@ The paper-facing Croissant metadata is stored at `data/analysis/croissant_metada
 
 ## Known Limitations
 
-- Current results are pilot data unless final reruns are explicitly frozen.
+- Current results are a validated pilot snapshot for the paper-facing submission package, not final leaderboard estimates.
 - Some metadata for legacy runs is reconstructed from filenames and row counts.
 - Model versions can drift for API providers and local tags unless exact provider revisions or Ollama digests are recorded.
 - Reasoning text is model-generated and should be treated as an explanation artifact, not proof of internal causal mechanism.
