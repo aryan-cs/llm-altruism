@@ -2,6 +2,6 @@
 
 This directory contains the active paper-writing guide and the anonymous conference submission.
 
-- `conference_submission/`: NeurIPS 2026 Evaluations & Datasets submission source, bibliography, style file, and local upload artifacts.
-- `release/`: release-facing documentation, including the data card, model registry, and reproducibility notes.
+- `conference_submission/`: NeurIPS 2026 Evaluations & Datasets submission source, bibliography, style file, and figure assets.
+- `release/`: release-facing documentation plus the public research proposal PDF.
 - `NOTES.md`: style and practice playbook for writing the Datasets & Benchmarks paper.

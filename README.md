@@ -25,8 +25,8 @@ data/raw/part_1/              Raw Part 1 CSVs and metadata
 data/raw/part_2/              Raw Part 2 CSVs and metadata
 data/analysis/                Validation reports, derived tables, Croissant metadata, manifests
 data/graphs/                  Generated figures and diagnostics
-docs/conference_submission/   NeurIPS submission source, figures, PDF, and supplement zip
-docs/release/                 Data card, model registry, compute note, release terms
+docs/conference_submission/   NeurIPS submission source and figures
+docs/release/                 Data card, model registry, release terms, public proposal PDF
 tests/                        Unit and integration tests
 ```
 
