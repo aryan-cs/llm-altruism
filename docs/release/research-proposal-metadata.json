@@ -2,9 +2,11 @@
   "title": "Prosocial Readiness Bench: Safety Refusal, Cooperation, and Commons Restraint in LLM Agents",
   "creators": [
     {
-      "name": "Gupta, Aryan"
+      "name": "Gupta, Aryan",
+      "email": "aryan.cs.app@gmail.com"
     }
   ],
+  "contact_email": "aryan.cs.app@gmail.com",
   "description": "Evaluations of LLM agents typically measure harmful-request refusal in isolation, leaving open whether models that avoid explicit harm also cooperate under temptation or conserve shared resources over time. Prosocial Readiness Bench is a three-part benchmark that jointly measures safety refusal on multilingual harmful-request prompts, dyadic cooperation across one-shot social dilemmas, and commons restraint in repeated 50-agent resource simulations. A pilot over 13 local/open-weight model variants shows that these axes dissociate and that prompt framing strongly changes measured cooperation. The release includes prompts, schemas, validation, Croissant metadata, derived tables, figures, and reproduction commands for traceable pre-deployment behavioral auditing.",
   "publication_date": "2026-05-07",
   "upload_type": "publication",
