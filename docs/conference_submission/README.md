@@ -13,6 +13,14 @@ pdflatex -interaction=nonstopmode conference_submission.tex
 
 The compiled upload PDF is `conference_submission.pdf`. Stage the anonymous supplement ZIP in this folder as `supplement.zip` so all conference-upload materials live under `docs/conference_submission/`.
 
+For a public, indexable deposit copy, build `research-proposal.tex` instead. It compiles the same manuscript with public author and PDF metadata:
+
+```bash
+<tectonic> --outdir ../release research-proposal.tex
+```
+
+The public deposit PDF is `docs/release/research-proposal.pdf`. Copy form metadata from `docs/release/research-proposal-metadata.json` when uploading to Zenodo, ResearchGate, or a similar archive.
+
 Build the supplement from the repository root:
 
 ```bash

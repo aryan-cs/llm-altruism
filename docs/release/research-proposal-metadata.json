@@ -1,0 +1,34 @@
+{
+  "title": "Prosocial Readiness Bench: Safety Refusal, Cooperation, and Commons Restraint in LLM Agents",
+  "creators": [
+    {
+      "name": "Gupta, Aryan"
+    }
+  ],
+  "description": "Evaluations of LLM agents typically measure harmful-request refusal in isolation, leaving open whether models that avoid explicit harm also cooperate under temptation or conserve shared resources over time. Prosocial Readiness Bench is a three-part benchmark that jointly measures safety refusal on multilingual harmful-request prompts, dyadic cooperation across one-shot social dilemmas, and commons restraint in repeated 50-agent resource simulations. A pilot over 13 local/open-weight model variants shows that these axes dissociate and that prompt framing strongly changes measured cooperation. The release includes prompts, schemas, validation, Croissant metadata, derived tables, figures, and reproduction commands for traceable pre-deployment behavioral auditing.",
+  "publication_date": "2026-05-07",
+  "upload_type": "publication",
+  "publication_type": "preprint",
+  "access_right": "open",
+  "license": "MIT",
+  "language": "eng",
+  "keywords": [
+    "large language models",
+    "LLM evaluation",
+    "safety refusal",
+    "cooperation",
+    "commons restraint",
+    "agent simulation",
+    "behavioral benchmark",
+    "Prosocial Readiness Bench"
+  ],
+  "version": "2026-05-07-indexable",
+  "related_identifiers": [
+    {
+      "identifier": "https://github.com/aryan-cs/llm-altruism",
+      "relation": "isSupplementedBy",
+      "resource_type": "software"
+    }
+  ],
+  "notes": "No ORCID, institutional affiliation, funder, or DOI was found in the repository. If a DOI is reserved before upload, add it to the platform record and rebuild the PDF with that DOI in the metadata."
+}

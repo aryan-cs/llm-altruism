@@ -1,7 +1,18 @@
 \PassOptionsToPackage{numbers,compress}{natbib}
 \documentclass{article}
 
-\usepackage[eandd]{neurips_2026}
+\newif\ifpublicrelease
+\ifdefined\PRBPublicRelease
+  \publicreleasetrue
+\else
+  \publicreleasefalse
+\fi
+
+\ifpublicrelease
+  \usepackage[preprint,eandd]{neurips_2026}
+\else
+  \usepackage[eandd]{neurips_2026}
+\fi
 \usepackage[T1]{fontenc}
 \usepackage[utf8]{inputenc}
 \usepackage{amsmath}
@@ -14,6 +25,7 @@
 \usepackage{xcolor}
 \usepackage{float}
 \usepackage{hyperref}
+\usepackage{hyperxmp}
 \usepackage{placeins}
 \usepackage{needspace}
 \usepackage{tikz}
@@ -24,9 +36,48 @@
 \definecolor{prbTeal}{HTML}{009E73}
 \newcommand{\modeltag}[1]{\texttt{\detokenize{#1}}}
 
-\title{Prosocial Readiness Bench: Safety Refusal, Cooperation, and Commons Restraint in LLM Agents}
+\newcommand{\PaperTitle}{Prosocial Readiness Bench: Safety Refusal, Cooperation, and Commons Restraint in LLM Agents}
+\newcommand{\PaperSubject}{Research proposal and benchmark report for a three-part LLM agent evaluation artifact measuring safety refusal, dyadic cooperation, and commons restraint.}
+\newcommand{\PaperKeywords}{large language models, LLM evaluation, safety refusal, cooperation, commons restraint, agent simulation, behavioral benchmark, Prosocial Readiness Bench}
+\newcommand{\PaperRepositoryUrl}{https://github.com/aryan-cs/llm-altruism}
+\ifpublicrelease
+  \newcommand{\PaperAuthorBlock}{Aryan Gupta\\\texttt{aryang9@illinois.edu}}
+  \newcommand{\PaperPdfAuthor}{Aryan Gupta}
+  \newcommand{\PaperCopyright}{Copyright (c) 2026 Aryan Gupta}
+\else
+  \newcommand{\PaperAuthorBlock}{Anonymous Authors}
+  \newcommand{\PaperPdfAuthor}{Anonymous Authors}
+  \newcommand{\PaperCopyright}{Copyright (c) 2026 Anonymous Authors}
+\fi
 
-\author{Anonymous Authors}
+\hypersetup{
+  pdftitle={\PaperTitle},
+  pdfauthor={\PaperPdfAuthor},
+  pdfsubject={\PaperSubject},
+  pdfkeywords={\PaperKeywords},
+  pdfcreator={LaTeX with hyperref and hyperxmp},
+  pdfproducer={Tectonic},
+  pdfcopyright={\PaperCopyright},
+  pdflicenseurl={https://opensource.org/license/mit},
+  pdfcontactemail={aryang9@illinois.edu},
+  pdfurl={\PaperRepositoryUrl},
+  pdflang={en-US},
+  unicode=true,
+  pdfencoding=auto
+}
+
+\ifpublicrelease
+\AtBeginDvi{\special{pdf:docinfo <<
+  /Title (Prosocial Readiness Bench: Safety Refusal, Cooperation, and Commons Restraint in LLM Agents)
+  /Author (Aryan Gupta)
+  /Subject (Research proposal and benchmark report for a three-part LLM agent evaluation artifact measuring safety refusal, dyadic cooperation, and commons restraint.)
+  /Keywords (large language models, LLM evaluation, safety refusal, cooperation, commons restraint, agent simulation, behavioral benchmark, Prosocial Readiness Bench)
+>>}}
+\fi
+
+\title{\PaperTitle}
+
+\author{\PaperAuthorBlock}
 
 \begin{document}
 \maketitle
