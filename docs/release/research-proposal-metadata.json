@@ -1,5 +1,5 @@
 {
-  "title": "Prosocial Readiness Bench: Safety Refusal, Cooperation, and Commons Restraint in LLM Agents",
+  "title": "Research Proposal: Measuring Altruism, Alignment, and Social Welfare in Large Language Model Agents",
   "creators": [
     {
       "name": "Gupta, Aryan",
@@ -7,7 +7,7 @@
     }
   ],
   "contact_email": "aryan.cs.app@gmail.com",
-  "description": "Evaluations of LLM agents typically measure harmful-request refusal in isolation, leaving open whether models that avoid explicit harm also cooperate under temptation or conserve shared resources over time. Prosocial Readiness Bench is a three-part benchmark that jointly measures safety refusal on multilingual harmful-request prompts, dyadic cooperation across one-shot social dilemmas, and commons restraint in repeated 50-agent resource simulations. A pilot over 13 local/open-weight model variants shows that these axes dissociate and that prompt framing strongly changes measured cooperation. The release includes prompts, schemas, validation, Croissant metadata, derived tables, figures, and reproduction commands for traceable pre-deployment behavioral auditing.",
+  "description": "This research proposal studies whether large language models that appear more aligned, safety-conscious, and prosocial in harmful-request benchmarks also behave more cooperatively in strategic games and more sustainably in multi-agent societies. It formalizes the research questions, operational definition of altruism, execution protocol, evaluation plan, infrastructure requirements, and roadmap for extending the current LLM Altruism codebase into reputation-based and open-world social simulations.",
   "publication_date": "2026-05-07",
   "upload_type": "publication",
   "publication_type": "preprint",
@@ -16,13 +16,16 @@
   "language": "eng",
   "keywords": [
     "large language models",
+    "LLM altruism",
+    "alignment",
     "LLM evaluation",
     "safety refusal",
+    "harmful compliance",
     "cooperation",
     "commons restraint",
+    "social welfare",
     "agent simulation",
-    "behavioral benchmark",
-    "Prosocial Readiness Bench"
+    "research proposal"
   ],
   "version": "2026-05-07-indexable",
   "related_identifiers": [
@@ -32,5 +35,5 @@
       "resource_type": "software"
     }
   ],
-  "notes": "No ORCID, institutional affiliation, funder, or DOI was found in the repository. If a DOI is reserved before upload, add it to the platform record and rebuild the PDF with that DOI in the metadata."
+  "notes": "No ORCID, institutional affiliation, funder, or DOI was found in the repository. If a DOI is reserved before upload, add it to the platform record and regenerate the PDF metadata."
 }
