@@ -57,7 +57,11 @@ SENSITIVITY_LEVELS: dict[str, tuple[int | float, int | float]] = {
     "horizon_days": (50, 100),
 }
 SENSITIVITY_CELL_COUNT = 16
-SENSITIVITY_SEEDS_PER_CELL = 6
+# Twelve common seeds give 2^12 exact sign patterns. For a two-sided absolute
+# statistic the minimum attainable p-value is 2/2^12, which remains below
+# 0.05/30 for the frozen global Holm family. Six seeds could never reject even
+# an infinite effect after the 30-test adjustment.
+SENSITIVITY_SEEDS_PER_CELL = 12
 SENSITIVITY_SENTINEL_COUNT = 6
 
 
@@ -373,7 +377,7 @@ def analyze_resolution_v_main_effects(
     """Analyze five blocked main effects with exact sign-flip Holm/max-T tests.
 
     Exactly one normalized-AURC observation is required for every one of the 16
-    cells under each of six common environment seeds.  Anything else is an
+    cells under each of twelve common environment seeds.  Anything else is an
     incomplete or off-protocol design and is rejected before calculation.
     """
 
@@ -414,7 +418,10 @@ def analyze_resolution_v_main_effects(
         raise ValueError("sensitivity design is incomplete: all 16 cells are required")
     seed_sets = {tuple(sorted(seeds)) for seeds in seeds_by_cell.values()}
     if len(seed_sets) != 1:
-        raise ValueError("sensitivity cells must use six common environment seeds")
+        raise ValueError(
+            f"sensitivity cells must use {SENSITIVITY_SEEDS_PER_CELL} common "
+            "environment seeds"
+        )
     [common_seeds] = seed_sets
     if len(common_seeds) != SENSITIVITY_SEEDS_PER_CELL:
         raise ValueError(

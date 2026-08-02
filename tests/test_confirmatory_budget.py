@@ -160,18 +160,32 @@ def test_environment_reservation_is_durable_and_role_specific(
     monkeypatch.setenv("CONFIRMATORY_EXPERIMENT", "part0")
     reserve_environment_attempt(
         provider="inference_hub",
-        model="judge-route",
-        system_prompt="judge",
-        query="classify",
-        max_tokens=32,
+        endpoint="https://inference-api.nvidia.com/v1",
+        request_payload={
+            "model": "judge-route",
+            "messages": [
+                {"role": "system", "content": "judge"},
+                {"role": "user", "content": "classify"},
+            ],
+            "max_tokens": 32,
+            "temperature": 0,
+            "response_format": {"type": "json_object"},
+        },
     )
     first_dispatch_hash = consume_environment_reservation()
     reserve_environment_attempt(
         provider="inference_hub",
-        model="subject-route",
-        system_prompt="subject",
-        query="respond",
-        max_tokens=512,
+        endpoint="https://inference-api.nvidia.com/v1",
+        request_payload={
+            "model": "subject-route",
+            "messages": [
+                {"role": "system", "content": "subject"},
+                {"role": "user", "content": "respond"},
+            ],
+            "max_tokens": 512,
+            "seed": 7,
+            "top_p": 1,
+        },
     )
     second_dispatch_hash = consume_environment_reservation()
     ledger = validate_ledger(

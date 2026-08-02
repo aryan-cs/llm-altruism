@@ -43,6 +43,7 @@ CANDIDATE_EVIDENCE_SCHEMA_VERSION = 2
 CATALOG_PROBE_SCHEMA_VERSION = 2
 DISCOVERY_LEDGER_SCHEMA_VERSION = 2
 DEFAULT_MAX_WORKERS = 16
+MAX_HTTP_ERROR_CAPTURE_BYTES = 65_536
 SMOKE_SEED = 20_260_801
 SMOKE_SCHEMA = {
     "type": "object",
@@ -67,6 +68,55 @@ class InferenceHubDiscoveryError(RuntimeError):
         self.failure_code = failure_code
         self.http_status = http_status
         self.evidence = dict(evidence or {})
+
+
+def _safe_http_error_evidence(error: urllib.error.HTTPError) -> dict[str, Any]:
+    """Hash the full error body while retaining only bounded, non-message fields."""
+
+    digest = hashlib.sha256()
+    captured = bytearray()
+    body_size = 0
+    if getattr(error, "fp", None) is None:
+        return {
+            "error_body_sha256": digest.hexdigest(),
+            "error_body_bytes": 0,
+            "error_body_parse_truncated": False,
+        }
+    while True:
+        chunk = error.read(8_192)
+        if not chunk:
+            break
+        digest.update(chunk)
+        body_size += len(chunk)
+        remaining = MAX_HTTP_ERROR_CAPTURE_BYTES - len(captured)
+        if remaining > 0:
+            captured.extend(chunk[:remaining])
+    evidence: dict[str, Any] = {
+        "error_body_sha256": digest.hexdigest(),
+        "error_body_bytes": body_size,
+        "error_body_parse_truncated": body_size > len(captured),
+    }
+    if body_size == 0 or body_size > len(captured):
+        return evidence
+    try:
+        payload = json.loads(bytes(captured))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return evidence
+    if not isinstance(payload, Mapping):
+        return evidence
+    error_object = payload.get("error")
+    if not isinstance(error_object, Mapping):
+        error_object = payload
+    for field in ("type", "code", "param"):
+        value = error_object.get(field)
+        if isinstance(value, (str, int)) and not isinstance(value, bool):
+            evidence[f"provider_error_{field}"] = value
+    message = error_object.get("message", payload.get("detail"))
+    if isinstance(message, str):
+        evidence["provider_error_message_sha256"] = hashlib.sha256(
+            message.encode("utf-8")
+        ).hexdigest()
+    return evidence
 
 
 _WorkItem = TypeVar("_WorkItem")
@@ -313,6 +363,7 @@ def _finish_discovery_attempt(
                 "Discovery attempt completion does not match one pending reservation."
             )
         matches[0]["outcome"] = outcome
+        matches[0]["completed_at_utc"] = _utc_now()
         matches[0]["failure_code"] = failure_code
         matches[0]["http_status"] = http_status
         matches[0]["request_id"] = request_id or safe_evidence.get("request_id")
@@ -322,11 +373,65 @@ def _finish_discovery_attempt(
             "content_sha256",
             "finish_reason",
             "usage_sha256",
+            "output_field",
+            "structured_output_validated",
+            "error_body_sha256",
+            "error_body_bytes",
+            "error_body_parse_truncated",
+            "provider_error_type",
+            "provider_error_code",
+            "provider_error_param",
+            "provider_error_message_sha256",
         ):
             matches[0][key] = safe_evidence.get(key)
         ledger.pop("ledger_sha256", None)
         ledger["ledger_sha256"] = _discovery_ledger_hash(ledger)
         _atomic_write_json(path, ledger)
+
+
+def _resume_discovery_record(
+    path: Path,
+    *,
+    target_id: str,
+    route: str,
+    request_body: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    """Return a matching terminal record and retire any stale reservations."""
+
+    request_sha256 = _sha256_json(request_body)
+    with _discovery_ledger_lock(path):
+        ledger = _load_discovery_ledger_unlocked(path)
+        matches = [
+            record
+            for record in ledger["records"]
+            if isinstance(record, dict)
+            and record.get("target_id") == target_id
+            and record.get("route") == route
+            and record.get("request_sha256") == request_sha256
+        ]
+        terminal = [
+            record
+            for record in matches
+            if record.get("outcome") != "reserved_before_dispatch"
+        ]
+        if terminal:
+            return dict(terminal[-1])
+        pending = [
+            record
+            for record in matches
+            if record.get("outcome") == "reserved_before_dispatch"
+        ]
+        if not pending:
+            return None
+        completed_at = _utc_now()
+        for record in pending:
+            record["outcome"] = "failed"
+            record["failure_code"] = "stale_reservation_retried"
+            record["completed_at_utc"] = completed_at
+        ledger.pop("ledger_sha256", None)
+        ledger["ledger_sha256"] = _discovery_ledger_hash(ledger)
+        _atomic_write_json(path, ledger)
+    return None
 
 
 class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
@@ -402,16 +507,23 @@ class InferenceHubClient:
             ) as response:
                 payload_bytes = response.read()
         except urllib.error.HTTPError as error:
+            evidence = _safe_http_error_evidence(error)
             raise InferenceHubDiscoveryError(
                 f"InferenceHub {path} returned HTTP {error.code}.",
                 failure_code="http_error",
                 http_status=error.code,
+                evidence=evidence,
             ) from error
         except urllib.error.URLError as error:
             reason = type(error.reason).__name__
             raise InferenceHubDiscoveryError(
                 f"InferenceHub {path} connection failed ({reason}).",
                 failure_code="connection_error",
+            ) from error
+        except TimeoutError as error:
+            raise InferenceHubDiscoveryError(
+                f"InferenceHub {path} connection timed out.",
+                failure_code="connection_timeout",
             ) from error
         try:
             payload = json.loads(payload_bytes)
@@ -882,6 +994,7 @@ def probe_catalog_routes(
     attempt_ledger_path: Path,
     max_tokens: int = 8,
     max_workers: int = DEFAULT_MAX_WORKERS,
+    resume: bool = False,
 ) -> dict[str, Any]:
     """Attempt one minimal chat request against every authorized catalog route."""
 
@@ -906,8 +1019,94 @@ def probe_catalog_routes(
         raise InferenceHubDiscoveryError("Catalog snapshot contains duplicate routes.")
     ordered_routes = sorted(routes)
 
+    def resumed_result(route: str, record: Mapping[str, Any]) -> dict[str, Any]:
+        outcome = record.get("outcome")
+        if outcome in {"chat_callable", "verified"}:
+            evidence = {
+                "schema_version": CATALOG_PROBE_SCHEMA_VERSION,
+                "verification_status": "chat_callable",
+                "verified_at_utc": record.get("completed_at_utc"),
+                "evidence_provenance": "resumed_terminal_attempt_ledger_record",
+                "route_source": ROUTE_SOURCE,
+                "endpoint": client.base_url,
+                "requested_route": route,
+                "provider_response_model": record.get("response_model"),
+                "catalog_captured_at_utc": catalog.get("captured_at_utc"),
+                "catalog_source_payload_sha256": catalog.get(
+                    "source_payload_sha256"
+                ),
+                "catalog_route_sha256": _sha256_json(_catalog_route(catalog, route)),
+                "request": {
+                    "max_tokens": max_tokens,
+                    "stream": False,
+                    "request_sha256": record.get("request_sha256"),
+                    "prompt_sha256": hashlib.sha256(
+                        _chat_probe_request_body(route, max_tokens)["messages"][0][
+                            "content"
+                        ].encode("utf-8")
+                    ).hexdigest(),
+                    "optional_generation_controls_asserted": [],
+                },
+                "response": {
+                    "request_id": record.get("request_id"),
+                    "payload_sha256": record.get("response_sha256"),
+                    "content_sha256": record.get("content_sha256"),
+                    "finish_reason": record.get("finish_reason"),
+                    "usage": None,
+                    "usage_sha256": record.get("usage_sha256"),
+                },
+            }
+            return {
+                "attempt_id": record["attempt_id"],
+                "result_type": "verified",
+                "resumed": True,
+                "record": {"route": route, "evidence": evidence},
+            }
+        failure_evidence = {
+            key: record.get(key)
+            for key in (
+                "request_id",
+                "response_model",
+                "response_sha256",
+                "content_sha256",
+                "finish_reason",
+                "usage_sha256",
+                "error_body_sha256",
+                "error_body_bytes",
+                "error_body_parse_truncated",
+                "provider_error_type",
+                "provider_error_code",
+                "provider_error_param",
+                "provider_error_message_sha256",
+            )
+            if record.get(key) is not None
+        }
+        rejection: dict[str, Any] = {
+            "route": route,
+            "failure_code": record.get("failure_code") or "unknown_failure",
+        }
+        if record.get("http_status") is not None:
+            rejection["http_status"] = record["http_status"]
+        if failure_evidence:
+            rejection["failure_evidence"] = failure_evidence
+        return {
+            "attempt_id": record["attempt_id"],
+            "result_type": "rejected",
+            "resumed": True,
+            "record": rejection,
+        }
+
     def probe_one(route: str) -> dict[str, Any]:
         request_body = _chat_probe_request_body(route, max_tokens)
+        if resume:
+            terminal = _resume_discovery_record(
+                attempt_ledger_path,
+                target_id=f"catalog-route:{route}",
+                route=route,
+                request_body=request_body,
+            )
+            if terminal is not None:
+                return resumed_result(route, terminal)
         attempt_id = _reserve_discovery_attempt(
             attempt_ledger_path,
             target_id=f"catalog-route:{route}",
@@ -947,6 +1146,7 @@ def probe_catalog_routes(
             return {
                 "attempt_id": attempt_id,
                 "result_type": "rejected",
+                "resumed": False,
                 "record": rejection,
             }
         response_evidence = _successful_response_evidence(evidence)
@@ -961,6 +1161,7 @@ def probe_catalog_routes(
         return {
             "attempt_id": attempt_id,
             "result_type": "verified",
+            "resumed": False,
             "record": {"route": route, "evidence": evidence},
         }
 
@@ -976,6 +1177,7 @@ def probe_catalog_routes(
         result["record"] for result in results if result["result_type"] == "rejected"
     ]
     run_attempt_ids = [str(result["attempt_id"]) for result in results]
+    resumed_route_count = sum(bool(result["resumed"]) for result in results)
     payload: dict[str, Any] = {
         "schema_version": CATALOG_PROBE_SCHEMA_VERSION,
         "artifact_type": "inference_hub_full_catalog_chat_probe",
@@ -986,6 +1188,8 @@ def probe_catalog_routes(
         "catalog_source_payload_sha256": catalog.get("source_payload_sha256"),
         "catalog_route_count": len(routes),
         "attempted_route_count": len(routes),
+        "dispatched_route_count": len(routes) - resumed_route_count,
+        "resumed_route_count": resumed_route_count,
         "chat_callable_route_count": len(verified),
         "rejected_route_count": len(rejected),
         "chat_callable_routes": verified,
@@ -1217,7 +1421,7 @@ def _validate_reconciliation(
     registry: Mapping[str, Any],
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     if (
-        reconciliation.get("schema_version") != 1
+        reconciliation.get("schema_version") != 2
         or reconciliation.get("artifact_type")
         != "inference_hub_route_reconciliation"
     ):
@@ -1548,6 +1752,14 @@ def _build_parser() -> argparse.ArgumentParser:
         required=True,
         help="Durable pre-dispatch ledger for every catalog-route probe.",
     )
+    probe_parser.add_argument(
+        "--resume",
+        action="store_true",
+        help=(
+            "Reuse request-hash-matched terminal ledger records and retry only "
+            "stale or missing attempts."
+        ),
+    )
     return parser
 
 
@@ -1625,6 +1837,7 @@ def main(argv: list[str] | None = None) -> int:
             max_tokens=args.max_tokens,
             attempt_ledger_path=args.attempt_ledger,
             max_workers=args.max_workers,
+            resume=args.resume,
         )
         _atomic_write_json(args.output, evidence)
         print(

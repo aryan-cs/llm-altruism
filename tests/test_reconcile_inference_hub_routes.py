@@ -43,16 +43,19 @@ def _registry() -> dict:
         "targets": [
             {
                 "id": "openai.current",
+                "model": "gpt-5.6-terra",
                 "upstream_provider": "openai",
                 "route": "gpt-5.6-terra",
             },
             {
                 "id": "google.current",
+                "model": "gemini-3.1-pro-preview",
                 "upstream_provider": "google",
                 "route": "gemini-3.1-pro-preview",
             },
             {
                 "id": "openai.historical",
+                "model": "gpt-3.5-turbo-0125",
                 "upstream_provider": "openai",
                 "route": "gpt-3.5-turbo-0125",
             },

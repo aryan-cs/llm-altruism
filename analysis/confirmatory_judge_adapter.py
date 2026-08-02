@@ -298,10 +298,9 @@ def build_confirmatory_audit_input(
             "native UNCLEAR count differs from the retained audit population"
         )
     expected = {(language, label) for language in LANGUAGES for label in LABELS}
-    if set(counts) != expected or any(counts[key] <= 0 for key in expected):
-        missing = sorted(expected - set(counts))
+    if not set(counts).issubset(expected):
         raise ConfirmatoryJudgeAdapterError(
-            f"adapted population lacks exact three-language three-label strata: {missing}"
+            "adapted population contains an unsupported language/label stratum"
         )
     output = Path(output_directory).resolve()
     if output.exists():
@@ -382,16 +381,17 @@ def load_confirmatory_audit_input(path: str | Path) -> tuple[list[dict[str, Any]
         for field in ("target_id", "source", "category", "semantic_cluster_id"):
             if not isinstance(row.get(field), str) or not row[field].strip():
                 raise ConfirmatoryJudgeAdapterError(f"confirmatory audit record has empty {field}")
-        if row.get("arm") not in {"harmful", "control"} or row.get("generation_block") not in {1, 2, 3}:
+        if (
+            row.get("arm") not in {"harmful", "control"}
+            or row.get("generation_block") not in set(part0_runner.EXPECTED_BLOCKS)
+        ):
             raise ConfirmatoryJudgeAdapterError("confirmatory audit record has invalid arm/block")
         counts[(row["language"], row["automated_label"])] += 1
     expected_strata = {
         language: {label: counts[(language, label)] for label in LABELS}
         for language in LANGUAGES
     }
-    if manifest.get("strata") != expected_strata or any(
-        counts[(language, label)] <= 0 for language in LANGUAGES for label in LABELS
-    ):
+    if manifest.get("strata") != expected_strata:
         raise ConfirmatoryJudgeAdapterError("confirmatory audit manifest strata are incomplete")
     sources = manifest.get("source_runs")
     if not isinstance(sources, list) or not sources:

@@ -6,6 +6,7 @@ import pytest
 from analysis.part2_confirmatory import (
     DEFAULT_BCA_REPLICATES,
     SENSITIVITY_FACTORS,
+    SENSITIVITY_SEEDS_PER_CELL,
     analyze_resolution_v_main_effects,
     analyze_sentinel_sensitivity,
     bca_mean_interval,
@@ -154,7 +155,7 @@ def test_bernoulli_no_call_simulation_is_exactly_seeded() -> None:
 
 def _sensitivity_observations(
     *,
-    seeds: tuple[int, ...] = (101, 102, 103, 104, 105, 106),
+    seeds: tuple[int, ...] = tuple(range(101, 101 + SENSITIVITY_SEEDS_PER_CELL)),
 ) -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
     for cell in resolution_v_half_fraction():
@@ -206,20 +207,28 @@ def test_resolution_v_design_is_exact_and_main_effects_use_holm_max_t() -> None:
     results = analyze_resolution_v_main_effects(_sensitivity_observations())
     assert {row["factor"] for row in results} == set(SENSITIVITY_FACTORS)
     assert all(row["cell_count"] == 16 for row in results)
-    assert all(row["common_seed_count"] == 6 for row in results)
-    assert all(row["permutation_count"] == 64 for row in results)
+    assert all(
+        row["common_seed_count"] == SENSITIVITY_SEEDS_PER_CELL for row in results
+    )
+    assert all(
+        row["permutation_count"] == 2**SENSITIVITY_SEEDS_PER_CELL
+        for row in results
+    )
     capacity = next(
         row for row in results if row["factor"] == "capacity_per_initial_agent"
     )
-    assert capacity["effect_high_minus_low"] == pytest.approx(0.085)
+    assert capacity["effect_high_minus_low"] == pytest.approx(0.091)
     assert capacity["raw_exact_p"] <= capacity["holm_adjusted_p"]
     assert capacity["raw_exact_p"] <= capacity["max_t_adjusted_p"]
+    assert capacity["holm_adjusted_p"] < 0.05
 
 
 def test_resolution_v_analysis_fails_closed_on_any_design_defect() -> None:
     complete = _sensitivity_observations()
     with pytest.raises(ValueError, match="incomplete"):
-        analyze_resolution_v_main_effects(complete[:-6])
+        analyze_resolution_v_main_effects(
+            complete[:-SENSITIVITY_SEEDS_PER_CELL]
+        )
 
     noncommon = [dict(row) for row in complete]
     noncommon[0]["environment_seed"] = 999
@@ -270,7 +279,7 @@ def test_sentinel_analysis_requires_six_systems_and_common_seeds() -> None:
 
     mixed = dict(six)
     mixed["sentinel-5"] = _sensitivity_observations(
-        seeds=(201, 202, 203, 204, 205, 206)
+        seeds=tuple(range(201, 201 + SENSITIVITY_SEEDS_PER_CELL))
     )
     with pytest.raises(ValueError, match="same common environment seeds"):
         analyze_sentinel_sensitivity(mixed, expected_sentinel_ids=frozen)

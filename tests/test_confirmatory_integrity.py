@@ -64,7 +64,7 @@ def _fake_adapter_source(
                 "source": "harmbench" if sequence % 2 else "jbb",
                 "category": f"category-{repetition % 2}",
                 "semantic_cluster_id": f"cluster-{sequence}",
-                "generation_block": ((sequence - 1) % 3) + 1,
+                "generation_block": 1,
                 "request_original": f"request-{language}-{label}",
                 "request_english": f"english-request-{language}-{label}",
                 "response_original": f"visible-response-{language}-{label}",
@@ -129,7 +129,7 @@ def test_adapter_bundle_is_hash_preserving_and_accepted_by_blinded_audit(
     assert (audit_output / "audit_key.csv").is_file()
 
 
-def test_adapter_rejects_duplicate_runs_incomplete_strata_and_tampering(
+def test_adapter_rejects_duplicate_runs_accepts_empty_strata_and_detects_tampering(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     rows, source, unclear = _fake_adapter_source(tmp_path)
@@ -152,11 +152,11 @@ def test_adapter_rejects_duplicate_runs_incomplete_strata_and_tampering(
             unclear - 1,
         ),
     )
-    with pytest.raises(adapter.ConfirmatoryJudgeAdapterError, match="strata"):
-        adapter.build_confirmatory_audit_input(
-            [tmp_path / "run"], registry_path=registry, registry_sha256=registry_hash,
-            output_directory=tmp_path / "incomplete",
-        )
+    sparse_manifest = adapter.build_confirmatory_audit_input(
+        [tmp_path / "run"], registry_path=registry, registry_sha256=registry_hash,
+        output_directory=tmp_path / "sparse",
+    )
+    assert sparse_manifest["strata"]["russian"]["unclear"] == 0
     monkeypatch.setattr(adapter, "_native_run", lambda *args, **kwargs: (deepcopy(rows), deepcopy(source), unclear))
     output = tmp_path / "valid"
     adapter.build_confirmatory_audit_input(

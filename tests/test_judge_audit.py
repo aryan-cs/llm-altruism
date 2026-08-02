@@ -23,6 +23,7 @@ from analysis.judge_audit import (
     score_multi_audit,
     require_criterion_promotion,
     _criterion_promotion_gate,
+    _bootstrap_intervals,
     _fleiss_kappa,
     _metric_bundle,
     _normalize_automated_label,
@@ -164,6 +165,67 @@ def test_automated_unclear_is_reported_and_penalizes_binary_abstention() -> None
     assert metrics["automated_unclear"]["human_unclear_agreement_rate"] == pytest.approx(0.25)
 
 
+def test_judge_bootstrap_resamples_whole_semantic_clusters_and_retains_weights(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    records: list[dict[str, object]] = []
+    for cluster_id, correct, weight in (
+        ("cluster-a", True, 2.0),
+        ("cluster-b", False, 5.0),
+    ):
+        for index, human_label in enumerate(("complied", "denied")):
+            automated_label = (
+                human_label
+                if correct
+                else ("denied" if human_label == "complied" else "complied")
+            )
+            records.append(
+                {
+                    "item_id": f"{cluster_id}-{index}",
+                    "language": "english",
+                    "automated_label": automated_label,
+                    "arm": "harmful",
+                    "target_id": "target",
+                    "source": "source",
+                    "semantic_cluster_id": cluster_id,
+                    "human_label": human_label,
+                    "confidence": 4,
+                    "error_type": "none",
+                    "weight": weight,
+                }
+            )
+
+    captured: list[list[dict[str, object]]] = []
+    original = _metric_bundle
+
+    def tracking_metric_bundle(
+        sampled: list[dict[str, object]],
+    ) -> dict[str, object]:
+        if sampled:
+            captured.append(list(sampled))
+        return original(sampled)
+
+    monkeypatch.setattr(
+        "analysis.judge_audit._metric_bundle", tracking_metric_bundle
+    )
+    result = _bootstrap_intervals(records, replicates=40, seed=91)
+
+    assert result["resampling_unit"] == "semantic_cluster_id"
+    assert "survey_weight" in result
+    assert captured
+    observed_repeated_cluster = False
+    for sampled in captured:
+        item_counts = Counter(str(row["item_id"]) for row in sampled)
+        for cluster_id in ("cluster-a", "cluster-b"):
+            multiplicities = {
+                item_counts[f"{cluster_id}-{index}"] for index in (0, 1)
+            }
+            assert len(multiplicities) == 1
+            observed_repeated_cluster |= next(iter(multiplicities)) > 1
+        assert {float(row["weight"]) for row in sampled}.issubset({2.0, 5.0})
+    assert observed_repeated_cluster
+
+
 def test_promotion_rejects_systematic_automated_unclear_abstention() -> None:
     primary_keys = []
     sequence = 0
@@ -177,14 +239,17 @@ def test_promotion_rejects_systematic_automated_unclear_abstention() -> None:
                         "automated_label": label,
                         "source_file": "confirmatory_audit_input.manifest.json",
                         "allocation_method": (
-                            "deterministic_greedy_proportional_marginal_deficit_v1"
+                            "seeded_stratified_srswor_equal_probability_v1"
                         ),
                         "target_id": f"target-{sequence % 2}",
                         "arm": "harmful" if sequence % 2 else "control",
                         "source": "fixture-source",
                         "category": "fixture-category",
                         "semantic_cluster_id": f"cluster-{sequence}",
-                        "generation_block": str(((sequence - 1) % 3) + 1),
+                        "generation_block": "1",
+                        "stratum_population": "200",
+                        "stratum_sample_size": "200",
+                        "sampling_cap": "200",
                     }
                 )
     metric_context = {
@@ -203,10 +268,24 @@ def test_promotion_rejects_systematic_automated_unclear_abstention() -> None:
             "automated_unclear_agreement_rate",
         )
     }
+    harmful_intervals = {
+        **intervals,
+        "complied_recall": {"lower": 0.50, "upper": 0.70},
+    }
     perfect_reliability = {
         "cohen_kappa": 1.0,
+        "cluster_bootstrap_95_ci": {
+            "lower": 0.50,
+            "upper": 1.0,
+        },
         "per_language": {
-            language: {"cohen_kappa": 1.0}
+            language: {
+                "cohen_kappa": 1.0,
+                "cluster_bootstrap_95_ci": {
+                    "lower": 0.50,
+                    "upper": 1.0,
+                },
+            }
             for language in ("english", "chinese", "russian")
         },
     }
@@ -227,11 +306,34 @@ def test_promotion_rejects_systematic_automated_unclear_abstention() -> None:
                 language: intervals
                 for language in ("english", "chinese", "russian")
             },
+            "harmful_arm": {
+                "overall": harmful_intervals,
+                "per_language": {
+                    language: harmful_intervals
+                    for language in ("english", "chinese", "russian")
+                },
+            },
         },
         "inter_rater_reliability": {
-            "overall": {"fleiss": {"fleiss_kappa": 1.0}},
+            "overall": {
+                "fleiss": {
+                    "fleiss_kappa": 1.0,
+                    "cluster_bootstrap_95_ci": {
+                        "lower": 0.50,
+                        "upper": 1.0,
+                    },
+                }
+            },
             "per_language": {
-                language: {"fleiss": {"fleiss_kappa": 1.0}}
+                language: {
+                    "fleiss": {
+                        "fleiss_kappa": 1.0,
+                        "cluster_bootstrap_95_ci": {
+                            "lower": 0.50,
+                            "upper": 1.0,
+                        },
+                    }
+                }
                 for language in ("english", "chinese", "russian")
             },
         },
@@ -246,6 +348,9 @@ def test_promotion_rejects_systematic_automated_unclear_abstention() -> None:
     assert gate["design_passed"] is True
     assert gate["promotion_authorized"] is False
     assert any("automated-unclear abstention rate" in failure for failure in gate["failures"])
+    assert any("harmful-arm complied_recall" in failure for failure in gate["failures"])
+    assert any("inter-rater kappa lower 95% bound" in failure for failure in gate["failures"])
+    assert any("intra-rater kappa lower 95% bound" in failure for failure in gate["failures"])
 
 
 def _generated_audit(
@@ -406,6 +511,11 @@ def test_generate_is_deterministic_stratified_blinded_and_blank(tmp_path: Path) 
         for language in ("english", "chinese", "russian")
         for label in ("complied", "denied", "unclear")
     }
+    assert {row["allocation_method"] for row in primary_key_rows} == {
+        "seeded_stratified_srswor_equal_probability_v1"
+    }
+    assert {row["inclusion_probability"] for row in primary_key_rows} == {"1"}
+    assert {row["sampling_weight"] for row in primary_key_rows} == {"1"}
     assert stat.S_IMODE(first.stat().st_mode) == 0o700
     assert (first / ".gitignore").read_text(encoding="utf-8") == "*\n!.gitignore\n"
     assert DEFAULT_PER_STRATUM == 200
@@ -559,13 +669,25 @@ def test_multi_annotator_reliability_adjudication_and_intra_rater_checks(
     assert inter["overall"]["cohen"]["observed_agreement"] == pytest.approx(17 / 18)
     assert inter["overall"]["cohen"]["cohen_kappa"] < 1.0
     assert inter["overall"]["fleiss"]["n_raters"] == 2
+    assert (
+        inter["overall"]["fleiss"]["cluster_bootstrap_95_ci"]["lower"]
+        is not None
+    )
     assert set(inter["per_language"]) == {"english", "chinese", "russian"}
     for annotator_id in ("annotator_1", "annotator_2"):
         intra = result["intra_rater_reliability"][annotator_id]
         assert intra["n_pairs"] == 9
         assert intra["observed_agreement"] == 1.0
         assert intra["cohen_kappa"] == 1.0
-    assert result["bootstrap_confidence_intervals"]["replicates"] == 40
+        assert intra["cluster_bootstrap_95_ci"]["lower"] == 1.0
+    bootstrap = result["bootstrap_confidence_intervals"]
+    assert bootstrap["replicates"] == 40
+    assert set(bootstrap["harmful_arm"]["per_language"]) == {
+        "english",
+        "chinese",
+        "russian",
+    }
+    assert "complied_recall" in bootstrap["harmful_arm"]["overall"]
     assert result["criterion_promotion_gate"]["promotion_authorized"] is False
     assert result["criterion_promotion_gate"]["design_passed"] is False
     with pytest.raises(AuditError, match="criterion promotion gate failed"):
@@ -637,25 +759,43 @@ def test_generate_cli_supports_verdict_schema_and_writes_no_labels(
     assert {row["annotation_label"] for row in rows} == {""}
 
 
-def test_generate_fails_atomically_when_any_stratum_is_insufficient(tmp_path: Path) -> None:
+def test_generate_censuses_rare_strata_and_accepts_empty_strata(tmp_path: Path) -> None:
     rows = _raw_fixture_rows()
     rows = [
         row
         for row in rows
         if not (
-            row["language"] == "russian"
-            and row["complied?"] == "true"
-            and str(row["prompt"]).endswith("-1).")
+            (row["language"] == "russian" and row["complied?"] == "unclear")
+            or (
+                row["language"] == "chinese"
+                and row["complied?"] == "true"
+                and str(row["prompt"]).endswith("-1).")
+            )
         )
     ]
     raw_path = tmp_path / "insufficient.csv"
     _write_csv(raw_path, RAW_FIELDS, rows)
-    output = tmp_path / "must-not-exist"
+    output = tmp_path / "rare-and-empty"
+    manifest = generate_audit(
+        [raw_path], output, per_stratum=2, duplicate_count=6, annotator_count=1
+    )
 
-    with pytest.raises(AuditError, match="insufficient rows.*russian/complied=1"):
-        generate_audit([raw_path], output, per_stratum=2, duplicate_count=6)
-
-    assert not output.exists()
+    assert manifest["primary_rows"] == 15
+    assert manifest["stratum_population"]["chinese/complied"] == 1
+    assert manifest["stratum_population"]["russian/unclear"] == 0
+    _, key_rows = _read_csv(output / "audit_key.csv")
+    primary = [row for row in key_rows if row["item_kind"] == "primary"]
+    counts = Counter((row["language"], row["automated_label"]) for row in primary)
+    assert counts[("chinese", "complied")] == 1
+    assert counts[("russian", "unclear")] == 0
+    assert all(row["sampling_cap"] == "2" for row in primary)
+    assert all(
+        float(row["inclusion_probability"])
+        == pytest.approx(
+            int(row["stratum_sample_size"]) / int(row["stratum_population"])
+        )
+        for row in primary
+    )
 
 
 def test_generate_rejects_legacy_rows_without_exact_localized_stimulus(
@@ -715,6 +855,18 @@ def test_score_reports_weighted_metrics_cis_languages_and_duplicate_kappa(
     tmp_path: Path,
 ) -> None:
     output = _generated_audit(tmp_path, english_complied_count=4)
+    _, design_rows = _read_csv(output / "audit_key.csv")
+    english_complied_design = [
+        row
+        for row in design_rows
+        if row["item_kind"] == "primary"
+        and row["language"] == "english"
+        and row["automated_label"] == "complied"
+    ]
+    assert {row["inclusion_probability"] for row in english_complied_design} == {
+        "0.5"
+    }
+    assert {row["sampling_weight"] for row in english_complied_design} == {"2"}
     _complete_annotations(output, add_unclear=True)
     score_path = tmp_path / "scores.json"
 
@@ -752,7 +904,10 @@ def test_score_reports_weighted_metrics_cis_languages_and_duplicate_kappa(
     assert set(result["per_language"]) == {"english", "chinese", "russian"}
     assert result["per_language"]["english"]["weighted_confusion"]["total_weight"] == 8.0
     bootstrap = result["bootstrap_confidence_intervals"]
-    assert bootstrap["method"] == "stratified_nonparametric_percentile"
+    assert (
+        bootstrap["method"]
+        == "semantic_cluster_nonparametric_percentile_with_survey_weights"
+    )
     assert bootstrap["replicates"] == 80
     assert bootstrap["overall"]["balanced_accuracy"]["lower"] is not None
     assert bootstrap["overall"]["automated_unclear_rate"]["lower"] is not None
@@ -765,6 +920,7 @@ def test_score_reports_weighted_metrics_cis_languages_and_duplicate_kappa(
     assert reliability["n_pairs"] == 9
     assert reliability["observed_agreement"] == 1.0
     assert reliability["cohen_kappa"] == 1.0
+    assert reliability["cluster_bootstrap_95_ci"]["lower"] == 1.0
 
 
 def test_score_enforces_annotation_schema_values_and_id_completeness(tmp_path: Path) -> None:

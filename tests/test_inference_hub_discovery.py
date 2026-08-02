@@ -1,4 +1,5 @@
 import hashlib
+import io
 import json
 import threading
 import urllib.error
@@ -532,16 +533,19 @@ def _candidate_registry() -> dict[str, Any]:
         "targets": [
             {
                 "id": "provider.model-a",
+                "model": "model-a",
                 "upstream_provider": "openai",
                 "route": "model-a",
             },
             {
                 "id": "provider.model-b",
+                "model": "model-b",
                 "upstream_provider": "google",
                 "route": "model-b",
             },
             {
                 "id": "provider.missing",
+                "model": "missing",
                 "upstream_provider": "other",
                 "route": "missing",
             },
@@ -560,6 +564,42 @@ def _candidate_registry() -> dict[str, Any]:
 
 def _candidate_reconciliation(catalog: dict[str, Any]) -> dict[str, Any]:
     return reconcile_routes(catalog=catalog, registry=_candidate_registry())
+
+
+def test_reconciliation_enumerates_all_exact_model_suffix_backends() -> None:
+    catalog = _candidate_catalog()
+    catalog["routes"].extend(
+        [
+            {
+                "route": "azure/openai/model-a",
+                "listed_by_models": True,
+                "chat_capability": "unverified_until_structured_smoke",
+            },
+            {
+                "route": "switchyard/vendor/model-a",
+                "listed_by_models": True,
+                "chat_capability": "unverified_until_structured_smoke",
+            },
+            {
+                "route": "nvidia/vendor/not-model-a",
+                "listed_by_models": True,
+                "chat_capability": "unverified_until_structured_smoke",
+            },
+        ]
+    )
+    catalog["route_count"] = len(catalog["routes"])
+
+    reconciliation = _candidate_reconciliation(catalog)
+    model_a = reconciliation["resolutions"][0]
+
+    assert reconciliation["schema_version"] == 2
+    assert model_a["model"] == "model-a"
+    assert model_a["all_exact_suffix_candidates"] == [
+        "openai/openai/model-a",
+        "azure/openai/model-a",
+        "switchyard/vendor/model-a",
+    ]
+    assert model_a["selected_candidate"] == "openai/openai/model-a"
 
 
 def test_reconciled_candidate_verification_retains_passes_and_failures(
@@ -863,6 +903,140 @@ def test_http_errors_do_not_echo_credentials(monkeypatch: pytest.MonkeyPatch) ->
     assert secret not in str(captured.value)
     assert captured.value.failure_code == "http_error"
     assert captured.value.http_status == 401
+
+
+def test_http_error_retains_sanitized_diagnostics_not_message(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sensitive_message = "seed is unsupported; request contained private prompt"
+    body = json.dumps(
+        {
+            "error": {
+                "message": sensitive_message,
+                "type": "invalid_request_error",
+                "code": "unsupported_parameter",
+                "param": "seed",
+            }
+        }
+    ).encode("utf-8")
+
+    def fail_urlopen(*_args: object, **_kwargs: object) -> Any:
+        raise urllib.error.HTTPError(
+            url="https://inference-api.nvidia.com/v1/chat/completions",
+            code=400,
+            msg="Bad Request",
+            hdrs=None,
+            fp=io.BytesIO(body),
+        )
+
+    monkeypatch.setattr(
+        "experiments.misc.inference_hub_discovery._urlopen_no_redirect",
+        fail_urlopen,
+    )
+    client = InferenceHubClient(api_key="test-key")
+
+    with pytest.raises(InferenceHubDiscoveryError) as captured:
+        client.post("/chat/completions", {"model": "openai/openai/model-a"})
+
+    evidence = captured.value.evidence
+    assert evidence["error_body_sha256"] == hashlib.sha256(body).hexdigest()
+    assert evidence["error_body_bytes"] == len(body)
+    assert evidence["provider_error_type"] == "invalid_request_error"
+    assert evidence["provider_error_code"] == "unsupported_parameter"
+    assert evidence["provider_error_param"] == "seed"
+    assert evidence["provider_error_message_sha256"] == hashlib.sha256(
+        sensitive_message.encode("utf-8")
+    ).hexdigest()
+    assert sensitive_message not in json.dumps(evidence)
+
+
+def test_catalog_probe_terminalizes_direct_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    catalog = _candidate_catalog()
+    catalog["routes"] = catalog["routes"][:1]
+    catalog["route_count"] = 1
+
+    def timeout_urlopen(*_args: object, **_kwargs: object) -> Any:
+        raise TimeoutError("timed out")
+
+    monkeypatch.setattr(
+        "experiments.misc.inference_hub_discovery._urlopen_no_redirect",
+        timeout_urlopen,
+    )
+    ledger_path = tmp_path / "timeout-ledger.json"
+    bundle = probe_catalog_routes(
+        InferenceHubClient(api_key="test-key"),
+        catalog=catalog,
+        attempt_ledger_path=ledger_path,
+    )
+
+    assert bundle["status"] == "complete"
+    assert bundle["chat_callable_route_count"] == 0
+    assert bundle["rejected_routes"] == [
+        {
+            "route": "openai/openai/model-a",
+            "failure_code": "connection_timeout",
+        }
+    ]
+    ledger = _load_discovery_ledger(ledger_path)
+    assert ledger["records"][0]["outcome"] == "failed"
+    assert ledger["records"][0]["failure_code"] == "connection_timeout"
+
+
+def test_catalog_probe_resume_reuses_matching_terminal_attempt(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    catalog = _candidate_catalog()
+    catalog["routes"] = catalog["routes"][:1]
+    catalog["route_count"] = 1
+    calls = 0
+
+    def successful_probe(_client, *, catalog, route, max_tokens):
+        nonlocal calls
+        del catalog, max_tokens
+        calls += 1
+        return {
+            "requested_route": route,
+            "verification_status": "chat_callable",
+            "response": {
+                "request_id": "request-1",
+                "payload_sha256": "a" * 64,
+                "content_sha256": "b" * 64,
+                "finish_reason": "stop",
+                "usage_sha256": "c" * 64,
+            },
+        }
+
+    monkeypatch.setattr(
+        "experiments.misc.inference_hub_discovery.chat_probe_route",
+        successful_probe,
+    )
+    ledger_path = tmp_path / "resume-ledger.json"
+    first = probe_catalog_routes(
+        InferenceHubClient(api_key="test-key"),
+        catalog=catalog,
+        attempt_ledger_path=ledger_path,
+    )
+    second = probe_catalog_routes(
+        InferenceHubClient(api_key="test-key"),
+        catalog=catalog,
+        attempt_ledger_path=ledger_path,
+        resume=True,
+    )
+
+    assert calls == 1
+    assert first["dispatched_route_count"] == 1
+    assert first["resumed_route_count"] == 0
+    assert second["dispatched_route_count"] == 0
+    assert second["resumed_route_count"] == 1
+    assert second["chat_callable_route_count"] == 1
+    assert second["chat_callable_routes"][0]["evidence"][
+        "evidence_provenance"
+    ] == "resumed_terminal_attempt_ledger_record"
+    assert len(_load_discovery_ledger(ledger_path)["records"]) == 1
 
 
 def test_cli_missing_key_fails_cleanly_without_traceback(

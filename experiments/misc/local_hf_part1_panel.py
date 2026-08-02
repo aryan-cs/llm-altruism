@@ -12,7 +12,9 @@ import argparse
 import hashlib
 import json
 import os
+import platform
 import re
+import stat
 import tempfile
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -24,11 +26,12 @@ from experiments.misc.local_hf_smoke import (
     LocalHFSmokeError,
     _read_registry,
     _resolve_snapshot,
+    fingerprint_snapshot,
 )
 from experiments.part1.confirmatory_design import build_draft_bank, build_primary_schedule
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 DEFAULT_BASE_SEED = 20260802
 DEFAULT_BATCH_SIZE = 8
 DEFAULT_MAX_WORKERS = 2
@@ -36,6 +39,26 @@ DEFAULT_MAX_NEW_TOKENS = 32
 _FINAL_ACTION = re.compile(r"(?:^|\n)\s*([XY])\s*$")
 _TRANSFORMERS_IMPORT_LOCK = threading.Lock()
 _MODEL_LOAD_LOCK = threading.Lock()
+_ROW_FIELDS = {
+    "schema_version",
+    "model_id",
+    "upstream_model_id",
+    "revision",
+    "trial_id",
+    "root_id",
+    "game",
+    "domain",
+    "counterbalance_id",
+    "prompt_text",
+    "prompt_sha256",
+    "response_text",
+    "response_sha256",
+    "parsed_action",
+    "format_valid",
+    "snapshot_tree_sha256",
+    "runtime_sha256",
+    "finished_at_utc",
+}
 
 
 class LocalHFPanelError(RuntimeError):
@@ -64,6 +87,33 @@ def _sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _secure_mode(path: Path, mode: int) -> None:
+    """Apply private POSIX permissions without pretending Windows has chmod ACLs."""
+
+    if os.name == "posix":
+        path.chmod(mode)
+
+
+def _require_private_mode(path: Path, mode: int) -> None:
+    if os.name != "posix":
+        return
+    observed = stat.S_IMODE(path.stat().st_mode)
+    if observed != mode:
+        raise LocalHFPanelError(
+            f"Private artifact permissions are unsafe for {path.name}: "
+            f"expected {mode:04o}, found {observed:04o}."
+        )
+
+
+def _self_hash(payload: Mapping[str, Any]) -> str:
+    unhashed = {key: value for key, value in payload.items() if key != "evidence_sha256"}
+    return _sha256_bytes(_canonical_bytes(unhashed))
+
+
+def _seal_manifest(payload: dict[str, Any]) -> None:
+    payload["evidence_sha256"] = _self_hash(payload)
+
+
 def _atomic_json(path: Path, payload: Mapping[str, Any]) -> None:
     descriptor, temporary_name = tempfile.mkstemp(
         dir=path.parent, prefix=f".{path.name}.", suffix=".tmp", text=True
@@ -75,6 +125,7 @@ def _atomic_json(path: Path, payload: Mapping[str, Any]) -> None:
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(temporary_name, path)
+        _secure_mode(path, 0o600)
     except BaseException:
         try:
             os.unlink(temporary_name)
@@ -84,11 +135,178 @@ def _atomic_json(path: Path, payload: Mapping[str, Any]) -> None:
 
 
 def _append_jsonl(path: Path, rows: Sequence[Mapping[str, Any]]) -> None:
-    with path.open("a", encoding="utf-8") as handle:
+    descriptor = os.open(path, os.O_APPEND | os.O_CREAT | os.O_WRONLY, 0o600)
+    with os.fdopen(descriptor, "a", encoding="utf-8") as handle:
         for row in rows:
             handle.write(json.dumps(row, sort_keys=True, ensure_ascii=False) + "\n")
         handle.flush()
         os.fsync(handle.fileno())
+    _secure_mode(path, 0o600)
+
+
+def _compact_snapshot_fingerprint(fingerprint: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "asset_count": fingerprint.get("asset_count"),
+        "total_size_bytes": fingerprint.get("total_size_bytes"),
+        "snapshot_tree_sha256": fingerprint.get("snapshot_tree_sha256"),
+    }
+
+
+def _validate_binding_digest(value: object, *, label: str) -> str:
+    if (
+        not isinstance(value, str)
+        or len(value) != 64
+        or any(character not in "0123456789abcdef" for character in value)
+    ):
+        raise LocalHFPanelError(f"{label} must be a lowercase SHA-256.")
+    return value
+
+
+def _validate_snapshot_binding(binding: object) -> dict[str, Any]:
+    if not isinstance(binding, Mapping) or set(binding) != {
+        "asset_count",
+        "total_size_bytes",
+        "snapshot_tree_sha256",
+    }:
+        raise LocalHFPanelError("Model result lacks an exact snapshot fingerprint.")
+    for field in ("asset_count", "total_size_bytes"):
+        value = binding.get(field)
+        if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+            raise LocalHFPanelError(f"Snapshot fingerprint {field} must be positive.")
+    _validate_binding_digest(
+        binding.get("snapshot_tree_sha256"), label="snapshot_tree_sha256"
+    )
+    return dict(binding)
+
+
+def _validate_runtime_binding(runtime: object) -> dict[str, str]:
+    if not isinstance(runtime, Mapping) or set(runtime) != {
+        "python",
+        "torch",
+        "transformers",
+        "device",
+    }:
+        raise LocalHFPanelError("Model result lacks an exact runtime binding.")
+    if any(not isinstance(value, str) or not value for value in runtime.values()):
+        raise LocalHFPanelError("Runtime binding values must be non-empty strings.")
+    return {str(key): str(value) for key, value in runtime.items()}
+
+
+def _load_and_validate_rows(
+    *,
+    output_path: Path,
+    model: Mapping[str, str],
+    trials: Sequence[Any],
+    snapshot_binding: Mapping[str, Any],
+    runtime_binding: Mapping[str, str],
+) -> list[dict[str, Any]]:
+    if not output_path.exists():
+        return []
+    _require_private_mode(output_path, 0o600)
+    try:
+        raw_lines = output_path.read_text(encoding="utf-8").splitlines()
+        if any(not line.strip() for line in raw_lines):
+            raise LocalHFPanelError(
+                f"Existing model evidence contains a blank row: {output_path.name}."
+            )
+        rows = [json.loads(line) for line in raw_lines]
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise LocalHFPanelError(
+            f"Existing model evidence is not valid UTF-8 JSONL: {output_path.name}."
+        ) from error
+    if len(rows) > len(trials):
+        raise LocalHFPanelError(
+            f"Existing model evidence exceeds the schedule: {output_path.name}."
+        )
+    snapshot_sha256 = str(snapshot_binding["snapshot_tree_sha256"])
+    runtime_sha256 = _sha256_bytes(_canonical_bytes(runtime_binding))
+    for index, (row, trial) in enumerate(zip(rows, trials, strict=False), start=1):
+        if not isinstance(row, dict) or set(row) != _ROW_FIELDS:
+            raise LocalHFPanelError(
+                f"Existing model evidence row {index} has an invalid schema: "
+                f"{output_path.name}."
+            )
+        response = row.get("response_text")
+        if row["prompt_sha256"] != _sha256_bytes(
+            str(row["prompt_text"]).encode("utf-8")
+        ) or not isinstance(response, str) or row["response_sha256"] != _sha256_bytes(
+            response.encode("utf-8")
+        ):
+            raise LocalHFPanelError(
+                f"Existing model evidence row {index} has a content hash mismatch: "
+                f"{output_path.name}."
+            )
+        action = _parse_final_action(response) if isinstance(response, str) else None
+        expected = {
+            "schema_version": SCHEMA_VERSION,
+            "model_id": model["id"],
+            "upstream_model_id": model["model_id"],
+            "revision": model["revision"],
+            "trial_id": trial.trial_id,
+            "root_id": trial.root_id,
+            "game": trial.game,
+            "domain": trial.domain,
+            "counterbalance_id": trial.counterbalance_id,
+            "prompt_text": trial.prompt_text,
+            "prompt_sha256": trial.prompt_hash,
+            "parsed_action": action,
+            "format_valid": action is not None,
+            "snapshot_tree_sha256": snapshot_sha256,
+            "runtime_sha256": runtime_sha256,
+        }
+        if any(row.get(key) != value for key, value in expected.items()):
+            raise LocalHFPanelError(
+                f"Existing model evidence row {index} differs from its frozen "
+                f"schedule/model/runtime binding: {output_path.name}."
+            )
+        timestamp = row.get("finished_at_utc")
+        try:
+            parsed_timestamp = datetime.fromisoformat(
+                str(timestamp).replace("Z", "+00:00")
+            )
+        except ValueError as error:
+            raise LocalHFPanelError(
+                f"Existing model evidence row {index} has an invalid timestamp: "
+                f"{output_path.name}."
+            ) from error
+        if parsed_timestamp.utcoffset() != timezone.utc.utcoffset(parsed_timestamp):
+            raise LocalHFPanelError(
+                f"Existing model evidence row {index} timestamp is not UTC: "
+                f"{output_path.name}."
+            )
+    return rows
+
+
+def _validate_completed_result(
+    *,
+    result: Mapping[str, Any],
+    model: Mapping[str, str],
+    trials: Sequence[Any],
+    output_path: Path,
+) -> None:
+    if result.get("status") != "passed":
+        return
+    snapshot = _validate_snapshot_binding(result.get("snapshot"))
+    runtime = _validate_runtime_binding(result.get("runtime"))
+    rows = _load_and_validate_rows(
+        output_path=output_path,
+        model=model,
+        trials=trials,
+        snapshot_binding=snapshot,
+        runtime_binding=runtime,
+    )
+    valid = sum(row["format_valid"] is True for row in rows)
+    if (
+        result.get("completed_trials") != len(rows)
+        or len(rows) != len(trials)
+        or result.get("valid_actions") != valid
+        or result.get("invalid_actions") != len(rows) - valid
+        or result.get("output_file") != output_path.name
+        or result.get("output_sha256") != _sha256_file(output_path)
+    ):
+        raise LocalHFPanelError(
+            f"Completed model result does not match retained rows: {output_path.name}."
+        )
 
 
 def _parse_final_action(response: str) -> str | None:
@@ -131,6 +349,7 @@ def _real_model_runner(
         # imports; model loading and every generation batch remain parallel.
         with _TRANSFORMERS_IMPORT_LOCK:
             import torch
+            import transformers
             from transformers import AutoModelForCausalLM, AutoTokenizer
     except ImportError as error:
         raise LocalHFPanelError(
@@ -143,28 +362,23 @@ def _real_model_runner(
     if device == "cuda" and not torch.cuda.is_available():
         raise LocalHFPanelError("CUDA was requested but is unavailable.")
 
-    existing_rows: list[dict[str, Any]] = []
-    if output_path.exists():
-        try:
-            existing_rows = [
-                json.loads(line)
-                for line in output_path.read_text(encoding="utf-8").splitlines()
-                if line.strip()
-            ]
-        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
-            raise LocalHFPanelError(
-                f"Existing model evidence is not valid UTF-8 JSONL: {output_path.name}."
-            ) from error
-        expected_prefix = [trial.trial_id for trial in trials[: len(existing_rows)]]
-        observed_prefix = [row.get("trial_id") for row in existing_rows]
-        if len(existing_rows) > len(trials) or observed_prefix != expected_prefix:
-            raise LocalHFPanelError(
-                f"Existing model evidence is not an exact schedule prefix: {output_path.name}."
-            )
-        if any(row.get("model_id") != model["id"] for row in existing_rows):
-            raise LocalHFPanelError(
-                f"Existing model evidence has a route identity mismatch: {output_path.name}."
-            )
+    snapshot = _resolve_snapshot(cache_root, model)
+    snapshot_binding = _compact_snapshot_fingerprint(
+        fingerprint_snapshot(cache_root=cache_root, snapshot=snapshot)
+    )
+    runtime_binding = {
+        "python": platform.python_version(),
+        "torch": str(torch.__version__),
+        "transformers": str(transformers.__version__),
+        "device": device,
+    }
+    existing_rows = _load_and_validate_rows(
+        output_path=output_path,
+        model=model,
+        trials=trials,
+        snapshot_binding=snapshot_binding,
+        runtime_binding=runtime_binding,
+    )
     pending_trials = trials[len(existing_rows) :]
     if not pending_trials:
         valid = sum(row.get("format_valid") is True for row in existing_rows)
@@ -178,9 +392,10 @@ def _real_model_runner(
             "output_file": output_path.name,
             "output_sha256": _sha256_file(output_path),
             "resumed_from_trial_count": len(existing_rows),
+            "snapshot": snapshot_binding,
+            "runtime": runtime_binding,
         }
 
-    snapshot = _resolve_snapshot(cache_root, model)
     with _MODEL_LOAD_LOCK:
         tokenizer = AutoTokenizer.from_pretrained(
             str(snapshot), local_files_only=True, trust_remote_code=False
@@ -252,6 +467,12 @@ def _real_model_runner(
                         "response_sha256": _sha256_bytes(response.encode("utf-8")),
                         "parsed_action": action,
                         "format_valid": action is not None,
+                        "snapshot_tree_sha256": snapshot_binding[
+                            "snapshot_tree_sha256"
+                        ],
+                        "runtime_sha256": _sha256_bytes(
+                            _canonical_bytes(runtime_binding)
+                        ),
                         "finished_at_utc": _utc_now(),
                     }
                 )
@@ -267,6 +488,8 @@ def _real_model_runner(
         "output_file": output_path.name,
         "output_sha256": _sha256_file(output_path),
         "resumed_from_trial_count": len(existing_rows),
+        "snapshot": snapshot_binding,
+        "runtime": runtime_binding,
     }
 
 
@@ -296,7 +519,9 @@ def run_panel(
         raise LocalHFPanelError("Output directory already exists; choose a new evidence path.")
     if not output_dir.exists() and resume:
         raise LocalHFPanelError("Cannot resume because the evidence directory does not exist.")
-    output_dir.mkdir(parents=True, exist_ok=resume)
+    output_dir.mkdir(parents=True, exist_ok=resume, mode=0o700)
+    _secure_mode(output_dir, 0o700)
+    _require_private_mode(output_dir, 0o700)
     registry, models = _read_registry(registry_path)
     by_id = {row["id"]: row for row in models}
     requested = selected_ids or list(by_id)
@@ -324,6 +549,8 @@ def run_panel(
         "local_files_only": True,
         "trust_remote_code": False,
         "device": device,
+        "snapshot_binding": "recursive_sha256_all_snapshot_assets",
+        "runtime_binding": "python_torch_transformers_device",
         "parallelization": "bounded_model_level_thread_pool_with_batched_prompts",
         "max_workers": min(max_workers, len(requested)),
     }
@@ -353,7 +580,12 @@ def run_panel(
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
             raise LocalHFPanelError("Existing panel manifest is not valid JSON.") from error
+        _require_private_mode(manifest_path, 0o600)
+        recorded_manifest_hash = manifest.get("evidence_sha256")
+        if recorded_manifest_hash != _self_hash(manifest):
+            raise LocalHFPanelError("Existing panel manifest self-hash is invalid.")
         exact_bindings = (
+            "schema_version",
             "artifact_type",
             "analysis_role",
             "draft_bank_human_approved",
@@ -372,6 +604,13 @@ def run_panel(
         history = manifest.setdefault("model_attempt_history", {})
         for model_id in requested:
             prior = manifest.get("models", {}).get(model_id)
+            if isinstance(prior, Mapping) and prior.get("status") == "passed":
+                _validate_completed_result(
+                    result=prior,
+                    model=by_id[model_id],
+                    trials=trials,
+                    output_path=output_dir / f"{model_id.replace('.', '_')}.jsonl",
+                )
             if isinstance(prior, Mapping) and prior.get("status") not in {
                 "reserved_before_dispatch",
                 "passed",
@@ -383,6 +622,7 @@ def run_panel(
         manifest["resume_count"] = int(manifest.get("resume_count", 0)) + 1
     else:
         manifest = fresh_manifest
+    _seal_manifest(manifest)
     _atomic_json(manifest_path, manifest)
 
     with ThreadPoolExecutor(
@@ -415,12 +655,26 @@ def run_panel(
                     "error": {"type": type(error).__name__, "message": str(error)},
                 }
             else:
-                manifest["models"][model_id] = result
+                output_path = output_dir / f"{model_id.replace('.', '_')}.jsonl"
+                try:
+                    _validate_completed_result(
+                        result=result,
+                        model=by_id[model_id],
+                        trials=trials,
+                        output_path=output_path,
+                    )
+                except Exception as error:
+                    manifest["models"][model_id] = {
+                        "status": "failed",
+                        "finished_at_utc": _utc_now(),
+                        "error": {"type": type(error).__name__, "message": str(error)},
+                    }
+                else:
+                    manifest["models"][model_id] = result
             manifest["complete"] = all(
                 row.get("status") == "passed" for row in manifest["models"].values()
             )
-            manifest.pop("evidence_sha256", None)
-            manifest["evidence_sha256"] = _sha256_bytes(_canonical_bytes(manifest))
+            _seal_manifest(manifest)
             _atomic_json(manifest_path, manifest)
     return manifest
 

@@ -61,7 +61,9 @@ def _design_command(output_path: Path) -> list[object]:
     arguments: list[object] = ["sensitivity-design"]
     for sentinel in range(6):
         arguments.extend(("--sentinel-id", f"sentinel-{sentinel}"))
-    for seed in range(901, 907):
+    for seed in range(
+        901, 901 + part2_confirmatory.SENSITIVITY_SEEDS_PER_CELL
+    ):
         arguments.extend(("--environment-seed", seed))
     arguments.extend(("--output", output_path))
     return arguments
@@ -110,7 +112,7 @@ def test_sensitivity_cli_builds_and_enforces_hash_pinned_complete_design(
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     _verify_seal(manifest, "manifest_sha256")
     assert manifest["cell_count"] == 16
-    assert manifest["expected_observation_count"] == 576
+    assert manifest["expected_observation_count"] == 1152
     assert len(manifest["cells"]) == 16
     assert stat.S_IMODE(manifest_path.stat().st_mode) == 0o600
 
@@ -136,7 +138,7 @@ def test_sensitivity_cli_builds_and_enforces_hash_pinned_complete_design(
     assert artifact["observation_input_sha256"] == hashlib.sha256(
         raw_observations
     ).hexdigest()
-    assert artifact["observation_count"] == 576
+    assert artifact["observation_count"] == 1152
     assert len(artifact["main_effect_results"]) == 30
     assert stat.S_IMODE(output_path.stat().st_mode) == 0o600
 
@@ -181,7 +183,7 @@ def test_sensitivity_cli_rejects_incomplete_or_unpinned_observations(
         output_path,
     )
     assert rejected.returncode == 2
-    assert "exactly 576" in rejected.stderr
+    assert "exactly 1152" in rejected.stderr
     assert "Traceback" not in rejected.stderr
     assert not output_path.exists()
 
@@ -342,7 +344,7 @@ def test_sensitivity_design_cli_rejects_nonexact_or_duplicate_freeze(
     arguments: list[object] = ["sensitivity-design"]
     for sentinel in range(6):
         arguments.extend(("--sentinel-id", f"sentinel-{sentinel}"))
-    for seed in (1, 2, 3, 4, 5, 5):
+    for seed in (*range(1, part2_confirmatory.SENSITIVITY_SEEDS_PER_CELL), 5):
         arguments.extend(("--environment-seed", seed))
     arguments.extend(("--output", tmp_path / "duplicate-design.json"))
     duplicate = _run_cli(*arguments)

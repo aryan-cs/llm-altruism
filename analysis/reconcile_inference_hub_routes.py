@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 
-REPORT_SCHEMA_VERSION = 1
+REPORT_SCHEMA_VERSION = 2
 BACKEND_PRIORITY = (
     "openai/openai/",
     "gcp/google/",
@@ -138,11 +138,16 @@ def _registry_targets(registry: Mapping[str, Any]) -> list[dict[str, str]]:
         if not isinstance(target, Mapping):
             raise RouteReconciliationError(f"Registry target {index} is invalid.")
         target_id = target.get("id")
+        model = target.get("model")
         route = target.get("route")
         if not isinstance(target_id, str) or not target_id or target_id in seen:
             raise RouteReconciliationError(f"Registry target {index} has an invalid id.")
         if not isinstance(route, str) or not route.strip():
             raise RouteReconciliationError(f"Registry target {target_id} lacks a route.")
+        if not isinstance(model, str) or not model.strip():
+            raise RouteReconciliationError(
+                f"Registry target {target_id} lacks an exact model identifier."
+            )
         if target_id not in cohort_by_target:
             raise RouteReconciliationError(f"Registry target {target_id} lacks a cohort.")
         seen.add(target_id)
@@ -151,6 +156,7 @@ def _registry_targets(registry: Mapping[str, Any]) -> list[dict[str, str]]:
                 "target_id": target_id,
                 "cohort": cohort_by_target[target_id],
                 "upstream_provider": str(target.get("upstream_provider", "")),
+                "model": model.strip(),
                 "planned_route": route.strip(),
             }
         )
@@ -167,8 +173,15 @@ def reconcile_routes(
     resolutions: list[dict[str, Any]] = []
     for target in targets:
         planned = target["planned_route"]
+        model = target["model"]
         exact_suffix = sorted(
-            (route for route in routes if route == planned or route.endswith(f"/{planned}")),
+            (
+                route
+                for route in routes
+                if route == planned
+                or route == model
+                or route.endswith(f"/{model}")
+            ),
             key=_backend_rank,
         )
         selected = exact_suffix[0] if exact_suffix else None
@@ -197,7 +210,10 @@ def reconcile_routes(
         "catalog_route_count": len(routes),
         "registry_version": registry.get("registry_version"),
         "selection_policy": {
-            "match": "exact planned route or slash-delimited exact suffix only",
+            "match": (
+                "exact planned route or slash-delimited exact registry model "
+                "identifier suffix only"
+            ),
             "backend_priority": list(BACKEND_PRIORITY),
             "automatic_promotion": False,
             "live_smoke_required": True,

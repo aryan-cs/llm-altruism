@@ -265,17 +265,6 @@ def api_call(
         request_kwargs["base_url"] = base_url
         request_kwargs["api_key"] = api_key
 
-    if provider_key == "inference_hub":
-        from experiments.confirmatory_budget import reserve_environment_attempt
-
-        reserve_environment_attempt(
-            provider=provider_key,
-            model=model,
-            system_prompt=system_prompt,
-            query=query,
-            max_tokens=max_tokens,
-        )
-
     try:
         return dispatch[provider_key](**request_kwargs)
     except Exception as error:
@@ -1386,6 +1375,7 @@ def _query_openai_compatible_endpoint(
     timeout: float | None,
     base_url: str | None,
     api_key: str,
+    before_dispatch: Callable[[dict[str, Any]], None] | None = None,
 ) -> str:
     from openai import OpenAI
 
@@ -1415,6 +1405,8 @@ def _query_openai_compatible_endpoint(
     if response_format is not None:
         payload["response_format"] = response_format
 
+    if before_dispatch is not None:
+        before_dispatch(dict(payload))
     response = client.chat.completions.create(**payload)
     return _openai_style_provider_text(
         provider=provider_label,
@@ -1490,6 +1482,18 @@ def _query_inference_hub(
         base_url=base_url,
         api_key=api_key,
     )
+    if resolved_base_url is None:
+        raise EnvironmentError("Missing InferenceHub base URL.")
+
+    def reserve_exact_payload(payload: dict[str, Any]) -> None:
+        from experiments.confirmatory_budget import reserve_environment_attempt
+
+        reserve_environment_attempt(
+            provider="inference_hub",
+            endpoint=resolved_base_url,
+            request_payload=payload,
+        )
+
     response = _query_openai_compatible_endpoint(
         provider_label="inference_hub",
         model=model,
@@ -1505,6 +1509,7 @@ def _query_inference_hub(
         timeout=timeout,
         base_url=resolved_base_url,
         api_key=resolved_api_key,
+        before_dispatch=reserve_exact_payload,
     )
     require_response_model_identity(response)
     return response

@@ -338,12 +338,10 @@ def record_attempt(
 def reserve_environment_attempt(
     *,
     provider: str,
-    model: str,
-    system_prompt: str,
-    query: str,
-    max_tokens: int | None,
+    endpoint: str,
+    request_payload: Mapping[str, Any],
 ) -> None:
-    """Durably reserve one confirmatory POST before provider dispatch."""
+    """Durably reserve the exact credential-free outbound POST payload."""
 
     budget_path_value = os.getenv("CONFIRMATORY_BUDGET_PATH", "").strip()
     ledger_path_value = os.getenv("CONFIRMATORY_LEDGER_PATH", "").strip()
@@ -355,6 +353,18 @@ def reserve_environment_attempt(
         raise ConfirmatoryBudgetError("Confirmatory budget environment is incomplete.")
     if provider.strip().lower().replace("-", "_") != "inference_hub":
         raise ConfirmatoryBudgetError("Confirmatory requests must use InferenceHub.")
+    if not isinstance(endpoint, str) or not endpoint.strip():
+        raise ConfirmatoryBudgetError("Confirmatory endpoint must be nonempty.")
+    if not isinstance(request_payload, Mapping):
+        raise ConfirmatoryBudgetError("Confirmatory request payload must be an object.")
+    payload = dict(request_payload)
+    if any(
+        marker in str(key).casefold()
+        for key in payload
+        for marker in ("authorization", "api_key", "apikey", "credential", "secret")
+    ):
+        raise ConfirmatoryBudgetError("Confirmatory request payload contains a secret-like key.")
+    max_tokens = payload.get("max_tokens")
     if experiment == "part0":
         role = "part0_judge" if max_tokens == OUTPUT_TOKEN_CAPS["part0_judge"] else "part0_subject"
     elif experiment == "part1":
@@ -376,14 +386,14 @@ def reserve_environment_attempt(
         request_sha256 = hashlib.sha256(
             _canonical_json(
                 {
-                    "provider": provider,
-                    "model": model,
-                    "system_prompt": system_prompt,
-                    "query": query,
-                    "max_tokens": max_tokens,
+                    "provider": "inference_hub",
+                    "endpoint": endpoint.strip(),
+                    "payload": payload,
                 }
             ).encode("utf-8")
         ).hexdigest()
+        messages = payload.get("messages")
+        serialized_input = _canonical_json(messages if isinstance(messages, list) else [])
         reserved = record_attempt(
             ledger,
             budget,
@@ -394,7 +404,7 @@ def reserve_environment_attempt(
             # Byte-level tokenizers cannot emit more tokens than the UTF-8 byte
             # stream. Reserving one token per byte is deliberately conservative
             # for multilingual inputs and avoids language-dependent undercount.
-            input_tokens=max(1, len((system_prompt + query).encode("utf-8"))),
+            input_tokens=max(1, len(serialized_input.encode("utf-8"))),
             output_tokens=(
                 max_tokens
                 if isinstance(max_tokens, int) and not isinstance(max_tokens, bool)

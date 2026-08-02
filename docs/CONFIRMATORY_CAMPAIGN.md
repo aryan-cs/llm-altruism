@@ -69,6 +69,16 @@ language-specific half-width is about 4.4 points; subsampling to 150 would widen
 it to about 8 points for only a modest operational saving. Twenty-four commons
 trajectories similarly keep a run-SD-0.15 t half-width near 6.3 points.
 
+The separately gated resolution-V sensitivity stage is not included in the
+333,750-call primary matrix or its 430,000-attempt ceiling. Its revised
+six-sentinel, 16-cell, twelve-common-seed design has a no-collapse maximum of
+3,240,000 successful agent-day POSTs, a separate 10% transport ceiling of
+3,564,000 attempts, and 103,680,000 maximum scheduled output tokens. It may not
+run until a dedicated manifest freezes those counts and the conservative
+input-byte token bound. Twelve seeds are the smallest even count above the
+mathematical floor: 4,096 sign patterns give minimum two-sided p `0.000488`, so
+the first hypothesis can pass a 30-test Holm threshold; six seeds could not.
+
 ## Durable budget ledger
 
 The manifest stores a self-hashed, role-specific budget. Before every physical
