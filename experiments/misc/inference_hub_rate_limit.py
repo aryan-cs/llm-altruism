@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import Any, Callable, Iterator, Mapping
 
 
-RATE_LIMIT_SCHEMA_VERSION = 1
+RATE_LIMIT_SCHEMA_VERSION = 2
 
 
 @dataclass(frozen=True)
@@ -61,7 +61,10 @@ class RateLimitPolicy:
     def evidence(self) -> dict[str, Any]:
         payload = asdict(self)
         payload["schema_version"] = RATE_LIMIT_SCHEMA_VERSION
-        payload["algorithm"] = "cross_process_provider_aware_leaky_bucket_with_leases"
+        payload["algorithm"] = (
+            "cross_process_provider_aware_leaky_bucket_with_leases_"
+            "all_http_5xx_full_throttle_cooldown"
+        )
         payload["policy_sha256"] = hashlib.sha256(
             json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
         ).hexdigest()
@@ -340,7 +343,7 @@ class InferenceHubRateLimiter:
         now = self._clock()
         default = (
             self.policy.throttle_cooldown_seconds
-            if http_status in {429, 529}
+            if http_status == 429 or 500 <= http_status <= 599
             else self.policy.transient_cooldown_seconds
         )
         delay = max(default, self._parse_retry_after(retry_after, now))

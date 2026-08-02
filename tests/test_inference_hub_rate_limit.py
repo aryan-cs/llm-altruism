@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from experiments.misc.inference_hub_rate_limit import (
+    RATE_LIMIT_SCHEMA_VERSION,
     InferenceHubRateLimiter,
     RateLimitPolicy,
     provider_for_route,
@@ -162,7 +163,7 @@ def test_expired_or_dead_lease_is_recovered(tmp_path: Path) -> None:
     state_path.write_text(
         json.dumps(
             {
-                "schema_version": 1,
+                "schema_version": RATE_LIMIT_SCHEMA_VERSION,
                 "policy_sha256": policy.evidence()["policy_sha256"],
                 "next_global_at": 0.0,
                 "next_provider_at": {},
@@ -193,6 +194,21 @@ def test_penalty_publishes_shared_provider_cooldown(tmp_path: Path) -> None:
     assert delay == pytest.approx(0.2)
     assert state["next_provider_at"]["anthropic"] >= before + 0.19
     assert state["next_global_at"] >= before + 0.03
+
+
+@pytest.mark.parametrize(
+    ("http_status", "expected_delay"),
+    [(408, 0.02), (429, 0.04), (500, 0.04), (503, 0.04), (529, 0.04)],
+)
+def test_all_server_errors_receive_full_throttle_cooldown(
+    tmp_path: Path, http_status: int, expected_delay: float
+) -> None:
+    limiter = InferenceHubRateLimiter(
+        policy=_policy(), state_path=tmp_path / f"state-{http_status}.json"
+    )
+    assert limiter.penalize("provider", http_status=http_status) == pytest.approx(
+        expected_delay
+    )
 
 
 def test_policy_contract_is_stable_and_credential_free() -> None:

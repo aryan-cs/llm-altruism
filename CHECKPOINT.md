@@ -75,10 +75,20 @@ Updated: 2026-08-02 (America/Los_Angeles)
   The fixed judge was not dispatched by this subject-only canary. The first
   all-subject launch was stopped after the two Moonshot/Kimi routes repeatedly
   returned HTTP 529 despite the shared 30-second provider cooldown. That
-  interrupted artifact is preserved and is not evidence. The auditable
-  replacement excludes only those two operationally overloaded routes from its
-  79-subject main pass; both Kimi identities remain frozen for isolated reruns
-  rather than substitution or silent omission.
+  interrupted artifact is preserved and is not evidence. A one-shot census
+  excluded only those two operationally overloaded routes and retained 77
+  exact-identity, strict-format responses across the remaining 79 identities;
+  both Kimi identities remain frozen for isolated reruns rather than
+  substitution or silent omission.
+  MiniMax M3 and Qwen 3.5 397B each timed out once at 300 seconds and then
+  succeeded under an isolated 900-second probe. Both Kimi routes returned 529
+  again under one-request isolated probes and are operationally unavailable.
+  An early 77-subject main attempt was stopped after 503 responses exposed that
+  generic 5xx errors still received only the transient cooldown. Limiter schema
+  v2 now gives every HTTP 5xx the full 30-second provider cooldown and binds
+  policy SHA-256
+  `b2944b5cd6c0a0551e67b9a5ee4d7a40e856ed163a8ef5401e86ec145219e03f`.
+  All interrupted launch artifacts remain preserved and unpooled.
 - Four revision-pinned local Hugging Face controls were loaded from a read-only
   cache and completed real offline greedy generations on CPU: SmolLM2 135M,
   360M, and 1.7B plus Qwen2.5 0.5B. A fresh immutable two-worker private artifact
@@ -109,7 +119,7 @@ Updated: 2026-08-02 (America/Los_Angeles)
 
 - Strict raw validation: 27 files, 14 pass, 13 warning, 0 fail. The warnings are
   the disclosed one-sided Part 2 rationale/action lexical flags.
-- Full repository suite: 675 passed, 1 optional dependency skip on 2026-08-02.
+- Full repository suite: 680 passed, 1 optional dependency skip on 2026-08-02.
   `tests/conftest.py` selects the noninteractive Agg backend before collection.
 - Clean extracted-supplement suite: 515 passed, 2 intentional skips (withheld
   raw Part 0 and one optional dependency), without a Git object store.
