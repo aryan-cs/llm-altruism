@@ -50,7 +50,7 @@ def test_anonymous_supplement_rewrites_private_gateway_and_author_markers(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     root = tmp_path / "repo"
-    source = root / "experiments" / "inference_hub_probe.py"
+    source = root / "experiments" / "gateway_probe.py"
     source.parent.mkdir(parents=True)
     source.write_text(
         "InferenceHub https://employer.internal/v1 "
@@ -93,7 +93,7 @@ def test_anonymous_supplement_rewrites_private_gateway_and_author_markers(
         names = zf.namelist()
         assert names == [
             build_supplement.MANIFEST_NAME,
-            "experiments/inference_hub_probe.py",
+            "experiments/gateway_probe.py",
         ]
         payload = zf.read(names[1]).decode("utf-8")
     assert "InferenceHub" in payload
@@ -123,22 +123,166 @@ def test_supplement_excludes_every_withdrawn_part0_dependent_plot() -> None:
     )
 
 
-def test_supplement_excludes_post_pilot_hosted_and_local_scale_workflows() -> None:
+def test_supplement_includes_exact_hosted_reproducibility_surface_only() -> None:
     files = build_supplement.collect_supplement_files()
     names = {path.as_posix() for path in files}
-    forbidden_markers = (
-        "inference_hub",
-        "local_hf",
-        "build_sota_probe_registry",
-        "build_sota_inference_hub_roster",
-        "merge_sota_compatibility_with_judge",
-        "reconcile_inference_hub_routes",
-    )
-    assert not any(marker in name for name in names for marker in forbidden_markers)
+    expected = {
+        path.as_posix() for path in build_supplement.HOSTED_REPRODUCIBILITY_ALLOWLIST
+    }
+
+    assert expected <= names
     assert "agents/agent_config.registry.json" in names
     assert "agents/local_control.registry.json" in names
-    assert "experiments/misc/inference_hub_rate_limit.py" not in names
-    assert "tests/test_inference_hub_rate_limit.py" not in names
+    assert not any("local_hf" in name for name in names)
+    assert "analysis/build_sota_probe_registry.py" not in names
+    assert "analysis/build_sota_inference_hub_roster.py" not in names
+    assert "analysis/merge_sota_compatibility_with_judge.py" not in names
+    assert "analysis/analyze_inference_hub_part1_panel.py" not in names
+
+
+def test_strict_denylist_excludes_credentials_private_and_interrupted_data(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "repo"
+    fixtures = {
+        ".env": "NVIDIA_API_KEY=nvapi-real-secret\n",
+        ".env.secret": "NVIDIA_API_KEY=nvapi-real-secret\n",
+        ".env.example": "NVIDIA_API_KEY=your-key-here\n",
+        "credentials.key": "secret\n",
+        "nvidia_api_key.txt": "nvapi-real-secret\n",
+        "safe.py": "print('safe')\n",
+        "data/private/inference_hub/run/private/raw_responses/model.jsonl": "{}\n",
+        "data/raw/part_2/interrupted-results.csv": "private\n",
+        "data/raw/part_2/pending-results.csv": "private\n",
+        "data/raw/part_2/legacy_structural_provenance.json": "{}\n",
+        "data/raw/part_2/legacy_execution_archive/manifest.json": "{}\n",
+    }
+    for relative, content in fixtures.items():
+        path = root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+    monkeypatch.setattr(build_supplement, "INCLUDE_PATHS", (Path("."),))
+
+    names = {
+        path.as_posix()
+        for path in build_supplement.collect_supplement_files(
+            project_root=root, output_path=tmp_path / "supplement.zip"
+        )
+    }
+
+    assert names == {".env.example", "safe.py"}
+
+
+def _write_sealed_json(path: Path, payload: dict[str, object]) -> bytes:
+    payload["evidence_sha256"] = build_supplement._json_self_hash(payload)
+    encoded = (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode("utf-8")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(encoded)
+    return encoded
+
+
+def test_only_complete_hash_bound_sanitized_aggregates_are_remapped(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "repo"
+    run = root / "data/private/inference_hub/part2-complete"
+    sanitized = run / "sanitized"
+    payloads = {
+        "trajectory_metrics.json": {
+            "schema_version": 1,
+            "artifact_type": "inference_hub_part2_sanitized_trajectory_metrics",
+            "rows": [{"target_id": "subject.alpha", "restraint_rate": 0.5}],
+        },
+        "model_metrics.json": {
+            "schema_version": 1,
+            "artifact_type": "inference_hub_part2_sanitized_model_metrics",
+            "rows": [{"target_id": "subject.alpha", "mean_restraint_rate": 0.5}],
+        },
+    }
+    bindings: dict[str, object] = {}
+    for filename, payload in payloads.items():
+        path = sanitized / filename
+        encoded = _write_sealed_json(path, payload)
+        bindings[filename.removesuffix(".json")] = {
+            "path": str(path.resolve()),
+            "file_sha256": hashlib.sha256(encoded).hexdigest(),
+            "evidence_sha256": payload["evidence_sha256"],
+        }
+    manifest = {
+        "schema_version": 1,
+        "artifact_type": "inference_hub_part2_private_manifest",
+        "complete": True,
+        "sanitized_artifacts": {
+            "trajectory_metrics": bindings["trajectory_metrics"],
+            "model_metrics": bindings["model_metrics"],
+        },
+    }
+    _write_sealed_json(run / "private/manifest.json", manifest)
+    monkeypatch.setattr(build_supplement, "INCLUDE_PATHS", ())
+
+    output, files = build_supplement.build_supplement(
+        project_root=root, output_path=tmp_path / "supplement.zip"
+    )
+
+    assert {path.name for path in files} == set(payloads)
+    with zipfile.ZipFile(output) as archive:
+        names = set(archive.namelist())
+    assert not any(name.startswith("data/private/") for name in names)
+    assert {
+        "data/analysis/inference_hub_sanitized/part2-complete/model_metrics.json",
+        "data/analysis/inference_hub_sanitized/part2-complete/trajectory_metrics.json",
+    } <= names
+
+
+def test_incomplete_or_sensitive_sanitized_artifacts_are_not_admitted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "repo"
+    run = root / "data/private/inference_hub/part2-incomplete"
+    sanitized = run / "sanitized"
+    payloads = {
+        "trajectory_metrics.json": {
+            "artifact_type": "inference_hub_part2_sanitized_trajectory_metrics",
+            "rows": [],
+        },
+        "model_metrics.json": {
+            "artifact_type": "inference_hub_part2_sanitized_model_metrics",
+            "rows": [{"raw_response": "must never ship"}],
+        },
+    }
+    bindings: dict[str, object] = {}
+    for filename, payload in payloads.items():
+        path = sanitized / filename
+        encoded = _write_sealed_json(path, payload)
+        bindings[filename.removesuffix(".json")] = {
+            "path": str(path.resolve()),
+            "file_sha256": hashlib.sha256(encoded).hexdigest(),
+            "evidence_sha256": payload["evidence_sha256"],
+        }
+    manifest = {
+        "complete": False,
+        "sanitized_artifacts": {
+            "trajectory_metrics": bindings["trajectory_metrics"],
+            "model_metrics": bindings["model_metrics"],
+        },
+    }
+    _write_sealed_json(run / "private/manifest.json", manifest)
+    monkeypatch.setattr(build_supplement, "INCLUDE_PATHS", ())
+
+    assert build_supplement.collect_supplement_files(
+        project_root=root, output_path=tmp_path / "supplement.zip"
+    ) == []
+
+
+def test_deprecated_legacy_evidence_is_excluded() -> None:
+    names = {
+        path.as_posix() for path in build_supplement.collect_supplement_files()
+    }
+    assert "data/raw/part_2/legacy_structural_provenance.json" not in names
+    assert not any(
+        name.startswith("data/raw/part_2/legacy_execution_archive/")
+        for name in names
+    )
 
 
 def test_supplement_builder_does_not_embed_local_identity_literals() -> None:

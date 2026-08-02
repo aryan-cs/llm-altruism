@@ -259,6 +259,32 @@ def _t_interval(values: Sequence[float], *, bounds: tuple[float, float] | None =
     return {"mean": mean, "lower": lower, "upper": upper, "n": n, "method": "trajectory_t_95"}
 
 
+def _wilson_interval(successes: int, total: int) -> dict[str, Any]:
+    """Wilson score interval for trajectory-level binary outcomes."""
+    if total < 1 or successes < 0 or successes > total:
+        raise InferenceHubPart2PanelError("Wilson counts are invalid.")
+    z = 1.959963984540054
+    estimate = successes / total
+    denominator = 1.0 + (z * z / total)
+    center = (estimate + z * z / (2.0 * total)) / denominator
+    half = (
+        z
+        * math.sqrt(
+            estimate * (1.0 - estimate) / total
+            + z * z / (4.0 * total * total)
+        )
+        / denominator
+    )
+    return {
+        "mean": estimate,
+        "lower": max(0.0, center - half),
+        "upper": min(1.0, center + half),
+        "n": total,
+        "successes": successes,
+        "method": "trajectory_wilson_95",
+    }
+
+
 def _manifest_bindings(manifest: Mapping[str, Any]) -> dict[str, Any]:
     mutable = {
         "created_at_utc", "last_updated_at_utc", "completed_at_utc", "complete",
@@ -626,12 +652,14 @@ def _aggregate_models(
     for subject in subjects:
         rows = [row for row in trajectories if row["target_id"] == subject["target_id"]]
         eligible = [row for row in rows if row["operationally_eligible"]]
-        intervals = {
-            metric: _t_interval(
-                [float(row[metric]) for row in eligible], bounds=bounds
+        intervals = {}
+        for metric, bounds in specs.items():
+            values = [float(row[metric]) for row in eligible]
+            intervals[metric] = (
+                _wilson_interval(sum(bool(row[metric]) for row in eligible), len(eligible))
+                if metric == "reserve_nondepletion" and eligible
+                else _t_interval(values, bounds=bounds)
             )
-            for metric, bounds in specs.items()
-        }
         output.append({
             "schema_version": SCHEMA_VERSION, "target_id": subject["target_id"],
             "upstream_provider": subject["upstream_provider"], "model": subject["model"],

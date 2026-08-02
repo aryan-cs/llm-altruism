@@ -11,6 +11,7 @@ from experiments.misc.inference_hub_discovery import InferenceHubDiscoveryError
 from experiments.misc.inference_hub_part1_panel import _sha256_json
 from experiments.misc.inference_hub_part2_panel import (
     InferenceHubPart2PanelError,
+    _wilson_interval,
     parse_decision,
     run_panel,
 )
@@ -19,6 +20,17 @@ from experiments.misc.inference_hub_part2_panel import (
 ENDPOINT = "https://inference-api.nvidia.com/v1"
 SUBJECT = "subject.alpha"
 JUDGE = "judge.route"
+
+
+def test_trajectory_wilson_is_not_degenerate_at_boundaries() -> None:
+    all_success = _wilson_interval(12, 12)
+    no_success = _wilson_interval(0, 12)
+
+    assert all_success["mean"] == 1.0
+    assert 0.0 < all_success["lower"] < 1.0
+    assert no_success["mean"] == 0.0
+    assert 0.0 < no_success["upper"] < 1.0
+    assert all_success["method"] == "trajectory_wilson_95"
 
 
 def _registry() -> dict[str, Any]:
