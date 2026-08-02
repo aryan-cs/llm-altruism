@@ -198,15 +198,15 @@ prints the exact job matrix without writing files or calling a provider.
 
 The 24-system `current_sota` and six-system `historical` cohorts are defined in
 `agents/agent_config.registry.json`. Together they cover current GPT-5.6,
-Claude, Gemini/Gemma, Nemotron, DeepSeek, Qwen, Kimi, GLM, Mistral, Stepfun,
-MiniMax, and Inkling plans plus GPT-3.5, GPT-4.1, GPT-5, Gemini 2.5, Gemma 3,
-and GPT-OSS historical comparisons. The current internal entries came from
-catalog display names, are marked `verification_status=unverified` and
-`route_source=catalog_display_only`, and cannot be executed. Replace each route
-with its exact backend-namespaced callable ID from the authenticated InferenceHub
-models API (Developer Tools display text alone is insufficient), preserve
-discovery and smoke-test evidence,
-and mark it verified only after review. The provider adapter independently
+Claude, Gemini/Gemma, Nemotron, DeepSeek, Qwen, Kimi, GLM, Mistral, MiniMax,
+and GPT-OSS systems plus GPT-3.5, GPT-4.1, GPT-5, Gemini 2.5, Gemma 2, and
+GPT-OSS historical comparisons. All 30 evaluated targets and the separate
+judge now use exact backend-namespaced IDs present in the authenticated
+InferenceHub `/models` census and corresponding portal cards. They remain
+`verification_status=unverified` and `route_source=catalog_display_only`, and
+therefore cannot be executed by the production adapter. Preserve discovery and
+smoke-test evidence and mark a route verified only after review. Developer
+Tools display text or a model-card page alone is insufficient. The provider adapter independently
 requires a registered verified route before reading credentials and rejects a
 missing or different response-model identity. Registry membership is a run
 plan, not a claim that a provider route is available or that its results appear
@@ -240,9 +240,10 @@ uv run python -m analysis.reconcile_inference_hub_routes \
 
 The reconciliation report is private and non-promotional: it retains every
 exact-suffix backend candidate, applies a checked-in backend-priority order, and
-leaves renamed, versionless, or merely similar routes unresolved. A selected
-candidate is still `smoke_pending`; only a successful identity-checked chat
-completion can support a later reviewed registry promotion.
+leaves renamed, versionless, or merely similar routes unresolved. The current
+registry resolves all 31 planned routes exactly, but each candidate remains
+`smoke_pending`; only a successful identity-checked chat completion can support
+a later reviewed registry promotion.
 
 Attempt every selected exact-suffix candidate in one durable, fail-closed batch:
 

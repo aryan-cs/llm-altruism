@@ -59,6 +59,7 @@ def _install_responses(
                 "method": request.method,
                 "url": request.full_url,
                 "authorization": request.get_header("Authorization"),
+                "content_type": request.get_header("Content-type"),
                 "body": body,
                 "timeout": timeout,
             }
@@ -192,6 +193,50 @@ def test_smoke_verification_records_hashes_not_generated_content(
                 },
             },
         },
+    }
+    assert calls[-1]["authorization"] == "Bearer test-key"
+    assert calls[-1]["content_type"] == "application/json"
+
+
+def test_portal_nvidia_openai_route_is_sent_with_full_catalog_namespace(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    route = "nvidia/openai/gpt-oss-20b"
+    base = "https://inference-api.nvidia.com/v1"
+    payloads = {
+        ("GET", f"{base}/models"): {
+            "object": "list",
+            "data": [{"id": route, "object": "model"}],
+        },
+        ("POST", f"{base}/chat/completions"): {
+            "id": "portal-route-request",
+            "model": route,
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {"role": "assistant", "content": "OK"},
+                    "finish_reason": "stop",
+                }
+            ],
+        },
+    }
+    calls = _install_responses(monkeypatch, payloads)
+    client = InferenceHubClient(api_key="portal-example-key")
+    catalog = capture_catalog(client)
+
+    evidence = chat_probe_route(client, catalog=catalog, route=route, max_tokens=8)
+
+    assert evidence["requested_route"] == route
+    assert evidence["provider_response_model"] == route
+    post = calls[-1]
+    assert post["url"] == f"{base}/chat/completions"
+    assert post["authorization"] == "Bearer portal-example-key"
+    assert post["content_type"] == "application/json"
+    assert post["body"] == {
+        "model": route,
+        "messages": [{"role": "user", "content": "Reply with OK."}],
+        "stream": False,
+        "max_tokens": 8,
     }
 
 

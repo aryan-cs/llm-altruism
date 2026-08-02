@@ -35,16 +35,16 @@ promotion.
 ## Exact-Version Confirmatory Registry
 
 The machine-readable registry is `agents/agent_config.registry.json`, schema 1,
-registry version `2026-08-02.1`, SHA-256
-`357032d5b6e3f7f791280f2d9f3e41034ff9a2a912c2cf327e1d449a6bcc76c0`.
+registry version `2026-08-02.3`. Its current SHA-256 and routing-roster hash are
+recorded in `CHECKPOINT.md` after every registry change.
 Its verification-independent routing-roster SHA-256 is
-`ecaa392b689625ac3b3efc970a6304b376e7e453f6327ba55d6d7460899e1cfc`.
-These entries are catalog-display-only placeholders for planned confirmatory
-targets. Every entry is marked `verification_status=unverified` and
+bound into every live verification bundle. These entries now use exact,
+backend-namespaced routes present in the authenticated 214-route `/models`
+census and the corresponding InferenceHub portal cards. Every entry remains
+marked `verification_status=unverified` and
 `route_source=catalog_display_only`; preflight and campaign execution reject
-them. Catalog labels are not callable model IDs. Each route must be replaced by
-the exact backend-namespaced ID present in the authenticated `GET /models`
-response before promotion. The virtual key is scoped to `llm_api_routes` and
+them until a completion succeeds. Catalog presence and a portal page are not
+proof of chat callability. The virtual key is scoped to `llm_api_routes` and
 cannot call the portal-only `GET /model/info` endpoint. Because the benchmark adapter
 never sends an unverified route, the first approved structured smoke record
 must be captured through the separate route-review workflow and added as
@@ -63,7 +63,8 @@ requested InferenceHub route is registered and verified before credential use,
 then rejects a missing or mismatched provider response-model identity.
 
 Promotion is batch-atomic. The registry must embed the complete sanitized
-`verification_bundle` produced for every one of its 30 InferenceHub targets,
+`verification_bundle` produced for all 30 evaluated targets plus the dedicated
+judge,
 not a hand-written digest. Validation recomputes the bundle hash and routing
 roster hash, binds the complete authorized `/models` payload,
 cross-checks every per-target evidence object, and requires positive token usage
@@ -71,9 +72,10 @@ plus validated structured output. Standalone production runners additionally
 reject evidence older than the frozen 168-hour policy. Rerun the full cohort
 smoke gate after any route change or when that window expires.
 
-The authenticated census captured 214 routes on 2026-08-02. The frozen
-outcome-blind reconciliation selected 15 exact-suffix smoke candidates and left
-15 planned labels unresolved; it did not mutate this registry. Use
+The authenticated census captured 214 routes on 2026-08-02. After the portal
+review requested by the study owner, the outcome-blind reconciliation selects
+all 31 exact routes (30 evaluated plus one judge) and leaves none unresolved.
+This is still a smoke-pending plan, not a result or route promotion. Use
 `analysis.reconcile_inference_hub_routes` to reproduce that mapping,
 `inference_hub_discovery probe-catalog` to minimally test every authorized
 route, and `inference_hub_discovery verify-candidates` to apply the seeded,
@@ -83,32 +85,32 @@ promotion by itself.
 
 ### Current-SOTA cohort
 
-| Upstream family | Unverified catalog label |
+| Upstream family | Exact catalog route (unverified callability) |
 | --- | --- |
-| OpenAI | `gpt-5.6-sol` |
-| OpenAI | `gpt-5.6-terra` |
-| OpenAI | `gpt-5.6-luna` |
-| Anthropic | `claude-fable-5` |
-| Anthropic | `claude-opus-5` |
-| Anthropic | `claude-sonnet-5` |
-| Anthropic | `claude-haiku-4-5-20251001` |
-| Google | `gemini-3.1-pro-preview` |
-| Google | `gemini-3.6-flash` |
-| Google | `gemini-3.5-flash` |
-| Google | `gemini-3.5-flash-lite` |
-| Google | `gemini-3.1-flash-lite-preview` |
-| Google | `google/gemma-4-31b-it` |
-| NVIDIA | `nvidia/nemotron-3-ultra-550b-a55b` |
-| NVIDIA | `nvidia/nemotron-3-super-120b-a12b` |
-| DeepSeek | `deepseek-ai/deepseek-v4-pro` |
-| DeepSeek | `deepseek-ai/deepseek-v4-flash` |
-| Qwen | `qwen/qwen3-next-80b-a3b-thinking` |
-| Moonshot AI | `moonshotai/kimi-k2.6` |
-| Z.ai | `z-ai/glm-5.2` |
-| Mistral | `mistralai/mistral-medium-3.5-128b` |
-| Stepfun | `stepfun-ai/step-3.7-flash` |
-| MiniMax | `minimaxai/minimax-m3` |
-| Thinking Machines | `thinkingmachines/inkling` |
+| OpenAI | `azure/openai/gpt-5.6-sol` |
+| OpenAI | `azure/openai/gpt-5.6-terra` |
+| OpenAI | `azure/openai/gpt-5.6-luna` |
+| Anthropic | `aws/anthropic/claude-opus-4-5` |
+| Anthropic | `azure/anthropic/claude-opus-5` |
+| Anthropic | `azure/anthropic/claude-sonnet-5` |
+| Anthropic | `aws/anthropic/claude-haiku-4-5-v1` |
+| Google | `gcp/google/gemini-3.1-pro-preview` |
+| Google | `gcp/google/gemini-3.6-flash` |
+| Google | `gcp/google/gemini-3.5-flash` |
+| Google | `gcp/google/gemini-3-flash-preview` |
+| Google | `gcp/google/gemini-3.1-flash-lite` |
+| Google | `nvidia/google/gemma-4-31b-it` |
+| NVIDIA | `nvidia/nvidia/nemotron-3-ultra` |
+| NVIDIA | `nvidia/nvidia/nemotron-3-super-v3` |
+| DeepSeek | `nvidia/deepseek-ai/deepseek-v4-pro` |
+| DeepSeek | `nvidia/deepseek-ai/deepseek-v4-flash` |
+| Qwen | `nvidia/qwen/qwen3.6-35b-a3b` |
+| Moonshot AI | `nvidia/moonshotai/kimi-k2.6` |
+| Z.ai | `nvidia/zai-org/glm-5.2` |
+| Mistral | `nvidia/mistralai/mixtral-8x22b-instruct-v01` |
+| Anthropic | `aws/anthropic/bedrock-claude-sonnet-4-5-v1` |
+| MiniMax | `nvidia/minimaxai/minimax-m3` |
+| OpenAI | `nvidia/openai/gpt-oss-20b` |
 
 This 24-system planning panel follows the current text-capable families listed
 in the [OpenAI model catalog](https://developers.openai.com/api/docs/models),
@@ -122,14 +124,20 @@ response-identity smoke gate remain authoritative.
 
 ### Historical comparison cohort
 
-| Upstream family | Unverified catalog label |
+| Upstream family | Exact catalog route (unverified callability) |
 | --- | --- |
-| OpenAI | `gpt-3.5-turbo-0125` |
-| OpenAI | `gpt-4.1-2025-04-14` |
-| OpenAI | `gpt-5-2025-08-07` |
-| Google | `gemini-2.5-pro` |
-| Google | `google/gemma-3-27b-it` |
-| OpenAI | `openai/gpt-oss-120b` |
+| OpenAI | `openai/openai/gpt-3.5-turbo` |
+| OpenAI | `us/azure/openai/gpt-4.1` |
+| OpenAI | `us/azure/openai/gpt-5` |
+| Google | `gcp/google/gemini-2.5-pro` |
+| Google | `nvidia/google/gemma-2-9b-it` |
+| OpenAI | `nvidia/openai/gpt-oss-120b` |
+
+### Dedicated judge
+
+`nvidia/nvidia/evals-nemotron-3-30b-a3b` is the single `judge_only`
+route. It is excluded from both evaluated cohorts and reused for every subject;
+the campaign rejects any target-ID, provider-route, or upstream-model overlap.
 
 ## Promotion Gate
 

@@ -54,15 +54,15 @@ def test_base_run_metadata_preserves_registry_route_and_generation_controls(
         "--seed=11",
     ]
     assert metadata["schema_version"] == 2
-    assert metadata["model_registry"]["registry_version"] == "2026-08-02.2"
+    assert metadata["model_registry"]["registry_version"] == "2026-08-02.3"
     assert metadata["cohort"] == {
         "id": "current_sota",
-        "version": "2026-08-02.1",
+        "version": "2026-08-02.2",
     }
     assert metadata["route"]["provider"] == "inference_hub"
     assert metadata["route"]["upstream_provider"] == "google"
     assert metadata["route"]["model"] == "gemini-3.1-pro-preview"
-    assert metadata["route"]["route"] == "gemini-3.1-pro-preview"
+    assert metadata["route"]["route"] == "gcp/google/gemini-3.1-pro-preview"
     assert metadata["route"]["verification_status"] == "unverified"
     assert metadata["route"]["route_source"] == "catalog_display_only"
     assert metadata["route"]["endpoint"]["base_url_env"] == "INFERENCE_HUB_BASE_URL"
@@ -101,7 +101,9 @@ def test_mark_metadata_failed_records_parser_provenance(tmp_path) -> None:
     assert "do-not-store" not in metadata["failure"]["message"]
     assert metadata["failure"]["provenance"]["category"] == "parser"
     assert metadata["failure"]["provenance"]["upstream_provider"] == "anthropic"
-    assert metadata["failure"]["provenance"]["route"] == "claude-sonnet-5"
+    assert metadata["failure"]["provenance"]["route"] == (
+        "azure/anthropic/claude-sonnet-5"
+    )
 
 
 def test_run_metadata_payload_hash_detects_missing_or_changed_fields(tmp_path) -> None:

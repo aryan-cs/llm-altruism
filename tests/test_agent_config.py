@@ -176,33 +176,33 @@ def test_versioned_current_sota_cohort_contains_exact_inference_hub_roster() -> 
     load_model_registry.cache_clear()
     cohort = load_model_cohort("current_sota")
 
-    assert cohort["registry_version"] == "2026-08-02.2"
-    assert cohort["version"] == "2026-08-02.1"
+    assert cohort["registry_version"] == "2026-08-02.3"
+    assert cohort["version"] == "2026-08-02.2"
     assert [target["model"] for target in cohort["targets"]] == [
         "gpt-5.6-sol",
         "gpt-5.6-terra",
         "gpt-5.6-luna",
-        "claude-fable-5",
+        "claude-opus-4-5",
         "claude-opus-5",
         "claude-sonnet-5",
-        "claude-haiku-4-5-20251001",
+        "claude-haiku-4-5-v1",
         "gemini-3.1-pro-preview",
         "gemini-3.6-flash",
         "gemini-3.5-flash",
-        "gemini-3.5-flash-lite",
-        "gemini-3.1-flash-lite-preview",
+        "gemini-3-flash-preview",
+        "gemini-3.1-flash-lite",
         "google/gemma-4-31b-it",
-        "nvidia/nemotron-3-ultra-550b-a55b",
-        "nvidia/nemotron-3-super-120b-a12b",
+        "nvidia/nemotron-3-ultra",
+        "nvidia/nemotron-3-super-v3",
         "deepseek-ai/deepseek-v4-pro",
         "deepseek-ai/deepseek-v4-flash",
-        "qwen/qwen3-next-80b-a3b-thinking",
+        "qwen/qwen3.6-35b-a3b",
         "moonshotai/kimi-k2.6",
-        "z-ai/glm-5.2",
-        "mistralai/mistral-medium-3.5-128b",
-        "stepfun-ai/step-3.7-flash",
+        "zai-org/glm-5.2",
+        "mistralai/mixtral-8x22b-instruct-v01",
+        "bedrock-claude-sonnet-4-5-v1",
         "minimaxai/minimax-m3",
-        "thinkingmachines/inkling",
+        "openai/gpt-oss-20b",
     ]
     assert {target["provider"] for target in cohort["targets"]} == {
         "inference_hub"
@@ -234,11 +234,11 @@ def test_historical_cohort_and_route_metadata_are_pinned() -> None:
     cohort = load_model_cohort("historical")
 
     assert [target["model"] for target in cohort["targets"]] == [
-        "gpt-3.5-turbo-0125",
-        "gpt-4.1-2025-04-14",
-        "gpt-5-2025-08-07",
+        "gpt-3.5-turbo",
+        "gpt-4.1",
+        "gpt-5",
         "gemini-2.5-pro",
-        "google/gemma-3-27b-it",
+        "google/gemma-2-9b-it",
         "openai/gpt-oss-120b",
     ]
     entry = resolve_model_registry_entry(
@@ -247,7 +247,7 @@ def test_historical_cohort_and_route_metadata_are_pinned() -> None:
     )
     assert entry is not None
     assert entry["upstream_provider"] == "openai"
-    assert entry["route"] == "openai/gpt-oss-120b"
+    assert entry["route"] == "nvidia/openai/gpt-oss-120b"
     assert entry["cohorts"] == ["historical"]
     assert entry["endpoint"]["credential_env"] == "NVIDIA_API_KEY"
     assert len(model_registry_hash()) == 64

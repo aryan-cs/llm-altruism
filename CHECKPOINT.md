@@ -42,10 +42,20 @@ Updated: 2026-08-02 (America/Los_Angeles)
   corrected live census is captured privately: 214 routes at
   `2026-08-02T16:12:41.421354Z`, raw artifact SHA-256
   `459431076aa2106dc3966a540cb7e641b694ffc443dec82b94024bdd8462d1f1`.
-  After adding a dedicated, non-evaluated judge target, a fresh outcome-blind
-  exact-suffix reconciliation selected 16 smoke-pending candidates and left 15
-  labels unresolved; raw report SHA-256
-  `b55c9d5fe1c7cd54e89a10b13d1d779b1b024594d22c67fe4ca364101a914c20`.
+  After adding a dedicated, non-evaluated judge target and reviewing every
+  frozen model's catalog and portal card, a fresh outcome-blind exact-suffix
+  reconciliation selected all 31 smoke-pending routes (30 evaluated plus the
+  judge) and left none unresolved. The private v5 report has raw SHA-256
+  `b4f3d1a7ddd98f1b3b177fd6c834652558da1f2e4b1297b27ef5c865bd19d3d2`
+  and self-hash `2703c603a6594874e537c3f6975ffc331e841f495b41dd7aea6e0e1641014ab0`.
+  The registry's raw SHA-256 is
+  `415e4b92c670c64662f187871b791bc361e4cdfa91d962f52a4458aeba86c05e`,
+  its canonical content hash is
+  `bdd9a6b73dec4ea7e9d0138b221bb5b07a00fa924fe512b7eb7fef68a7093d72`,
+  and its verification-independent routing-roster hash is
+  `7217c3eea1429a7a5070701d5b89158db36e344c6652f2c08414f836948cf9a2`.
+  All 31 corresponding public portal pages returned HTTP 200, which is
+  card-reachability evidence rather than chat-callability evidence.
   Candidate verification now recomputes that entire report from the fixed
   catalog and registry, refuses all redirects before a bearer credential can be
   forwarded, runs endpoint probes through a bounded 16-worker pool, serializes
@@ -74,7 +84,7 @@ Updated: 2026-08-02 (America/Los_Angeles)
 
 - Strict raw validation: 27 files, 14 pass, 13 warning, 0 fail. The warnings are
   the disclosed one-sided Part 2 rationale/action lexical flags.
-- Full repository suite: 550 passed, 1 optional dependency skip on 2026-08-02.
+- Full repository suite: 579 passed, 1 optional dependency skip on 2026-08-02.
   `tests/conftest.py` selects the noninteractive Agg backend before collection.
 - Clean extracted-supplement suite: 528 passed, 2 intentional skips (withheld
   raw Part 0 and one optional dependency), without a Git object store.
@@ -114,15 +124,14 @@ Updated: 2026-08-02 (America/Los_Angeles)
 ## External gates that must not be fabricated or bypassed
 
 1. A valid InferenceHub virtual key and corrected authenticated catalog census
-   have been established. Sixteen exact-suffix candidates await structured chat
-   smokes; 15 planned labels have no exact catalog suffix and require an
-   evidence-backed availability decision. All 30 current/historical registry
-   routes remain unverified display labels and are rejected by the production
-   adapter. The exhaustive minimal-chat probe across all 214 authorized routes
-   is implemented but has not run with the interactive-shell credential.
+   have been established. All 31 exact routes await structured chat smokes.
+   Every current/historical route and the judge remain unverified and are
+   rejected by the production adapter. The exhaustive minimal-chat probe across
+   all 214 authorized routes is implemented but has not run with the
+   interactive-shell credential.
 2. The requested SOTA campaign therefore has no real GPT-3.5/4.1/5/5.6, Claude
    Haiku/Sonnet/Opus, Gemini, Gemma, Nemotron, DeepSeek, Qwen, Kimi, GLM,
-   Mistral, Stepfun, MiniMax, or Inkling results. No substitute IDs or results
+   Mistral, MiniMax, or GPT-OSS results. No substitute IDs or results
    may be invented.
 3. The Part 0 registry and Part 1 bank still require genuine language/content
    review and approvals. The judge audit requires two independent qualified
@@ -140,11 +149,10 @@ Updated: 2026-08-02 (America/Los_Angeles)
 
 1. Run the bounded minimal-chat census for all 214 authorized catalog routes,
    retaining every success and failure in the atomic discovery ledger.
-2. Run structured, identity-checked smokes for the 15 exact-suffix candidates
-   and retain every attempt, including failures.
-3. Resolve renamed/versionless candidates only from successful chat evidence;
-   explicitly mark truly unavailable labels without substitution, then review
-   and promote verified routes.
+2. Run structured, identity-checked smokes for all 31 exact candidates and
+   retain every attempt, including failures.
+3. Review and promote only routes backed by successful exact-identity evidence;
+   explicitly mark failures unavailable without substitution.
 4. Complete genuine Part 0/Part 1 reviews and the Part 0 two-annotator audit.
 5. Execute all successful verified routes without substitution under the frozen
    430,000-attempt ledger, lock private native artifacts, analyze with

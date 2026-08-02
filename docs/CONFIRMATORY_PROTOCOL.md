@@ -45,12 +45,13 @@ executable only when:
   probed and recorded rather than assumed; and
 - catalog bytes, route evidence, and smoke bytes are hash-bound.
 
-When the checked-in registry still contains display-only labels, first build an
-outcome-blind route reconciliation and run `verify-candidates` as documented in
-the repository README. That batch tests only exact-suffix candidates, atomically
-retains every attempt, and cannot promote the registry. Renamed or versionless
-routes stay unresolved until separately reviewed; an absent planned label is
-never replaced merely because a similar route exists.
+Build an outcome-blind route reconciliation and run `verify-candidates` as
+documented in the repository README. The current registry's 31 planned targets
+all have exact catalog routes, but they remain display-only and smoke-pending.
+The batch tests only exact-suffix candidates, atomically retains every attempt,
+and cannot promote the registry. Renamed or versionless routes stay unresolved
+until separately reviewed; an absent planned label is never replaced merely
+because a similar route exists.
 
 The separate `probe-catalog` census attempts a minimal identity-checked chat
 completion for every route authorized by `/models`. It intentionally omits
@@ -59,11 +60,11 @@ misreported as non-chat. Passing that census establishes only minimal chat
 callability; confirmatory eligibility still requires the common seeded,
 structured control contract and a complete same-target path smoke.
 
-There are no silent substitutions or mutable aliases. The intended census
-includes current general-purpose GPT, Claude Haiku/Sonnet/Opus, Gemini/Gemma,
-Nemotron, DeepSeek, Qwen, Kimi, GLM, Mistral, Stepfun, MiniMax, Inkling, and
-other authenticated general-purpose text routes exposed by the catalog.
-Historical GPT-3.5, GPT-4, GPT-5, Gemini 2.x, Gemma 3, and GPT-OSS routes are
+There are no silent substitutions or mutable aliases. The frozen panel includes
+current general-purpose GPT, Claude Haiku/Sonnet/Opus, Gemini/Gemma, Nemotron,
+DeepSeek, Qwen, Kimi, GLM, Mistral, MiniMax, and GPT-OSS routes found exactly in
+the authenticated catalog. Historical GPT-3.5, GPT-4.1, GPT-5, Gemini 2.5,
+Gemma 2, and GPT-OSS routes are
 retained only when independently callable. Image, audio, embedding, reranking,
 guard-only, inaccessible, deprecated, and identity-mismatched routes are
 excluded with objective failure codes.
