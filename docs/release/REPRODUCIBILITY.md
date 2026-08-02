@@ -154,7 +154,7 @@ complete 24-system current cohort and six-system historical cohort. It rejects
 catalog-display-only routes, incomplete approvals, and any attempt to revive
 the retired adaptive/two-stage Part 2 design.
 
-First produce the authenticated dual-catalog discovery and structured-smoke
+First produce the authenticated `/models` census and structured-smoke
 evidence described in `docs/release/MODEL_REGISTRY.md`. After genuine Part 0
 registry and Part 1 bank approvals exist, inspect the exact immutable plan
 without writing a campaign directory or calling a provider:

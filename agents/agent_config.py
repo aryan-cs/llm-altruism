@@ -308,8 +308,8 @@ def _validate_verification_bundle(
         raise ValueError(
             "A registry with verified routes must embed verification_bundle."
         )
-    if bundle.get("schema_version") != 1:
-        raise ValueError("verification_bundle.schema_version must be 1.")
+    if bundle.get("schema_version") != 2:
+        raise ValueError("verification_bundle.schema_version must be 2.")
     recorded_bundle_sha256 = _required_sha256(
         bundle.get("bundle_sha256"),
         label="verification_bundle.bundle_sha256",
@@ -340,13 +340,8 @@ def _validate_verification_bundle(
     if roster_sha256 != _routing_roster_sha256(registry):
         raise ValueError("verification_bundle does not bind the current routing roster.")
     catalog_hashes = bundle.get("catalog_source_payload_sha256")
-    if not isinstance(catalog_hashes, dict) or set(catalog_hashes) != {
-        "models",
-        "model_info",
-    }:
-        raise ValueError(
-            "verification_bundle must bind both catalog source payloads."
-        )
+    if not isinstance(catalog_hashes, dict) or set(catalog_hashes) != {"models"}:
+        raise ValueError("verification_bundle must bind the authorized /models payload.")
     for source_name, digest in catalog_hashes.items():
         _required_sha256(
             digest,

@@ -25,14 +25,18 @@ Cross-part associations are descriptive finite-panel summaries.
 
 ## Frozen route panel
 
-The panel is built from an authenticated NVIDIA InferenceHub catalog census,
-not from display labels. Discovery queries both `GET /models` and
-`GET /model/info`. A target is executable only when:
+The panel is built from the authenticated NVIDIA InferenceHub `GET /models`
+census exposed to an `llm_api_routes` virtual key, not from display labels.
+The portal's privileged `GET /model/info` endpoint is outside that key's
+authorization scope and is not an execution prerequisite. A target is
+executable only when:
 
-- the same exact backend-namespaced chat route occurs in both responses;
+- the exact backend-namespaced route occurs once in the authenticated
+  `/models` response;
 - a bounded structured `POST /chat/completions` smoke succeeds;
 - requested and returned model identities agree exactly;
-- a request ID, finish reason, and token usage are retained;
+- the response-body completion ID (retained under the legacy `request_id`
+  evidence field), finish reason, and token usage are retained;
 - temperature, top-p, seed, output-cap, and structured-response support are
   probed and recorded rather than assumed; and
 - catalog bytes, route evidence, and smoke bytes are hash-bound.
@@ -222,8 +226,8 @@ For 30 verified routes the base successful-POST plan is:
 
 One full Part 0 rejudge allowance adds 52,560 calls plus 18 judge fixtures. A
 10% transport reserve gives `ceil((333750 + 52560 + 18) * 1.10) = 424961`.
-The immutable ceiling is 430,000 physical chat POST attempts plus the two
-catalog GETs. No dispatch occurs if it would exceed its role cap or the global
+The immutable ceiling is 430,000 physical chat POST attempts plus the
+authenticated catalog GET. No dispatch occurs if it would exceed its role cap or the global
 cap.
 
 Output caps are 512 tokens for Part 0 subjects, 32 for Part 0 judges, 32 for

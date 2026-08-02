@@ -34,6 +34,13 @@ Updated: 2026-08-02 (America/Los_Angeles)
   are excluded. A stable anonymous reviewer-accessible landing URL and official
   Croissant validation are still required before submission; public access is
   required by camera ready.
+- A live `llm_api_routes` virtual key authenticated successfully to InferenceHub
+  on 2026-08-02. Its expected 403 on the portal-only `/model/info` route exposed
+  an incorrect discovery assumption. Discovery now uses the key-authorized
+  `/models` census and proves chat capability, controls, usage, request ID, and
+  exact response identity through a bounded `/chat/completions` smoke. The key
+  remains only in the user's interactive shell, so the corrected live census is
+  not yet captured in this workspace.
 
 ## Verified gates
 
@@ -53,7 +60,7 @@ Updated: 2026-08-02 (America/Los_Angeles)
   manifest SHA-256. Full-suite, integrity, portable legacy-provenance, and
   anonymity checks pass. Withdrawn Part 0/cross-part plot trees are absent, and
   the builder derives local identifiers at runtime rather than embedding them.
-  Current ZIP SHA-256: `c99cc72e8a217d1167b45d8a22f91206dc10c46ae386929deea737aa7acdab1c`.
+  Current ZIP SHA-256: `6d894272f16c02106ae2bbee97c893cd9ccc8d951d8c7d5a769edfcb6b9e864f`.
 - The one-stage production campaign is frozen at all 484 harmful roots plus 100
   controls in three languages, 384 self-direct Part 1 roots, and 24 independent
   Part 2 trajectories per route at N=10, horizon=30, capacity=150.
@@ -66,9 +73,10 @@ Updated: 2026-08-02 (America/Los_Angeles)
 
 ## External gates that must not be fabricated or bypassed
 
-1. InferenceHub credential and authenticated catalog access are absent. All 30
-   current/historical planned routes remain unverified display labels and are
-   rejected by the production adapter.
+1. A valid InferenceHub virtual key has been established interactively, but the
+   corrected authenticated catalog census and route smokes have not yet run.
+   All 30 current/historical planned routes remain unverified display labels
+   and are rejected by the production adapter.
 2. The requested SOTA campaign therefore has no real GPT-3.5/4.1/5/5.6, Claude
    Haiku/Sonnet/Opus, Gemini, Gemma, Nemotron, DeepSeek, Qwen, Kimi, GLM,
    Mistral, Stepfun, MiniMax, or Inkling results. No substitute IDs or results
@@ -87,7 +95,8 @@ Updated: 2026-08-02 (America/Los_Angeles)
 
 ## Exact next execution order
 
-1. Obtain the real InferenceHub base URL/key and authenticated model catalogs.
+1. Run the corrected authenticated `/models` census in the terminal that holds
+   the virtual key and retain its sanitized catalog artifact.
 2. Replace display labels with exact callable backend routes; run the atomic
    discovery plus structured smoke gate and retain returned model identities.
 3. Complete genuine Part 0/Part 1 reviews and the Part 0 two-annotator audit.

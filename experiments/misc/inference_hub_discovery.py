@@ -29,7 +29,7 @@ from agents.agent_config import load_model_cohort, validate_endpoint_base_url
 
 DEFAULT_BASE_URL = "https://inference-api.nvidia.com/v1"
 ROUTE_SOURCE = "inference_hub_models_api"
-CATALOG_SCHEMA_VERSION = 1
+CATALOG_SCHEMA_VERSION = 2
 SMOKE_SCHEMA_VERSION = 2
 COHORT_EVIDENCE_SCHEMA_VERSION = 2
 DISCOVERY_LEDGER_SCHEMA_VERSION = 1
@@ -40,19 +40,6 @@ SMOKE_SCHEMA = {
     "required": ["ok"],
     "additionalProperties": False,
 }
-SAFE_MODEL_INFO_FIELDS = (
-    "mode",
-    "max_input_tokens",
-    "max_output_tokens",
-    "provider",
-    "supports_function_calling",
-    "supports_parallel_function_calling",
-    "supports_response_schema",
-    "supports_system_messages",
-    "supports_tool_choice",
-    "supports_vision",
-    "supported_openai_params",
-)
 
 
 class InferenceHubDiscoveryError(RuntimeError):
@@ -74,17 +61,6 @@ def _canonical_bytes(value: Any) -> bytes:
 
 def _sha256_json(value: Any) -> str:
     return hashlib.sha256(_canonical_bytes(value)).hexdigest()
-
-
-def _safe_scalar_or_list(value: Any) -> Any:
-    if value is None or isinstance(value, (str, int, float, bool)):
-        return value
-    if isinstance(value, list) and all(
-        item is None or isinstance(item, (str, int, float, bool))
-        for item in value
-    ):
-        return value
-    return None
 
 
 def _atomic_write_json(path: Path, payload: Mapping[str, Any]) -> None:
@@ -316,73 +292,33 @@ def _models_routes(payload: Mapping[str, Any]) -> set[str]:
     return routes
 
 
-def _model_info_rows(payload: Mapping[str, Any]) -> dict[str, Mapping[str, Any]]:
-    data = payload.get("data")
-    if not isinstance(data, list):
-        raise InferenceHubDiscoveryError(
-            "InferenceHub /model/info payload lacks data[]."
-        )
-    rows: dict[str, Mapping[str, Any]] = {}
-    for index, item in enumerate(data):
-        if not isinstance(item, Mapping):
-            raise InferenceHubDiscoveryError(
-                f"InferenceHub /model/info data[{index}] is not an object."
-            )
-        route = item.get("model_name")
-        info = item.get("model_info")
-        if not isinstance(route, str) or not route.strip():
-            raise InferenceHubDiscoveryError(
-                f"InferenceHub /model/info data[{index}].model_name is missing."
-            )
-        if not isinstance(info, Mapping):
-            raise InferenceHubDiscoveryError(
-                f"InferenceHub /model/info entry {route!r} lacks model_info."
-            )
-        normalized = route.strip()
-        if normalized in rows:
-            raise InferenceHubDiscoveryError(
-                f"InferenceHub /model/info contains duplicate route {normalized!r}."
-            )
-        rows[normalized] = info
-    return rows
-
-
 def capture_catalog(client: InferenceHubClient) -> dict[str, Any]:
-    """Capture a sanitized snapshot, requiring agreement across both APIs."""
+    """Capture the exact catalog exposed to an LLM-route virtual key.
+
+    InferenceHub virtual keys with the ``llm_api_routes`` permission can call
+    ``/models`` and ``/chat/completions`` but are forbidden from the portal's
+    privileged ``/model/info`` route.  Chat capability and response identity
+    are therefore established by the bounded structured smoke, not inferred
+    from metadata the credential cannot access.
+    """
 
     models_payload = client.get("/models")
-    info_payload = client.get("/model/info")
     models_routes = _models_routes(models_payload)
-    info_rows = _model_info_rows(info_payload)
-    all_routes = sorted(models_routes | set(info_rows))
-    rows: list[dict[str, Any]] = []
-    for route in all_routes:
-        raw_info = info_rows.get(route, {})
-        safe_info = {
-            field: safe_value
-            for field in SAFE_MODEL_INFO_FIELDS
-            if (safe_value := _safe_scalar_or_list(raw_info.get(field))) is not None
+    rows = [
+        {
+            "route": route,
+            "listed_by_models": True,
+            "chat_capability": "unverified_until_structured_smoke",
         }
-        mode = safe_info.get("mode")
-        rows.append(
-            {
-                "route": route,
-                "listed_by_models": route in models_routes,
-                "listed_by_model_info": route in info_rows,
-                "chat_capable": mode in {None, "chat"},
-                "model_info": safe_info,
-            }
-        )
+        for route in sorted(models_routes)
+    ]
     return {
         "schema_version": CATALOG_SCHEMA_VERSION,
         "captured_at_utc": _utc_now(),
         "endpoint": client.base_url,
         "route_source": ROUTE_SOURCE,
-        "source_endpoints": ["/models", "/model/info"],
-        "source_payload_sha256": {
-            "models": _sha256_json(models_payload),
-            "model_info": _sha256_json(info_payload),
-        },
+        "source_endpoints": ["/models"],
+        "source_payload_sha256": {"models": _sha256_json(models_payload)},
         "route_count": len(rows),
         "routes": rows,
     }
@@ -400,10 +336,6 @@ def _catalog_route(catalog: Mapping[str, Any], route: str) -> Mapping[str, Any]:
     row = exact[0]
     if row.get("listed_by_models") is not True:
         raise InferenceHubDiscoveryError(f"Route {route!r} is absent from /models.")
-    if row.get("listed_by_model_info") is not True:
-        raise InferenceHubDiscoveryError(f"Route {route!r} is absent from /model/info.")
-    if row.get("chat_capable") is not True:
-        raise InferenceHubDiscoveryError(f"Route {route!r} is not chat-capable.")
     return row
 
 
@@ -701,12 +633,6 @@ def smoke_verify_cohorts(
         if route in selected_by_route:
             decision = "included_frozen_panel"
             target_id = selected_by_route[route]
-        elif row.get("listed_by_models") is not True or row.get("listed_by_model_info") is not True:
-            decision = "excluded_catalog_api_disagreement"
-            target_id = None
-        elif row.get("chat_capable") is not True:
-            decision = "excluded_non_chat_mode"
-            target_id = None
         else:
             decision = "excluded_outside_frozen_panel"
             target_id = None

@@ -216,9 +216,9 @@ uv run python -m experiments.misc.inference_hub_discovery verify-cohorts \
   --output data/private/inference_hub/cohort-evidence.json
 ```
 
-This captures both authenticated catalog APIs, inventories every returned
-catalog route with an explicit include/exclude decision, and runs a structured,
-seeded, identity-checked completion against every exact frozen route. It writes
+This captures the virtual key's authorized `GET /models` catalog, inventories
+every returned route with an explicit include/exclude decision, and runs a
+structured, seeded, identity-checked completion against every exact frozen route. It writes
 each pre-dispatch reservation to the discovery ledger, including failed calls,
 and marks the evidence complete only after all selected routes pass. The bundle
 contains hashes and request IDs, not generated content or credentials. Because the checked-in

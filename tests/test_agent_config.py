@@ -70,7 +70,6 @@ def _registry_with_verified_first_target() -> dict:
         "provider_response_model": target["route"],
         "catalog_source_payload_sha256": {
             "models": "e" * 64,
-            "model_info": "f" * 64,
         },
         "verification_evidence": deepcopy(target["verification_evidence"]),
         "response": {
@@ -80,7 +79,7 @@ def _registry_with_verified_first_target() -> dict:
         },
     }
     bundle = {
-        "schema_version": 1,
+        "schema_version": 2,
         "verified_at_utc": "2026-08-02T01:03:04Z",
         "endpoint": "https://inference-api.nvidia.com/v1",
         "registry_version": registry["registry_version"],
@@ -88,7 +87,6 @@ def _registry_with_verified_first_target() -> dict:
         "routing_roster_sha256": _routing_roster_sha256(registry),
         "catalog_source_payload_sha256": {
             "models": "e" * 64,
-            "model_info": "f" * 64,
         },
         "cohorts": [
             {

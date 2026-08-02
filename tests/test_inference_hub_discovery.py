@@ -68,32 +68,11 @@ def _catalog_payloads() -> dict[tuple[str, str], dict[str, Any]]:
                 {"id": "aws/anthropic/claude-sonnet", "object": "model"},
                 {"id": "us/azure/openai/gpt-5", "object": "model"},
             ],
-        },
-        ("GET", f"{base}/model/info"): {
-            "data": [
-                {
-                    "model_name": "aws/anthropic/claude-sonnet",
-                    "litellm_params": {"api_key": "must-not-be-persisted"},
-                    "model_info": {
-                        "mode": "chat",
-                        "max_input_tokens": 200000,
-                        "supported_openai_params": ["max_tokens", "temperature"],
-                        "private_backend": "must-not-be-persisted",
-                    },
-                },
-                {
-                    "model_name": "us/azure/openai/gpt-5",
-                    "model_info": {
-                        "mode": "chat",
-                        "max_input_tokens": 128000,
-                    },
-                },
-            ]
-        },
+        }
     }
 
 
-def test_catalog_requires_exact_api_agreement_and_sanitizes_payload(
+def test_catalog_uses_virtual_key_models_route_and_sanitizes_payload(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     secret = "nvapi-secret-test-value"
@@ -108,14 +87,15 @@ def test_catalog_requires_exact_api_agreement_and_sanitizes_payload(
         "us/azure/openai/gpt-5",
     }
     assert all(row["listed_by_models"] is True for row in catalog["routes"])
-    assert all(row["listed_by_model_info"] is True for row in catalog["routes"])
+    assert all(
+        row["chat_capability"] == "unverified_until_structured_smoke"
+        for row in catalog["routes"]
+    )
     serialized = json.dumps(catalog)
     assert secret not in serialized
-    assert "must-not-be-persisted" not in serialized
     assert all(call["authorization"] == f"Bearer {secret}" for call in calls)
     assert [call["url"] for call in calls] == [
-        "https://inference-api.nvidia.com/v1/models",
-        "https://inference-api.nvidia.com/v1/model/info",
+        "https://inference-api.nvidia.com/v1/models"
     ]
 
 
@@ -301,8 +281,7 @@ def test_cohort_verification_covers_every_exact_target_once(
                 {
                     "route": route,
                     "listed_by_models": True,
-                    "listed_by_model_info": True,
-                    "chat_capable": True,
+                    "chat_capability": "unverified_until_structured_smoke",
                 }
                 for route in (
                     "us/openai/current",
@@ -370,16 +349,16 @@ def test_cohort_verification_rejects_non_inference_hub_target(
         )
 
 
-def test_smoke_refuses_route_not_confirmed_by_both_catalog_apis(
+def test_smoke_refuses_route_absent_from_models_catalog(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     payloads = _catalog_payloads()
-    payloads[("GET", "https://inference-api.nvidia.com/v1/model/info")]["data"] = []
+    payloads[("GET", "https://inference-api.nvidia.com/v1/models")]["data"] = []
     _install_responses(monkeypatch, payloads)
     client = InferenceHubClient(api_key="test-key")
     catalog = capture_catalog(client)
 
-    with pytest.raises(InferenceHubDiscoveryError, match="absent from /model/info"):
+    with pytest.raises(InferenceHubDiscoveryError, match="does not occur once"):
         smoke_verify_route(
             client,
             catalog=catalog,
