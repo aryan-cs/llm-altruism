@@ -85,7 +85,7 @@ def test_historical_cohort_and_replicated_part2_subset_are_exact() -> None:
             "--phase",
             "part2",
             "--part2-target",
-            "openai.gpt-4.1-2025-04-14",
+            "openai.gpt-4.1",
             "--part2-replicates",
             "3",
             "--part2-society-size",
@@ -101,7 +101,7 @@ def test_historical_cohort_and_replicated_part2_subset_are_exact() -> None:
     assert len(jobs) == 3
     assert [job["expected"]["replicate"] for job in jobs] == [1, 2, 3]
     assert {job["target_ids"][0] for job in jobs} == {
-        "openai.gpt-4.1-2025-04-14"
+        "openai.gpt-4.1"
     }
     assert {job["counts"]["decisions_upper_bound"] for job in jobs} == {63}
     assert [job["expected"]["generation_seed"] for job in jobs] == [
@@ -122,7 +122,7 @@ def test_factorial_part2_sensitivity_plan_records_exact_balanced_cells() -> None
             "--phase",
             "part2",
             "--part2-target",
-            "openai.gpt-4.1-2025-04-14",
+            "openai.gpt-4.1",
             "--part2-grid-capacity",
             "100",
             "--part2-grid-capacity",

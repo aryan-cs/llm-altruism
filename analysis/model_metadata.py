@@ -42,37 +42,151 @@ _PILOT_PREFIXES: tuple[tuple[str, str, str], ...] = (
 )
 
 
-# Exact inference-hub routes supplied for the expanded evaluation.  Exact
-# matching is intentional: a newly released suffix or preview is not silently
-# folded into a cohort it was never evaluated as part of.
-_MODEL_REGISTRY: dict[str, ModelMetadata] = {
-    "gpt_5.6_sol": ModelMetadata("gpt_5", "openai", CURRENT_SOTA),
-    "claude_fable_5": ModelMetadata("claude_5", "anthropic", CURRENT_SOTA),
-    "claude_opus_5": ModelMetadata("claude_5", "anthropic", CURRENT_SOTA),
-    "claude_sonnet_5": ModelMetadata("claude_5", "anthropic", CURRENT_SOTA),
-    "claude_haiku_4_5_20251001": ModelMetadata("claude_4_5", "anthropic", CURRENT_SOTA),
-    "gemini_3.1_pro_preview": ModelMetadata("gemini_3", "google", CURRENT_SOTA),
-    "gemini_3.6_flash": ModelMetadata("gemini_3", "google", CURRENT_SOTA),
-    "google/gemma_4_31b_it": ModelMetadata("gemma_4", "google", CURRENT_SOTA),
-    "nvidia/nemotron_3_ultra_550b_a55b": ModelMetadata("nemotron_3", "nvidia", CURRENT_SOTA),
-    "deepseek_ai/deepseek_v4_pro": ModelMetadata("deepseek_v4", "deepseek", CURRENT_SOTA),
-    "qwen/qwen3_next_80b_a3b_thinking": ModelMetadata("qwen_3_next", "alibaba_qwen", CURRENT_SOTA),
-    "moonshotai/kimi_k2_thinking": ModelMetadata("kimi_k2", "moonshot_ai", CURRENT_SOTA),
-    "z_ai/glm_5.2": ModelMetadata("glm_5_2", "z_ai", CURRENT_SOTA),
-    "mistralai/mistral_nemotron": ModelMetadata(
-        "mistral_nemotron", "mistral_ai", CURRENT_SOTA
-    ),
-    "gpt_3.5_turbo_0125": ModelMetadata("gpt_3_5", "openai", HISTORICAL),
-    "gpt_4.1_2025_04_14": ModelMetadata("gpt_4_1", "openai", HISTORICAL),
-    "gpt_5_2025_08_07": ModelMetadata("gpt_5", "openai", HISTORICAL),
-    "gemini_2.5_pro": ModelMetadata("gemini_2_5", "google", HISTORICAL),
-    "google/gemma_3_27b_it": ModelMetadata("gemma_3", "google", HISTORICAL),
-    "openai/gpt_oss_120b": ModelMetadata("gpt_oss", "openai", HISTORICAL),
-}
-
-
 def _normalized_model(model: str) -> str:
     return model.strip().lower().replace("-", "_")
+
+
+def _build_exact_model_registry() -> dict[str, ModelMetadata]:
+    """Bind every frozen model and backend route without family guessing."""
+
+    groups: tuple[tuple[ModelMetadata, tuple[str, ...]], ...] = (
+        (
+            ModelMetadata("gpt_5_6", "openai", CURRENT_SOTA),
+            (
+                "gpt-5.6-sol",
+                "azure/openai/gpt-5.6-sol",
+                "gpt-5.6-terra",
+                "azure/openai/gpt-5.6-terra",
+                "gpt-5.6-luna",
+                "azure/openai/gpt-5.6-luna",
+            ),
+        ),
+        (
+            ModelMetadata("claude_4_5", "anthropic", CURRENT_SOTA),
+            (
+                "claude-opus-4-5",
+                "aws/anthropic/claude-opus-4-5",
+                "claude-haiku-4-5-v1",
+                "aws/anthropic/claude-haiku-4-5-v1",
+                "bedrock-claude-sonnet-4-5-v1",
+                "aws/anthropic/bedrock-claude-sonnet-4-5-v1",
+            ),
+        ),
+        (
+            ModelMetadata("claude_5", "anthropic", CURRENT_SOTA),
+            (
+                "claude-opus-5",
+                "azure/anthropic/claude-opus-5",
+                "claude-sonnet-5",
+                "azure/anthropic/claude-sonnet-5",
+            ),
+        ),
+        (
+            ModelMetadata("gemini_3", "google", CURRENT_SOTA),
+            (
+                "gemini-3.1-pro-preview",
+                "gcp/google/gemini-3.1-pro-preview",
+                "gemini-3.6-flash",
+                "gcp/google/gemini-3.6-flash",
+                "gemini-3.5-flash",
+                "gcp/google/gemini-3.5-flash",
+                "gemini-3-flash-preview",
+                "gcp/google/gemini-3-flash-preview",
+                "gemini-3.1-flash-lite",
+                "gcp/google/gemini-3.1-flash-lite",
+            ),
+        ),
+        (
+            ModelMetadata("gemma_4", "google", CURRENT_SOTA),
+            ("google/gemma-4-31b-it", "nvidia/google/gemma-4-31b-it"),
+        ),
+        (
+            ModelMetadata("nemotron_3", "nvidia", CURRENT_SOTA),
+            (
+                "nvidia/nemotron-3-ultra",
+                "nvidia/nvidia/nemotron-3-ultra",
+                "nvidia/nemotron-3-super-v3",
+                "nvidia/nvidia/nemotron-3-super-v3",
+            ),
+        ),
+        (
+            ModelMetadata("deepseek_v4", "deepseek", CURRENT_SOTA),
+            (
+                "deepseek-ai/deepseek-v4-pro",
+                "nvidia/deepseek-ai/deepseek-v4-pro",
+                "deepseek-ai/deepseek-v4-flash",
+                "nvidia/deepseek-ai/deepseek-v4-flash",
+            ),
+        ),
+        (
+            ModelMetadata("qwen_3_6", "alibaba_qwen", CURRENT_SOTA),
+            ("qwen/qwen3.6-35b-a3b", "nvidia/qwen/qwen3.6-35b-a3b"),
+        ),
+        (
+            ModelMetadata("kimi_k2_6", "moonshot_ai", CURRENT_SOTA),
+            ("moonshotai/kimi-k2.6", "nvidia/moonshotai/kimi-k2.6"),
+        ),
+        (
+            ModelMetadata("glm_5_2", "z_ai", CURRENT_SOTA),
+            ("zai-org/glm-5.2", "nvidia/zai-org/glm-5.2"),
+        ),
+        (
+            ModelMetadata("mixtral_8x22b", "mistral_ai", CURRENT_SOTA),
+            (
+                "mistralai/mixtral-8x22b-instruct-v01",
+                "nvidia/mistralai/mixtral-8x22b-instruct-v01",
+            ),
+        ),
+        (
+            ModelMetadata("minimax_m3", "minimax", CURRENT_SOTA),
+            ("minimaxai/minimax-m3", "nvidia/minimaxai/minimax-m3"),
+        ),
+        (
+            ModelMetadata("gpt_oss", "openai", CURRENT_SOTA),
+            ("openai/gpt-oss-20b", "nvidia/openai/gpt-oss-20b"),
+        ),
+        (
+            ModelMetadata("gpt_3_5", "openai", HISTORICAL),
+            (
+                "gpt-3.5-turbo",
+                "openai/openai/gpt-3.5-turbo",
+                "gpt-3.5-turbo-0125",
+            ),
+        ),
+        (
+            ModelMetadata("gpt_4_1", "openai", HISTORICAL),
+            ("gpt-4.1", "us/azure/openai/gpt-4.1", "gpt-4.1-2025-04-14"),
+        ),
+        (
+            ModelMetadata("gpt_5", "openai", HISTORICAL),
+            ("gpt-5", "us/azure/openai/gpt-5", "gpt-5-2025-08-07"),
+        ),
+        (
+            ModelMetadata("gemini_2_5", "google", HISTORICAL),
+            ("gemini-2.5-pro", "gcp/google/gemini-2.5-pro"),
+        ),
+        (
+            ModelMetadata("gemma_2", "google", HISTORICAL),
+            ("google/gemma-2-9b-it", "nvidia/google/gemma-2-9b-it"),
+        ),
+        (
+            ModelMetadata("gpt_oss", "openai", HISTORICAL),
+            ("openai/gpt-oss-120b", "nvidia/openai/gpt-oss-120b"),
+        ),
+    )
+    registry: dict[str, ModelMetadata] = {}
+    for metadata, aliases in groups:
+        for alias in aliases:
+            normalized = _normalized_model(alias)
+            previous = registry.setdefault(normalized, metadata)
+            if previous != metadata:
+                raise RuntimeError(f"Conflicting exact model metadata: {alias}")
+    return registry
+
+
+# Exact matching is intentional: a newly released suffix or preview is not
+# silently folded into a cohort it was never evaluated as part of.
+_MODEL_REGISTRY = _build_exact_model_registry()
 
 
 def _metadata_value(metadata: Mapping[str, object] | None, key: str) -> str:

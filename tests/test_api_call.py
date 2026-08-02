@@ -482,7 +482,7 @@ def test_internal_inference_hub_does_not_accept_public_nim_key(
 @pytest.mark.parametrize(
     ("model", "message"),
     [
-        ("gpt-5.6-sol", "not executable"),
+        ("azure/openai/gpt-5.6-sol", "not executable"),
         ("unknown/backend-route", "not registered"),
     ],
 )
@@ -519,7 +519,7 @@ def test_base_agent_cannot_bypass_inference_hub_registry_gate(
     agent = BaseAgent(
         id_="blocked",
         provider_="inference_hub",
-        model_="claude-opus-5",
+        model_="azure/anthropic/claude-opus-5",
     )
     with pytest.raises(ValueError, match="not executable"):
         agent.query("query")
@@ -746,13 +746,13 @@ def test_classify_api_failure_preserves_route_provenance(
     provenance = api_call_module.classify_api_failure(
         error,
         provider=provider,
-        model="gpt-5.6-sol",
+        model="azure/openai/gpt-5.6-sol",
     ).to_dict()
 
     assert provenance["category"] == expected_category
     assert provenance["provider"] == "inference_hub"
     assert provenance["upstream_provider"] == "openai"
-    assert provenance["route"] == "gpt-5.6-sol"
+    assert provenance["route"] == "azure/openai/gpt-5.6-sol"
 
 
 def test_api_call_reraises_same_sdk_error_with_failure_provenance(
@@ -787,7 +787,7 @@ def test_api_call_reraises_same_sdk_error_with_failure_provenance(
     with pytest.raises(GatewayError) as caught:
         api_call_module.api_call(
             "inference_hub",
-            "gpt-5.6-sol",
+            "azure/openai/gpt-5.6-sol",
             "sys",
             "query",
         )
@@ -796,9 +796,9 @@ def test_api_call_reraises_same_sdk_error_with_failure_provenance(
     assert api_call_module.failure_provenance(caught.value) == {
         "category": "gateway",
         "provider": "inference_hub",
-        "model": "gpt-5.6-sol",
+        "model": "azure/openai/gpt-5.6-sol",
         "upstream_provider": "openai",
-        "route": "gpt-5.6-sol",
+        "route": "azure/openai/gpt-5.6-sol",
         "status_code": 503,
     }
 
@@ -834,7 +834,7 @@ def test_api_call_malformed_json_is_tagged_as_parser_failure(
     with pytest.raises(api_call_module.ResponseParseError) as caught:
         api_call_module.api_call(
             "inference_hub",
-            "claude-opus-5",
+            "azure/anthropic/claude-opus-5",
             "sys",
             "query",
             json_mode=True,
@@ -844,9 +844,9 @@ def test_api_call_malformed_json_is_tagged_as_parser_failure(
     assert api_call_module.failure_provenance(caught.value) == {
         "category": "parser",
         "provider": "inference_hub",
-        "model": "claude-opus-5",
+        "model": "azure/anthropic/claude-opus-5",
         "upstream_provider": "anthropic",
-        "route": "claude-opus-5",
+        "route": "azure/anthropic/claude-opus-5",
     }
 
 

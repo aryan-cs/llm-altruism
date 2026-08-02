@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from agents.agent_config import load_model_registry
 from analysis.model_metadata import (
     CURRENT_SOTA,
     HISTORICAL,
@@ -96,6 +97,24 @@ def test_model_metadata_labels_legacy_pilot_and_respects_explicit_new_cohort() -
         resolve_model_metadata(
             "provider", "model", {"family_id": "f", "developer_id": "d", "cohort": "new"}
         )
+
+
+def test_every_frozen_inference_hub_model_and_route_has_exact_analysis_metadata() -> None:
+    load_model_registry.cache_clear()
+    registry = load_model_registry()
+    membership = {
+        target_id: cohort_id
+        for cohort_id in (CURRENT_SOTA, HISTORICAL)
+        for target_id in registry["cohorts"][cohort_id]["targets"]
+    }
+
+    for target in registry["targets"]:
+        if target["id"] not in membership:
+            continue
+        model_metadata = resolve_model_metadata("inference_hub", target["model"])
+        route_metadata = resolve_model_metadata("inference_hub", target["route"])
+        assert model_metadata == route_metadata, target["id"]
+        assert model_metadata.cohort == membership[target["id"]], target["id"]
 
 
 def test_three_correlation_estimators_and_fisher_interval() -> None:

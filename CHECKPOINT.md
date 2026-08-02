@@ -71,10 +71,16 @@ Updated: 2026-08-02 (America/Los_Angeles)
   `9e0cca6a738bf5c794c33c5da2af02c6a4d6b4423cd34ae7a4ba5d527dab961e`.
   All four returned visible text; one matched the exact `READY` format and three
   were retained as format-noncompliant. The separate resumable 384-root local
-  Part 1 scale panel plans 1,536 real generations with two concurrent model
-  workers and batched prompts. Its manifest permanently bars confirmatory or
-  paper-result promotion because the deterministic draft bank is not
-  human-approved.
+  Part 1 scale panel completed all 1,536 real generations with two concurrent
+  model workers and batched prompts. Strict final-action format was valid for
+  Qwen2.5 0.5B on 384/384 rows, SmolLM2 1.7B on 362/384, SmolLM2 360M on
+  27/384, and SmolLM2 135M on 3/384. All prompt, response, per-model file, and
+  manifest hashes validate. The private manifest has raw SHA-256
+  `59b6b7e9efcf812f23c286be99e7e3348cc220def46a242110ec0726d8954afe`
+  and self-hash
+  `3b7779ec37bcd0b37367ffe756f4b48ca52e19d71cb4811c9d96a13bc83f74bc`.
+  Its contract permanently bars confirmatory or paper-result promotion because
+  the deterministic draft bank is not human-approved.
   A deliberately interrupted attempt remains preserved separately rather than
   being overwritten.
   This is callability evidence only, not a paper result or a substitute for a
@@ -84,21 +90,21 @@ Updated: 2026-08-02 (America/Los_Angeles)
 
 - Strict raw validation: 27 files, 14 pass, 13 warning, 0 fail. The warnings are
   the disclosed one-sided Part 2 rationale/action lexical flags.
-- Full repository suite: 579 passed, 1 optional dependency skip on 2026-08-02.
+- Full repository suite: 581 passed, 1 optional dependency skip on 2026-08-02.
   `tests/conftest.py` selects the noninteractive Agg backend before collection.
-- Clean extracted-supplement suite: 528 passed, 2 intentional skips (withheld
+- Clean extracted-supplement suite: 559 passed, 2 intentional skips (withheld
   raw Part 0 and one optional dependency), without a Git object store.
 - NeurIPS format suite: 6 passed. The official style SHA-256 is
   `c3fc2894e83d2517ca18b66741d6c595986d97957dc08ec08bb2125a7ec4555a`.
 - Current local pilot PDF: 29 pages, 1.20 MiB, anonymous metadata, main content on pages 1--9,
   references beginning on page 10, all pages visually inspected. Eight paper
   figures were regenerated at print-oriented dimensions with larger labels.
-  Current PDF SHA-256: `c54463acf5ad13a4821ec742a01b039c960385e143979bd07c35bdd0f04544fc`.
-- Current local pilot supplement: 302 source files plus its manifest, 15.7 MiB; every payload has a
+  Current PDF SHA-256: `ebcf236c23c84f102d4901bea25ded2e487d456b25e52286477ed027d84d16a2`.
+- Current local pilot supplement: 304 files including its manifest, 15.7 MiB; every payload has a
   manifest SHA-256. Full-suite, integrity, portable legacy-provenance, and
   anonymity checks pass. Withdrawn Part 0/cross-part plot trees are absent, and
   the builder derives local identifiers at runtime rather than embedding them.
-  Current ZIP SHA-256: `1fc6966a033f3aeca9ab247c60e1906606d92be861e86e31c23bc391a4a860bb`.
+  Current ZIP SHA-256: `c043194382735869b79f012cac481427e0a7b0eafe9bfd8a551f2bfa4bef76d9`.
 - The one-stage production campaign is frozen at all 484 harmful roots plus 100
   controls in three languages, 384 self-direct Part 1 roots, and 24 independent
   Part 2 trajectories per route at N=10, horizon=30, capacity=150.
