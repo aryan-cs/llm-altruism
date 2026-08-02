@@ -38,9 +38,15 @@ Updated: 2026-08-02 (America/Los_Angeles)
   on 2026-08-02. Its expected 403 on the portal-only `/model/info` route exposed
   an incorrect discovery assumption. Discovery now uses the key-authorized
   `/models` census and proves chat capability, controls, usage, request ID, and
-  exact response identity through a bounded `/chat/completions` smoke. The key
-  remains only in the user's interactive shell, so the corrected live census is
-  not yet captured in this workspace.
+  exact response identity through a bounded `/chat/completions` smoke. The
+  corrected live census is captured privately: 214 routes at
+  `2026-08-02T16:12:41.421354Z`, raw artifact SHA-256
+  `459431076aa2106dc3966a540cb7e641b694ffc443dec82b94024bdd8462d1f1`.
+  An outcome-blind exact-suffix reconciliation selected 15 smoke-pending
+  candidates and left 15 labels unresolved; report SHA-256
+  `dbe30991a1c29b9a4c2371258c71dbdbc4d777c139c48f078c2f13045966d819`.
+  No candidate has been promoted to the registry. The key remains only in the
+  user's interactive shell, not in the current execution process.
 
 ## Verified gates
 
@@ -73,10 +79,12 @@ Updated: 2026-08-02 (America/Los_Angeles)
 
 ## External gates that must not be fabricated or bypassed
 
-1. A valid InferenceHub virtual key has been established interactively, but the
-   corrected authenticated catalog census and route smokes have not yet run.
-   All 30 current/historical planned routes remain unverified display labels
-   and are rejected by the production adapter.
+1. A valid InferenceHub virtual key and corrected authenticated catalog census
+   have been established. Fifteen exact-suffix candidates await structured chat
+   smokes; 15 planned labels have no exact catalog suffix and require an
+   evidence-backed availability decision. All 30 current/historical registry
+   routes remain unverified display labels and are rejected by the production
+   adapter.
 2. The requested SOTA campaign therefore has no real GPT-3.5/4.1/5/5.6, Claude
    Haiku/Sonnet/Opus, Gemini, Gemma, Nemotron, DeepSeek, Qwen, Kimi, GLM,
    Mistral, Stepfun, MiniMax, or Inkling results. No substitute IDs or results
@@ -95,10 +103,11 @@ Updated: 2026-08-02 (America/Los_Angeles)
 
 ## Exact next execution order
 
-1. Run the corrected authenticated `/models` census in the terminal that holds
-   the virtual key and retain its sanitized catalog artifact.
-2. Replace display labels with exact callable backend routes; run the atomic
-   discovery plus structured smoke gate and retain returned model identities.
+1. Run structured, identity-checked chat smokes for the 15 exact-suffix
+   candidates and retain every attempt, including failures.
+2. Resolve renamed/versionless candidates only from successful chat evidence;
+   explicitly mark truly unavailable labels without substitution, then review
+   and promote verified routes.
 3. Complete genuine Part 0/Part 1 reviews and the Part 0 two-annotator audit.
 4. Execute all successful verified routes without substitution under the frozen
    430,000-attempt ledger, lock private native artifacts, analyze with

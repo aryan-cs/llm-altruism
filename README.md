@@ -216,6 +216,22 @@ uv run python -m experiments.misc.inference_hub_discovery verify-cohorts \
   --output data/private/inference_hub/cohort-evidence.json
 ```
 
+Before changing any registry route, reconcile the authenticated catalog against
+the frozen display-label plan with the outcome-blind exact-suffix policy:
+
+```bash
+uv run python -m analysis.reconcile_inference_hub_routes \
+  --catalog data/private/inference_hub/catalog.json \
+  --registry agents/agent_config.registry.json \
+  --output data/private/inference_hub/route-reconciliation.json
+```
+
+The reconciliation report is private and non-promotional: it retains every
+exact-suffix backend candidate, applies a checked-in backend-priority order, and
+leaves renamed, versionless, or merely similar routes unresolved. A selected
+candidate is still `smoke_pending`; only a successful identity-checked chat
+completion can support a later reviewed registry promotion.
+
 This captures the virtual key's authorized `GET /models` catalog, inventories
 every returned route with an explicit include/exclude decision, and runs a
 structured, seeded, identity-checked completion against every exact frozen route. It writes
