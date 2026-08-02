@@ -1393,9 +1393,16 @@ def _decision_result(
 
 def _is_transport_retry(error: Exception, *, provider: str, model: str) -> bool:
     provenance = failure_provenance(error, provider=provider, model=model)
+    status_code = provenance.get("status_code") if provenance else None
     return bool(
         provenance
-        and provenance.get("category") == "transport"
+        and (
+            provenance.get("category") in {"gateway", "transport"}
+            or (
+                isinstance(status_code, int)
+                and (status_code in {408, 429} or status_code >= 500)
+            )
+        )
         and not isinstance(error, OllamaConnectionError)
     )
 

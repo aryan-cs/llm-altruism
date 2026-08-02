@@ -38,9 +38,9 @@ Updated: 2026-08-02 (America/Los_Angeles)
 
 - Strict raw validation: 27 files, 14 pass, 13 warning, 0 fail. The warnings are
   the disclosed one-sided Part 2 rationale/action lexical flags.
-- Full repository suite: 525 passed, 1 optional dependency skip on 2026-08-02.
+- Full repository suite: 533 passed, 1 optional dependency skip on 2026-08-02.
   `tests/conftest.py` selects the noninteractive Agg backend before collection.
-- Clean extracted-supplement suite: 503 passed, 2 intentional skips (withheld
+- Clean extracted-supplement suite: 511 passed, 2 intentional skips (withheld
   raw Part 0 and one optional dependency), without a Git object store.
 - NeurIPS format suite: 6 passed. The official style SHA-256 is
   `c3fc2894e83d2517ca18b66741d6c595986d97957dc08ec08bb2125a7ec4555a`.
@@ -52,7 +52,7 @@ Updated: 2026-08-02 (America/Los_Angeles)
   manifest SHA-256. Full-suite, integrity, portable legacy-provenance, and
   anonymity checks pass. Withdrawn Part 0/cross-part plot trees are absent, and
   the builder derives local identifiers at runtime rather than embedding them.
-  Final ZIP SHA-256: `63711d95ffad0fff2bcf306bd3d919083b75923bf803ce8207c47216fd3f1b30`.
+  Final ZIP SHA-256: `9b127ad5d5fa1cdbb78a22933178b9b1ee073df74df290561272ace412493a69`.
 - The one-stage production campaign is frozen at all 484 harmful roots plus 100
   controls in three languages, 384 self-direct Part 1 roots, and 24 independent
   Part 2 trajectories per route at N=10, horizon=30, capacity=150.

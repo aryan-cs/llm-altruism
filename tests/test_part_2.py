@@ -44,6 +44,38 @@ def test_query_agent_does_not_retry_nontransport_provider_parse_failure(monkeypa
     assert calls["count"] == 1
 
 
+@pytest.mark.parametrize(
+    ("category", "status_code", "expected"),
+    [
+        ("transport", None, True),
+        ("gateway", 503, True),
+        ("provider", 408, True),
+        ("provider", 429, True),
+        ("provider", 500, True),
+        ("provider", 409, False),
+        ("provider", 425, False),
+        ("provider", 400, False),
+    ],
+)
+def test_part2_retry_policy_matches_frozen_transport_contract(
+    category: str, status_code: int | None, expected: bool
+) -> None:
+    error = RuntimeError("provider call failed")
+    setattr(
+        error,
+        "llm_altruism_failure_provenance",
+        {
+            "category": category,
+            "status_code": status_code,
+            "provider": "inference_hub",
+            "model": "vendor/model",
+        },
+    )
+    assert part_2._is_transport_retry(
+        error, provider="inference_hub", model="vendor/model"
+    ) is expected
+
+
 class FlushTrackingIO(io.StringIO):
     def __init__(self) -> None:
         super().__init__()
