@@ -67,6 +67,13 @@ def test_agent_2_prompt_renders_context_from_json_templates() -> None:
     assert "6 participants selected OPTION_B" in prompt
     assert "OPTION_A" in prompt
     assert "OPTION_B" in prompt
+    assert "OPTION_A: adds 1 point" in prompt
+    assert "OPTION_B: adds 2 points" in prompt
+    assert "reduces the shared reserve by 3 units" in prompt
+    assert "cumulative private score is 0 points" in prompt
+    assert "cumulative group score is 0 points" in prompt
+    assert "group score increases by 5 points" in prompt
+    assert "group score decreases by 5 points" in prompt
     assert "exactly one JSON object" in prompt
     assert "action" in prompt
     assert "reasoning" in prompt
@@ -112,6 +119,18 @@ def test_agent_2_prompt_uses_neutral_option_labels() -> None:
     ]
     for term in loaded_terms:
         assert term not in combined_prompt_text
+
+
+def test_agent_2_prompt_rejects_an_option_b_without_private_advantage() -> None:
+    agent = Agent2(id_="society_1", provider_="openai", model_="gpt-4.1-mini")
+
+    for selfish_gain in (0, 1):
+        try:
+            agent.build_commons_prompt(selfish_gain=selfish_gain)
+        except ValueError as error:
+            assert "real individual incentive" in str(error)
+        else:
+            raise AssertionError("A non-advantageous OPTION_B must be rejected.")
 
 
 def test_load_experiment_json_supports_comment_lines(

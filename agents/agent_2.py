@@ -8,6 +8,7 @@ from agents.base_agent import BaseAgent
 from experiments.misc.prompt_loader import load_prompt_config, render_prompt_template
 
 PART_2_PROMPTS = load_prompt_config("part_2")
+OPTION_A_PRIVATE_PAYOFF = 1
 
 
 class SocietyDecision(BaseModel):
@@ -56,7 +57,19 @@ class Agent2(BaseAgent):
         resource_units: int | None = None,
         resource_capacity: int | None = None,
         previous_overuse_count: int | None = None,
+        cumulative_private_payoff: int = 0,
+        cumulative_group_payoff: int = 0,
     ) -> str:
+        if selfish_gain <= OPTION_A_PRIVATE_PAYOFF:
+            raise ValueError(
+                "selfish_gain must exceed OPTION_A's private payoff so OPTION_B "
+                "has a real individual incentive."
+            )
+        if depletion_units <= 0:
+            raise ValueError("depletion_units must be positive.")
+        if community_benefit <= 0:
+            raise ValueError("community_benefit must be positive.")
+
         context_lines: list[str] = []
         if day is not None:
             context_lines.append(
@@ -87,6 +100,18 @@ class Agent2(BaseAgent):
                     previous_option_b_count=previous_overuse_count,
                 )
             )
+        context_lines.append(
+            render_prompt_template(
+                PART_2_PROMPTS["agent"]["context"]["private_payoff"],
+                cumulative_private_payoff=cumulative_private_payoff,
+            )
+        )
+        context_lines.append(
+            render_prompt_template(
+                PART_2_PROMPTS["agent"]["context"]["group_payoff"],
+                cumulative_group_payoff=cumulative_group_payoff,
+            )
+        )
 
         context = "\n".join(context_lines)
         if context:
@@ -104,7 +129,8 @@ class Agent2(BaseAgent):
             agent_id=self.id,
             resource=resource,
             context=context,
-            option_b_score_multiplier=selfish_gain,
+            option_a_private_payoff=OPTION_A_PRIVATE_PAYOFF,
+            option_b_private_payoff=selfish_gain,
             option_b_reserve_delta=depletion_units,
             all_option_a_group_delta=community_benefit,
             all_option_b_group_delta=community_benefit,

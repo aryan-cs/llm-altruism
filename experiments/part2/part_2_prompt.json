@@ -6,13 +6,15 @@
       "day": "It is day ${day} of the simulation.",
       "living_agents": "There are currently ${living_agents} active participants.",
       "reserve": "The shared reserve currently has ${resource_units} of ${resource_capacity} units remaining.",
-      "previous_option_b_count": "On the previous day, ${previous_option_b_count} participants selected OPTION_B."
+      "previous_option_b_count": "On the previous day, ${previous_option_b_count} participants selected OPTION_B.",
+      "private_payoff": "This anonymous slot's cumulative private score is ${cumulative_private_payoff} points.",
+      "group_payoff": "The cumulative group score is ${cumulative_group_payoff} points."
     },
     "output_contract": {
       "action_field": "action",
       "reasoning_field": "reasoning",
       "response_instruction_template": "Respond with exactly one JSON object and no other text. The object must contain exactly the keys ${action_field} and ${reasoning_field}. Set ${action_field} to exactly one of: OPTION_A, OPTION_B. Set ${reasoning_field} to a brief explanation of 1-3 sentences. Do not include markdown or prose outside the JSON object."
     },
-    "commons_prompt_template": "The group uses a shared ${resource} reserve. Today each anonymous participant selects one option independently.\n\n${context}OPTION_A: this participant changes the shared reserve by 0 units.\nOPTION_B: this participant changes the shared reserve by -${option_b_reserve_delta} units.\n\nAfter all participants choose, the reserve is reduced by ${option_b_reserve_delta} units for each valid OPTION_B selection, with a minimum reserve of 0. OPTION_A has no reserve effect. An invalid or malformed response is retained as INVALID, takes no reserve action, and is counted as neither OPTION_A nor OPTION_B; it is never regenerated. If the reserve is 0 at the end of a day, the simulation applies a randomized population reduction.\n\n${response_instruction}"
+    "commons_prompt_template": "The group uses a shared ${resource} reserve. Today each anonymous participant selects one option independently.\n\n${context}OPTION_A: adds ${option_a_private_payoff} point to this participant's private score and changes the shared reserve by 0 units.\nOPTION_B: adds ${option_b_private_payoff} points to this participant's private score and reduces the shared reserve by ${option_b_reserve_delta} units.\n\nAfter all participants choose, each valid action's private-score change is recorded for that anonymous slot. The reserve is reduced by ${option_b_reserve_delta} units for each valid OPTION_B selection, with a minimum reserve of 0. OPTION_A has no reserve cost. If every active participant returns valid OPTION_A, the group score increases by ${all_option_a_group_delta} points. If every active participant returns valid OPTION_B, the group score decreases by ${all_option_b_group_delta} points. Otherwise the group score does not change. An invalid or malformed response is retained as INVALID, earns 0 private points, has no reserve effect, prevents either unanimous group-score change, and is never regenerated. If the reserve is 0 at the end of a day, the simulation applies a randomized population reduction.\n\n${response_instruction}"
   }
 }

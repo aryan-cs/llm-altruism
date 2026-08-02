@@ -140,9 +140,11 @@ def test_run_part_2_writes_multi_day_results(
     tmp_path: Path,
 ) -> None:
     monkeypatch.chdir(tmp_path)
+    observed_prompts: list[str] = []
 
     def fake_query(self, query: str, json_mode: bool = False) -> str:
-        del query, json_mode
+        del json_mode
+        observed_prompts.append(query)
         return json.dumps(
             {
                 "reasoning": "Protecting the commons is better for long-term stability.",
@@ -176,6 +178,22 @@ def test_run_part_2_writes_multi_day_results(
     assert rows[0]["day"] == "1"
     assert rows[-1]["day"] == "2"
     assert {row["action"] for row in rows} == {"RESTRAIN"}
+    assert [row["private_payoff_delta"] for row in rows] == ["1"] * 6
+    assert [row["cumulative_private_payoff"] for row in rows] == [
+        "1",
+        "1",
+        "1",
+        "2",
+        "2",
+        "2",
+    ]
+    assert {row["group_payoff_delta"] for row in rows} == {"5"}
+    assert {row["cumulative_group_payoff"] for row in rows[:3]} == {"5"}
+    assert {row["cumulative_group_payoff"] for row in rows[3:]} == {"10"}
+    assert all("cumulative private score is 0 points" in prompt for prompt in observed_prompts[:3])
+    assert all("cumulative group score is 0 points" in prompt for prompt in observed_prompts[:3])
+    assert all("cumulative private score is 1 points" in prompt for prompt in observed_prompts[3:])
+    assert all("cumulative group score is 5 points" in prompt for prompt in observed_prompts[3:])
     metadata_files = list((tmp_path / "data" / "raw" / "part_2").glob("*_meta.json"))
     assert len(metadata_files) == 1
     metadata = json.loads(metadata_files[0].read_text(encoding="utf-8"))
@@ -227,7 +245,9 @@ def test_run_part2_sensitivity_controls_capacity_deaths_and_generation_seed(
     assert observed_seeds == [int(row["call_seed"]) for row in rows]
     assert all("society_" not in system + prompt for system, prompt in observed_prompts)
     assert all("slot_" not in system + prompt for system, prompt in observed_prompts)
-    assert all("score" not in (system + prompt).lower() for system, prompt in observed_prompts)
+    assert all("OPTION_A: adds 1 point" in prompt for _, prompt in observed_prompts)
+    assert all("OPTION_B: adds 2 points" in prompt for _, prompt in observed_prompts)
+    assert all("reduces the shared reserve by 2 units" in prompt for _, prompt in observed_prompts)
     assert {row["resource_capacity"] for row in rows} == {"1"}
     assert {row["deaths"] for row in rows} == {"3"}
     assert {row["population_end"] for row in rows} == {"7"}
@@ -238,7 +258,17 @@ def test_run_part2_sensitivity_controls_capacity_deaths_and_generation_seed(
     assert metadata["collapse_death_rate"] == 0.3
     assert metadata["generation_seed"] == 42
     assert metadata["environment_seed"] == 99
-    assert metadata["dynamics"]["incentive_policy"]["individual_score"] == "not_defined"
+    incentive = metadata["dynamics"]["incentive_policy"]
+    assert incentive["individual_score"]["option_a_delta"] == 1
+    assert incentive["individual_score"]["option_b_delta_field"] == (
+        "society_config.selfish_gain"
+    )
+    assert incentive["group_score"]["mixed_or_invalid_delta"] == 0
+    assert incentive["prompt_engine_parity"] == "exact_v2"
+    assert {row["private_payoff_delta"] for row in rows} == {"2"}
+    assert {row["cumulative_private_payoff"] for row in rows} == {"2"}
+    assert {row["group_payoff_delta"] for row in rows} == {"-5"}
+    assert {row["cumulative_group_payoff"] for row in rows} == {"-5"}
     assert "__c1__du2__dr0p3__s42__" in Path(csv_path).name
 
 
@@ -382,7 +412,7 @@ def test_production_like_simulation_has_deterministic_distinct_call_seeds(
     assert len(set(captured_by_run[0])) == 6
 
 
-def test_invalid_is_no_action_and_legacy_score_fields_do_not_change_transition(
+def test_invalid_has_zero_payoff_and_prevents_group_unanimity(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
@@ -423,6 +453,14 @@ def test_invalid_is_no_action_and_legacy_score_fields_do_not_change_transition(
     assert {row["restrain_count"] for row in rows} == {"1"}
     assert {row["selfish_gain"] for row in rows} == {"10000"}
     assert {row["community_benefit"] for row in rows} == {"10000"}
+    assert [row["private_payoff_delta"] for row in rows] == ["0", "10000", "1"]
+    assert [row["cumulative_private_payoff"] for row in rows] == [
+        "0",
+        "10000",
+        "1",
+    ]
+    assert {row["group_payoff_delta"] for row in rows} == {"0"}
+    assert {row["cumulative_group_payoff"] for row in rows} == {"0"}
 
 
 def test_randomized_attrition_is_reproducible_and_records_selection_provenance(
@@ -870,8 +908,11 @@ def test_run_part_2_resumes_from_completed_days(
     metadata = json.loads(metadata_files[0].read_text(encoding="utf-8"))
     assert metadata["prompt_config_hash"] == PROMPT_CONFIG_HASH
 
+    resumed_prompts: list[str] = []
+
     def resumed_query(self, query: str, json_mode: bool = False) -> str:
-        del self, query, json_mode
+        del self, json_mode
+        resumed_prompts.append(query)
         return json.dumps(
             {"reasoning": "Second day completes after resume.", "action": "RESTRAIN"}
         )
@@ -887,6 +928,10 @@ def test_run_part_2_resumes_from_completed_days(
     assert len(rows) == 4
     assert [row["day"] for row in rows] == ["1", "1", "2", "2"]
     assert rows[-1]["reasoning"] == "Second day completes after resume."
+    assert all("cumulative private score is 1 points" in prompt for prompt in resumed_prompts)
+    assert all("cumulative group score is 5 points" in prompt for prompt in resumed_prompts)
+    assert {row["cumulative_private_payoff"] for row in rows if row["day"] == "2"} == {"2"}
+    assert {row["cumulative_group_payoff"] for row in rows if row["day"] == "2"} == {"10"}
     metadata_files = list((tmp_path / "data" / "raw" / "part_2").glob("*_meta.json"))
     assert len(metadata_files) == 1
     metadata = json.loads(metadata_files[0].read_text(encoding="utf-8"))

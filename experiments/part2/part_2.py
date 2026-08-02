@@ -15,7 +15,7 @@ from math import ceil
 from pathlib import Path
 from typing import Any, Mapping
 
-from agents.agent_2 import Agent2
+from agents.agent_2 import Agent2, OPTION_A_PRIVATE_PAYOFF
 from experiments.misc.attempt_log import (
     DurableAttemptLogger,
     attempt_log_path_for_csv,
@@ -115,11 +115,11 @@ MAX_AGENT_ATTEMPTS = 3
 MAX_RUN_ATTEMPTS = 3
 PART_2_RESULTS_DIR = Path("data") / "raw" / "part_2"
 PART_2_TIMESTAMP_FORMAT = "%Y%m%d_%H%M%S"
-PART_2_SCHEMA_VERSION = 3
+PART_2_SCHEMA_VERSION = 4
 SEED_DERIVATION_POLICY = "sha256_run_day_anonymous_slot_v1"
 ATTRITION_POLICY = "python_random_sample_living_slots_per_day_v1"
 INVALID_ACTION_POLICY = "no_reserve_action_count_separately_v1"
-INCENTIVE_POLICY = "reserve_only_no_individual_or_group_scores_v1"
+INCENTIVE_POLICY = "recorded_private_and_collective_payoffs_v2"
 DEFAULT_DIRECT_OUTPUT_TOKEN_CAP = 32
 DIRECT_GENERATION_PROTOCOL_VERSION = "part_2_direct_generation_v2"
 RESULT_HEADERS = [
@@ -132,6 +132,10 @@ RESULT_HEADERS = [
     "agent",
     "anonymous_agent_slot",
     "action",
+    "private_payoff_delta",
+    "cumulative_private_payoff",
+    "group_payoff_delta",
+    "cumulative_group_payoff",
     "reasoning",
     "invalid_reason",
     "attempt_outcome",
@@ -206,6 +210,8 @@ class DaySummary:
     resource_units: int
     resource_capacity: int
     deaths: int
+    group_payoff_delta: int
+    cumulative_group_payoff: int
 
 
 @dataclass(frozen=True)
@@ -215,6 +221,8 @@ class ResumeState:
     previous_overuse_count: int | None
     population: int
     living_slots: tuple[int, ...]
+    private_payoff_by_slot: tuple[tuple[int, int], ...]
+    cumulative_group_payoff: int
     collapse_announced: bool
     rows: list[dict[str, str]]
 
@@ -347,16 +355,37 @@ def _part_2_dynamics_metadata() -> dict[str, Any]:
         "schema_version": PART_2_SCHEMA_VERSION,
         "incentive_policy": {
             "id": INCENTIVE_POLICY,
-            "individual_score": "not_defined",
-            "group_score": "not_defined",
-            "prompt_score_language": "absent",
-            "legacy_selfish_gain_field": "stored_but_not_shown_or_applied",
-            "legacy_community_benefit_field": "stored_but_not_shown_or_applied",
+            "individual_score": {
+                "option_a_delta": OPTION_A_PRIVATE_PAYOFF,
+                "option_b_delta_field": "society_config.selfish_gain",
+                "invalid_delta": 0,
+                "recording": "per_slot_daily_delta_and_cumulative_total",
+            },
+            "group_score": {
+                "unanimous_option_a_delta_field": (
+                    "society_config.community_benefit"
+                ),
+                "unanimous_option_b_delta_field": (
+                    "negative_society_config.community_benefit"
+                ),
+                "mixed_or_invalid_delta": 0,
+                "recording": "daily_delta_and_cumulative_total",
+            },
+            "shared_reserve": {
+                "option_a_delta": 0,
+                "option_b_delta_field": (
+                    "negative_society_config.depletion_units"
+                ),
+                "invalid_delta": 0,
+            },
+            "prompt_engine_parity": "exact_v2",
         },
         "invalid_action_policy": {
             "id": INVALID_ACTION_POLICY,
             "action": "INVALID",
             "reserve_delta": 0,
+            "private_payoff_delta": 0,
+            "group_unanimity": "prevents_unanimous_delta",
             "counts_as_restrain": False,
             "counts_as_overuse": False,
             "semantic_retry": False,
@@ -899,6 +928,10 @@ def _resume_state_from_rows(
             previous_overuse_count=None,
             population=config.society_size,
             living_slots=tuple(range(1, config.society_size + 1)),
+            private_payoff_by_slot=tuple(
+                (slot, 0) for slot in range(1, config.society_size + 1)
+            ),
+            cumulative_group_payoff=0,
             collapse_announced=False,
             rows=[],
         )
@@ -914,12 +947,26 @@ def _resume_state_from_rows(
         )
     else:
         living_slots = tuple(range(1, int(last_row["population_end"]) + 1))
+    latest_private_payoff_by_slot: dict[int, int] = {}
+    for row in complete_rows:
+        if row.get("anonymous_agent_slot", "").strip():
+            latest_private_payoff_by_slot[int(row["anonymous_agent_slot"])] = int(
+                row["cumulative_private_payoff"]
+            )
+    private_payoff_by_slot = tuple(sorted(latest_private_payoff_by_slot.items()))
+    if not set(living_slots).issubset(latest_private_payoff_by_slot):
+        raise ValueError(
+            "Part 2 resume rows do not contain one cumulative private payoff "
+            "for every living anonymous slot."
+        )
     return ResumeState(
         completed_days=last_day,
         resource_units=int(last_row["resource_units_remaining"]),
         previous_overuse_count=int(last_row["overuse_count"]),
         population=int(last_row["population_end"]),
         living_slots=living_slots,
+        private_payoff_by_slot=private_payoff_by_slot,
+        cumulative_group_payoff=int(last_row["cumulative_group_payoff"]),
         collapse_announced=any(
             int(row["resource_units_remaining"]) == 0 for row in complete_rows
         ),
@@ -971,6 +1018,48 @@ def _initial_resource_units(config: SocietyConfig) -> int:
         config.society_size * baseline_units * RESOURCE_RESERVE_MULTIPLIER,
         config.society_size,
     )
+
+
+def _validate_incentive_config(config: SocietyConfig) -> None:
+    if config.selfish_gain <= OPTION_A_PRIVATE_PAYOFF:
+        raise ValueError(
+            "selfish_gain must exceed OPTION_A's private payoff so OPTION_B "
+            "has a real individual incentive."
+        )
+    if config.depletion_units <= 0:
+        raise ValueError("depletion_units must be positive.")
+    if config.community_benefit <= 0:
+        raise ValueError("community_benefit must be positive.")
+
+
+def _private_payoff_delta(action: str, config: SocietyConfig) -> int:
+    normalized = _normalize_action(action)
+    if normalized == "RESTRAIN":
+        return OPTION_A_PRIVATE_PAYOFF
+    if normalized == "OVERUSE":
+        return config.selfish_gain
+    if normalized == "INVALID":
+        return 0
+    raise AssertionError(f"Unhandled Part 2 action: {normalized}")
+
+
+def _group_payoff_delta(
+    *,
+    population_start: int,
+    restrain_count: int,
+    overuse_count: int,
+    invalid_count: int,
+    community_benefit: int,
+) -> int:
+    if restrain_count + overuse_count + invalid_count != population_start:
+        raise ValueError("Part 2 daily outcome counts do not partition the population.")
+    if population_start <= 0 or invalid_count:
+        return 0
+    if restrain_count == population_start:
+        return community_benefit
+    if overuse_count == population_start:
+        return -community_benefit
+    return 0
 
 
 def _normalize_action(raw_action: str) -> str:
@@ -1085,7 +1174,8 @@ def _render_headless_day_complete(
         f"done pop={summary.population_end} restrain={summary.restrain_count} "
         f"overuse={summary.overuse_count} invalid={summary.invalid_count} "
         f"reserve={summary.resource_units}/"
-        f"{summary.resource_capacity} deaths={summary.deaths}",
+        f"{summary.resource_capacity} group_score={summary.cumulative_group_payoff} "
+        f"deaths={summary.deaths}",
         finalize=True,
     )
 
@@ -1644,6 +1734,7 @@ def _render_day_summary(summary: DaySummary) -> None:
     table.add_column("Overuse", justify="center")
     table.add_column("Invalid", justify="center")
     table.add_column("Reserve", justify="center")
+    table.add_column("Group score", justify="center")
     table.add_column("Deaths", justify="center")
     table.add_column("End Pop.", justify="center")
     table.add_row(
@@ -1652,6 +1743,7 @@ def _render_day_summary(summary: DaySummary) -> None:
         f"[red]{summary.overuse_count}[/red]",
         f"[yellow]{summary.invalid_count}[/yellow]",
         f"{summary.resource_units}/{summary.resource_capacity}",
+        f"{summary.cumulative_group_payoff} ({summary.group_payoff_delta:+d})",
         f"[red]{summary.deaths}[/red]" if summary.deaths else "0",
         str(summary.population_end),
     )
@@ -1705,6 +1797,7 @@ def _render_resume_panel(
     population: int,
     resource_units: int,
     resource_capacity: int,
+    cumulative_group_payoff: int,
 ) -> None:
     total_days = (
         "until population dies out"
@@ -1723,7 +1816,8 @@ def _render_resume_panel(
             f"[bold]Completed days:[/bold] {completed_days} / {total_days}\n"
             f"[bold]Remaining days:[/bold] {remaining_days}\n"
             f"[bold]Current population:[/bold] {population}\n"
-            f"[bold]Reserve:[/bold] {resource_units}/{resource_capacity}",
+            f"[bold]Reserve:[/bold] {resource_units}/{resource_capacity}\n"
+            f"[bold]Group score:[/bold] {cumulative_group_payoff}",
             title="[bold cyan]Resuming Part 2 Run[/bold cyan]",
             border_style="cyan",
             expand=True,
@@ -2026,6 +2120,7 @@ def run_part_2(
             depletion_units=depletion_units,
             community_benefit=community_benefit,
         )
+        _validate_incentive_config(society_config)
         if resource_capacity is not None and resource_capacity <= 0:
             raise ValueError("resource_capacity must be greater than 0.")
         if collapse_death_rate is None:
@@ -2067,6 +2162,7 @@ def run_part_2(
         )
         run_id = _new_run_id()
 
+    _validate_incentive_config(society_config)
     assert collapse_death_rate is not None
     assert generation_seed is not None
     assert environment_seed is not None
@@ -2146,6 +2242,8 @@ def run_part_2(
     completed_days = resume_state.completed_days
     resource_units = resume_state.resource_units
     previous_overuse_count = resume_state.previous_overuse_count
+    private_payoff_by_slot = dict(resume_state.private_payoff_by_slot)
+    cumulative_group_payoff = resume_state.cumulative_group_payoff
     collapse_announced = resume_state.collapse_announced
     keep_alive = MODEL_BATCH_KEEP_ALIVE if provider.strip().lower() == "ollama" else None
     agents = _build_agents(
@@ -2195,6 +2293,7 @@ def run_part_2(
             population=len(agents),
             resource_units=resource_units,
             resource_capacity=resource_capacity,
+            cumulative_group_payoff=cumulative_group_payoff,
         )
 
     if not agents or (
@@ -2236,7 +2335,9 @@ def run_part_2(
                 f"Resource: {society_config.resource}\n"
                 f"Reserve: {resource_units} sustainability units\n"
                 f"OPTION_B depletion: {society_config.depletion_units} units\n"
-                "Scores: none (reserve-only dynamics)",
+                f"OPTION_A private payoff: {OPTION_A_PRIVATE_PAYOFF} point\n"
+                f"OPTION_B private payoff: {society_config.selfish_gain} points\n"
+                f"Unanimous group payoff: +/-{society_config.community_benefit} points",
                 box=box.DOUBLE,
                 border_style="white",
                 expand=True,
@@ -2286,6 +2387,10 @@ def run_part_2(
                         resource_units=resource_units,
                         resource_capacity=resource_capacity,
                         previous_overuse_count=previous_overuse_count,
+                        cumulative_private_payoff=private_payoff_by_slot[
+                            anonymous_slot
+                        ],
+                        cumulative_group_payoff=cumulative_group_payoff,
                     )
                     unit_id = f"{day}__{agent_row_id}"
                     replay = pending_terminal_attempts.pop(unit_id, None)
@@ -2342,6 +2447,24 @@ def run_part_2(
                 )
                 if restrain_count + overuse_count + invalid_count != population_start:
                     raise RuntimeError("Part 2 daily outcome counts do not partition the population.")
+                group_payoff_delta = _group_payoff_delta(
+                    population_start=population_start,
+                    restrain_count=restrain_count,
+                    overuse_count=overuse_count,
+                    invalid_count=invalid_count,
+                    community_benefit=society_config.community_benefit,
+                )
+                cumulative_group_payoff += group_payoff_delta
+                for decision in daily_decisions:
+                    slot = int(decision["anonymous_agent_slot"])
+                    private_delta = _private_payoff_delta(
+                        str(decision["action"]), society_config
+                    )
+                    private_payoff_by_slot[slot] += private_delta
+                    decision["private_payoff_delta"] = private_delta
+                    decision["cumulative_private_payoff"] = (
+                        private_payoff_by_slot[slot]
+                    )
                 resource_units = max(
                     0,
                     resource_units - (overuse_count * society_config.depletion_units),
@@ -2386,6 +2509,8 @@ def run_part_2(
                     resource_units=resource_units,
                     resource_capacity=resource_capacity,
                     deaths=deaths,
+                    group_payoff_delta=group_payoff_delta,
+                    cumulative_group_payoff=cumulative_group_payoff,
                 )
                 if headless:
                     _render_headless_day_complete(
@@ -2419,6 +2544,8 @@ def run_part_2(
                             **decision,
                             "environment_seed": environment_seed,
                             "generation_seed": generation_seed,
+                            "group_payoff_delta": group_payoff_delta,
+                            "cumulative_group_payoff": cumulative_group_payoff,
                             "population_start": population_start,
                             "population_end": population_end,
                             "restrain_count": restrain_count,
@@ -2432,8 +2559,8 @@ def run_part_2(
                             "attrition_seed": attrition_seed if attrition_seed is not None else "",
                             "death_selected_slots_json": selected_slots_json,
                             "resource": society_config.resource,
-                            # Deprecated pilot-compatibility fields. These values are
-                            # never shown to the model and have no state-transition role.
+                            # These values define the visible and executed incentive
+                            # contract for this trajectory.
                             "selfish_gain": society_config.selfish_gain,
                             "depletion_units": society_config.depletion_units,
                             "community_benefit": society_config.community_benefit,
@@ -2543,6 +2670,10 @@ def run_part_2(
                 "completed_days": completed_days,
                 "final_population": len(agents),
                 "final_resource_units": resource_units,
+                "final_cumulative_group_payoff": cumulative_group_payoff,
+                "final_total_private_payoff": sum(
+                    private_payoff_by_slot.values()
+                ),
                 "stop_reason": stop_reason,
                 **_attempt_log_metadata(
                     attempt_logger,
