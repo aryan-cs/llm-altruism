@@ -8,11 +8,12 @@ import shutil
 import time
 import uuid
 from collections import defaultdict
+from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime
 from math import ceil
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 from agents.agent_2 import Agent2
 from experiments.misc.attempt_log import (
@@ -1257,6 +1258,88 @@ def validate_direct_attempt_provenance(
                 raise ValueError(f"Direct Part 2 parsed action mismatch for {unit_id}.")
 
 
+def _pending_terminal_attempts(
+    attempt_path: str | Path,
+    *,
+    completed_rows: list[dict[str, str]],
+    next_day: int,
+    living_agent_ids: list[str],
+) -> dict[str, dict[str, Any]]:
+    """Return the durable prefix of a partially completed day for replay."""
+
+    terminal = [
+        record
+        for record in iter_attempt_records(attempt_path)
+        if record.get("will_retry") is False
+        and record.get("outcome") in {"success", "invalid_response"}
+    ]
+    counts = Counter(str(record["unit_id"]) for record in terminal)
+    if any(count != 1 for count in counts.values()):
+        raise ValueError("Part 2 attempt log repeats a terminal semantic unit.")
+    by_id = {str(record["unit_id"]): record for record in terminal}
+    completed_ids = {f"{row['day']}__{row['agent']}" for row in completed_rows}
+    missing = completed_ids - set(by_id)
+    if missing:
+        raise ValueError("Part 2 completed rows are missing terminal attempts.")
+    pending = {key: value for key, value in by_id.items() if key not in completed_ids}
+    ordered_pending_ids: list[str] = []
+    for record in terminal:
+        unit_id = str(record["unit_id"])
+        if unit_id not in pending:
+            continue
+        unit = record.get("unit")
+        if not isinstance(unit, dict) or unit.get("day") != next_day:
+            raise ValueError("Part 2 orphan terminal attempt is outside the next day.")
+        ordered_pending_ids.append(str(unit.get("agent")))
+    expected_prefix = living_agent_ids[: len(ordered_pending_ids)]
+    if ordered_pending_ids != expected_prefix:
+        raise ValueError("Part 2 orphan attempts are not a contiguous living-agent prefix.")
+    return pending
+
+
+def _decision_from_terminal_attempt(
+    agent: Agent2, record: Mapping[str, Any]
+) -> DecisionResult:
+    unit = record.get("unit")
+    if not isinstance(unit, Mapping) or not isinstance(unit.get("call_seed"), int):
+        raise ValueError("Part 2 replay attempt lacks its exact call seed.")
+    generation = record.get("generation_record")
+    outcome = str(record.get("outcome"))
+    if outcome == "success":
+        parsed = record.get("parsed_response")
+        if not isinstance(parsed, Mapping):
+            raise ValueError("Part 2 successful replay attempt lacks parsed response.")
+        action = _normalize_action(str(parsed.get("action")))
+        reasoning = str(parsed.get("reasoning") or "").strip()
+        if not reasoning:
+            raise ValueError("Part 2 successful replay attempt lacks reasoning.")
+        invalid_reason = ""
+    else:
+        error = record.get("error")
+        action = "INVALID"
+        reasoning = ""
+        invalid_reason = (
+            f"{error.get('exception_type')}: {error.get('message')}"
+            if isinstance(error, Mapping)
+            else "invalid_response"
+        )
+    return _decision_result(
+        agent=agent,
+        action=action,
+        reasoning=reasoning,
+        invalid_reason=invalid_reason,
+        attempt_outcome=outcome,
+        attempt_count=int(record.get("attempt") or 1),
+        call_seed=int(unit["call_seed"]),
+        raw_response=(
+            str(record["raw_response"])
+            if record.get("raw_response") is not None
+            else None
+        ),
+        generation_record=(generation if isinstance(generation, dict) else None),
+    )
+
+
 def _decision_result(
     *,
     agent: Agent2,
@@ -1343,16 +1426,25 @@ def _query_agent_until_valid(
         attempt += 1
         try:
             generation_record = None
-            if extraction_config is None:
-                raw = agent.query(prompt, json_mode=True)
-                generation_record = _direct_generation_record(raw)
-            else:
-                raw, generated = agent.query_for_grading(
-                    prompt,
-                    extraction_config=extraction_config,
-                    extraction_kind="part_2_commons_decision",
+            try:
+                if extraction_config is None:
+                    raw = agent.query(prompt, json_mode=True)
+                    generation_record = _direct_generation_record(raw)
+                else:
+                    raw, generated = agent.query_for_grading(
+                        prompt,
+                        extraction_config=extraction_config,
+                        extraction_kind="part_2_commons_decision",
+                    )
+                    generation_record = generated.to_dict()
+            finally:
+                from experiments.confirmatory_budget import (
+                    consume_environment_reservation,
                 )
-                generation_record = generated.to_dict()
+
+                dispatch_hash = consume_environment_reservation()
+                if dispatch_hash is not None:
+                    resolved_unit["dispatch_request_sha256"] = dispatch_hash
         except KeyboardInterrupt as error:
             if attempt_logger is not None:
                 attempt_logger.append(
@@ -1995,13 +2087,6 @@ def run_part_2(
             attempt_log_metadata,
             require_hash_chain=True,
         )
-        validate_terminal_attempt_coverage(
-            attempt_path,
-            {
-                f"{row['day']}__{row['agent']}"
-                for row in completed_rows
-            },
-        )
     attempt_logger = DurableAttemptLogger(attempt_path, experiment="part_2")
 
     run_experiment_preflight(
@@ -2073,6 +2158,16 @@ def run_part_2(
             )
         ),
         keep_alive=keep_alive,
+    )
+    pending_terminal_attempts = (
+        _pending_terminal_attempts(
+            attempt_path,
+            completed_rows=completed_rows,
+            next_day=completed_days + 1,
+            living_agent_ids=[_agent_row_id(agent) for agent in agents],
+        )
+        if is_resuming and (extraction_config is not None or strict_generation)
+        else {}
     )
     stop_reason = ""
     interrupted = False
@@ -2185,22 +2280,28 @@ def run_part_2(
                         resource_capacity=resource_capacity,
                         previous_overuse_count=previous_overuse_count,
                     )
-                    decision_result = _query_agent_until_valid(
-                        agent,
-                        prompt,
-                        attempt_logger=attempt_logger,
-                        unit={
-                            "day": day,
-                            "agent": agent_row_id,
-                            "anonymous_agent_slot": anonymous_slot,
-                            "agent_index": agent_index,
-                            "population_start": population_start,
-                            "run_id": run_id,
-                            "trajectory_id": trajectory_id,
-                            "structural_cell_id": structural_cell_id,
-                        },
-                        extraction_config=extraction_config,
-                        call_seed=call_seed,
+                    unit_id = f"{day}__{agent_row_id}"
+                    replay = pending_terminal_attempts.pop(unit_id, None)
+                    decision_result = (
+                        _decision_from_terminal_attempt(agent, replay)
+                        if replay is not None
+                        else _query_agent_until_valid(
+                            agent,
+                            prompt,
+                            attempt_logger=attempt_logger,
+                            unit={
+                                "day": day,
+                                "agent": agent_row_id,
+                                "anonymous_agent_slot": anonymous_slot,
+                                "agent_index": agent_index,
+                                "population_start": population_start,
+                                "run_id": run_id,
+                                "trajectory_id": trajectory_id,
+                                "structural_cell_id": structural_cell_id,
+                            },
+                            extraction_config=extraction_config,
+                            call_seed=call_seed,
+                        )
                     )
                     if not headless:
                         _emit_retry_status_line("")

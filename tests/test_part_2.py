@@ -645,6 +645,84 @@ def test_direct_confirmatory_attempt_provenance_binds_exact_route(
     assert metadata["resume_contract"]["generation_protocol"] == metadata["generation_protocol"]
 
 
+def test_direct_resume_replays_paid_partial_day_prefix_without_new_call(
+    monkeypatch, tmp_path: Path
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        "experiments.part2.part_2.run_experiment_preflight",
+        lambda *args, **kwargs: None,
+    )
+    route = "vendor/exact-model"
+    calls = {"initial": 0, "resume": 0}
+
+    def response(request_id: str) -> ProviderText:
+        content = '{"action":"OPTION_A","reasoning":"Preserve reserve."}'
+        return ProviderText(
+            content,
+            ProviderResponse(
+                provider="inference_hub",
+                model=route,
+                content=content,
+                reasoning="",
+                raw_response={"id": request_id, "model": route},
+                finish_reason="stop",
+                truncated=False,
+                usage={"input_tokens": 10, "output_tokens": 6},
+                request_id=request_id,
+                requested_model=route,
+                response_model=route,
+                model_identity_match=True,
+            ),
+        )
+
+    def interrupted(self, prompt: str, json_mode: bool = False) -> str:
+        del self, prompt, json_mode
+        calls["initial"] += 1
+        if calls["initial"] == 1:
+            return response("req-paid-prefix")
+        raise KeyboardInterrupt()
+
+    monkeypatch.setattr("experiments.part2.part_2.Agent2.query", interrupted)
+    csv_path = Path(
+        run_part_2(
+            provider="inference_hub",
+            model=route,
+            society_size=2,
+            days=1,
+            resource="water",
+            selfish_gain=2,
+            depletion_units=2,
+            community_benefit=5,
+            generation_seed=3,
+            environment_seed=5,
+            headless=True,
+        )
+    )
+    assert part_2._load_part_2_rows(csv_path) == []
+
+    def resumed(self, prompt: str, json_mode: bool = False) -> str:
+        del self, prompt, json_mode
+        calls["resume"] += 1
+        return response("req-second-agent")
+
+    monkeypatch.setattr("experiments.part2.part_2.Agent2.query", resumed)
+    resumed_path = Path(
+        run_part_2(
+            resume_metadata_path=part_2._metadata_path_for_csv(csv_path),
+            headless=True,
+        )
+    )
+    assert resumed_path == csv_path
+    assert calls == {"initial": 2, "resume": 1}
+    rows = part_2._load_part_2_rows(csv_path)
+    assert len(rows) == 2
+    assert {row["request_id"] for row in rows} == {
+        "req-paid-prefix",
+        "req-second-agent",
+    }
+
+
 def test_strict_extraction_uses_subject_provider_raw_hash_not_extractor_json_hash() -> None:
     subject_raw_hash = "a" * 64
     result = part_2._decision_result(

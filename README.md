@@ -8,7 +8,11 @@ The project started under the working name `llm-altruism`, but the benchmark doe
 - **Part 1: Focal dilemma choices.** Models produce self-directed choices, advice, observer judgments, and predictions in hypothetical one-shot dilemmas.
 - **Part 2: Commons restraint.** Homogeneous same-model populations repeatedly choose whether to restrain or overuse a shared resource, producing resource and population trajectories in a controlled microworld.
 
-The paper-facing claim is that the profile is non-redundant but partially coupled. Refusal and commons restraint are positively associated in the pilot, while role-conditioned responses and model-level discordances show that refusal alone cannot substitute for the other probes. The codebase makes these claims auditable from raw traces, metadata sidecars, validation reports, summary tables, figures, and a packaged supplement.
+The April pilot supports descriptive Part 1 choice and Part 2 commons results.
+Its legacy Part 0 labels are invalid for model-level refusal claims because the
+old labeler could inspect rationale and default failed adjudications to denial.
+The paper therefore withdraws all Part 0 rates and refusal-based cross-part
+claims pending complete response-only rejudgment and a human criterion audit.
 
 ## What Is In This Repository
 
@@ -145,10 +149,8 @@ The main derived tables are written under:
 data/analysis/tables/
 ```
 
-Important table outputs include:
+Important supported table outputs include:
 
-- `part0_model_summary.csv`
-- `part0_language_robustness.csv`
 - `part1_model_summary.csv`
 - `part1_dimension_summary.csv`
 - `part1_frame_effects.csv`
@@ -156,8 +158,11 @@ Important table outputs include:
 - `part1_factor_decomposition.csv`
 - `part2_model_summary.csv`
 - `part2_run_summary.csv`
-- `cross_part_model_summary.csv`
-- `cross_part_correlations.csv`
+
+The generator retains deprecated Part 0 and dependent cross-part tables in the
+working tree for forensic replay. Every row is marked invalid/deprecated, and
+those tables and their dependent plots are excluded from Croissant metadata and
+the anonymous supplement.
 
 The legacy campaign remains available for reproducing pilot workflows:
 
@@ -171,8 +176,8 @@ uv run python -m experiments.campaign \
 New paper-facing collection must use the isolated confirmatory campaign in
 `experiments.confirmatory_campaign`, not the legacy runner. It requires a
 fresh, complete route-evidence bundle, human-approved Part 0 and Part 1 inputs,
-same-target full-path smokes, exact native artifact verification, and the
-two-stage Part 2 variance/baseline chain. See
+same-target full-path smokes, exact native artifact verification, and the fixed
+24-trajectory Part 2 panel. See
 `docs/CONFIRMATORY_CAMPAIGN.md` and `docs/CONFIRMATORY_PROTOCOL.md` for the
 complete commands and gates. A confirmatory dry run validates all inputs and
 prints the exact job matrix without writing files or calling a provider.
@@ -202,13 +207,16 @@ uv run python -m experiments.misc.inference_hub_discovery verify-cohorts \
   --cohort current_sota \
   --cohort historical \
   --catalog-output data/private/inference_hub/catalog.json \
+  --attempt-ledger data/private/inference_hub/discovery-attempt-ledger.json \
   --output data/private/inference_hub/cohort-evidence.json
 ```
 
-This captures both authenticated catalog APIs and runs a structured, seeded,
-identity-checked completion against every exact route. It writes the cohort
-evidence bundle only after all routes pass; the bundle contains hashes and
-request IDs, not generated content or credentials. Because the checked-in
+This captures both authenticated catalog APIs, inventories every returned
+catalog route with an explicit include/exclude decision, and runs a structured,
+seeded, identity-checked completion against every exact frozen route. It writes
+each pre-dispatch reservation to the discovery ledger, including failed calls,
+and marks the evidence complete only after all selected routes pass. The bundle
+contains hashes and request IDs, not generated content or credentials. Because the checked-in
 routes are currently display-only placeholders, review the authenticated
 catalog and replace them with exact callable IDs before expecting this gate to
 pass.
@@ -264,7 +272,10 @@ pdflatex -interaction=nonstopmode conference_submission.tex
 pdflatex -interaction=nonstopmode conference_submission.tex
 ```
 
-The LaTeX source intentionally uses local paths like `figures/part0_refusal_rate_by_model.png` so the conference submission directory is self-contained. If you regenerate plots under `data/graphs/`, run `uv run python -m analysis.sync_conference_figures` from the repository root before compiling the paper.
+The LaTeX source intentionally uses local paths under `figures/` so the
+conference submission directory is self-contained. If you regenerate plots
+under `data/graphs/`, run `uv run python -m analysis.sync_conference_figures`
+from the repository root before compiling the paper.
 
 ## Validation Philosophy
 

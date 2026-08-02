@@ -1204,7 +1204,7 @@ def _build_trial(
         generation_settings=GenerationSettings(
             temperature=0.2,
             top_p=1.0,
-            max_output_tokens=96,
+            max_output_tokens=32,
             hidden_reasoning=False,
             generation_seed=_generation_seed(base_seed, trial_key),
             seed_base=base_seed,
@@ -1462,7 +1462,7 @@ def _validate_trial_integrity(
         if (
             settings.temperature != 0.2
             or settings.top_p != 1.0
-            or settings.max_output_tokens != 96
+            or settings.max_output_tokens != 32
             or settings.hidden_reasoning
             or settings.seed_derivation != "sha256-v1"
         ):

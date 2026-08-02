@@ -375,7 +375,9 @@ def load_production_bank(
     return LoadedScenarioBank(bank_path.resolve(), actual, roots, payload)
 
 
-def freeze_verified_route(provider: str, model: str) -> FrozenRoute:
+def _resolve_verified_route(
+    provider: str, model: str, *, require_fresh_evidence: bool
+) -> FrozenRoute:
     entry = resolve_model_registry_entry(provider, model)
     if not isinstance(entry, dict):
         raise RouteIdentityError(f"Route is absent from registry: {provider}/{model}.")
@@ -383,12 +385,13 @@ def freeze_verified_route(provider: str, model: str) -> FrozenRoute:
         entry.get("verification_evidence"), Mapping
     ):
         raise RouteIdentityError(f"Route is not verified: {provider}/{model}.")
-    try:
-        require_fresh_route_verification(entry)
-    except ValueError as error:
-        raise RouteIdentityError(
-            f"Route verification is not production-current: {provider}/{model}."
-        ) from error
+    if require_fresh_evidence:
+        try:
+            require_fresh_route_verification(entry)
+        except ValueError as error:
+            raise RouteIdentityError(
+                f"Route verification is not production-current: {provider}/{model}."
+            ) from error
     route = FrozenRoute(
         provider=str(entry["provider"]),
         route=str(entry["route"]),
@@ -398,6 +401,10 @@ def freeze_verified_route(provider: str, model: str) -> FrozenRoute:
     )
     validate_frozen_route(route)
     return route
+
+
+def freeze_verified_route(provider: str, model: str) -> FrozenRoute:
+    return _resolve_verified_route(provider, model, require_fresh_evidence=True)
 
 
 def validate_frozen_route(route: FrozenRoute) -> None:
@@ -686,15 +693,17 @@ def freeze_execution_plan(
     subject_route: FrozenRoute,
     primary_seed: int = DEFAULT_PRIMARY_SEED,
     completed_smoke_directory: str | Path,
+    require_fresh_evidence: bool = True,
 ) -> dict[str, Any]:
     """Freeze the complete analysis-eligible Part 1 production plan."""
 
-    try:
-        require_fresh_route_verification(subject_route.identity)
-    except ValueError as error:
-        raise RouteIdentityError(
-            "A new Part 1 production freeze requires fresh route evidence."
-        ) from error
+    if require_fresh_evidence:
+        try:
+            require_fresh_route_verification(subject_route.identity)
+        except ValueError as error:
+            raise RouteIdentityError(
+                "A new Part 1 production freeze requires fresh route evidence."
+            ) from error
     smoke_gate = validate_completed_smoke_directory(
         loaded_bank,
         subject_route=subject_route,
@@ -715,15 +724,17 @@ def freeze_sacrificial_smoke_plan(
     *,
     subject_route: FrozenRoute,
     primary_seed: int = DEFAULT_PRIMARY_SEED,
+    require_fresh_evidence: bool = True,
 ) -> dict[str, Any]:
     """Freeze a balanced full-path plan that can never be production data."""
 
-    try:
-        require_fresh_route_verification(subject_route.identity)
-    except ValueError as error:
-        raise RouteIdentityError(
-            "A new Part 1 smoke freeze requires fresh route evidence."
-        ) from error
+    if require_fresh_evidence:
+        try:
+            require_fresh_route_verification(subject_route.identity)
+        except ValueError as error:
+            raise RouteIdentityError(
+                "A new Part 1 smoke freeze requires fresh route evidence."
+            ) from error
     return _freeze_execution_plan(
         loaded_bank,
         subject_route=subject_route,
@@ -910,7 +921,7 @@ def _transport_retryable(
             provenance.get("category") in {"gateway", "transport"}
             or (
                 isinstance(status_code, int)
-                and (status_code in {408, 409, 425, 429} or status_code >= 500)
+                and (status_code in {408, 429} or status_code >= 500)
             )
         )
     )
@@ -969,19 +980,28 @@ def _call_stage(
     redacted_prompt = f"[REDACTED {stage} request sha256={request_sha256}]"
     for attempt in range(1, MAX_TRANSPORT_ATTEMPTS + 1):
         try:
-            response = detailed_call(
-                route.provider,
-                route.route,
-                system_prompt,
-                query,
-                json_mode=json_mode,
-                json_schema=None,
-                temperature=temperature,
-                top_p=top_p,
-                max_tokens=max_tokens,
-                seed=seed,
-                reasoning_effort=None,
-            )
+            try:
+                response = detailed_call(
+                    route.provider,
+                    route.route,
+                    system_prompt,
+                    query,
+                    json_mode=json_mode,
+                    json_schema=None,
+                    temperature=temperature,
+                    top_p=top_p,
+                    max_tokens=max_tokens,
+                    seed=seed,
+                    reasoning_effort=None,
+                )
+            finally:
+                from experiments.confirmatory_budget import (
+                    consume_environment_reservation,
+                )
+
+                dispatch_hash = consume_environment_reservation()
+                if dispatch_hash is not None:
+                    unit["dispatch_request_sha256"] = dispatch_hash
             audit = _response_audit(response, route)
         except KeyboardInterrupt:
             _append_private_attempt(
@@ -1818,6 +1838,14 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--output-directory", required=True)
     parser.add_argument("--primary-seed", type=int, default=DEFAULT_PRIMARY_SEED)
     parser.add_argument("--resume", action="store_true")
+    parser.add_argument(
+        "--allow-frozen-campaign-route",
+        action="store_true",
+        help=(
+            "Use exact verified route evidence already hash-pinned by an immutable "
+            "campaign manifest even after its wall-clock freshness window expires."
+        ),
+    )
     return parser
 
 
@@ -1900,19 +1928,37 @@ def main(argv: Sequence[str] | None = None) -> int:
             completed_smoke_directory=args.completed_smoke_directory,
         )
     elif args.mode == "production":
-        subject_route = freeze_verified_route(args.subject_provider, args.subject_model)
+        subject_route = (
+            _resolve_verified_route(
+                args.subject_provider,
+                args.subject_model,
+                require_fresh_evidence=False,
+            )
+            if args.allow_frozen_campaign_route
+            else freeze_verified_route(args.subject_provider, args.subject_model)
+        )
         plan = freeze_execution_plan(
             loaded,
             subject_route=subject_route,
             primary_seed=args.primary_seed,
             completed_smoke_directory=args.completed_smoke_directory,
+            require_fresh_evidence=not args.allow_frozen_campaign_route,
         )
     else:
-        subject_route = freeze_verified_route(args.subject_provider, args.subject_model)
+        subject_route = (
+            _resolve_verified_route(
+                args.subject_provider,
+                args.subject_model,
+                require_fresh_evidence=False,
+            )
+            if args.allow_frozen_campaign_route
+            else freeze_verified_route(args.subject_provider, args.subject_model)
+        )
         plan = freeze_sacrificial_smoke_plan(
             loaded,
             subject_route=subject_route,
             primary_seed=args.primary_seed,
+            require_fresh_evidence=not args.allow_frozen_campaign_route,
         )
     results = run_frozen_plan(
         plan=plan,

@@ -115,7 +115,9 @@ def _install_cohorts(
     return [target for name in ("current_sota", "historical") for target in cohorts[name]]
 
 
-def _evidence(targets: list[dict[str, Any]]) -> dict[str, Any]:
+def _evidence(
+    targets: list[dict[str, Any]], discovery_ledger_path: Path
+) -> dict[str, Any]:
     split = min(24, max(1, len(targets) - 1))
     cohort_rows = [
         {
@@ -129,17 +131,13 @@ def _evidence(targets: list[dict[str, Any]]) -> dict[str, Any]:
             "target_ids": [target["id"] for target in targets[split:]],
         },
     ]
-    payload: dict[str, Any] = {
-        "schema_version": 1,
-        "verified_at_utc": "2026-08-02T00:00:00+00:00",
-        "endpoint": "https://inference-api.nvidia.com/v1",
-        "registry_version": "fixture-registry-v1",
-        "registry_hash": _sha("fixture-registry"),
-        "routing_roster_sha256": _sha("fixture-routing-roster"),
-        "catalog_source_payload_sha256": _sha("catalog"),
-        "cohorts": cohort_rows,
-        "target_count": len(targets),
-        "targets": [
+    target_records = []
+    discovery_records = []
+    census = []
+    for index, target in enumerate(targets):
+        request_sha256 = _sha(f"request-{target['route']}")
+        request_id = target["verification_evidence"]["smoke_test"]["request_id"]
+        target_records.append(
             {
                 "target_id": target["id"],
                 "upstream_provider": target["upstream_provider"],
@@ -153,10 +151,62 @@ def _evidence(targets: list[dict[str, Any]]) -> dict[str, Any]:
                     "verification_evidence": deepcopy(
                         target["verification_evidence"]
                     ),
+                    "request": {"request_sha256": request_sha256},
                 },
             }
-            for target in targets
-        ],
+        )
+        discovery_records.append(
+            {
+                "attempt_id": f"discovery-{index}",
+                "target_id": target["id"],
+                "route": target["route"],
+                "reserved_at_utc": "2026-08-02T00:00:00Z",
+                "request_sha256": request_sha256,
+                "input_tokens": 1,
+                "output_tokens": 16,
+                "outcome": "verified",
+                "failure_code": None,
+                "request_id": request_id,
+            }
+        )
+        census.append(
+            {
+                "route": target["route"],
+                "decision": "included_frozen_panel",
+                "target_id": target["id"],
+            }
+        )
+    discovery_ledger: dict[str, Any] = {
+        "schema_version": 1,
+        "artifact_type": "inference_hub_discovery_attempt_ledger",
+        "records": discovery_records,
+    }
+    discovery_ledger["ledger_sha256"] = campaign.stable_json_hash(discovery_ledger)
+    discovery_ledger_path.write_text(
+        json.dumps(discovery_ledger, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    payload: dict[str, Any] = {
+        "schema_version": 2,
+        "status": "verified",
+        "verified_at_utc": "2026-08-02T00:00:00+00:00",
+        "endpoint": "https://inference-api.nvidia.com/v1",
+        "registry_version": "fixture-registry-v1",
+        "registry_hash": _sha("fixture-registry"),
+        "routing_roster_sha256": _sha("fixture-routing-roster"),
+        "catalog_source_payload_sha256": _sha("catalog"),
+        "cohorts": cohort_rows,
+        "target_count": len(targets),
+        "verified_target_count": len(targets),
+        "targets": target_records,
+        "rejected_targets": [],
+        "catalog_census": census,
+        "catalog_census_sha256": campaign.stable_json_hash(census),
+        "discovery_attempt_ledger": {
+            "path": str(discovery_ledger_path.resolve()),
+            "sha256": hashlib.sha256(discovery_ledger_path.read_bytes()).hexdigest(),
+            "ledger_sha256": discovery_ledger["ledger_sha256"],
+            "record_count": len(discovery_records),
+        },
     }
     payload["bundle_sha256"] = campaign.stable_json_hash(payload)
     return payload
@@ -189,7 +239,6 @@ def _args(
         campaign_id="fixture-campaign",
         cohort=None,
         target_id=None,
-        extractor_target_id="target-00",
         judge_target_id="target-01",
         part0_registry=str(p0),
         part0_registry_sha256=hashlib.sha256(p0.read_bytes()).hexdigest(),
@@ -217,7 +266,9 @@ def _args(
 def planned_fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     targets = _install_cohorts(monkeypatch, _targets())
     evidence_path = tmp_path / "endpoint-evidence.json"
-    evidence_hash = _write_json(evidence_path, _evidence(targets))
+    evidence_hash = _write_json(
+        evidence_path, _evidence(targets, tmp_path / "discovery-ledger.json")
+    )
     monkeypatch.setattr(campaign.part0_runner, "load_production_registry", lambda *a, **k: object())
     monkeypatch.setattr(campaign.part1_runner, "load_production_bank", lambda *a, **k: object())
     freeze = {
@@ -380,6 +431,20 @@ def test_fixed_budgeted_stage_has_exact_common_24_run_panel(
         ("production", "part1"): 30,
         ("part2_fixed_production", "part2"): 720,
     }
+    assert manifest["roles"] == {
+        "judge_target_id": "target-01",
+        "judge_route": "vendor/model-01",
+    }
+    assert all(
+        "--extractor-provider" not in job["argv_fresh"]
+        and "--extractor-model" not in job["argv_fresh"]
+        for job in manifest["jobs"]
+    )
+    assert all(
+        "--allow-frozen-campaign-route" in job["argv_fresh"]
+        for job in manifest["jobs"]
+        if job["experiment"] in {"part0", "part1"}
+    )
 
 
 def test_hash_bound_target_shard_keeps_full_union_attestation(
@@ -410,7 +475,9 @@ def test_duplicate_target_route_and_unverified_routes_fail_before_planning(
     targets[25]["route"] = targets[0]["route"]
     _install_cohorts(monkeypatch, targets)
     evidence_path = tmp_path / "evidence.json"
-    evidence_hash = _write_json(evidence_path, _evidence(targets))
+    evidence_hash = _write_json(
+        evidence_path, _evidence(targets, tmp_path / "discovery-ledger.json")
+    )
     args = _args(tmp_path, evidence_path, evidence_hash)
     with pytest.raises(ConfirmatoryCampaignError, match="duplicated"):
         build_plan(args)
@@ -418,7 +485,9 @@ def test_duplicate_target_route_and_unverified_routes_fail_before_planning(
     targets = _targets()
     targets[0]["verification_status"] = "unverified"
     _install_cohorts(monkeypatch, targets)
-    evidence_hash = _write_json(evidence_path, _evidence(targets))
+    evidence_hash = _write_json(
+        evidence_path, _evidence(targets, tmp_path / "discovery-ledger.json")
+    )
     args = _args(tmp_path, evidence_path, evidence_hash)
     with pytest.raises(ConfirmatoryCampaignError, match="not verified"):
         build_plan(args)
@@ -436,7 +505,9 @@ def test_stale_route_attestation_fails_before_input_loaders_or_manifest(
         lambda entry: (_ for _ in ()).throw(ValueError("stale route evidence")),
     )
     evidence_path = tmp_path / "evidence.json"
-    evidence_hash = _write_json(evidence_path, _evidence(targets))
+    evidence_hash = _write_json(
+        evidence_path, _evidence(targets, tmp_path / "discovery-ledger.json")
+    )
     args = _args(tmp_path, evidence_path, evidence_hash)
     called = False
 
@@ -457,7 +528,7 @@ def test_endpoint_evidence_route_coverage_and_file_hash_tampering_fail(
 ) -> None:
     args, targets, _, _ = planned_fixture
     evidence_path = Path(args.endpoint_evidence)
-    payload = _evidence(targets)
+    payload = _evidence(targets, tmp_path / "discovery-ledger.json")
     payload["targets"][0]["route"] = "wrong/route"
     payload["bundle_sha256"] = campaign.stable_json_hash(
         {key: value for key, value in payload.items() if key != "bundle_sha256"}
@@ -656,7 +727,9 @@ def _small_fixture(
 ) -> tuple[Any, dict[str, Any]]:
     targets = _install_cohorts(monkeypatch, _targets(2))
     evidence_path = tmp_path / "small-evidence.json"
-    evidence_hash = _write_json(evidence_path, _evidence(targets))
+    evidence_hash = _write_json(
+        evidence_path, _evidence(targets, tmp_path / "discovery-ledger.json")
+    )
     monkeypatch.setattr(campaign.part0_runner, "load_production_registry", lambda *a, **k: object())
     monkeypatch.setattr(campaign.part1_runner, "load_production_bank", lambda *a, **k: object())
     freeze = {
@@ -832,6 +905,10 @@ def test_smoke_failure_blocks_only_matching_scientific_job_and_uses_argv(
 ) -> None:
     _, manifest = _small_fixture(tmp_path, monkeypatch)
     path = create_manifest(manifest)
+    ledger = json.loads((path.parent / "request_ledger.json").read_text(encoding="utf-8"))
+    assert ledger["physical_attempts"] == 2
+    assert ledger["attempts_by_role"]["discovery"] == 2
+    assert len({record["attempt_id"] for record in ledger["records"]}) == 2
     observed: list[list[str]] = []
 
     def process(argv, cwd, env, log_path, timeout):
@@ -860,6 +937,68 @@ def test_smoke_failure_blocks_only_matching_scientific_job_and_uses_argv(
     assert blocked["status"] == "blocked_smoke"
     assert other["status"] == "complete"
     assert all(isinstance(argv, list) and argv[0] == "/fixture/python" for argv in observed)
+
+
+def test_scientific_failure_quarantines_remaining_same_target_part(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    args, _ = _small_fixture(tmp_path, monkeypatch)
+    args.part2_stage = "fixed-production"
+    args.part2_society_size = 10
+    args.part2_days = 30
+    args.part2_resource_capacity = 150
+    manifest = build_plan(args)
+    path = create_manifest(manifest)
+
+    def process(argv, cwd, env, log_path, timeout):
+        if "part2_fixed_production-target-00-s01" in log_path.name:
+            return ProcessResult(7, error="retry exhaustion")
+        return ProcessResult(0)
+
+    result = execute_manifest(
+        manifest,
+        path,
+        process_runner=process,
+        artifact_resolver=lambda job, before: {"job_id": job["id"]},
+    )
+    failed = next(
+        job
+        for job in result["jobs"]
+        if job["id"] == "part2_fixed_production-target-00-s01"
+    )
+    failed_position = next(
+        index for index, job in enumerate(result["jobs"]) if job["id"] == failed["id"]
+    )
+    later_same_part = [
+        job
+        for job in result["jobs"][failed_position + 1 :]
+        if job["target_id"] == "target-00"
+        and job["stage"] == "part2_fixed_production"
+        and job["id"] != failed["id"]
+    ]
+    other_target = [
+        job
+        for job in result["jobs"]
+        if job["target_id"] == "target-01"
+        and job["stage"] == "part2_fixed_production"
+    ]
+    assert failed["status"] == "failed"
+    assert later_same_part
+    assert {job["status"] for job in later_same_part} == {"blocked_route_health"}
+    assert {job["status"] for job in other_target} == {"complete"}
+
+    resumed = execute_manifest(
+        result,
+        path,
+        process_runner=lambda *args: pytest.fail(
+            "a failed or route-quarantined job must not redispatch in the same campaign"
+        ),
+        artifact_resolver=lambda job, before: deepcopy(job["artifact"]),
+    )
+    resumed_failed = next(job for job in resumed["jobs"] if job["id"] == failed["id"])
+    assert resumed_failed["status"] == "failed"
+    assert len(resumed_failed["attempts"]) == 1
 
 
 def test_manifest_resume_payload_tamper_and_source_drift_are_rejected(
@@ -922,8 +1061,6 @@ def test_dry_run_validates_everything_without_creating_campaign_files(
     argv = [
         "--campaign-id",
         args.campaign_id,
-        "--extractor-target-id",
-        args.extractor_target_id,
         "--judge-target-id",
         args.judge_target_id,
         "--part0-registry",

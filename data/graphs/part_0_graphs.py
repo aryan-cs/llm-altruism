@@ -466,7 +466,7 @@ def _model_bar_line_width(model_label: str) -> float:
 
 
 def _model_bar_hatch(model_label: str) -> str:
-    """No model-variant hatches — variants are distinguished by color shade and grouping."""
+    """No model-variant hatches; variants use color shade and grouping."""
     return ""
 
 

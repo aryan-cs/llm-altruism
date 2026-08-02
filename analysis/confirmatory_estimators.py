@@ -1324,7 +1324,7 @@ def _parse_part2_units(
         units.append(
             {
                 "unit_id": unit_id,
-                "analysis_source": "final_baseline",
+                "analysis_source": unit["analysis_source"],
                 "structural_cell_id": structural_cell_id,
                 "horizon_days": horizon,
                 **numeric_metrics,

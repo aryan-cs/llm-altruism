@@ -52,7 +52,7 @@ legacy recovery artifact, not a fallback to the current code default.
 
 Part 0 includes harmful-request evaluation prompts and may contain harmful model completions. For paper release, prefer aggregate tables and selected, filtered qualitative examples. Do not publish raw harmful completions unless the release has been reviewed for safety and upstream benchmark license compatibility.
 
-The anonymous supplement is built with `uv run python -m analysis.build_supplement`. It includes derived Part 0 aggregate artifacts, Part 1/Part 2 raw CSVs and metadata sidecars, code, tests, figures, validation outputs, and release documentation. It excludes raw Part 0 CSVs, raw Part 0 metadata sidecars, raw Part 0 prompt-source CSVs, and author-identifying proposal metadata by default.
+The anonymous supplement is built with `uv run python -m analysis.build_supplement`. It includes Part 1/Part 2 raw CSVs and metadata sidecars, supported derived tables and figures, code, tests, validation outputs, and release documentation. It excludes raw Part 0 content, invalid legacy Part 0 rate tables, all dependent cross-part tables and plots, and author-identifying proposal metadata by default.
 
 The paper-facing Croissant metadata is stored at `data/analysis/croissant_metadata.json`. It documents the derived tables, validation report, manifest, access conditions, and responsible-use constraints used for the current anonymous submission package.
 

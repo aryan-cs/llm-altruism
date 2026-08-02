@@ -96,6 +96,11 @@ Outputs:
 - `data/raw/part_2/legacy_execution_archive/part_2.py`
 - `data/raw/part_2/legacy_execution_archive/part_2_prompt.json`
 
+The Part 0 model/language summaries and both cross-part tables are retained only
+as deprecated forensic outputs. Their rows carry invalid-evidence status, and
+the Croissant release plus anonymous supplement exclude them and all dependent
+plots. Paper-facing results use only the supported Part 1 and Part 2 tables.
+
 ## Figures
 
 Graph generation is intentionally separate from the graph-independent analysis pipeline. Figure scripts live under `data/graphs/`. Use the summary tables and validation report above as the authoritative numerical inputs when checking final figures.
@@ -109,7 +114,11 @@ uv run python data/graphs/paper_visuals.py
 uv run python -m analysis.sync_conference_figures
 ```
 
-The main paper uses selected master plots, readable individual cross-part scatterplots, and paper-specific visual diagnostics rendered by `data/graphs/paper_visuals.py`. The sync command copies the exact paper-used PNGs into `docs/conference_submission/figures/`, which is the directory read by the LaTeX source. The graph tree also contains model-family plots and the full set of individual cross-part scatterplots for reviewer inspection.
+The main paper uses supported Part 1/Part 2 plots and paper-specific visual
+diagnostics rendered by `data/graphs/paper_visuals.py`. The sync command copies
+the exact paper-used PNGs into `docs/conference_submission/figures/`, which is
+the directory read by the LaTeX source. Invalid Part 0-dependent plots remain
+outside the release for forensic replay only.
 
 ## Paper PDF
 
@@ -187,6 +196,11 @@ with separate input/output files, durable checkpoints, strict JSON labels, and
 per-row provenance. `analysis/judge_audit.py` builds a deterministic blinded
 human-audit packet and computes agreement after genuine human labels are
 supplied. The complete commands and codebook are in `docs/JUDGE_AUDIT.md`.
+The anonymous supplement also includes
+`data/analysis/part0_rejudge_audit_checkpoint.json`, a non-harmful aggregate of
+the incomplete 1,243-row checkpoint. It binds its counts to the withheld source
+CSV by path, size, and SHA-256 while explicitly prohibiting corrected
+model-level Part 0 inference.
 
 ## Acceptance Criteria
 

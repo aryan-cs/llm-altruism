@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import argparse
+import getpass
+import hashlib
 import json
 import re
+import subprocess
 import zipfile
 from datetime import UTC, datetime
 from pathlib import Path
@@ -10,46 +13,6 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT = PROJECT_ROOT / "docs" / "conference_submission" / "supplement.zip"
 MANIFEST_NAME = "SUPPLEMENT_MANIFEST.json"
-
-# The experiment repository supports a private OpenAI-compatible gateway, but an
-# anonymous conference artifact must neither disclose the operator nor imply an
-# author affiliation.  Apply the same deterministic substitutions to code,
-# configuration, documentation, tests, and textual data inside the ZIP.  The
-# source tree remains unchanged so the private production runner stays exact.
-ANONYMOUS_TEXT_REPLACEMENTS = (
-    ("https://inference-api.nvidia.com/v1", "https://YOUR_HOSTED_GATEWAY.example/v1"),
-    ("https://inference.nvidia.com", "https://YOUR_HOSTED_GATEWAY.example"),
-    ("inference-api.nvidia.com", "YOUR_HOSTED_GATEWAY.example"),
-    ("inference.nvidia.com", "YOUR_HOSTED_GATEWAY.example"),
-    ("INFERENCE_HUB_BASE_URL", "HOSTED_GATEWAY_BASE_URL"),
-    ("NVIDIA_API_KEY", "HOSTED_GATEWAY_API_KEY"),
-    ("inference_hub_models_api", "hosted_gateway_models_api"),
-    ("InferenceHub", "HostedGateway"),
-    ("INFERENCE_HUB", "HOSTED_GATEWAY"),
-    ("inference_hub", "hosted_gateway"),
-    ("inference-hub", "hosted-gateway"),
-    ("Inference Hub", "Hosted Gateway"),
-    ("internal NVIDIA", "private hosted"),
-    ("Internal NVIDIA", "Private hosted"),
-    ("aryan.cs.app@gmail.com", "anonymous@example.invalid"),
-    ("aryan-cs", "anonymous-author"),
-    ("Aryan Gupta", "Anonymous Author"),
-    ("/Users/aryagupta", "/home/anonymous"),
-    ("aryagupta", "anonymous"),
-)
-
-ANONYMITY_FORBIDDEN_MARKERS = (
-    "inference-api.nvidia.com",
-    "inference.nvidia.com",
-    "nvidia_api_key",
-    "inference_hub",
-    "inferencehub",
-    "aryan.cs.app@gmail.com",
-    "aryan-cs",
-    "aryan gupta",
-    "/users/aryagupta",
-    "aryagupta",
-)
 
 INCLUDE_PATHS = (
     Path("README.md"),
@@ -63,9 +26,23 @@ INCLUDE_PATHS = (
     Path("providers"),
     Path("tests"),
     Path("docs") / "JUDGE_AUDIT.md",
+    Path("docs") / "CONFIRMATORY_CAMPAIGN.md",
+    Path("docs") / "CONFIRMATORY_INTEGRITY.md",
+    Path("docs") / "CONFIRMATORY_PROTOCOL.md",
+    Path("docs") / "PART0_CONFIRMATORY_RUNNER.md",
+    Path("docs") / "PART1_CONFIRMATORY_IMPLEMENTATION.md",
     Path("docs") / "release",
     Path("docs") / "conference_submission" / "README.md",
     Path("docs") / "conference_submission" / "conference_submission.tex",
+    Path("docs") / "conference_submission" / "checklist.tex",
+    Path("docs") / "conference_submission" / "figures" / "part2_restraint_rate_by_model.png",
+    Path("docs") / "conference_submission" / "figures" / "part1_cooperation_by_game_heatmap.png",
+    Path("docs") / "conference_submission" / "figures" / "part2_shared_reserve_over_time.png",
+    Path("docs") / "conference_submission" / "figures" / "part2_population_over_time.png",
+    Path("docs") / "conference_submission" / "figures" / "part2_restraint_choice_over_time.png",
+    Path("docs") / "conference_submission" / "figures" / "frame_sensitivity_heatmap.png",
+    Path("docs") / "conference_submission" / "figures" / "restraint_vs_final_population.png",
+    Path("docs") / "conference_submission" / "figures" / "part2_agent_day_raster.png",
     Path("docs") / "conference_submission" / "references.bib",
     Path("docs") / "conference_submission" / "neurips_2026.sty",
     Path("data") / "analysis",
@@ -76,6 +53,15 @@ INCLUDE_PATHS = (
 
 EXCLUDED_RELATIVE_PATHS = {
     Path("docs") / "release" / "research-proposal-metadata.json",
+    Path("data") / "analysis" / "tables" / "part0_model_summary.csv",
+    Path("data") / "analysis" / "tables" / "part0_language_robustness.csv",
+    Path("data") / "analysis" / "tables" / "cross_part_model_summary.csv",
+    Path("data") / "analysis" / "tables" / "cross_part_correlations.csv",
+    Path("data") / "graphs" / "paper_visuals" / "part0_refusal_rate_by_model.png",
+    Path("data") / "graphs" / "paper_visuals" / "part0_refusal_by_language_heatmap.png",
+    Path("data") / "graphs" / "paper_visuals" / "behavioral_fingerprint_heatmap.png",
+    Path("data") / "graphs" / "paper_visuals" / "model_behavior_pca.png",
+    Path("tests") / "test_campaign.py",
 }
 
 EXCLUDED_DIR_NAMES = {
@@ -92,6 +78,12 @@ EXCLUDED_DIR_NAMES = {
     "htmlcov",
     "venv",
 }
+
+EXCLUDED_RELATIVE_PREFIXES = (
+    Path("data") / "raw" / "part_0",
+    Path("data") / "graphs" / "part_0",
+    Path("data") / "graphs" / "cross_part",
+)
 EXCLUDED_SUFFIXES = {
     ".aux",
     ".bbl",
@@ -113,6 +105,10 @@ POLICY_EXCLUSIONS = (
         "reason": "raw harmful requests, source prompt CSVs, and model completions are withheld from the default anonymous supplement",
     },
     {
+        "path": "data/analysis/tables/{part0_*,cross_part_*}.csv; data/graphs/{part_0,cross_part}/; four Part 0-dependent paper_visuals plots",
+        "reason": "legacy Part 0 labels are invalid; model-level rates and every dependent table and plot are withdrawn",
+    },
+    {
         "path": "docs/conference_submission/conference_submission.pdf",
         "reason": "submission PDF is uploaded separately from the supplement",
     },
@@ -123,6 +119,10 @@ POLICY_EXCLUSIONS = (
     {
         "path": "docs/release/research-proposal-metadata.json",
         "reason": "author-identifying proposal metadata is excluded from the anonymous supplement",
+    },
+    {
+        "path": "tests/test_campaign.py",
+        "reason": "legacy campaign tests require withheld raw Part 0 prompts; the fixed confirmatory campaign and its tests are included",
     },
 )
 
@@ -145,7 +145,7 @@ def _suffix(path: Path) -> str:
 def _should_exclude(rel_path: Path, output_rel_path: Path | None = None) -> bool:
     if output_rel_path is not None and rel_path == output_rel_path:
         return True
-    if _is_relative_to(rel_path, Path("data") / "raw" / "part_0"):
+    if any(_is_relative_to(rel_path, prefix) for prefix in EXCLUDED_RELATIVE_PREFIXES):
         return True
     if rel_path in EXCLUDED_RELATIVE_PATHS:
         return True
@@ -192,35 +192,77 @@ def _writestr(zf: zipfile.ZipFile, arcname: str, data: bytes) -> None:
     zf.writestr(info, data)
 
 
-def _anonymous_archive_path(rel_path: Path) -> str:
-    return _anonymous_text(rel_path.as_posix())
+def _git_value(project_root: Path, *arguments: str) -> str | None:
+    try:
+        completed = subprocess.run(
+            ["git", *arguments], cwd=project_root, check=True,
+            capture_output=True, text=True, timeout=5,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    value = completed.stdout.strip()
+    return value or None
 
 
-def _anonymous_text(text: str) -> str:
-    for source, replacement in ANONYMOUS_TEXT_REPLACEMENTS:
+def _identity_replacements(project_root: Path) -> tuple[tuple[str, str], ...]:
+    """Derive private identifiers locally without shipping them in source code."""
+
+    candidates: dict[str, str] = {}
+    home = str(Path.home())
+    login = getpass.getuser().strip()
+    name = _git_value(project_root, "config", "user.name")
+    email = _git_value(project_root, "config", "user.email")
+    remote = _git_value(project_root, "remote", "get-url", "origin")
+    if home and home not in {"/", "/home/anonymous"}:
+        candidates[home] = "/home/anonymous"
+    if login and login.lower() not in {"root", "anonymous"}:
+        candidates[login] = "anonymous"
+    if name and name.lower() != "anonymous author":
+        candidates[name] = "Anonymous Author"
+    if email and email.lower() != "anonymous@example.invalid":
+        candidates[email] = "anonymous@example.invalid"
+    if remote:
+        owner_match = re.search(r"(?:github\.com|gitlab\.com)[:/]([^/]+)/", remote)
+        if owner_match and owner_match.group(1).lower() not in {"anonymous", "anonymous-author"}:
+            candidates[owner_match.group(1)] = "anonymous-author"
+    return tuple(sorted(candidates.items(), key=lambda pair: (-len(pair[0]), pair[0])))
+
+
+def _anonymous_archive_path(
+    rel_path: Path, replacements: tuple[tuple[str, str], ...]
+) -> str:
+    return _anonymous_text(rel_path.as_posix(), replacements)
+
+
+def _anonymous_text(text: str, replacements: tuple[tuple[str, str], ...]) -> str:
+    for source, replacement in replacements:
         text = text.replace(source, replacement)
-    text = re.sub(r"inference[ _-]?hub", "hosted_gateway", text, flags=re.IGNORECASE)
-    text = re.sub(r"nvidia_api_key", "HOSTED_GATEWAY_API_KEY", text, flags=re.IGNORECASE)
-    text = re.sub(r"aryan gupta", "Anonymous Author", text, flags=re.IGNORECASE)
+        text = re.sub(re.escape(source), replacement, text, flags=re.IGNORECASE)
+    text = re.sub(r"/Users/[A-Za-z0-9._-]+", "/home/anonymous", text)
     return text
 
 
-def _anonymous_archive_payload(payload: bytes) -> bytes:
+def _anonymous_archive_payload(
+    payload: bytes, replacements: tuple[tuple[str, str], ...]
+) -> bytes:
     try:
         text = payload.decode("utf-8")
     except UnicodeDecodeError:
         return payload
-    return _anonymous_text(text).encode("utf-8")
+    return _anonymous_text(text, replacements).encode("utf-8")
 
 
-def audit_anonymous_archive(output_path: Path) -> list[str]:
+def audit_anonymous_archive(
+    output_path: Path, project_root: Path = PROJECT_ROOT
+) -> list[str]:
     """Return entry/marker descriptions for anonymity leaks in a built ZIP."""
 
     findings: list[str] = []
+    markers = tuple(source.lower() for source, _ in _identity_replacements(project_root))
     with zipfile.ZipFile(output_path) as zf:
         for info in zf.infolist():
             name_lower = info.filename.lower()
-            for marker in ANONYMITY_FORBIDDEN_MARKERS:
+            for marker in markers:
                 if marker in name_lower:
                     findings.append(f"path {info.filename!r} contains {marker!r}")
             payload = zf.read(info)
@@ -228,7 +270,7 @@ def audit_anonymous_archive(output_path: Path) -> list[str]:
                 text_lower = payload.decode("utf-8").lower()
             except UnicodeDecodeError:
                 continue
-            for marker in ANONYMITY_FORBIDDEN_MARKERS:
+            for marker in markers:
                 if marker in text_lower:
                     findings.append(f"entry {info.filename!r} contains {marker!r}")
     return findings
@@ -241,6 +283,13 @@ def build_supplement(
     project_root = project_root.resolve()
     output_path = output_path.resolve()
     files = collect_supplement_files(project_root=project_root, output_path=output_path)
+    replacements = _identity_replacements(project_root)
+    archive_payloads = {
+        _anonymous_archive_path(rel_path, replacements): _anonymous_archive_payload(
+            (project_root / rel_path).read_bytes(), replacements
+        )
+        for rel_path in files
+    }
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     if output_path.exists():
@@ -251,10 +300,14 @@ def build_supplement(
         "included_roots": [path.as_posix() for path in INCLUDE_PATHS],
         "policy_exclusions": list(POLICY_EXCLUSIONS),
         "file_count": len(files),
-        "files": [_anonymous_archive_path(path) for path in files],
+        "files": list(archive_payloads),
+        "file_sha256s": {
+            name: hashlib.sha256(payload).hexdigest()
+            for name, payload in archive_payloads.items()
+        },
         "anonymization": (
-            "private hosted-gateway identifiers, endpoints, credential-variable "
-            "names, and author identifiers are deterministically replaced"
+            "author identifiers are deterministically replaced while executable "
+            "protocol/API identifiers are preserved"
         ),
     }
 
@@ -264,14 +317,10 @@ def build_supplement(
             MANIFEST_NAME,
             json.dumps(manifest, indent=2, sort_keys=True).encode("utf-8"),
         )
-        for rel_path in files:
-            _writestr(
-                zf,
-                _anonymous_archive_path(rel_path),
-                _anonymous_archive_payload((project_root / rel_path).read_bytes()),
-            )
+        for name, payload in archive_payloads.items():
+            _writestr(zf, name, payload)
 
-    findings = audit_anonymous_archive(output_path)
+    findings = audit_anonymous_archive(output_path, project_root)
     if findings:
         output_path.unlink()
         raise ValueError("Anonymous supplement audit failed: " + "; ".join(findings))

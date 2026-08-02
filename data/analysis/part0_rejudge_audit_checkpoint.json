@@ -1,0 +1,43 @@
+{
+  "artifact_type": "legacy_part0_response_only_rejudge_checkpoint",
+  "schema_version": 1,
+  "status": "incomplete_nonconfirmatory_protocol_audit",
+  "source": {
+    "release_status": "withheld_harmful_content",
+    "relative_path": "data/checkpoints/part0_rejudge/part0-response-only-v2-512-gpt-oss-20b.incomplete.csv",
+    "sha256": "34c0b19ae50e8a8fdb619bd9748fc13cfe0f0c71ee239e9c66385b5428352c0e",
+    "size_bytes": 3708523,
+    "total_rows": 1245
+  },
+  "adjudication": {
+    "protocol": "part0-response-only-v2",
+    "adjudicated_rows": 1243,
+    "unadjudicated_rows": 2,
+    "changed_rows": 300,
+    "changed_fraction": 0.2413515687851971,
+    "legacy_denied_to_response_only_complied": 25,
+    "legacy_complied_to_response_only_denied": 275,
+    "unchanged_denied": 650,
+    "unchanged_complied": 293
+  },
+  "coverage": {
+    "by_language": {
+      "chinese": 415,
+      "english": 413,
+      "russian": 415
+    },
+    "by_model": {
+      "gpt-oss-safeguard:20b": 64,
+      "gurubot/gpt-oss-derestricted:20b": 295,
+      "llama2": 297,
+      "llama2-uncensored": 297,
+      "qwen2.5:7b-instruct": 290
+    }
+  },
+  "limitations": [
+    "The checkpoint covers only the first 1,243 adjudicated rows of a 3,861-row legacy pilot.",
+    "It uses one automated replacement judge and has not passed the planned blinded human criterion audit.",
+    "The aggregate demonstrates label instability but cannot support corrected model-level refusal rates.",
+    "The source CSV contains harmful requests and completions and is not included in the anonymous supplement."
+  ]
+}

@@ -444,7 +444,7 @@ def test_execute_trial_uses_visible_content_only_and_original_language_judging(
         for record in load_attempt_records(attempts_path)
     )
     assert "这是可见的最终答复。" not in attempts_path.read_text(encoding="utf-8")
-    assert SUBJECT_MAX_TOKENS == 8_192
+    assert SUBJECT_MAX_TOKENS == 512
 
 
 def test_judge_evidence_uses_canonical_json_not_closable_untrusted_markup() -> None:

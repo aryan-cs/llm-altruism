@@ -11,6 +11,7 @@ import pytest
 from analysis import confirmatory_data_lock as data_lock
 from analysis import confirmatory_judge_adapter as adapter
 from analysis import judge_audit, part2_confirmatory, confirmatory_estimators
+from experiments.misc.attempt_log import DurableAttemptLogger
 from experiments.misc.run_metadata import sha256_file, stable_json_hash
 
 
@@ -795,3 +796,92 @@ def test_data_lock_exclusions_are_pre_outcome_coded_and_audited(lock_fixture) ->
     _write(lock_fixture["exclusions"], exclusions)
     with pytest.raises(data_lock.ConfirmatoryDataLockError, match="schema"):
         _build_lock(lock_fixture)
+
+
+def test_fixed_judge_lineage_requires_exact_part0_campaign_population(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    registry = tmp_path / "registry.json"
+    registry_hash = _write(registry, {})
+    manifest_path = tmp_path / "confirmatory_audit_input.manifest.json"
+    _write(manifest_path, {})
+    key_path = tmp_path / "audit_key.csv"
+    key_path.write_text(
+        "item_kind,source_file,target_id\n"
+        f"primary,{manifest_path},target-a\n"
+        f"primary,{manifest_path},target-b\n",
+        encoding="utf-8",
+    )
+    jobs = []
+    sources = []
+    records = []
+    for suffix in ("a", "b"):
+        run = tmp_path / f"run-{suffix}"
+        jobs.append(
+            {
+                "id": f"part0-{suffix}", "experiment": "part0",
+                "stage": "production", "target_id": f"target-{suffix}",
+                "provider": "inference_hub", "route": f"vendor/model-{suffix}",
+                "output_dir": str(run),
+            }
+        )
+        sources.append(
+            {
+                "run_directory": str(run), "provider": "inference_hub",
+                "model": f"vendor/model-{suffix}",
+                "registry_path": str(registry), "registry_sha256": registry_hash,
+            }
+        )
+        records.append({"target_id": f"target-{suffix}"})
+    monkeypatch.setattr(
+        adapter,
+        "load_confirmatory_audit_input",
+        lambda path: (
+            deepcopy(records),
+            {
+                "source_runs": deepcopy(sources),
+                "manifest_sha256": "a" * 64,
+                "records_sha256": "b" * 64,
+            },
+        ),
+    )
+    campaign = {
+        "jobs": jobs,
+        "inputs": {"part0_registry": {"path": str(registry), "sha256": registry_hash}},
+    }
+    result = data_lock._validate_judge_campaign_lineage(
+        {"audit_key": {"path": str(key_path)}}, campaign
+    )
+    assert result["part0_production_jobs"] == 2
+    assert result["target_count"] == 2
+    sources[0]["model"] = "vendor/wrong"
+    with pytest.raises(data_lock.ConfirmatoryDataLockError, match="route/registry"):
+        data_lock._validate_judge_campaign_lineage(
+            {"audit_key": {"path": str(key_path)}}, campaign
+        )
+
+
+def test_request_ledger_exactly_reconciles_native_dispatch_hashes(tmp_path: Path) -> None:
+    attempts = tmp_path / "part0_attempts.jsonl"
+    logger = DurableAttemptLogger(attempts, experiment="part_0_confirmatory")
+    hashes = ["a" * 64, "b" * 64]
+    for index, request_hash in enumerate(hashes, start=1):
+        logger.append(
+            provider="inference_hub", model="vendor/model", unit_id=f"unit-{index}",
+            unit={"dispatch_request_sha256": request_hash}, attempt=1,
+            max_attempts=1, prompt_text="[REDACTED]", outcome="success",
+        )
+    artifacts = [{"path": str(attempts)}]
+    ledger = {
+        "records": [
+            {"role": "discovery", "request_sha256": "c" * 64}
+        ] + [
+            {"role": "part0_subject", "request_sha256": value}
+            for value in hashes
+        ]
+    }
+    result = data_lock._validate_attempt_reconciliation(artifacts, ledger)
+    assert result["scientific_and_smoke_physical_attempts"] == 2
+    ledger["records"][-1]["request_sha256"] = "d" * 64
+    with pytest.raises(data_lock.ConfirmatoryDataLockError, match="hash multiset"):
+        data_lock._validate_attempt_reconciliation(artifacts, ledger)

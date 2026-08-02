@@ -13,6 +13,7 @@ import math
 import os
 import tempfile
 import uuid
+from contextvars import ContextVar
 from pathlib import Path
 from copy import deepcopy
 from typing import Any, Mapping
@@ -21,7 +22,7 @@ from typing import Any, Mapping
 SCHEMA_VERSION = 1
 DEFAULT_TARGET_COUNT = 30
 PHYSICAL_ATTEMPT_CEILING = 430_000
-TOKEN_CEILING = 200_000_000
+TOKEN_CEILING = 1_500_000_000
 TRANSPORT_RESERVE_FRACTION = 0.10
 
 PART0_HARMFUL_ROOTS = 484
@@ -43,6 +44,10 @@ OUTPUT_TOKEN_CAPS = {
     "part1_subject": 32,
     "part2_subject": 32,
 }
+
+_LAST_ENVIRONMENT_RESERVATION: ContextVar[str | None] = ContextVar(
+    "confirmatory_last_environment_reservation", default=None
+)
 
 
 class ConfirmatoryBudgetError(RuntimeError):
@@ -344,6 +349,7 @@ def reserve_environment_attempt(
     ledger_path_value = os.getenv("CONFIRMATORY_LEDGER_PATH", "").strip()
     experiment = os.getenv("CONFIRMATORY_EXPERIMENT", "").strip()
     if not budget_path_value and not ledger_path_value and not experiment:
+        _LAST_ENVIRONMENT_RESERVATION.set(None)
         return
     if not all((budget_path_value, ledger_path_value, experiment)):
         raise ConfirmatoryBudgetError("Confirmatory budget environment is incomplete.")
@@ -385,7 +391,10 @@ def reserve_environment_attempt(
             attempt_id=f"reserve_{uuid.uuid4().hex}",
             request_sha256=request_sha256,
             outcome="reserved_before_dispatch",
-            input_tokens=max(1, math.ceil((len(system_prompt) + len(query)) / 4)),
+            # Byte-level tokenizers cannot emit more tokens than the UTF-8 byte
+            # stream. Reserving one token per byte is deliberately conservative
+            # for multilingual inputs and avoids language-dependent undercount.
+            input_tokens=max(1, len((system_prompt + query).encode("utf-8"))),
             output_tokens=(
                 max_tokens
                 if isinstance(max_tokens, int) and not isinstance(max_tokens, bool)
@@ -410,6 +419,15 @@ def reserve_environment_attempt(
             raise
         finally:
             fcntl.flock(lock_handle.fileno(), fcntl.LOCK_UN)
+        _LAST_ENVIRONMENT_RESERVATION.set(request_sha256)
+
+
+def consume_environment_reservation() -> str | None:
+    """Return and clear the dispatch hash reserved for the current call context."""
+
+    value = _LAST_ENVIRONMENT_RESERVATION.get()
+    _LAST_ENVIRONMENT_RESERVATION.set(None)
+    return value
 
 
 __all__ = [
@@ -422,6 +440,7 @@ __all__ = [
     "create_ledger",
     "record_attempt",
     "reserve_environment_attempt",
+    "consume_environment_reservation",
     "successful_posts_by_role",
     "validate_frozen_budget",
     "validate_ledger",

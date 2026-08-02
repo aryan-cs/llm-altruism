@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import os
 import sys
@@ -14,7 +15,8 @@ from typing import Any, Mapping, Sequence
 
 from analysis import judge_audit
 from experiments import confirmatory_campaign
-from experiments.misc.attempt_log import attempt_log_path_for_csv
+from experiments.confirmatory_budget import validate_frozen_budget, validate_ledger
+from experiments.misc.attempt_log import attempt_log_path_for_csv, load_attempt_records
 from experiments.misc.run_metadata import sha256_file, stable_json_hash
 
 
@@ -445,6 +447,158 @@ def _validate_judge_gate(path: str | Path) -> dict[str, Any]:
         "workflow": payload["workflow"],
         "promotion_authorized": True,
         "input_integrity_sha256": stable_json_hash(integrity),
+        "audit_key": dict(integrity["audit_key"]),
+    }
+
+
+def _validate_judge_campaign_lineage(
+    judge_gate: Mapping[str, Any], campaign: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Bind the human-audit population to every frozen Part 0 production route."""
+
+    key_ref = judge_gate.get("audit_key")
+    if not isinstance(key_ref, Mapping):
+        raise ConfirmatoryDataLockError("judge gate lacks its private audit-key reference")
+    key_path = Path(str(key_ref.get("path", ""))).resolve()
+    try:
+        with key_path.open(newline="", encoding="utf-8") as handle:
+            rows = list(csv.DictReader(handle))
+    except (OSError, UnicodeDecodeError, csv.Error) as error:
+        raise ConfirmatoryDataLockError("judge audit key is not readable CSV") from error
+    primary = [row for row in rows if row.get("item_kind") == "primary"]
+    if not primary:
+        raise ConfirmatoryDataLockError("judge audit key has no primary rows")
+    source_paths = {row.get("source_file", "") for row in primary}
+    if not source_paths or any(
+        Path(value).name != "confirmatory_audit_input.manifest.json"
+        for value in source_paths
+    ):
+        raise ConfirmatoryDataLockError(
+            "judge audit must use only native confirmatory adapter manifests"
+        )
+    from analysis.confirmatory_judge_adapter import (
+        ConfirmatoryJudgeAdapterError,
+        load_confirmatory_audit_input,
+    )
+
+    records: list[dict[str, Any]] = []
+    source_runs: list[dict[str, Any]] = []
+    manifests: list[dict[str, Any]] = []
+    for value in sorted(source_paths):
+        try:
+            manifest_records, manifest = load_confirmatory_audit_input(value)
+        except ConfirmatoryJudgeAdapterError as error:
+            raise ConfirmatoryDataLockError(
+                f"judge confirmatory source failed replay: {error}"
+            ) from error
+        records.extend(manifest_records)
+        source_runs.extend(manifest["source_runs"])
+        manifests.append(
+            {
+                "path": str(Path(value).resolve()),
+                "manifest_sha256": manifest["manifest_sha256"],
+                "records_sha256": manifest["records_sha256"],
+            }
+        )
+
+    jobs = [
+        job for job in campaign.get("jobs", [])
+        if job.get("experiment") == "part0" and job.get("stage") != "smoke"
+    ]
+    expected_by_directory = {
+        str(Path(str(job.get("output_dir", ""))).resolve()): job for job in jobs
+    }
+    actual_by_directory = {
+        str(Path(str(source.get("run_directory", ""))).resolve()): source
+        for source in source_runs
+    }
+    if (
+        not jobs
+        or len(expected_by_directory) != len(jobs)
+        or len(actual_by_directory) != len(source_runs)
+        or set(actual_by_directory) != set(expected_by_directory)
+    ):
+        raise ConfirmatoryDataLockError(
+            "judge audit sources do not exactly cover frozen Part 0 production jobs"
+        )
+    registry = campaign.get("inputs", {}).get("part0_registry", {})
+    expected_targets: set[str] = set()
+    for directory, job in expected_by_directory.items():
+        source = actual_by_directory[directory]
+        if (
+            source.get("provider") != job.get("provider")
+            or source.get("model") != job.get("route")
+            or Path(str(source.get("registry_path", ""))).resolve()
+            != Path(str(registry.get("path", ""))).resolve()
+            or source.get("registry_sha256") != registry.get("sha256")
+        ):
+            raise ConfirmatoryDataLockError(
+                f"judge audit route/registry lineage changed for {job.get('id')}"
+            )
+        expected_targets.add(str(job.get("target_id")))
+    record_targets = {str(record.get("target_id")) for record in records}
+    key_targets = {str(row.get("target_id")) for row in primary}
+    if record_targets != expected_targets or not key_targets.issubset(expected_targets):
+        raise ConfirmatoryDataLockError(
+            "judge audit target population differs from the frozen Part 0 panel"
+        )
+    return {
+        "status": "exact_campaign_part0_population_verified",
+        "part0_production_jobs": len(jobs),
+        "target_count": len(expected_targets),
+        "adapter_manifests": manifests,
+        "source_run_set_sha256": stable_json_hash(sorted(actual_by_directory)),
+    }
+
+
+def _validate_attempt_reconciliation(
+    artifacts: Sequence[Mapping[str, Any]], ledger: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Require an exact hash-level join between reservations and native attempts."""
+
+    attempt_paths = sorted(
+        {
+            Path(str(reference["path"])).resolve()
+            for reference in artifacts
+            if str(reference.get("path", "")).endswith("_attempts.jsonl")
+        }
+    )
+    if not attempt_paths:
+        raise ConfirmatoryDataLockError("no native campaign attempt logs were retained")
+    native_hashes: list[str] = []
+    for path in attempt_paths:
+        try:
+            records = load_attempt_records(path)
+        except (OSError, UnicodeDecodeError, ValueError) as error:
+            raise ConfirmatoryDataLockError(
+                f"native attempt log could not be replayed: {path}"
+            ) from error
+        for record in records:
+            unit = record.get("unit")
+            value = unit.get("dispatch_request_sha256") if isinstance(unit, Mapping) else None
+            if (
+                not isinstance(value, str)
+                or len(value) != 64
+                or any(character not in "0123456789abcdef" for character in value)
+            ):
+                raise ConfirmatoryDataLockError(
+                    "native attempt lacks its pre-dispatch ledger request hash"
+                )
+            native_hashes.append(value)
+    ledger_hashes = [
+        str(record.get("request_sha256"))
+        for record in ledger.get("records", [])
+        if isinstance(record, Mapping) and record.get("role") != "discovery"
+    ]
+    if Counter(native_hashes) != Counter(ledger_hashes):
+        raise ConfirmatoryDataLockError(
+            "request ledger and native attempt logs do not have an exact hash multiset match"
+        )
+    return {
+        "status": "exact_hash_multiset_verified",
+        "scientific_and_smoke_physical_attempts": len(native_hashes),
+        "native_attempt_log_count": len(attempt_paths),
+        "request_hash_multiset_sha256": stable_json_hash(sorted(native_hashes)),
     }
 
 
@@ -831,7 +985,7 @@ def build_data_lock(
             "all_planned_jobs_complete": True,
             "all_selected_lineage_artifacts_reverified": True,
             "parts_present": ["part0", "part1", "part2"],
-            "required_gate_count": 3,
+            "required_gate_count": 2,
             "required_gates_present": True,
             "scientific_attempt_timestamps_validated": True,
             "artifact_file_count": len(artifacts),
@@ -890,7 +1044,13 @@ def build_fixed_data_lock(
     exclusions = _validate_exclusions(
         exclusions_path, {"fixed_stage": campaign}, scientific_jobs
     )
+    if exclusions["excluded_job_ids"] or exclusions["decisions"]:
+        raise ConfirmatoryDataLockError(
+            "fixed-stage inference requires the exact complete scientific panel; "
+            "the outcome-blind exclusion artifact must be empty"
+        )
     judge_gate = _validate_judge_gate(judge_criterion_path)
+    judge_lineage = _validate_judge_campaign_lineage(judge_gate, campaign)
     inputs: list[dict[str, Any]] = []
     for key in ("part0_registry", "part1_bank", "endpoint_evidence"):
         value = campaign["inputs"].get(key)
@@ -905,6 +1065,26 @@ def build_fixed_data_lock(
             confirmatory_campaign.REPO_ROOT / "agents" / "agent_config.registry.json",
             kind="model_registry",
         )
+    )
+    budget_path = campaign_path.parent / "request_budget.json"
+    ledger_path = campaign_path.parent / "request_ledger.json"
+    _, budget_payload, _ = _load(budget_path, "fixed request budget")
+    _, ledger_payload, _ = _load(ledger_path, "fixed request ledger")
+    try:
+        validate_frozen_budget(budget_payload)
+        validate_ledger(ledger_payload, budget_payload)
+    except Exception as error:
+        raise ConfirmatoryDataLockError(f"request budget/ledger failed replay: {error}") from error
+    if budget_payload != campaign.get("request_budget"):
+        raise ConfirmatoryDataLockError("request budget differs from campaign freeze")
+    attempt_reconciliation = _validate_attempt_reconciliation(
+        artifacts, ledger_payload
+    )
+    inputs.extend(
+        [
+            _reference(budget_path, kind="confirmatory_request_budget"),
+            _reference(ledger_path, kind="confirmatory_request_ledger"),
+        ]
     )
     protocols = [
         _reference(path, kind="protocol_or_lock_source")
@@ -958,7 +1138,11 @@ def build_fixed_data_lock(
         "approved_inputs": inputs,
         "protocol_and_source_files": protocols,
         "gates": {
-            "judge_criterion": judge_gate,
+            "judge_criterion": {
+                **judge_gate,
+                "campaign_lineage": judge_lineage,
+            },
+            "request_attempt_reconciliation": attempt_reconciliation,
             "exclusion_decisions": {
                 "path": exclusions["path"],
                 "sha256": exclusions["sha256"],
@@ -991,7 +1175,7 @@ def build_fixed_data_lock(
             "all_planned_jobs_complete": True,
             "all_selected_lineage_artifacts_reverified": True,
             "parts_present": ["part0", "part1", "part2"],
-            "required_gate_count": 2,
+            "required_gate_count": 3,
             "required_gates_present": True,
             "scientific_attempt_timestamps_validated": True,
             "artifact_file_count": len(artifacts),

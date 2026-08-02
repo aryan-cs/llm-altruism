@@ -340,6 +340,8 @@ def test_checked_in_pilot_uses_99_part0_and_48_part1_root_clusters(
 ) -> None:
     repo_root = Path(__file__).resolve().parents[1]
     raw_dir = repo_root / "data" / "raw"
+    if not (raw_dir / "part_0").is_dir():
+        pytest.skip("anonymous supplement intentionally withholds raw Part 0")
     summarize_part0(raw_dir, tmp_path)
     summarize_part1(raw_dir, tmp_path)
 

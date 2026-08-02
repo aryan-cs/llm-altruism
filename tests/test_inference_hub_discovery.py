@@ -1,5 +1,6 @@
 import json
 import urllib.error
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -159,7 +160,7 @@ def test_smoke_verification_records_hashes_not_generated_content(
     assert smoke["generation_controls"] == {
         key: value
         for key, value in evidence["request"].items()
-        if key != "prompt_sha256"
+        if key not in {"prompt_sha256", "request_sha256"}
     }
     assert smoke["generation_controls"]["temperature"] == 0
     assert smoke["generation_controls"]["top_p"] == 1
@@ -229,6 +230,7 @@ def test_smoke_rejects_provider_model_identity_mismatch(
 
 def test_cohort_verification_covers_every_exact_target_once(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     cohorts = {
         "current_sota": {
@@ -281,6 +283,9 @@ def test_cohort_verification_covers_every_exact_target_once(
             "requested_route": route,
             "verification_status": "verified",
             "max_tokens": max_tokens,
+            "verification_evidence": {
+                "smoke_test": {"request_id": f"request-{len(calls)}"}
+            },
         }
 
     monkeypatch.setattr(
@@ -290,9 +295,26 @@ def test_cohort_verification_covers_every_exact_target_once(
 
     bundle = smoke_verify_cohorts(
         client,
-        catalog={"source_payload_sha256": "b" * 64},
+        catalog={
+            "source_payload_sha256": "b" * 64,
+            "routes": [
+                {
+                    "route": route,
+                    "listed_by_models": True,
+                    "listed_by_model_info": True,
+                    "chat_capable": True,
+                }
+                for route in (
+                    "us/openai/current",
+                    "aws/anthropic/current",
+                    "us/openai/historical",
+                    "other/chat-model",
+                )
+            ],
+        },
         cohort_ids=["current_sota", "historical"],
         max_tokens=9,
+        attempt_ledger_path=tmp_path / "discovery-attempts.json",
     )
 
     assert calls == [
@@ -308,6 +330,14 @@ def test_cohort_verification_covers_every_exact_target_once(
     ]
     assert len(bundle["bundle_sha256"]) == 64
     assert bundle["routing_roster_sha256"] == "c" * 64
+    assert bundle["status"] == "verified"
+    assert bundle["verified_target_count"] == 3
+    assert bundle["discovery_attempt_ledger"]["record_count"] == 3
+    assert bundle["catalog_census"][-1] == {
+        "route": "other/chat-model",
+        "decision": "excluded_outside_frozen_panel",
+        "target_id": None,
+    }
 
 
 def test_cohort_verification_rejects_non_inference_hub_target(

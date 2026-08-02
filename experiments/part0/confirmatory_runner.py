@@ -75,8 +75,8 @@ PROMPT_SEPARATOR = "\n\n"
 SUBJECT_SYSTEM_PROMPT = ""
 SUBJECT_TEMPERATURE = 0.2
 SUBJECT_TOP_P = 1.0
-SUBJECT_MAX_TOKENS = 8_192
-JUDGE_MAX_TOKENS = 256
+SUBJECT_MAX_TOKENS = 512
+JUDGE_MAX_TOKENS = 32
 MAX_TRANSPORT_ATTEMPTS = 3
 DEFAULT_ORDERING_SEED = 7_314_159
 DEFAULT_GENERATION_SEED = 2_718_281
@@ -829,16 +829,18 @@ def freeze_execution_plan(
     ordering_seed: int = DEFAULT_ORDERING_SEED,
     generation_seed: int = DEFAULT_GENERATION_SEED,
     completed_smoke_directory: str | Path,
+    require_fresh_evidence: bool = True,
 ) -> dict[str, Any]:
     """Freeze the complete, analysis-eligible confirmatory production plan."""
 
-    for route in (subject_route, judge_route):
-        try:
-            require_fresh_route_verification(route.identity)
-        except ValueError as error:
-            raise RouteIdentityError(
-                "A new Part 0 production freeze requires fresh route evidence."
-            ) from error
+    if require_fresh_evidence:
+        for route in (subject_route, judge_route):
+            try:
+                require_fresh_route_verification(route.identity)
+            except ValueError as error:
+                raise RouteIdentityError(
+                    "A new Part 0 production freeze requires fresh route evidence."
+                ) from error
     smoke_gate = validate_completed_smoke_directory(
         loaded_registry,
         subject_route=subject_route,
@@ -865,16 +867,18 @@ def freeze_sacrificial_smoke_plan(
     judge_route: FrozenRoute,
     ordering_seed: int = DEFAULT_ORDERING_SEED,
     generation_seed: int = DEFAULT_GENERATION_SEED,
+    require_fresh_evidence: bool = True,
 ) -> dict[str, Any]:
     """Freeze a small full-path plan that can never qualify as production data."""
 
-    for route in (subject_route, judge_route):
-        try:
-            require_fresh_route_verification(route.identity)
-        except ValueError as error:
-            raise RouteIdentityError(
-                "A new Part 0 smoke freeze requires fresh route evidence."
-            ) from error
+    if require_fresh_evidence:
+        for route in (subject_route, judge_route):
+            try:
+                require_fresh_route_verification(route.identity)
+            except ValueError as error:
+                raise RouteIdentityError(
+                    "A new Part 0 smoke freeze requires fresh route evidence."
+                ) from error
     return _freeze_execution_plan(
         loaded_registry,
         subject_route=subject_route,
@@ -1116,7 +1120,7 @@ def _transport_retryable(error: Exception, route: FrozenRoute) -> tuple[bool, di
             provenance.get("category") in {"gateway", "transport"}
             or (
                 isinstance(status_code, int)
-                and (status_code in {408, 409, 425, 429} or status_code >= 500)
+                and (status_code in {408, 429} or status_code >= 500)
             )
         )
     )
@@ -1170,19 +1174,28 @@ def _call_stage(
     redacted_prompt = f"[REDACTED {stage} request sha256={request_sha256}]"
     for attempt in range(1, MAX_TRANSPORT_ATTEMPTS + 1):
         try:
-            response = detailed_call(
-                route.provider,
-                route.route,
-                system_prompt,
-                query,
-                json_mode=json_mode,
-                json_schema=json_schema,
-                temperature=temperature,
-                top_p=top_p,
-                max_tokens=max_tokens,
-                seed=seed,
-                reasoning_effort=None,
-            )
+            try:
+                response = detailed_call(
+                    route.provider,
+                    route.route,
+                    system_prompt,
+                    query,
+                    json_mode=json_mode,
+                    json_schema=json_schema,
+                    temperature=temperature,
+                    top_p=top_p,
+                    max_tokens=max_tokens,
+                    seed=seed,
+                    reasoning_effort=None,
+                )
+            finally:
+                from experiments.confirmatory_budget import (
+                    consume_environment_reservation,
+                )
+
+                dispatch_hash = consume_environment_reservation()
+                if dispatch_hash is not None:
+                    unit["dispatch_request_sha256"] = dispatch_hash
             audit = _response_audit(response, route)
         except KeyboardInterrupt:
             _append_private_attempt(
@@ -2114,6 +2127,14 @@ def build_parser() -> argparse.ArgumentParser:
     mode.add_argument(
         "--resume", action="store_true", help="Strictly resume an existing frozen run."
     )
+    parser.add_argument(
+        "--allow-frozen-campaign-route",
+        action="store_true",
+        help=(
+            "Use exact verified route evidence already hash-pinned by an immutable "
+            "campaign manifest even after its wall-clock freshness window expires."
+        ),
+    )
     return parser
 
 
@@ -2169,7 +2190,7 @@ def main(argv: list[str] | None = None) -> int:
             (lambda provider, model: _resolve_verified_route(
                 provider, model, require_fresh_evidence=False
             ))
-            if args.resume
+            if args.resume or args.allow_frozen_campaign_route
             else freeze_verified_route
         )
         subject_route = route_resolver(args.subject_provider, args.subject_route)
@@ -2196,6 +2217,7 @@ def main(argv: list[str] | None = None) -> int:
                 ordering_seed=ordering_seed,
                 generation_seed=generation_seed,
                 completed_smoke_directory=args.completed_smoke_dir,
+                require_fresh_evidence=not args.allow_frozen_campaign_route,
             )
         else:
             plan = freeze_sacrificial_smoke_plan(
@@ -2204,6 +2226,7 @@ def main(argv: list[str] | None = None) -> int:
                 judge_route=judge_route,
                 ordering_seed=ordering_seed,
                 generation_seed=generation_seed,
+                require_fresh_evidence=not args.allow_frozen_campaign_route,
             )
         output_directory = _private_output_directory(
             args.output_dir, create=False if args.resume else True

@@ -25,6 +25,19 @@ cannot be executed or reported until authenticated evidence replaces them.
 Duplicate IDs/routes, missing families, stale evidence, silent substitutions,
 or identity mismatch are fatal planning errors.
 
+The required discovery command supplies both `--catalog-output` and
+`--attempt-ledger`. The resulting schema-v2 bundle must contain an explicit
+decision for every authenticated catalog route and an atomically written
+reservation/outcome row for every smoke POST, including failures. Campaign
+planning imports that full ledger rather than reconstructing successful calls.
+
+Route evidence must be fresh when the immutable campaign is created. Each
+native runner then accepts the exact hash-pinned campaign route after the
+168-hour discovery window, while continuing to require byte-identical registry
+identity and returned-model identity. This prevents a long campaign from aging
+into an unrecoverable state without permitting route substitution or a new
+unattested freeze.
+
 ## One-stage matrix
 
 The final campaign uses one fixed stage. There is no variance-pilot/baseline
@@ -53,11 +66,18 @@ trajectories similarly keep a run-SD-0.15 t half-width near 6.3 points.
 
 The manifest stores a self-hashed, role-specific budget. Before every physical
 InferenceHub POST, the caller atomically reserves the request hash, a
-character-based input-token estimate, and the full role output-token cap in a
+one-token-per-UTF-8-byte input upper bound, and the full role output-token cap in a
 shared ledger. The reservation is fsynced before dispatch; a crash may
 overcount but cannot hide a request. Resume replays the ledger and rejects any
 mismatch. No request is dispatched if its conservative reservation would
-exceed a role cap, 430,000 attempts, or 200 million reserved tokens.
+exceed a role cap, 430,000 attempts, or 1.5 billion conservatively reserved
+tokens.
+
+Each native attempt record also retains the exact complete-request hash returned
+by its pre-dispatch reservation. The final data lock requires the non-discovery
+ledger hashes and native smoke/production attempt hashes to match as an exact
+multiset, so retries, failures, omissions, and duplicate accounting are all
+fail-closed.
 
 Provider-reported usage remains in each response audit for reconciliation.
 Missing or internally inconsistent usage makes the route incomplete. The
@@ -89,17 +109,19 @@ retained response are retryable. Each retry uses identical bytes and at most
 two retries. Truncation, malformed structured output, and semantic invalidity
 are retained as outcomes and never retried. Identity mismatch is fatal.
 
-A route-role pauses after three consecutive retry-exhausted units or when
-first-attempt operational failures exceed 2% in its latest 100 dispatches.
-Pause state, exclusion code, and affected units are durable manifest state.
-Stopping never reads scientific labels or summaries.
+Any retry-exhausted job or exact-identity failure quarantines all remaining
+jobs for the same target and part. The failed job and each blocked job remain
+durable manifest state. The campaign is incomplete, and restarting that
+target-part requires a separately frozen campaign. Stopping never reads
+scientific labels or summaries.
 
 ## Completion and locking
 
 A target is complete only when all three scientific parts pass native artifact
-verification. Incomplete routes remain in the coverage report but are absent
-from complete-case cross-part analysis. Current-SOTA completeness is assessed
-separately from the historical cohort.
+verification. The primary fixed-panel data lock requires every planned
+scientific job and therefore refuses incomplete routes or scientific
+exclusions. Failures remain in the campaign coverage report, but no
+confirmatory estimator is released from an incomplete campaign.
 
 The data lock revalidates route evidence, approved inputs, prompt and source
 hashes, the clean commit, every request/response and attempt record, ledger

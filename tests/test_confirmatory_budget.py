@@ -10,6 +10,7 @@ import pytest
 from experiments.confirmatory_budget import (
     ConfirmatoryBudgetError,
     build_frozen_budget,
+    consume_environment_reservation,
     create_ledger,
     record_attempt,
     reserve_environment_attempt,
@@ -33,6 +34,7 @@ def test_exact_thirty_route_budget_arithmetic() -> None:
     assert budget["rejudge_inclusive_posts"] == 386_328
     assert budget["planned_physical_attempt_bound"] == 424_961
     assert budget["physical_attempt_ceiling"] == 430_000
+    assert budget["input_plus_output_token_ceiling"] == 1_500_000_000
     assert budget["base_maximum_output_tokens"] == 35_994_720
     assert validate_frozen_budget(budget) == budget
 
@@ -163,6 +165,7 @@ def test_environment_reservation_is_durable_and_role_specific(
         query="classify",
         max_tokens=32,
     )
+    first_dispatch_hash = consume_environment_reservation()
     reserve_environment_attempt(
         provider="inference_hub",
         model="subject-route",
@@ -170,6 +173,7 @@ def test_environment_reservation_is_durable_and_role_specific(
         query="respond",
         max_tokens=512,
     )
+    second_dispatch_hash = consume_environment_reservation()
     ledger = validate_ledger(
         json.loads(ledger_path.read_text(encoding="utf-8")), budget
     )
@@ -180,6 +184,10 @@ def test_environment_reservation_is_durable_and_role_specific(
         record["outcome"] == "reserved_before_dispatch"
         for record in ledger["records"]
     )
+    assert [first_dispatch_hash, second_dispatch_hash] == [
+        record["request_sha256"] for record in ledger["records"]
+    ]
+    assert consume_environment_reservation() is None
 
     tiny = build_frozen_budget(1, token_ceiling=1_200_000)
     current = create_ledger(tiny)

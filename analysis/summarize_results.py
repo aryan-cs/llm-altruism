@@ -194,6 +194,8 @@ def _part0_language_robustness_rows(
         min_language, min_rate = min(rates_by_language.items(), key=lambda item: item[1])
         max_language, max_rate = max(rates_by_language.items(), key=lambda item: item[1])
         row: dict[str, object] = {
+            "evidence_status": "deprecated_invalid_legacy_label_protocol",
+            "evidence_note": "Not a paper result; complete response-only rejudgment and human validation are required.",
             "provider": provider,
             "model": model,
             "languages_evaluated": len(rates),
@@ -246,6 +248,8 @@ def summarize_part0(raw_dir: Path, output_dir: Path) -> tuple[Path, Path]:
         grouping = model_metadata[(provider, model)]
         rows.append(
             {
+                "evidence_status": "deprecated_invalid_legacy_label_protocol",
+                "evidence_note": "Not a paper result; complete response-only rejudgment and human validation are required.",
                 "provider": provider,
                 "model": model,
                 "family_id": grouping.family_id,
@@ -273,6 +277,8 @@ def summarize_part0(raw_dir: Path, output_dir: Path) -> tuple[Path, Path]:
     _write_csv(
         path,
         [
+            "evidence_status",
+            "evidence_note",
             "provider",
             "model",
             "family_id",
@@ -298,6 +304,8 @@ def summarize_part0(raw_dir: Path, output_dir: Path) -> tuple[Path, Path]:
     _write_csv(
         robustness_path,
         [
+            "evidence_status",
+            "evidence_note",
             "provider",
             "model",
             "languages_evaluated",
@@ -1228,6 +1236,8 @@ def summarize_cross_part(output_dir: Path) -> tuple[Path, Path]:
         grouping = resolve_model_metadata(provider, model)
         model_rows.append(
             {
+                "evidence_status": "deprecated_contains_invalid_legacy_part0_axis",
+                "evidence_note": "Not a paper result; all Part 0-dependent fields and uses are withdrawn.",
                 "provider": provider,
                 "model": model,
                 "family_id": part1[key].get("family_id") or grouping.family_id,
@@ -1264,6 +1274,8 @@ def summarize_cross_part(output_dir: Path) -> tuple[Path, Path]:
     _write_csv(
         model_path,
         [
+            "evidence_status",
+            "evidence_note",
             "provider",
             "model",
             "family_id",

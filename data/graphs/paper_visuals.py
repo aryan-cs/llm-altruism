@@ -108,11 +108,11 @@ def _setup_matplotlib():
         {
             "font.family": "serif",
             "font.serif": ["Times New Roman", "Times", "DejaVu Serif"],
-            "font.size": 9,
-            "axes.titlesize": 12,
-            "axes.labelsize": 10,
-            "xtick.labelsize": 8,
-            "ytick.labelsize": 8,
+            "font.size": 11,
+            "axes.titlesize": 14,
+            "axes.labelsize": 12,
+            "xtick.labelsize": 10,
+            "ytick.labelsize": 10,
             "figure.dpi": 140,
             "savefig.dpi": 220,
             "axes.spines.top": False,
@@ -189,7 +189,7 @@ def render_frame_sensitivity_heatmap() -> Path:
                 f"{value:.0f}",
                 ha="center",
                 va="center",
-                fontsize=7,
+                fontsize=9,
                 color=_heatmap_text_color(value),
             )
 
@@ -238,7 +238,7 @@ def render_part1_game_heatmap() -> Path:
                 f"{value:.0f}",
                 ha="center",
                 va="center",
-                fontsize=7,
+                fontsize=9,
                 color=_heatmap_text_color(value),
             )
 
@@ -321,7 +321,7 @@ def render_agent_day_raster() -> Path:
     models, _trajectories, raster = _part2_trajectories()
     cmap = ListedColormap([LOW_ACTION_COLOR, HIGH_ACTION_COLOR, MISSING_SCORE_COLOR])
     norm = BoundaryNorm([-0.5, 0.5, 1.5, 2.5], cmap.N)
-    fig, ax = plt.subplots(figsize=(12.5, 10.8))
+    fig, ax = plt.subplots(figsize=(8.2, 8.2))
     ax.imshow(raster, cmap=cmap, norm=norm, aspect="auto", interpolation="nearest")
     centers = [index * COMMONS_SOCIETY_SIZE + (COMMONS_SOCIETY_SIZE - 1) / 2 for index in range(len(models))]
     ax.set_yticks(centers)
@@ -350,7 +350,7 @@ def render_agent_day_raster() -> Path:
 def render_part2_line_chart(metric: str, ylabel: str, title: str, filename: str) -> Path:
     plt, _cmap = _setup_matplotlib()
     models, trajectories, _raster = _part2_trajectories()
-    fig, ax = plt.subplots(figsize=(12.2, 6.8))
+    fig, ax = plt.subplots(figsize=(8.2, 5.4))
     for model in models:
         rows = trajectories[model]
         if not rows:
@@ -401,7 +401,7 @@ def render_part2_restraint_choice_heatmap() -> Path:
 
     heatmap_cmap = cmap.copy()
     heatmap_cmap.set_bad(MISSING_SCORE_COLOR)
-    fig, ax = plt.subplots(figsize=(12.2, 6.6))
+    fig, ax = plt.subplots(figsize=(8.2, 5.2))
     image = ax.imshow(
         matrix,
         cmap=heatmap_cmap,
@@ -439,7 +439,7 @@ def render_part2_restraint_bar() -> Path:
     values = [float(rows[model]["restraint_rate"]) * 100.0 for model in models]
     x_positions = np.arange(len(models))
 
-    fig, ax = plt.subplots(figsize=(13.8, 5.4))
+    fig, ax = plt.subplots(figsize=(9.2, 4.8))
     ax.bar(
         x_positions,
         values,
@@ -449,7 +449,7 @@ def render_part2_restraint_bar() -> Path:
     )
     for x_pos, value in zip(x_positions, values):
         label_y = min(104.5, value + 1.4)
-        ax.text(x_pos, label_y, f"{value:.1f}", ha="center", va="bottom", fontsize=7, rotation=90)
+        ax.text(x_pos, label_y, f"{value:.1f}", ha="center", va="bottom", fontsize=10, rotation=90)
     ax.set_xticks(x_positions)
     ax.set_xticklabels([_short_model_label(model) for model in models], rotation=45, ha="right")
     ax.set_ylim(0, 112)

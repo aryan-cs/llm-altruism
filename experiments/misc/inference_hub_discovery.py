@@ -17,6 +17,7 @@ import sys
 import tempfile
 import urllib.error
 import urllib.request
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
@@ -30,7 +31,8 @@ DEFAULT_BASE_URL = "https://inference-api.nvidia.com/v1"
 ROUTE_SOURCE = "inference_hub_models_api"
 CATALOG_SCHEMA_VERSION = 1
 SMOKE_SCHEMA_VERSION = 2
-COHORT_EVIDENCE_SCHEMA_VERSION = 1
+COHORT_EVIDENCE_SCHEMA_VERSION = 2
+DISCOVERY_LEDGER_SCHEMA_VERSION = 1
 SMOKE_SEED = 20_260_801
 SMOKE_SCHEMA = {
     "type": "object",
@@ -106,6 +108,108 @@ def _atomic_write_json(path: Path, payload: Mapping[str, Any]) -> None:
         except FileNotFoundError:
             pass
         raise
+
+
+def _discovery_ledger_hash(payload: Mapping[str, Any]) -> str:
+    return _sha256_json(
+        {key: value for key, value in payload.items() if key != "ledger_sha256"}
+    )
+
+
+def _load_discovery_ledger(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        payload: dict[str, Any] = {
+            "schema_version": DISCOVERY_LEDGER_SCHEMA_VERSION,
+            "artifact_type": "inference_hub_discovery_attempt_ledger",
+            "records": [],
+        }
+        payload["ledger_sha256"] = _discovery_ledger_hash(payload)
+        _atomic_write_json(path, payload)
+        return payload
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise InferenceHubDiscoveryError(
+            "Discovery attempt ledger is not valid UTF-8 JSON."
+        ) from error
+    if (
+        not isinstance(payload, dict)
+        or payload.get("schema_version") != DISCOVERY_LEDGER_SCHEMA_VERSION
+        or payload.get("artifact_type")
+        != "inference_hub_discovery_attempt_ledger"
+        or not isinstance(payload.get("records"), list)
+        or payload.get("ledger_sha256") != _discovery_ledger_hash(payload)
+    ):
+        raise InferenceHubDiscoveryError("Discovery attempt ledger integrity failed.")
+    attempt_ids = [
+        record.get("attempt_id")
+        for record in payload["records"]
+        if isinstance(record, Mapping)
+    ]
+    if (
+        len(attempt_ids) != len(payload["records"])
+        or not all(isinstance(value, str) and value for value in attempt_ids)
+        or len(set(attempt_ids)) != len(attempt_ids)
+    ):
+        raise InferenceHubDiscoveryError("Discovery attempt ledger records are invalid.")
+    return payload
+
+
+def _reserve_discovery_attempt(
+    path: Path,
+    *,
+    target_id: str,
+    route: str,
+    request_body: Mapping[str, Any],
+    max_tokens: int,
+) -> str:
+    ledger = _load_discovery_ledger(path)
+    attempt_id = f"discovery_{uuid.uuid4().hex}"
+    encoded = _canonical_bytes(request_body)
+    ledger.pop("ledger_sha256", None)
+    ledger["records"].append(
+        {
+            "attempt_id": attempt_id,
+            "target_id": target_id,
+            "route": route,
+            "reserved_at_utc": _utc_now(),
+            "request_sha256": hashlib.sha256(encoded).hexdigest(),
+            "input_tokens": max(1, len(encoded)),
+            "output_tokens": max_tokens,
+            "outcome": "reserved_before_dispatch",
+            "failure_code": None,
+            "request_id": None,
+        }
+    )
+    ledger["ledger_sha256"] = _discovery_ledger_hash(ledger)
+    _atomic_write_json(path, ledger)
+    return attempt_id
+
+
+def _finish_discovery_attempt(
+    path: Path,
+    *,
+    attempt_id: str,
+    outcome: str,
+    failure_code: str | None,
+    request_id: str | None,
+) -> None:
+    ledger = _load_discovery_ledger(path)
+    matches = [
+        record
+        for record in ledger["records"]
+        if isinstance(record, dict) and record.get("attempt_id") == attempt_id
+    ]
+    if len(matches) != 1 or matches[0].get("outcome") != "reserved_before_dispatch":
+        raise InferenceHubDiscoveryError(
+            "Discovery attempt completion does not match one pending reservation."
+        )
+    matches[0]["outcome"] = outcome
+    matches[0]["failure_code"] = failure_code
+    matches[0]["request_id"] = request_id
+    ledger.pop("ledger_sha256", None)
+    ledger["ledger_sha256"] = _discovery_ledger_hash(ledger)
+    _atomic_write_json(path, ledger)
 
 
 class InferenceHubClient:
@@ -303,24 +407,9 @@ def _catalog_route(catalog: Mapping[str, Any], route: str) -> Mapping[str, Any]:
     return row
 
 
-def smoke_verify_route(
-    client: InferenceHubClient,
-    *,
-    catalog: Mapping[str, Any],
-    route: str,
-    max_tokens: int = 16,
-) -> dict[str, Any]:
-    """Run one bounded chat request and return sanitized verification evidence."""
-
-    normalized_route = route.strip()
-    if not normalized_route:
-        raise ValueError("route must be non-empty.")
-    if max_tokens <= 0:
-        raise ValueError("max_tokens must be positive.")
-    catalog_row = _catalog_route(catalog, normalized_route)
-    schema_sha256 = _sha256_json(SMOKE_SCHEMA)
-    request_body = {
-        "model": normalized_route,
+def _smoke_request_body(route: str, max_tokens: int) -> dict[str, Any]:
+    return {
+        "model": route,
         "messages": [
             {
                 "role": "user",
@@ -341,6 +430,25 @@ def smoke_verify_route(
             },
         },
     }
+
+
+def smoke_verify_route(
+    client: InferenceHubClient,
+    *,
+    catalog: Mapping[str, Any],
+    route: str,
+    max_tokens: int = 16,
+) -> dict[str, Any]:
+    """Run one bounded chat request and return sanitized verification evidence."""
+
+    normalized_route = route.strip()
+    if not normalized_route:
+        raise ValueError("route must be non-empty.")
+    if max_tokens <= 0:
+        raise ValueError("max_tokens must be positive.")
+    catalog_row = _catalog_route(catalog, normalized_route)
+    schema_sha256 = _sha256_json(SMOKE_SCHEMA)
+    request_body = _smoke_request_body(normalized_route, max_tokens)
     response = client.post("/chat/completions", request_body)
     request_id = response.get("id")
     response_model = response.get("model")
@@ -439,6 +547,7 @@ def smoke_verify_route(
         },
         "request": {
             **generation_controls,
+            "request_sha256": _sha256_json(request_body),
             "prompt_sha256": hashlib.sha256(
                 request_body["messages"][0]["content"].encode("utf-8")
             ).hexdigest(),
@@ -460,6 +569,7 @@ def smoke_verify_cohorts(
     catalog: Mapping[str, Any],
     cohort_ids: list[str],
     max_tokens: int = 16,
+    attempt_ledger_path: Path | None = None,
 ) -> dict[str, Any]:
     """Verify every exact route in one or more frozen registry cohorts.
 
@@ -520,23 +630,107 @@ def smoke_verify_cohorts(
         )
 
     verified_targets: list[dict[str, Any]] = []
+    rejected_targets: list[dict[str, str]] = []
     for target_id, target in targets:
-        evidence = smoke_verify_route(
-            client,
-            catalog=catalog,
-            route=str(target["route"]),
-            max_tokens=max_tokens,
-        )
+        route = str(target["route"])
+        attempt_id: str | None = None
+        if attempt_ledger_path is not None:
+            attempt_id = _reserve_discovery_attempt(
+                attempt_ledger_path,
+                target_id=target_id,
+                route=route,
+                request_body=_smoke_request_body(route, max_tokens),
+                max_tokens=max_tokens,
+            )
+        try:
+            evidence = smoke_verify_route(
+                client,
+                catalog=catalog,
+                route=route,
+                max_tokens=max_tokens,
+            )
+        except (InferenceHubDiscoveryError, ValueError) as error:
+            failure_code = (
+                "catalog_route_ineligible"
+                if any(
+                    marker in str(error).casefold()
+                    for marker in ("absent from", "not chat-capable", "does not occur")
+                )
+                else "route_verification_failed"
+            )
+            if attempt_id is not None:
+                _finish_discovery_attempt(
+                    attempt_ledger_path,
+                    attempt_id=attempt_id,
+                    outcome="failed",
+                    failure_code=failure_code,
+                    request_id=None,
+                )
+            rejected_targets.append(
+                {
+                    "target_id": target_id,
+                    "route": route,
+                    "failure_code": failure_code,
+                }
+            )
+            continue
+        if attempt_id is not None:
+            _finish_discovery_attempt(
+                attempt_ledger_path,
+                attempt_id=attempt_id,
+                outcome="verified",
+                failure_code=None,
+                request_id=str(
+                    evidence["verification_evidence"]["smoke_test"]["request_id"]
+                ),
+            )
         verified_targets.append(
             {
                 "target_id": target_id,
                 "upstream_provider": str(target["upstream_provider"]),
-                "route": str(target["route"]),
+                "route": route,
                 "evidence": evidence,
             }
         )
+    selected_by_route = {str(target["route"]): target_id for target_id, target in targets}
+    catalog_census: list[dict[str, Any]] = []
+    for row in catalog.get("routes", []):
+        if not isinstance(row, Mapping) or not isinstance(row.get("route"), str):
+            raise InferenceHubDiscoveryError("Catalog census contains an invalid route row.")
+        route = str(row["route"])
+        if route in selected_by_route:
+            decision = "included_frozen_panel"
+            target_id = selected_by_route[route]
+        elif row.get("listed_by_models") is not True or row.get("listed_by_model_info") is not True:
+            decision = "excluded_catalog_api_disagreement"
+            target_id = None
+        elif row.get("chat_capable") is not True:
+            decision = "excluded_non_chat_mode"
+            target_id = None
+        else:
+            decision = "excluded_outside_frozen_panel"
+            target_id = None
+        catalog_census.append(
+            {"route": route, "decision": decision, "target_id": target_id}
+        )
+    if not set(selected_by_route).issubset(
+        {str(row["route"]) for row in catalog_census}
+    ):
+        raise InferenceHubDiscoveryError(
+            "Catalog census does not contain every frozen panel route."
+        )
+    ledger_reference: dict[str, Any] | None = None
+    if attempt_ledger_path is not None:
+        ledger = _load_discovery_ledger(attempt_ledger_path)
+        ledger_reference = {
+            "path": str(attempt_ledger_path.resolve()),
+            "sha256": hashlib.sha256(attempt_ledger_path.read_bytes()).hexdigest(),
+            "ledger_sha256": ledger["ledger_sha256"],
+            "record_count": len(ledger["records"]),
+        }
     payload: dict[str, Any] = {
         "schema_version": COHORT_EVIDENCE_SCHEMA_VERSION,
+        "status": "verified" if not rejected_targets else "incomplete",
         "verified_at_utc": _utc_now(),
         "endpoint": client.base_url,
         "registry_version": next(iter(registry_versions)),
@@ -544,8 +738,13 @@ def smoke_verify_cohorts(
         "routing_roster_sha256": next(iter(routing_roster_hashes)),
         "catalog_source_payload_sha256": catalog.get("source_payload_sha256"),
         "cohorts": cohorts,
-        "target_count": len(verified_targets),
+        "target_count": len(targets),
+        "verified_target_count": len(verified_targets),
         "targets": verified_targets,
+        "rejected_targets": rejected_targets,
+        "catalog_census": catalog_census,
+        "catalog_census_sha256": _sha256_json(catalog_census),
+        "discovery_attempt_ledger": ledger_reference,
     }
     payload["bundle_sha256"] = _sha256_json(payload)
     return payload
@@ -581,6 +780,12 @@ def _build_parser() -> argparse.ArgumentParser:
     cohorts_parser.add_argument("--output", type=Path, required=True)
     cohorts_parser.add_argument("--catalog-output", type=Path)
     cohorts_parser.add_argument("--max-tokens", type=int, default=16)
+    cohorts_parser.add_argument(
+        "--attempt-ledger",
+        type=Path,
+        required=True,
+        help="Durable pre-dispatch ledger retained across failed verification runs.",
+    )
     return parser
 
 
@@ -602,8 +807,14 @@ def main(argv: list[str] | None = None) -> int:
             catalog=catalog,
             cohort_ids=args.cohort,
             max_tokens=args.max_tokens,
+            attempt_ledger_path=args.attempt_ledger,
         )
         _atomic_write_json(args.output, evidence)
+        if evidence["status"] != "verified":
+            raise InferenceHubDiscoveryError(
+                "One or more frozen panel routes failed verification; incomplete "
+                f"evidence was retained at {args.output}."
+            )
         print(
             f"Verified {evidence['target_count']} exact InferenceHub routes "
             f"across {len(evidence['cohorts'])} cohort(s)."

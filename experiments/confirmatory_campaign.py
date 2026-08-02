@@ -26,15 +26,11 @@ from agents.agent_config import load_model_cohort, require_fresh_route_verificat
 from experiments.confirmatory_budget import (
     build_frozen_budget,
     create_ledger,
+    record_attempt,
     validate_frozen_budget,
     validate_ledger,
 )
 from experiments.misc.attempt_log import attempt_log_path_for_csv, verify_attempt_log_metadata
-from experiments.misc.final_answer import (
-    DEFAULT_EXTRACTOR_MAX_TOKENS,
-    DEFAULT_OUTPUT_TOKEN_CAP,
-    ExtractionConfig,
-)
 from experiments.misc.run_metadata import (
     git_commit,
     git_dirty,
@@ -55,7 +51,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 CAMPAIGN_ROOT = REPO_ROOT / "data" / "private" / "confirmatory_campaigns"
 DEFAULT_COHORTS = ("current_sota", "historical")
 MANIFEST_SCHEMA_VERSION = 1
-ENDPOINT_EVIDENCE_SCHEMA_VERSION = 1
+ENDPOINT_EVIDENCE_SCHEMA_VERSION = 2
 VARIANCE_GATE_SCHEMA_VERSION = 1
 DEFAULT_TIMEOUT_SECONDS = 7 * 24 * 60 * 60
 DEFAULT_PART2_GENERATION_SEED_BASE = 2_026_080_100
@@ -80,6 +76,7 @@ _JOB_STATUSES = {
     "complete",
     "failed",
     "blocked_smoke",
+    "blocked_route_health",
 }
 
 
@@ -376,6 +373,14 @@ def _validate_endpoint_evidence(
     )
     if payload.get("schema_version") != ENDPOINT_EVIDENCE_SCHEMA_VERSION:
         raise ConfirmatoryCampaignError("Unsupported endpoint-evidence schema.")
+    if (
+        payload.get("status") != "verified"
+        or payload.get("verified_target_count") != len(targets)
+        or payload.get("rejected_targets") != []
+    ):
+        raise ConfirmatoryCampaignError(
+            "Endpoint evidence is incomplete or contains a failed frozen-panel route."
+        )
     if recorded_hash != expected_hash:
         raise ConfirmatoryCampaignError("Endpoint-evidence bundle hash is invalid.")
     if payload.get("registry_version") != registry_version:
@@ -390,6 +395,57 @@ def _validate_endpoint_evidence(
         raise ConfirmatoryCampaignError(
             "Endpoint evidence does not exactly cover requested cohorts."
         )
+    census = payload.get("catalog_census")
+    if (
+        not isinstance(census, list)
+        or payload.get("catalog_census_sha256") != stable_json_hash(census)
+        or not census
+    ):
+        raise ConfirmatoryCampaignError("Endpoint evidence lacks a hash-bound catalog census.")
+    allowed_census_decisions = {
+        "included_frozen_panel",
+        "excluded_catalog_api_disagreement",
+        "excluded_non_chat_mode",
+        "excluded_outside_frozen_panel",
+    }
+    census_by_route: dict[str, Mapping[str, Any]] = {}
+    for row in census:
+        if (
+            not isinstance(row, Mapping)
+            or set(row) != {"route", "decision", "target_id"}
+            or not isinstance(row.get("route"), str)
+            or row.get("decision") not in allowed_census_decisions
+            or row["route"] in census_by_route
+        ):
+            raise ConfirmatoryCampaignError("Catalog census row is invalid or duplicated.")
+        census_by_route[str(row["route"])] = row
+    ledger_reference = payload.get("discovery_attempt_ledger")
+    if not isinstance(ledger_reference, Mapping) or set(ledger_reference) != {
+        "path", "sha256", "ledger_sha256", "record_count"
+    }:
+        raise ConfirmatoryCampaignError("Endpoint evidence lacks its discovery ledger.")
+    discovery_ledger_path = Path(str(ledger_reference["path"]))
+    discovery_ledger = _load_json(
+        discovery_ledger_path, label="InferenceHub discovery attempt ledger"
+    )
+    if (
+        not discovery_ledger_path.is_file()
+        or sha256_file(discovery_ledger_path) != ledger_reference["sha256"]
+        or discovery_ledger.get("ledger_sha256") != ledger_reference["ledger_sha256"]
+        or discovery_ledger.get("ledger_sha256")
+        != stable_json_hash(
+            {
+                key: value
+                for key, value in discovery_ledger.items()
+                if key != "ledger_sha256"
+            }
+        )
+        or len(discovery_ledger.get("records", [])) != ledger_reference["record_count"]
+    ):
+        raise ConfirmatoryCampaignError("Discovery attempt ledger changed.")
+    discovery_records = discovery_ledger.get("records")
+    if not isinstance(discovery_records, list) or not discovery_records:
+        raise ConfirmatoryCampaignError("Discovery attempt ledger has no physical POSTs.")
     evidence_targets = payload.get("targets")
     if not isinstance(evidence_targets, list) or payload.get("target_count") != len(
         targets
@@ -408,6 +464,7 @@ def _validate_endpoint_evidence(
         if not isinstance(record, Mapping):
             raise ConfirmatoryCampaignError("Endpoint evidence target is not an object.")
         route = str(target["route"])
+        census_row = census_by_route.get(route)
         evidence = record.get("evidence")
         if (
             record.get("target_id") != target["id"]
@@ -420,6 +477,12 @@ def _validate_endpoint_evidence(
             or evidence.get("endpoint") != endpoint
             or evidence.get("verification_evidence")
             != target.get("verification_evidence")
+            or census_row
+            != {
+                "route": route,
+                "decision": "included_frozen_panel",
+                "target_id": target["id"],
+            }
         ):
             raise ConfirmatoryCampaignError(
                 f"Endpoint evidence does not prove exact verified route {route}."
@@ -442,6 +505,20 @@ def _validate_endpoint_evidence(
         ):
             raise ConfirmatoryCampaignError(
                 f"Endpoint evidence lacks frozen smoke controls for {route}."
+            )
+        request = evidence.get("request")
+        request_sha256 = request.get("request_sha256") if isinstance(request, Mapping) else None
+        if not any(
+            isinstance(attempt, Mapping)
+            and attempt.get("target_id") == target["id"]
+            and attempt.get("route") == route
+            and attempt.get("request_sha256") == request_sha256
+            and attempt.get("outcome") == "verified"
+            and attempt.get("request_id") == smoke["request_id"]
+            for attempt in discovery_records
+        ):
+            raise ConfirmatoryCampaignError(
+                f"Discovery ledger lacks the successful physical POST for {route}."
             )
 
 
@@ -691,13 +768,11 @@ def _part2_argv(
     *,
     python: str,
     target: Mapping[str, Any],
-    extractor: Mapping[str, Any],
     config: Mapping[str, Any],
     generation_seed: int,
     environment_seed: int,
     resume: bool,
 ) -> list[str]:
-    del extractor
     argv = [
         python,
         "-m",
@@ -769,6 +844,7 @@ def _p0_argv(
         "20260801",
         "--output-dir",
         output_dir,
+        "--allow-frozen-campaign-route",
     ]
     if completed_smoke_dir is not None:
         argv.extend(["--completed-smoke-dir", completed_smoke_dir])
@@ -781,14 +857,12 @@ def _p1_argv(
     python: str,
     mode: str,
     target: Mapping[str, Any],
-    extractor: Mapping[str, Any],
     bank_path: str,
     bank_hash: str,
     output_dir: str,
     completed_smoke_dir: str | None,
     resume: bool,
 ) -> list[str]:
-    del extractor
     argv = [
         python,
         "-m",
@@ -805,6 +879,7 @@ def _p1_argv(
         str(target["route"]),
         "--output-directory",
         output_dir,
+        "--allow-frozen-campaign-route",
     ]
     if completed_smoke_dir is not None:
         argv.extend(["--completed-smoke-directory", completed_smoke_dir])
@@ -875,16 +950,9 @@ def _block_randomized_jobs(jobs: Sequence[Mapping[str, Any]]) -> list[dict[str, 
     return ordered
 
 
-def _grading_protocol(extractor: Mapping[str, Any]) -> dict[str, Any]:
-    return ExtractionConfig(
-        provider="inference_hub",
-        model=str(extractor["route"]),
-        subject_output_token_cap=DEFAULT_OUTPUT_TOKEN_CAP,
-        extractor_max_tokens=DEFAULT_EXTRACTOR_MAX_TOKENS,
-    ).to_metadata()
-
-
-def build_plan(args: argparse.Namespace) -> dict[str, Any]:
+def build_plan(
+    args: argparse.Namespace, *, enforce_route_freshness: bool = True
+) -> dict[str, Any]:
     """Fully validate all inputs and return a pure in-memory immutable plan."""
 
     cohort_ids = tuple(args.cohort or DEFAULT_COHORTS)
@@ -900,12 +968,13 @@ def build_plan(args: argparse.Namespace) -> dict[str, Any]:
         # variance-pilot chain.  Its exact pilot manifest/registry/routes are
         # revalidated below, so elapsed wall time must not make the immutable
         # campaign impossible to finish.
-        enforce_freshness=args.part2_stage != "baseline-production",
+        enforce_freshness=(
+            enforce_route_freshness and args.part2_stage != "baseline-production"
+        ),
     )
     target_by_id = {
         str(target["id"]): target for target in complete_union_targets
     }
-    extractor = _route_role(target_by_id, args.extractor_target_id, "extractor")
     judge = _route_role(target_by_id, args.judge_target_id, "judge")
     requested_target_ids = list(args.target_id or [])
     if len(set(requested_target_ids)) != len(requested_target_ids):
@@ -1017,8 +1086,6 @@ def build_plan(args: argparse.Namespace) -> dict[str, Any]:
             }
             or pilot_manifest.get("roles")
             != {
-                "extractor_target_id": extractor["id"],
-                "extractor_route": extractor["route"],
                 "judge_target_id": judge["id"],
                 "judge_route": judge["route"],
             }
@@ -1065,7 +1132,6 @@ def build_plan(args: argparse.Namespace) -> dict[str, Any]:
     freeze = _execution_freeze()
     python = freeze["python_executable"]
     campaign_id = _require_campaign_id(args.campaign_id)
-    grading_protocol = _grading_protocol(extractor)
     production_config = _part2_config(smoke=False, args=args)
     smoke_config = _part2_config(smoke=True, args=args)
     jobs: list[dict[str, Any]] = []
@@ -1127,7 +1193,6 @@ def build_plan(args: argparse.Namespace) -> dict[str, Any]:
                     python=python,
                     mode="sacrificial-smoke",
                     target=target,
-                    extractor=extractor,
                     bank_path=str(p1_path),
                     bank_hash=p1_hash,
                     output_dir=str(output),
@@ -1138,7 +1203,6 @@ def build_plan(args: argparse.Namespace) -> dict[str, Any]:
                     python=python,
                     mode="sacrificial-smoke",
                     target=target,
-                    extractor=extractor,
                     bank_path=str(p1_path),
                     bank_hash=p1_hash,
                     output_dir=str(output),
@@ -1155,7 +1219,6 @@ def build_plan(args: argparse.Namespace) -> dict[str, Any]:
                 fresh = _part2_argv(
                     python=python,
                     target=target,
-                    extractor=extractor,
                     config=smoke_config,
                     generation_seed=PART2_SMOKE_GENERATION_SEED,
                     environment_seed=PART2_SMOKE_ENVIRONMENT_SEED,
@@ -1164,7 +1227,6 @@ def build_plan(args: argparse.Namespace) -> dict[str, Any]:
                 resume_argv = _part2_argv(
                     python=python,
                     target=target,
-                    extractor=extractor,
                     config=smoke_config,
                     generation_seed=PART2_SMOKE_GENERATION_SEED,
                     environment_seed=PART2_SMOKE_ENVIRONMENT_SEED,
@@ -1175,7 +1237,6 @@ def build_plan(args: argparse.Namespace) -> dict[str, Any]:
                     config=smoke_config,
                     generation_seed=PART2_SMOKE_GENERATION_SEED,
                     environment_seed=PART2_SMOKE_ENVIRONMENT_SEED,
-                    grading_protocol=grading_protocol,
                     git_commit=str(freeze["git_commit"]),
                 )
             jobs.append(
@@ -1253,7 +1314,6 @@ def build_plan(args: argparse.Namespace) -> dict[str, Any]:
                     python=python,
                     mode="production",
                     target=target,
-                    extractor=extractor,
                     bank_path=str(p1_path),
                     bank_hash=p1_hash,
                     output_dir=str(output),
@@ -1264,7 +1324,6 @@ def build_plan(args: argparse.Namespace) -> dict[str, Any]:
                     python=python,
                     mode="production",
                     target=target,
-                    extractor=extractor,
                     bank_path=str(p1_path),
                     bank_hash=p1_hash,
                     output_dir=str(output),
@@ -1307,7 +1366,6 @@ def build_plan(args: argparse.Namespace) -> dict[str, Any]:
             fresh = _part2_argv(
                 python=python,
                 target=target,
-                extractor=extractor,
                 config=production_config,
                 generation_seed=generation_seed,
                 environment_seed=environment_seed,
@@ -1316,7 +1374,6 @@ def build_plan(args: argparse.Namespace) -> dict[str, Any]:
             resume_argv = _part2_argv(
                 python=python,
                 target=target,
-                extractor=extractor,
                 config=production_config,
                 generation_seed=generation_seed,
                 environment_seed=environment_seed,
@@ -1337,7 +1394,6 @@ def build_plan(args: argparse.Namespace) -> dict[str, Any]:
                         config=production_config,
                         generation_seed=generation_seed,
                         environment_seed=environment_seed,
-                        grading_protocol=grading_protocol,
                         git_commit=str(freeze["git_commit"]),
                     ),
                 )
@@ -1375,8 +1431,6 @@ def build_plan(args: argparse.Namespace) -> dict[str, Any]:
             for target in targets
         ],
         "roles": {
-            "extractor_target_id": extractor["id"],
-            "extractor_route": extractor["route"],
             "judge_target_id": judge["id"],
             "judge_route": judge["route"],
         },
@@ -1440,10 +1494,8 @@ def _part2_expected(
     config: Mapping[str, Any],
     generation_seed: int,
     environment_seed: int,
-    grading_protocol: Mapping[str, Any],
     git_commit: str,
 ) -> dict[str, Any]:
-    del grading_protocol
     return {
         "provider": "inference_hub",
         "model": target["route"],
@@ -1552,7 +1604,6 @@ def _rebuild_arguments_from_manifest(manifest: Mapping[str, Any]) -> argparse.Na
         campaign_id=manifest["campaign_id"],
         cohort=[row["id"] for row in manifest["cohorts"]],
         target_id=target_ids,
-        extractor_target_id=roles["extractor_target_id"],
         judge_target_id=roles["judge_target_id"],
         part0_registry=inputs["part0_registry"]["path"],
         part0_registry_sha256=inputs["part0_registry"]["sha256"],
@@ -1673,13 +1724,10 @@ def validate_manifest(manifest: Mapping[str, Any]) -> None:
     roles = manifest.get("roles")
     if not isinstance(roles, Mapping):
         raise ConfirmatoryCampaignError("Manifest model roles are missing.")
-    extractor = _route_role(
-        target_by_id, str(roles.get("extractor_target_id", "")), "extractor"
-    )
     judge = _route_role(
         target_by_id, str(roles.get("judge_target_id", "")), "judge"
     )
-    if roles.get("extractor_route") != extractor["route"] or roles.get(
+    if set(roles) != {"judge_target_id", "judge_route"} or roles.get(
         "judge_route"
     ) != judge["route"]:
         raise ConfirmatoryCampaignError("Manifest role routes changed.")
@@ -1766,7 +1814,10 @@ def validate_manifest(manifest: Mapping[str, Any]) -> None:
         smoke_id = job.get("smoke_job_id")
         if job.get("stage") != "smoke" and smoke_id not in job_ids:
             raise ConfirmatoryCampaignError("Scientific job lacks its matching smoke.")
-    rebuilt = build_plan(_rebuild_arguments_from_manifest(manifest))
+    rebuilt = build_plan(
+        _rebuild_arguments_from_manifest(manifest),
+        enforce_route_freshness=False,
+    )
     if rebuilt.get("plan_sha256") != manifest.get("plan_sha256"):
         raise ConfirmatoryCampaignError(
             "Manifest job matrix or immutable planning fields differ from the sole "
@@ -1790,10 +1841,37 @@ def create_manifest(manifest: dict[str, Any]) -> Path:
     _atomic_json_write(directory / "request_budget.json", manifest["request_budget"])
     _atomic_json_write(
         directory / "request_ledger.json",
-        create_ledger(manifest["request_budget"]),
+        _initial_request_ledger(manifest),
     )
     _write_manifest(path, manifest)
     return path
+
+
+def _initial_request_ledger(manifest: Mapping[str, Any]) -> dict[str, Any]:
+    """Seed the live ledger with every reserved route-smoke physical POST."""
+
+    budget = manifest["request_budget"]
+    ledger = create_ledger(budget)
+    evidence = _load_json(
+        manifest["inputs"]["endpoint_evidence"]["path"],
+        label="endpoint evidence for budget seeding",
+    )
+    reference = evidence["discovery_attempt_ledger"]
+    discovery_ledger = _load_json(
+        reference["path"], label="discovery attempt ledger for budget seeding"
+    )
+    for record in discovery_ledger["records"]:
+        ledger = record_attempt(
+            ledger,
+            budget,
+            role="discovery",
+            attempt_id=str(record["attempt_id"]),
+            request_sha256=str(record["request_sha256"]),
+            outcome=str(record["outcome"]),
+            input_tokens=int(record["input_tokens"]),
+            output_tokens=int(record["output_tokens"]),
+        )
+    return ledger
 
 
 def load_manifest(path: str | Path) -> dict[str, Any]:
@@ -2017,13 +2095,39 @@ def execute_manifest(
             job["artifact"] = artifact_resolver(job, None)
             _write_manifest(manifest_path, manifest)
             continue
+        if job["status"] in {"failed", "blocked_route_health"}:
+            # Retry exhaustion and route-health quarantine are permanent for
+            # this immutable campaign. A new dispatch requires a new freeze.
+            continue
         smoke_id = job.get("smoke_job_id")
         if smoke_id is not None and job_by_id[smoke_id]["status"] != "complete":
             job["status"] = "blocked_smoke"
             job["last_error"] = f"matching smoke incomplete: {smoke_id}"
             _write_manifest(manifest_path, manifest)
             continue
-        if job["status"] in {"failed", "blocked_smoke", "running"}:
+        prior_route_failure = next(
+            (
+                prior
+                for prior in manifest["jobs"]
+                if prior is not job
+                and prior.get("target_id") == job.get("target_id")
+                and prior.get("experiment") == job.get("experiment")
+                and prior.get("status") == "failed"
+            ),
+            None,
+        )
+        if prior_route_failure is not None:
+            job["status"] = "blocked_route_health"
+            job["last_error"] = (
+                "same target/part quarantined after failed job: "
+                f"{prior_route_failure['id']}"
+            )
+            _write_manifest(manifest_path, manifest)
+            continue
+        if job["status"] in {
+            "blocked_smoke",
+            "running",
+        }:
             job["status"] = "pending"
         # Part 0/1 expose deterministic private directories and require an
         # explicit resume flag only after those artifacts exist.  Part 2's
@@ -2120,7 +2224,6 @@ def build_parser() -> argparse.ArgumentParser:
             "union. Use disjoint shards for parallel execution within route freshness."
         ),
     )
-    parser.add_argument("--extractor-target-id")
     parser.add_argument("--judge-target-id")
     parser.add_argument("--part0-registry")
     parser.add_argument("--part0-registry-sha256")
@@ -2152,7 +2255,6 @@ def build_parser() -> argparse.ArgumentParser:
 
 def _require_planning_arguments(parser: argparse.ArgumentParser, args: argparse.Namespace) -> None:
     required = (
-        "extractor_target_id",
         "judge_target_id",
         "part0_registry",
         "part0_registry_sha256",

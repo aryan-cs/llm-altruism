@@ -152,6 +152,20 @@ def materialize_execution_archive(
     archive_dir = raw_dir / ARCHIVE_DIRNAME
     if archive_dir.exists():
         raise FileExistsError(f"Refusing to overwrite existing archive: {archive_dir}")
+    portable_raw_dir = project_root / DEFAULT_RAW_DIR
+    portable_archive = portable_raw_dir / ARCHIVE_DIRNAME
+    if portable_archive.is_dir():
+        _verify_execution_archive(portable_raw_dir)
+        archive_dir.mkdir(parents=True)
+        for filename in (
+            ARCHIVE_SOURCE_FILENAME,
+            ARCHIVE_PROMPT_FILENAME,
+            ARCHIVE_MANIFEST_FILENAME,
+        ):
+            (archive_dir / filename).write_bytes(
+                (portable_archive / filename).read_bytes()
+            )
+        return archive_dir
     commit = sorted(ALLOWED_SOURCE_COMMITS)[0]
     source = _git_file(commit, SOURCE_PATH, project_root)
     prompt = _git_file(commit, PROMPT_PATH, project_root)

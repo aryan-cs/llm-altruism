@@ -14,7 +14,7 @@ For every supplied production run it revalidates:
 - the result JSONL sequence and record hash chain;
 - the complete attempt-log hash chain and attempt/result reconciliation;
 - the self-hashed complete metadata and its exact plan/result/attempt binding;
-- the subject, extractor, and judge routes frozen by the native runner; and
+- the subject and judge routes frozen by the native runner; and
 - complete schedule coverage under exactly English, Chinese, and Russian.
 
 Only the localized request, English source request, visible response, and the
@@ -77,29 +77,24 @@ caps automated `unclear` at 5% overall and in every language.
 `analysis/confirmatory_data_lock.py` creates one atomic, mode-0600,
 self-hashed JSON lock only after all evidence exists. It requires:
 
-1. two complete, exact-`complete_union` campaign manifests: the variance stage
-   supplies final Part 0/Part 1 evidence plus Part 2 pilot lineage, while the
-   linked baseline stage supplies final Part 2 scientific outcomes;
+1. one complete, exact-`complete_union` fixed-stage campaign manifest containing
+   final Part 0, Part 1, and exactly 24 Part 2 trajectories per route;
 2. successful native revalidation of every selected lineage plan, result,
    attempt log, metadata sidecar, and sacrificial-smoke exclusion marker;
 3. every model registry, endpoint-evidence, approved Part 0 registry, approved
-   Part 1 bank, and variance-selection input still matching its campaign hash;
+   Part 1 bank, request budget, and physical-attempt ledger still matching the
+   campaign and their recorded hashes;
 4. a genuine two-annotator judge score whose criterion promotion gate passes,
    whose exact schema is current, and whose key/annotation/duplicate/
    adjudication bytes still match their recorded hashes;
-5. the exact approved identity-masked variance selection already pinned by the
-   campaign;
-6. an explicit outcome-blind exclusion-decision artifact whose objective
-   reason-code policy was frozen before outcome collection, including an empty
-   decision list when no scientific exclusions were authorized.
+5. an explicit outcome-blind exclusion-decision artifact frozen before outcome
+   collection, with empty `excluded_job_ids` and `decisions` arrays.
 
-The identity-masked selector must bind the exact completed variance-stage manifest,
-and the baseline manifest must bind both that pilot and the native self-hashed
-selector. Part 2 pilot values are labeled sample-size-selection-only and can
-never enter the final Part 2 outcome list. The two manifests must retain one
-exact registry/routing roster, target union, roles, endpoint evidence, approved
-Part 0/Part 1 inputs, and source/dependency freeze. Execution shards are not
-publication inputs: both manifests must report `target_selection.mode` as
+There is no variance-pilot or outcome-adaptive sample-size stage in the
+authoritative protocol. The campaign must retain one exact registry/routing
+roster, target union, judge role, endpoint evidence, approved Part 0/Part 1
+inputs, and source/dependency freeze. Execution shards are not publication
+inputs: the final manifest must report `target_selection.mode` as
 `complete_union` until a separately validated exact-union shard merger exists.
 
 Part 2 sensitivity is explicitly deferred and non-lockable. The data lock does
@@ -113,16 +108,11 @@ The source freeze explicitly pins `docs/CONFIRMATORY_PROTOCOL.md`,
 `analysis/confirmatory_judge_adapter.py`, and
 `analysis/confirmatory_data_lock.py`. The lock separately lists every completed
 artifact file, approved input, protocol/source hash, automatic sacrificial
-smoke exclusion, separate included and excluded scientific-job lists, a
-complete excluded-job audit table, job count, and completeness assertion.
-Free-text reasons are prohibited. Every scientific exclusion requires a
-prespecified objective reason code, hash-pinned QC evidence, a named reviewer,
-a UTC decision time, and an outcome-blind attestation. Duplicate artifact
-paths, duplicate jobs or exclusions, unknown exclusions, post-outcome policy
-freezes, missing gates, drifted inputs, and overwrite attempts fail closed.
-The current native estimators are intentionally stricter than the lock: if any
-scientific job is excluded, they refuse inference until a separately frozen
-missing-data estimand and estimator are implemented.
+smoke exclusion, scientific-job list, job count, and completeness assertion.
+Duplicate artifact paths, duplicate jobs, any scientific exclusion,
+post-outcome policy freezes, missing gates, drifted inputs, and overwrite
+attempts fail closed. The native estimators independently require the same
+exact complete panel.
 
 These SHA-256 seals provide tamper evidence only relative to the pinned bytes;
 they are not external signatures. A write-capable insider could replace an
@@ -132,12 +122,9 @@ storage, access logs, and independent review of the recorded identities and
 hashes.
 
 The lock validates every scientific job's exact attempt sequence and UTC start/
-finish order. It preserves completed-attempt timestamps, reports collection
-ranges for each campaign stage and part, and records the exact gap between the
-variance-stage finish and baseline-stage start. It deliberately does not impose
-a post-hoc seven-day cutoff: the two-stage dependency makes calendar time
-structurally confounded with part/stage, which the lock flags for paper
-disclosure rather than hiding behind an infeasible timing claim.
+finish order. It preserves completed-attempt timestamps and reports collection
+ranges for each part. Route and part order are frozen by the campaign's
+deterministic block randomization.
 
 The required human exclusion decision has this exact schema:
 
@@ -147,8 +134,7 @@ The required human exclusion decision has this exact schema:
   "artifact_type": "confirmatory_exclusion_decisions",
   "status": "approved_outcome_blind",
   "campaign_plan_sha256s": {
-    "variance_stage": "<immutable variance plan_sha256>",
-    "baseline_stage": "<immutable baseline plan_sha256>"
+    "fixed_stage": "<immutable fixed-stage plan_sha256>"
   },
   "policy_frozen_at_utc": "2026-08-01T23:59:00Z",
   "policy_frozen_by": "policy reviewer identity",
@@ -165,23 +151,21 @@ The required human exclusion decision has this exact schema:
 }
 ```
 
-Each nonempty `decisions` entry must contain exactly `job_id`, `reason_code`,
-`evidence_path`, `evidence_sha256`, `decided_by`, `decided_at_utc`, and
-`outcome_blind: true`, in the same order as `excluded_job_ids`. The policy
-freeze timestamp cannot be later than campaign creation. Smoke jobs cannot use
-this mechanism because their native analysis-exclusion markers are mandatory.
+The arrays must remain empty. The policy freeze timestamp cannot be later than
+campaign creation. Smoke jobs use mandatory native analysis-exclusion markers
+and do not enter the scientific exclusion artifact.
 
 ```bash
 python -m analysis.confirmatory_data_lock \
-  --variance-campaign-manifest /private/variance-campaign/manifest.json \
-  --baseline-campaign-manifest /private/baseline-campaign/manifest.json \
+  --fixed-campaign-manifest /private/fixed-campaign/manifest.json \
   --judge-criterion /private/judge-audit/judge_validation_scores.json \
-  --variance-selection /private/part2/variance-selection.json \
   --exclusions /private/exclusion-decisions.json \
   --output /private/confirmatory-data-lock.json
 ```
 
 Run the lock only from the clean, frozen commit used by the campaign. The
-builder intentionally refuses pilot-only campaigns without a variance gate or
-partially complete campaigns. A data-lock hash is an integrity statement, not
-a substitute for the human approvals that it pins.
+builder intentionally refuses partially complete campaigns or scientific
+exclusions. A data-lock hash is an integrity statement, not a substitute for
+the human approvals that it pins. Legacy two-stage builder functions remain in
+the module only to revalidate already-created historical artifacts; they are
+not part of this protocol.
