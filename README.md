@@ -50,6 +50,13 @@ cp .env.example .env
 
 Fill in only the provider credentials you plan to use. Local Ollama runs do not require cloud API keys, but they do require Ollama to be installed and the requested model tag to be available locally.
 
+For revision-pinned offline Hugging Face controls, use
+`experiments/misc/local_hf_smoke.py` with
+`agents/local_control.registry.json`. The runner hashes the exact cached assets
+and performs real generation without downloading or trusting remote code. These
+small-model controls are separate from the hosted frontier panel and never
+substitute for an unavailable route. See `docs/LOCAL_MODEL_CONTROLS.md`.
+
 Internal NVIDIA InferenceHub and the public NVIDIA API Catalog/NIM are separate
 trust domains. Internal calls require `NVIDIA_API_KEY` and an explicit
 `INFERENCE_HUB_BASE_URL=https://inference-api.nvidia.com/v1`; the adapter rejects

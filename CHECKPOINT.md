@@ -47,14 +47,21 @@ Updated: 2026-08-02 (America/Los_Angeles)
   `dbe30991a1c29b9a4c2371258c71dbdbc4d777c139c48f078c2f13045966d819`.
   No candidate has been promoted to the registry. The key remains only in the
   user's interactive shell, not in the current execution process.
+- Four revision-pinned local Hugging Face controls were loaded from a read-only
+  cache and completed real offline greedy generations on CPU: SmolLM2 135M,
+  360M, and 1.7B plus Qwen2.5 0.5B. The private evidence fingerprints 5.43 GB
+  of exact snapshot assets; raw artifact SHA-256
+  `ec84e9509b08816e2b6ebfc6366e065ce7d509849ecb766da073d0059ef376f9`.
+  This is callability evidence only, not a paper result or a substitute for a
+  hosted model.
 
 ## Verified gates
 
 - Strict raw validation: 27 files, 14 pass, 13 warning, 0 fail. The warnings are
   the disclosed one-sided Part 2 rationale/action lexical flags.
-- Full repository suite: 537 passed, 1 optional dependency skip on 2026-08-02.
+- Full repository suite: 546 passed, 1 optional dependency skip on 2026-08-02.
   `tests/conftest.py` selects the noninteractive Agg backend before collection.
-- Clean extracted-supplement suite: 515 passed, 2 intentional skips (withheld
+- Clean extracted-supplement suite: 524 passed, 2 intentional skips (withheld
   raw Part 0 and one optional dependency), without a Git object store.
 - NeurIPS format suite: 6 passed. The official style SHA-256 is
   `c3fc2894e83d2517ca18b66741d6c595986d97957dc08ec08bb2125a7ec4555a`.
@@ -62,11 +69,11 @@ Updated: 2026-08-02 (America/Los_Angeles)
   references beginning on page 10, all pages visually inspected. Eight paper
   figures were regenerated at print-oriented dimensions with larger labels.
   Current PDF SHA-256: `c54463acf5ad13a4821ec742a01b039c960385e143979bd07c35bdd0f04544fc`.
-- Current local pilot supplement: 297 source files plus its manifest, 15.7 MiB; every payload has a
+- Current local pilot supplement: 302 source files plus its manifest, 15.7 MiB; every payload has a
   manifest SHA-256. Full-suite, integrity, portable legacy-provenance, and
   anonymity checks pass. Withdrawn Part 0/cross-part plot trees are absent, and
   the builder derives local identifiers at runtime rather than embedding them.
-  Current ZIP SHA-256: `6d894272f16c02106ae2bbee97c893cd9ccc8d951d8c7d5a769edfcb6b9e864f`.
+  Current ZIP SHA-256: `51a93cf855fbefc5eb12c140dbb974dbbdc1ed259cbcae7b548aa06f466513c8`.
 - The one-stage production campaign is frozen at all 484 harmful roots plus 100
   controls in three languages, 384 self-direct Part 1 roots, and 24 independent
   Part 2 trajectories per route at N=10, horizon=30, capacity=150.
@@ -76,6 +83,9 @@ Updated: 2026-08-02 (America/Los_Angeles)
   an atomic conservative ledger reservation before dispatch. Discovery retains
   failed reservations and a full catalog census; the final lock requires exact
   request-hash reconciliation between the ledger and native attempt logs.
+- Offline local-control smoke: 4/4 exact pinned snapshots loaded and generated
+  visible text under Python 3.12.13, PyTorch 2.13.0, and Transformers 4.57.6.
+  The registry forbids frontier substitution and paper-result promotion.
 
 ## External gates that must not be fabricated or bypassed
 

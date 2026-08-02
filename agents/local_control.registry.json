@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "registry_version": "2026-08-02.1",
+  "cohort": "local_scale_controls",
+  "analysis_role": "exploratory_local_scale_controls",
+  "frontier_route_substitution_permitted": false,
+  "paper_result_promotion_permitted": false,
+  "runtime_contract": {
+    "backend": "huggingface_transformers_offline",
+    "cache_root_env": "HF_LOCAL_CACHE_ROOT",
+    "local_files_only": true,
+    "remote_code_permitted": false,
+    "generation_mode": "greedy",
+    "device_default": "cpu"
+  },
+  "models": [
+    {
+      "id": "hf.smollm2-135m-instruct",
+      "model_id": "HuggingFaceTB/SmolLM2-135M-Instruct",
+      "revision": "12fd25f77366fa6b3b4b768ec3050bf629380bac",
+      "cache_repository_dir": "models--HuggingFaceTB--SmolLM2-135M-Instruct",
+      "parameter_scale": "135M",
+      "verification_status": "smoke_pending"
+    },
+    {
+      "id": "hf.smollm2-360m-instruct",
+      "model_id": "HuggingFaceTB/SmolLM2-360M-Instruct",
+      "revision": "a10cc1512eabd3dde888204e902eca88bddb4951",
+      "cache_repository_dir": "models--HuggingFaceTB--SmolLM2-360M-Instruct",
+      "parameter_scale": "360M",
+      "verification_status": "smoke_pending"
+    },
+    {
+      "id": "hf.qwen2.5-0.5b-instruct",
+      "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+      "revision": "7ae557604adf67be50417f59c2c2f167def9a775",
+      "cache_repository_dir": "models--Qwen--Qwen2.5-0.5B-Instruct",
+      "parameter_scale": "0.5B",
+      "verification_status": "smoke_pending"
+    },
+    {
+      "id": "hf.smollm2-1.7b-instruct",
+      "model_id": "HuggingFaceTB/SmolLM2-1.7B-Instruct",
+      "revision": "31b70e2e869a7173562077fd711b654946d38674",
+      "cache_repository_dir": "models--HuggingFaceTB--SmolLM2-1.7B-Instruct",
+      "parameter_scale": "1.7B",
+      "verification_status": "smoke_pending"
+    }
+  ]
+}
