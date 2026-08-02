@@ -21,7 +21,9 @@ def test_supplement_has_no_declared_missing_include_roots() -> None:
     missing = [
         path
         for path in build_supplement.INCLUDE_PATHS
-        if not (build_supplement.PROJECT_ROOT / path).exists()
+        if build_supplement.resolve_include_path(
+            build_supplement.PROJECT_ROOT, path
+        ) is None
     ]
 
     assert missing == []
@@ -119,6 +121,24 @@ def test_supplement_excludes_every_withdrawn_part0_dependent_plot() -> None:
         )
         for name in names
     )
+
+
+def test_supplement_excludes_post_pilot_hosted_and_local_scale_workflows() -> None:
+    files = build_supplement.collect_supplement_files()
+    names = {path.as_posix() for path in files}
+    forbidden_markers = (
+        "inference_hub",
+        "local_hf",
+        "build_sota_probe_registry",
+        "build_sota_inference_hub_roster",
+        "merge_sota_compatibility_with_judge",
+        "reconcile_inference_hub_routes",
+    )
+    assert not any(marker in name for name in names for marker in forbidden_markers)
+    assert "agents/agent_config.registry.json" in names
+    assert "agents/local_control.registry.json" in names
+    assert "experiments/misc/inference_hub_rate_limit.py" not in names
+    assert "tests/test_inference_hub_rate_limit.py" not in names
 
 
 def test_supplement_builder_does_not_embed_local_identity_literals() -> None:

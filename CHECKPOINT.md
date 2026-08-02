@@ -29,8 +29,9 @@ Updated: 2026-08-02 (America/Los_Angeles)
 - The 13 Part 1 reconstructed sidecars now use exact unique CSV model identities,
   preserve their original reconstruction provenance, and record the repair
   method plus CSV SHA-256.
-- Croissant 1.1/RAI 1.0 metadata declares nine distributions and seven loadable
-  record sets. Invalid Part 0 rate tables and all dependent cross-part tables
+- Croissant 1.1/RAI 1.0 metadata declares 35 file-object distributions and 33
+  loadable record sets (26 retained raw CSVs plus seven derived Part 1/2 tables).
+  Invalid Part 0 rate tables and all dependent cross-part tables
   are excluded. A stable anonymous reviewer-accessible landing URL and official
   Croissant validation are still required before submission; public access is
   required by camera ready.
@@ -60,11 +61,18 @@ Updated: 2026-08-02 (America/Los_Angeles)
   A 28-route production-schema smoke retained all 28 exact identities with 27
   strict final actions; a route-specific long-reasoning allowance then made
   Kimi valid. The 53 nonduplicate expansion smoke retained 53/53 exact-identity,
-  strict-format responses. Two private, resumable large-N jobs are active: 28 x
-  384 and 53 x 384 trials. Their draft-bank contract permanently bars
-  confirmatory or paper-result promotion. One intermittent DeepSeek response
-  identity mismatch is quarantined by the analyzer and will require a separate
-  exact-identity rerun; it is not silently pooled.
+  strict-format responses. The earlier unthrottled 28- and 53-route scale jobs
+  were stopped and are not evidence. A single replacement 81-subject panel is
+  frozen for execution under a file-locked, cross-process limiter: four global
+  and one per-provider in-flight requests, at most 2.0 global and 0.5
+  per-provider requests/second, with durable leases, heartbeats, adaptive
+  cooldowns, and fail-closed state validation. A live two-provider canary
+  (Claude Opus 4.5 and GPT-4o Mini) completed 2/2 exact-identity, strict-format
+  responses with zero failures; its raw manifest SHA-256 is
+  `294bddb3775643f73ea52953132634f4ba198f4bf59044b89a285c4ef254c684`
+  and it binds limiter policy SHA-256
+  `99676942658cee96fb50e33dbd3e83baeb37c3af4720278f462fe54ab423b699`.
+  The fixed judge was not dispatched by this subject-only canary.
 - Four revision-pinned local Hugging Face controls were loaded from a read-only
   cache and completed real offline greedy generations on CPU: SmolLM2 135M,
   360M, and 1.7B plus Qwen2.5 0.5B. A fresh immutable two-worker private artifact
@@ -77,10 +85,13 @@ Updated: 2026-08-02 (America/Los_Angeles)
   model workers and batched prompts. Strict final-action format was valid for
   Qwen2.5 0.5B on 384/384 rows, SmolLM2 1.7B on 362/384, SmolLM2 360M on
   27/384, and SmolLM2 135M on 3/384. All prompt, response, per-model file, and
-  manifest hashes validate. The private manifest has raw SHA-256
-  `59b6b7e9efcf812f23c286be99e7e3348cc220def46a242110ec0726d8954afe`
-  and self-hash
-  `3b7779ec37bcd0b37367ffe756f4b48ca52e19d71cb4811c9d96a13bc83f74bc`.
+  manifest hashes validate. The resumed hardened private manifest has raw
+  SHA-256
+  `c6998aed5ddfcc5488fccbe2870290006c9537fd9f2aeaac3956c8da666d1b98`
+  and evidence SHA-256
+  `eb228e73f721d4e0109328a851560ae05399aec7b1abfa32e94b933402d00b84`.
+  Its strict exploratory analysis has raw SHA-256
+  `786b14eb61b735f8da45ce2044e865a38df05a04e363b2c4d185173ee8833d38`.
   Its contract permanently bars confirmatory or paper-result promotion because
   the deterministic draft bank is not human-approved.
   A deliberately interrupted attempt remains preserved separately rather than
@@ -92,21 +103,22 @@ Updated: 2026-08-02 (America/Los_Angeles)
 
 - Strict raw validation: 27 files, 14 pass, 13 warning, 0 fail. The warnings are
   the disclosed one-sided Part 2 rationale/action lexical flags.
-- Full repository suite: 643 passed, 1 optional dependency skip on 2026-08-02.
+- Full repository suite: 672 passed, 1 optional dependency skip on 2026-08-02.
   `tests/conftest.py` selects the noninteractive Agg backend before collection.
-- Clean extracted-supplement suite: 559 passed, 2 intentional skips (withheld
+- Clean extracted-supplement suite: 515 passed, 2 intentional skips (withheld
   raw Part 0 and one optional dependency), without a Git object store.
 - NeurIPS format suite: 6 passed. The official style SHA-256 is
   `c3fc2894e83d2517ca18b66741d6c595986d97957dc08ec08bb2125a7ec4555a`.
 - Current local pilot PDF: 29 pages, 1.20 MiB, anonymous metadata, main content
   ending and references beginning on page 9, all pages visually inspected. Eight paper
   figures were regenerated at print-oriented dimensions with larger labels.
-  Current PDF SHA-256: `8aac3fc6b69a14f6ebc48f9f3c911d0811adcce1bd2340666d8a7b363f46857f`.
-- Current local pilot supplement: 304 files including its manifest, 15.7 MiB; every payload has a
+  Current PDF SHA-256: `5b78b3dbb298b94c122640f9703b6e9fecb10074f1c60902736cdde0c154e321`.
+- Current local pilot supplement: 293 files including its manifest, 15.7 MiB;
+  every payload has a
   manifest SHA-256. Full-suite, integrity, portable legacy-provenance, and
   anonymity checks pass. Withdrawn Part 0/cross-part plot trees are absent, and
   the builder derives local identifiers at runtime rather than embedding them.
-  Current ZIP SHA-256: `c043194382735869b79f012cac481427e0a7b0eafe9bfd8a551f2bfa4bef76d9`.
+  Current ZIP SHA-256: `f658a4a1db930536a53732d1d4fb265b52de0cef2d2482f52a4f1925e42c584c`.
 - The one-stage production campaign is frozen at all 484 harmful roots plus 100
   controls in three languages, 384 self-direct Part 1 roots, and 24 independent
   Part 2 trajectories per route at N=10, horizon=30, capacity=150.
@@ -135,9 +147,10 @@ Updated: 2026-08-02 (America/Los_Angeles)
    compatibility, and broad SOTA compatibility are complete. These exploratory
    artifacts do not automatically promote the production registry or bypass
    the frozen confirmatory approvals.
-2. Parallel large-N hosted Part 1 execution is in progress over 81 unique
-   callable subjects. Until both journals lock and strict analysis passes, no
-   model rates may be reported. Identity-mismatched or terminally failed targets
+2. The replacement large-N hosted Part 1 execution is frozen over 81 unique
+   callable subjects and ready to start from the committed limiter snapshot.
+   Until its journal locks and strict analysis passes, no model rates may be
+   reported. Identity-mismatched or terminally failed targets
    are quarantined whole and rerun separately; unavailable routes are never
    substituted.
 3. The Part 0 registry and Part 1 bank still require genuine language/content
@@ -154,8 +167,9 @@ Updated: 2026-08-02 (America/Los_Angeles)
 
 ## Exact next execution order
 
-1. Finish and lock both active 384-root hosted Part 1 jobs; rerun every
-   operationally quarantined target separately without substitution.
+1. Execute and lock the single rate-limited 81-subject x 384-root hosted Part 1
+   panel; rerun every operationally quarantined target separately without
+   substitution.
 2. Validate journals and generate only the nonpromotable aggregate artifact with
    5,000-replicate stratified root bootstrap intervals.
 3. Complete genuine Part 0/Part 1 human reviews and the Part 0 two-annotator

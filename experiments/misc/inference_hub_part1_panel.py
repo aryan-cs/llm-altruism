@@ -8,6 +8,7 @@ manifest and reserved for a later analysis pass.
 from __future__ import annotations
 
 import argparse
+import fcntl
 import hashlib
 import json
 import os
@@ -20,6 +21,7 @@ import threading
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -56,6 +58,7 @@ _SOURCE_PATHS = (
     Path(__file__),
     Path(__file__).with_name("inference_hub_compatibility.py"),
     Path(__file__).with_name("inference_hub_discovery.py"),
+    Path(__file__).with_name("inference_hub_rate_limit.py"),
     Path(__file__).parents[1] / "part1" / "confirmatory_design.py",
 )
 
@@ -382,7 +385,14 @@ class _ChainedJournal:
             return []
         _require_mode(self.path, 0o600)
         try:
-            lines = self.path.read_text(encoding="utf-8").splitlines()
+            text = self.path.read_text(encoding="utf-8")
+            if text and not text.endswith("\n"):
+                raise ValueError("missing final record delimiter")
+            lines = (
+                []
+                if not text
+                else text[:-1].split("\n")
+            )
             if any(not line for line in lines):
                 raise ValueError("blank record")
             rows = [json.loads(line) for line in lines]
@@ -407,28 +417,66 @@ class _ChainedJournal:
 
     def append(self, payload: Mapping[str, Any]) -> dict[str, Any]:
         with self._lock:
-            row = {**payload, "previous_record_sha256": self.tail}
-            row["record_sha256"] = _sha256_json(row)
-            encoded = json.dumps(row, sort_keys=True, ensure_ascii=False) + "\n"
-            descriptor = os.open(
-                self.path, os.O_APPEND | os.O_CREAT | os.O_WRONLY, 0o600
-            )
-            with os.fdopen(descriptor, "a", encoding="utf-8") as handle:
-                handle.write(encoded)
-                handle.flush()
-                os.fsync(handle.fileno())
-            _secure_mode(self.path, 0o600)
-            self.records.append(row)
-            self.tail = row["record_sha256"]
-            return row
+            with self._file_lock():
+                self.records = self._load()
+                self.tail = (
+                    self.records[-1]["record_sha256"] if self.records else None
+                )
+                row = {**payload, "previous_record_sha256": self.tail}
+                row["record_sha256"] = _sha256_json(row)
+                encoded = json.dumps(row, sort_keys=True, ensure_ascii=False) + "\n"
+                descriptor = os.open(
+                    self.path, os.O_APPEND | os.O_CREAT | os.O_WRONLY, 0o600
+                )
+                with os.fdopen(descriptor, "a", encoding="utf-8") as handle:
+                    handle.write(encoded)
+                    handle.flush()
+                    os.fsync(handle.fileno())
+                _secure_mode(self.path, 0o600)
+                self.records.append(row)
+                self.tail = row["record_sha256"]
+                return row
 
     def reference(self) -> dict[str, Any]:
-        return {
-            "path": str(self.path.resolve()),
-            "record_count": len(self.records),
-            "tail_record_sha256": self.tail,
-            "file_sha256": _sha256_file(self.path) if self.path.exists() else None,
-        }
+        with self._lock:
+            with self._file_lock():
+                self.records = self._load()
+                self.tail = (
+                    self.records[-1]["record_sha256"] if self.records else None
+                )
+                return {
+                    "path": str(self.path.resolve()),
+                    "record_count": len(self.records),
+                    "tail_record_sha256": self.tail,
+                    "file_sha256": _sha256_file(self.path) if self.path.exists() else None,
+                }
+
+    @contextmanager
+    def _file_lock(self):
+        lock_path = self.path.with_name(f".{self.path.name}.lock")
+        with lock_path.open("a+b") as handle:
+            _secure_mode(lock_path, 0o600)
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+
+def _acquire_run_lock(private_dir: Path):
+    """Fail before dispatch when another process owns this exact panel output."""
+
+    path = private_dir / ".run.lock"
+    handle = path.open("a+b")
+    _secure_mode(path, 0o600)
+    try:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError as error:
+        handle.close()
+        raise InferenceHubPart1PanelError(
+            "Another process is already running this panel output."
+        ) from error
+    return handle
 
 
 def _validate_checkpoint_reference(
@@ -636,6 +684,106 @@ def _retire_stale_reservations(ledger: _ChainedJournal) -> None:
         )
 
 
+def _recover_raw_only_successes(
+    ledger: _ChainedJournal,
+    raw_journals: Mapping[str, _ChainedJournal],
+) -> None:
+    """Complete raw-first success commits without redispatching the provider."""
+
+    reservations = {
+        str(row.get("attempt_id")): row
+        for row in ledger.records
+        if row.get("event") == "reserved_before_dispatch"
+    }
+    completions = {
+        str(row.get("attempt_id")): row
+        for row in ledger.records
+        if row.get("event") == "attempt_completed"
+    }
+    raw_successes: dict[str, Mapping[str, Any]] = {}
+    for target_id, journal in raw_journals.items():
+        for row in journal.records:
+            if row.get("raw_response") is None:
+                continue
+            attempt_id = row.get("attempt_id")
+            if not isinstance(attempt_id, str) or attempt_id in raw_successes:
+                raise InferenceHubPart1PanelError(
+                    "Retained success attempt binding is duplicated or missing."
+                )
+            reservation = reservations.get(attempt_id)
+            if (
+                reservation is None
+                or reservation.get("target_id") != target_id
+                or reservation.get("trial_id") != row.get("trial_id")
+                or reservation.get("request_sha256") != row.get("request_sha256")
+            ):
+                raise InferenceHubPart1PanelError(
+                    "Retained success lacks its exact durable reservation."
+                )
+            raw_successes[attempt_id] = row
+            if attempt_id not in completions:
+                ledger.append(
+                    {
+                        "schema_version": SCHEMA_VERSION,
+                        "artifact_type": "inference_hub_part1_attempt_ledger",
+                        "event": "attempt_completed",
+                        "attempt_id": attempt_id,
+                        "outcome": "response_retained",
+                        "failure_code": None,
+                        "transient": False,
+                        "http_status": 200,
+                        "request_id": row.get("request_id"),
+                        "response_model": row.get("response_model"),
+                        "response_payload_sha256": row.get("raw_response_sha256"),
+                        "response_text_sha256": row.get("response_text_sha256"),
+                        "finish_reason": row.get("finish_reason"),
+                        "usage": row.get("usage"),
+                        "reasoning_fields_sha256": _sha256_json(
+                            row.get("reasoning_fields")
+                        ),
+                        "recovered_after_raw_fsync": True,
+                        "completed_at_utc": _utc_now(),
+                    }
+                )
+    for attempt_id, completion in completions.items():
+        if (
+            completion.get("outcome") == "response_retained"
+            and attempt_id not in raw_successes
+        ):
+            raise InferenceHubPart1PanelError(
+                "Success completion lacks a retained raw response; refusing redispatch."
+            )
+
+
+def _prior_attempt_numbers(
+    ledger: _ChainedJournal,
+) -> dict[tuple[str, str], int]:
+    """Return the highest durable reservation number for each subject/trial."""
+
+    result: dict[tuple[str, str], int] = {}
+    for row in ledger.records:
+        if row.get("event") != "reserved_before_dispatch":
+            continue
+        target_id = row.get("target_id")
+        trial_id = row.get("trial_id")
+        attempt_number = row.get("attempt_number")
+        if (
+            not isinstance(target_id, str)
+            or not isinstance(trial_id, str)
+            or isinstance(attempt_number, bool)
+            or not isinstance(attempt_number, int)
+            or attempt_number < 1
+        ):
+            raise InferenceHubPart1PanelError("Attempt reservation numbering is invalid.")
+        key = (target_id, trial_id)
+        if attempt_number <= result.get(key, 0):
+            raise InferenceHubPart1PanelError(
+                "Attempt reservation numbers are not strictly increasing."
+            )
+        result[key] = attempt_number
+    return result
+
+
 def _manifest_bindings(manifest: Mapping[str, Any]) -> dict[str, Any]:
     mutable = {
         "created_at_utc",
@@ -696,6 +844,7 @@ def run_panel(
             _secure_mode(directory, 0o700)
     for directory in (output_dir, private_dir, raw_dir):
         _require_mode(directory, 0o700)
+    run_lock_handle = _acquire_run_lock(private_dir)
 
     registry = _read_json(registry_path, "registry")
     compatibility = _read_json(compatibility_path, "compatibility evidence")
@@ -773,6 +922,18 @@ def run_panel(
         }
         for subject in subjects
     ]
+    client_rate_limit_contract = getattr(client, "rate_limit_contract", None)
+    if isinstance(client, InferenceHubClient):
+        if not isinstance(client_rate_limit_contract, Mapping):
+            raise InferenceHubPart1PanelError(
+                "InferenceHub network client lacks a rate-limit contract."
+            )
+        rate_limit_contract = dict(client_rate_limit_contract)
+    else:
+        rate_limit_contract = {
+            "enforcement": "external_non_network_test_double",
+            "network_dispatch_permitted": False,
+        }
     fresh_manifest: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "artifact_type": "inference_hub_part1_large_n_exploratory_panel",
@@ -814,6 +975,7 @@ def run_panel(
             "max_workers_per_subject": max_workers_per_subject,
             "max_attempts_per_trial": max_attempts,
             "initial_exponential_backoff_seconds": initial_backoff_seconds,
+            "shared_rate_limit": rate_limit_contract,
             "payload_hashing": "canonical_credential_free_json_before_dispatch",
             "ledger": "append_only_fsync_sha256_chain_reserve_before_dispatch",
             "response_parser": "final_non_whitespace_line_exactly_X_or_Y",
@@ -834,8 +996,6 @@ def run_panel(
         manifest["last_resumed_at_utc"] = _utc_now()
     else:
         manifest = fresh_manifest
-        _seal(manifest)
-        _atomic_json(manifest_path, manifest)
 
     ledger = _ChainedJournal(private_dir / "attempt_ledger.jsonl")
     if resume:
@@ -865,7 +1025,20 @@ def run_panel(
                 raw_checkpoints[target_id],
                 label=f"raw responses for {target_id}",
             )
+    else:
+        # Publish the first hash-bound empty checkpoints before any dispatch.
+        manifest["journals"] = {
+            "attempt_ledger": ledger.reference(),
+            "raw_responses": {
+                target_id: journal.reference()
+                for target_id, journal in raw_journals.items()
+            },
+        }
+        _seal(manifest)
+        _atomic_json(manifest_path, manifest)
+    _recover_raw_only_successes(ledger, raw_journals)
     _retire_stale_reservations(ledger)
+    prior_attempt_numbers = _prior_attempt_numbers(ledger)
     subjects_by_id = {subject["target_id"]: subject for subject in subjects}
     trials_by_id = {trial.trial_id: trial for trial in trials}
     completed = _completed_index(
@@ -892,7 +1065,9 @@ def run_panel(
         request_bytes = _canonical_bytes(body)
         request_sha256 = hashlib.sha256(request_bytes).hexdigest()
         last_failure: dict[str, Any] | None = None
-        for attempt_number in range(1, max_attempts + 1):
+        key = (str(subject["target_id"]), trial.trial_id)
+        first_attempt = prior_attempt_numbers.get(key, 0) + 1
+        for attempt_number in range(first_attempt, max_attempts + 1):
             attempt_id = f"part1_{uuid.uuid4().hex}"
             # This durable reservation and exact body hash happen before dispatch.
             ledger.append(
@@ -916,7 +1091,14 @@ def run_panel(
                 }
             )
             try:
-                response = client.post("/chat/completions", body)
+                if isinstance(client, InferenceHubClient):
+                    response = client.post(
+                        "/chat/completions",
+                        body,
+                        upstream_provider=str(subject["upstream_provider"]),
+                    )
+                else:
+                    response = client.post("/chat/completions", body)
                 if not isinstance(response, Mapping):
                     raise TypeError("client response is not an object")
             except Exception as error:
@@ -946,26 +1128,6 @@ def run_panel(
             if response is not None:
                 metadata = _response_metadata(response)
                 response_sha256 = _sha256_json(response)
-                ledger.append(
-                    {
-                        "schema_version": SCHEMA_VERSION,
-                        "artifact_type": "inference_hub_part1_attempt_ledger",
-                        "event": "attempt_completed",
-                        "attempt_id": attempt_id,
-                        "outcome": "response_retained",
-                        "failure_code": None,
-                        "transient": False,
-                        "http_status": 200,
-                        "request_id": metadata["request_id"],
-                        "response_model": metadata["response_model"],
-                        "response_payload_sha256": response_sha256,
-                        "response_text_sha256": metadata["response_text_sha256"],
-                        "finish_reason": metadata["finish_reason"],
-                        "usage": metadata["usage"],
-                        "reasoning_fields_sha256": _sha256_json(metadata["reasoning_fields"]),
-                        "completed_at_utc": _utc_now(),
-                    }
-                )
                 row = raw_journals[subject["target_id"]].append(
                     {
                         "schema_version": SCHEMA_VERSION,
@@ -993,8 +1155,36 @@ def run_panel(
                         "finished_at_utc": _utc_now(),
                     }
                 )
+                ledger.append(
+                    {
+                        "schema_version": SCHEMA_VERSION,
+                        "artifact_type": "inference_hub_part1_attempt_ledger",
+                        "event": "attempt_completed",
+                        "attempt_id": attempt_id,
+                        "outcome": "response_retained",
+                        "failure_code": None,
+                        "transient": False,
+                        "http_status": 200,
+                        "request_id": metadata["request_id"],
+                        "response_model": metadata["response_model"],
+                        "response_payload_sha256": response_sha256,
+                        "response_text_sha256": metadata["response_text_sha256"],
+                        "finish_reason": metadata["finish_reason"],
+                        "usage": metadata["usage"],
+                        "reasoning_fields_sha256": _sha256_json(
+                            metadata["reasoning_fields"]
+                        ),
+                        "completed_at_utc": _utc_now(),
+                    }
+                )
                 return row
             break
+        if first_attempt > max_attempts:
+            last_failure = {
+                "failure_code": "resume_attempt_budget_exhausted",
+                "http_status": None,
+                "error_type": None,
+            }
         return raw_journals[subject["target_id"]].append(
             {
                 "schema_version": SCHEMA_VERSION,
@@ -1093,6 +1283,8 @@ def run_panel(
         manifest["completed_at_utc"] = _utc_now()
     _seal(manifest)
     _atomic_json(manifest_path, manifest)
+    fcntl.flock(run_lock_handle.fileno(), fcntl.LOCK_UN)
+    run_lock_handle.close()
     return manifest
 
 

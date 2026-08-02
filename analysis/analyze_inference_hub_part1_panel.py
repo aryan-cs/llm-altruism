@@ -153,8 +153,10 @@ def _read_chained_journal(
     try:
         raw_bytes = path.read_bytes()
         text = raw_bytes.decode("utf-8")
-        lines = text.splitlines()
-        if not text.endswith("\n") or any(not line for line in lines):
+        if not text.endswith("\n"):
+            raise ValueError("non-canonical JSONL framing")
+        lines = text[:-1].split("\n")
+        if any(not line for line in lines):
             raise ValueError("non-canonical JSONL framing")
         rows = [json.loads(line) for line in lines]
     except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
@@ -429,11 +431,19 @@ def _validate_ledger(
                 or row.get("outcome") not in {"failed", "response_retained"}
             ):
                 raise HostedPart1AnalysisError("Ledger completion binding is invalid.")
-            if row.get("outcome") == "response_retained" and (
-                not _hex_digest(row.get("response_payload_sha256"))
-                or not _hex_digest(row.get("response_text_sha256"))
-            ):
-                raise HostedPart1AnalysisError("Ledger retained-response hashes are invalid.")
+            if row.get("outcome") == "response_retained":
+                text_hash = row.get("response_text_sha256")
+                text_hash_valid = _hex_digest(text_hash) or (
+                    text_hash is None
+                    and row.get("finish_reason") in {"content_filter", "length"}
+                )
+                if (
+                    not _hex_digest(row.get("response_payload_sha256"))
+                    or not text_hash_valid
+                ):
+                    raise HostedPart1AnalysisError(
+                        "Ledger retained-response hashes are invalid."
+                    )
             completions[attempt_id] = dict(row)
         else:
             raise HostedPart1AnalysisError("Ledger event is not recognized.")

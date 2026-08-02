@@ -1,3 +1,4 @@
+import gc
 import hashlib
 import json
 import os
@@ -9,8 +10,11 @@ from typing import Any
 
 import pytest
 
+import experiments.misc.inference_hub_part1_panel as panel_module
+
 from analysis.analyze_inference_hub_part1_panel import (
     HostedPart1AnalysisError,
+    _read_chained_journal,
     _self_hash as _analysis_self_hash,
     analyze_panel,
     cli as analysis_cli,
@@ -344,6 +348,129 @@ def test_transient_retry_then_resume_does_not_redispatch(tmp_path: Path) -> None
     assert resumed_client.calls == []
 
 
+def test_crash_after_reservation_has_initial_checkpoint_and_resumes_at_next_attempt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    registry_path, compatibility_path = _write_inputs(tmp_path)
+    output_dir = tmp_path / "panel"
+    original_append = panel_module._ChainedJournal.append
+    crashed = False
+
+    def crash_after_first_reservation(
+        journal: Any, payload: dict[str, Any]
+    ) -> dict[str, Any]:
+        nonlocal crashed
+        row = original_append(journal, payload)
+        if payload.get("event") == "reserved_before_dispatch" and not crashed:
+            crashed = True
+            raise KeyboardInterrupt("simulated process loss after durable reservation")
+        return row
+
+    with monkeypatch.context() as scoped:
+        scoped.setattr(panel_module._ChainedJournal, "append", crash_after_first_reservation)
+        with pytest.raises(KeyboardInterrupt, match="simulated process loss"):
+            run_panel(
+                registry_path=registry_path,
+                compatibility_path=compatibility_path,
+                output_dir=output_dir,
+                client=_FakeClient(),
+                selected_ids=["subject.alpha"],
+                judge_target_id=JUDGE_ID,
+                limit=1,
+                max_workers=1,
+                max_attempts=3,
+            )
+    gc.collect()
+
+    manifest = json.loads(
+        (output_dir / "private" / "manifest.json").read_text(encoding="utf-8")
+    )
+    assert manifest["journals"]["attempt_ledger"]["record_count"] == 0
+    assert set(manifest["journals"]["raw_responses"]) == {"subject.alpha"}
+
+    resumed = run_panel(
+        registry_path=registry_path,
+        compatibility_path=compatibility_path,
+        output_dir=output_dir,
+        client=_FakeClient(),
+        selected_ids=["subject.alpha"],
+        judge_target_id=JUDGE_ID,
+        limit=1,
+        max_workers=1,
+        max_attempts=3,
+        resume=True,
+    )
+    assert resumed["complete"] is True
+    raw_rows = [
+        json.loads(line)
+        for line in (
+            output_dir / "private" / "raw_responses" / "subject.alpha.jsonl"
+        ).read_text(encoding="utf-8").splitlines()
+    ]
+    assert raw_rows[0]["attempt_number"] == 2
+
+
+def test_crash_after_raw_fsync_recovers_completion_without_redispatch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    registry_path, compatibility_path = _write_inputs(tmp_path)
+    output_dir = tmp_path / "panel"
+    original_append = panel_module._ChainedJournal.append
+    crashed = False
+
+    def crash_before_success_completion(
+        journal: Any, payload: dict[str, Any]
+    ) -> dict[str, Any]:
+        nonlocal crashed
+        if (
+            payload.get("event") == "attempt_completed"
+            and payload.get("outcome") == "response_retained"
+            and not crashed
+        ):
+            crashed = True
+            raise KeyboardInterrupt("simulated crash after raw fsync")
+        return original_append(journal, payload)
+
+    with monkeypatch.context() as scoped:
+        scoped.setattr(
+            panel_module._ChainedJournal, "append", crash_before_success_completion
+        )
+        with pytest.raises(KeyboardInterrupt, match="after raw fsync"):
+            run_panel(
+                registry_path=registry_path,
+                compatibility_path=compatibility_path,
+                output_dir=output_dir,
+                client=_FakeClient(),
+                selected_ids=["subject.alpha"],
+                judge_target_id=JUDGE_ID,
+                limit=1,
+                max_workers=1,
+            )
+    gc.collect()
+
+    resumed_client = _FakeClient()
+    resumed = run_panel(
+        registry_path=registry_path,
+        compatibility_path=compatibility_path,
+        output_dir=output_dir,
+        client=resumed_client,
+        selected_ids=["subject.alpha"],
+        judge_target_id=JUDGE_ID,
+        limit=1,
+        max_workers=1,
+        resume=True,
+    )
+    assert resumed["complete"] is True
+    assert resumed_client.calls == []
+    ledger_rows = [
+        json.loads(line)
+        for line in (output_dir / "private" / "attempt_ledger.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    assert any(row.get("recovered_after_raw_fsync") is True for row in ledger_rows)
+
+
 def test_tampered_raw_response_blocks_resume(tmp_path: Path) -> None:
     registry_path, compatibility_path = _write_inputs(tmp_path)
     output_dir = tmp_path / "panel"
@@ -383,6 +510,61 @@ def test_subject_filter_cannot_include_judge() -> None:
             selected_ids=[JUDGE_ID],
             judge_target_id=JUDGE_ID,
         )
+
+
+def test_chained_journal_accepts_unicode_line_separator_inside_json_string(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "journal.jsonl"
+    row = {
+        "message": "one\u2028two",
+        "previous_record_sha256": None,
+    }
+    row["record_sha256"] = _sha256_json(row)
+    payload = json.dumps(row, sort_keys=True, ensure_ascii=False) + "\n"
+    path.write_text(payload, encoding="utf-8")
+    os.chmod(path, 0o600)
+    reference = {
+        "path": str(path.resolve()),
+        "record_count": 1,
+        "tail_record_sha256": row["record_sha256"],
+        "file_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+    }
+
+    assert _read_chained_journal(path, reference, label="unicode journal") == [row]
+
+
+def test_two_journal_instances_extend_one_linear_chain(tmp_path: Path) -> None:
+    path = tmp_path / "journal.jsonl"
+    first = panel_module._ChainedJournal(path)
+    second = panel_module._ChainedJournal(path)
+    first.append({"index": 1})
+    second.append({"index": 2})
+    reloaded = panel_module._ChainedJournal(path)
+    assert [row["index"] for row in reloaded.records] == [1, 2]
+    assert reloaded.records[1]["previous_record_sha256"] == reloaded.records[0][
+        "record_sha256"
+    ]
+
+
+def test_journal_fails_closed_on_valid_record_missing_final_newline(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "journal.jsonl"
+    journal = panel_module._ChainedJournal(path)
+    journal.append({"index": 1})
+    path.write_bytes(path.read_bytes().removesuffix(b"\n"))
+    with pytest.raises(InferenceHubPart1PanelError, match="valid JSONL"):
+        panel_module._ChainedJournal(path)
+
+
+def test_panel_run_lock_rejects_a_second_owner(tmp_path: Path) -> None:
+    first = panel_module._acquire_run_lock(tmp_path)
+    try:
+        with pytest.raises(InferenceHubPart1PanelError, match="Another process"):
+            panel_module._acquire_run_lock(tmp_path)
+    finally:
+        first.close()
 
 
 @pytest.fixture(scope="module")
@@ -697,6 +879,71 @@ def test_analysis_quarantines_entire_target_after_one_terminal_provider_failure(
     assert result["quarantined_targets"][0]["failed_without_response_count"] == 1
     assert result["overall_equal_subject"]["subject_count"] == 1
     assert result["overall_equal_subject"]["primary_action_x_rate_95_ci"]["estimate"] == 1.0
+
+
+@pytest.mark.parametrize("finish_reason", ["content_filter", "length"])
+def test_analysis_retains_empty_filtered_or_truncated_response_as_format_invalid(
+    complete_analysis_panel: Path, tmp_path: Path, finish_reason: str
+) -> None:
+    panel = _panel_copy(complete_analysis_panel, tmp_path)
+    private = panel / "private"
+    captured: dict[str, str] = {}
+
+    def content_filter_one_raw(rows: list[dict[str, Any]]) -> None:
+        row = rows[0]
+        captured["attempt_id"] = row["attempt_id"]
+        raw_response = row["raw_response"]
+        raw_response["choices"][0]["message"]["content"] = None
+        raw_response["choices"][0]["message"].pop("reasoning_content", None)
+        raw_response["choices"][0]["finish_reason"] = finish_reason
+        payload_hash = _sha256_json(raw_response)
+        captured["payload_hash"] = payload_hash
+        row.update(
+            {
+                "raw_response_sha256": payload_hash,
+                "finish_reason": finish_reason,
+                "reasoning_fields": {},
+                "output_field": None,
+                "response_text": None,
+                "response_text_sha256": None,
+                "parsed_action": None,
+                "format_valid": False,
+            }
+        )
+
+    _rewrite_chain(panel, "raw_responses/subject.alpha.jsonl", content_filter_one_raw)
+
+    def content_filter_ledger_completion(rows: list[dict[str, Any]]) -> None:
+        completion = next(
+            row
+            for row in rows
+            if row.get("event") == "attempt_completed"
+            and row.get("attempt_id") == captured["attempt_id"]
+        )
+        completion.update(
+            {
+                "response_payload_sha256": captured["payload_hash"],
+                "response_text_sha256": None,
+                "finish_reason": finish_reason,
+                "reasoning_fields_sha256": _sha256_json({}),
+            }
+        )
+
+    _rewrite_chain(panel, "attempt_ledger.jsonl", content_filter_ledger_completion)
+    manifest_path = private / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["summary"]["format_valid"] -= 1
+    manifest["summary"]["format_invalid_retained"] += 1
+    manifest["evidence_sha256"] = _analysis_self_hash(manifest)
+    manifest_path.write_text(
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    os.chmod(manifest_path, 0o600)
+
+    result = analyze_panel(manifest_path)
+    assert result["coverage"]["aggregate_eligible_subject_count"] == 2
+    alpha = next(row for row in result["subjects"] if row["target_id"] == "subject.alpha")
+    assert alpha["counts"]["format_invalid_count"] == 1
 
 
 def test_analysis_catches_manifest_input_source_and_raw_file_hash_tamper(

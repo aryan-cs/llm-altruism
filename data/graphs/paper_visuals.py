@@ -102,6 +102,9 @@ def _family_legend_handles(models: Iterable[str]) -> list[object]:
 
 
 def _setup_matplotlib():
+    import matplotlib
+
+    matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
     plt.rcParams.update(
@@ -482,6 +485,45 @@ def render_part2_restraint_bar() -> Path:
     return output
 
 
+def render_part2_restraint_population_scatter() -> Path:
+    """Plot two mechanically coupled summaries from the same legacy trajectory."""
+
+    plt, _cmap = _setup_matplotlib()
+    rows = _part2_rows()
+    models = _model_order(rows)
+    fig, ax = plt.subplots(figsize=(7.4, 5.2))
+    for model in models:
+        restraint = float(rows[model]["restraint_rate"]) * 100.0
+        population = float(rows[model]["final_population"])
+        ax.scatter(
+            restraint,
+            population,
+            s=42,
+            color=_model_bar_color(_model_label_for_style(model)),
+            edgecolor="white",
+            linewidth=0.5,
+            zorder=3,
+        )
+    ax.set_xlabel("Stored OPTION_A token rate (%)")
+    ax.set_ylabel("Final recorded population")
+    ax.set_title("Mechanically coupled summaries of one trajectory per model")
+    ax.grid(alpha=0.25)
+    ax.legend(
+        handles=_family_legend_handles(models),
+        title="Model family",
+        loc="upper left",
+        bbox_to_anchor=(1.01, 1.0),
+        borderaxespad=0.0,
+        frameon=False,
+    )
+    fig.tight_layout(rect=(0.0, 0.0, 0.78, 1.0))
+    output = OUTPUT_DIR / "restraint_vs_final_population.png"
+    output.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output, bbox_inches="tight")
+    plt.close(fig)
+    return output
+
+
 def main() -> int:
     outputs = [
         render_frame_sensitivity_heatmap(),
@@ -501,6 +543,7 @@ def main() -> int:
         ),
         render_part2_restraint_bar(),
         render_part2_restraint_choice_heatmap(),
+        render_part2_restraint_population_scatter(),
     ]
     for output in outputs:
         print(f"wrote: {output}")

@@ -31,6 +31,11 @@ uv run python -m analysis.build_manifest
 uv run python -m analysis.build_croissant_metadata
 ```
 
+The default summary command is release-safe: it does not recreate the withdrawn
+Part 0 model-level or Part 0-dependent cross-part tables. For forensic audit of
+those deprecated outputs only, add `--include-withdrawn-part0`; they remain
+invalid for paper claims or model comparison.
+
 Use strict validation before freezing paper claims:
 
 ```bash

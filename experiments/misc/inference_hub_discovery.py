@@ -33,6 +33,10 @@ from analysis.reconcile_inference_hub_routes import (
     RouteReconciliationError,
     reconcile_routes,
 )
+from experiments.misc.inference_hub_rate_limit import (
+    InferenceHubRateLimiter,
+    provider_for_route,
+)
 
 DEFAULT_BASE_URL = "https://inference-api.nvidia.com/v1"
 ROUTE_SOURCE = "inference_hub_models_api"
@@ -463,6 +467,7 @@ class InferenceHubClient:
         api_key: str,
         base_url: str = DEFAULT_BASE_URL,
         timeout_seconds: float = 60.0,
+        rate_limiter: InferenceHubRateLimiter | None = None,
     ) -> None:
         self.base_url = validate_endpoint_base_url("inference_hub", base_url)
         if not isinstance(api_key, str) or not api_key.strip():
@@ -473,6 +478,16 @@ class InferenceHubClient:
             raise ValueError("timeout_seconds must be positive.")
         self._api_key = api_key.strip()
         self.timeout_seconds = float(timeout_seconds)
+        scope_id = hashlib.sha256(
+            f"{self.base_url}\0{self._api_key}".encode("utf-8")
+        ).hexdigest()
+        self.rate_limiter = rate_limiter or InferenceHubRateLimiter(scope_id=scope_id)
+
+    @property
+    def rate_limit_contract(self) -> dict[str, Any]:
+        """Return the credential-free policy bound into experiment evidence."""
+
+        return self.rate_limiter.contract()
 
     def request_json(
         self,
@@ -480,6 +495,7 @@ class InferenceHubClient:
         path: str,
         *,
         body: Mapping[str, Any] | None = None,
+        upstream_provider: str | None = None,
     ) -> dict[str, Any]:
         if not path.startswith("/") or "?" in path or "#" in path:
             raise ValueError("InferenceHub request path must be an absolute clean path.")
@@ -498,33 +514,49 @@ class InferenceHubClient:
                 ),
             },
         )
-        try:
-            tls_context = ssl.create_default_context(cafile=certifi.where())
-            with _urlopen_no_redirect(
-                request,
-                timeout=self.timeout_seconds,
-                context=tls_context,
-            ) as response:
-                payload_bytes = response.read()
-        except urllib.error.HTTPError as error:
-            evidence = _safe_http_error_evidence(error)
-            raise InferenceHubDiscoveryError(
-                f"InferenceHub {path} returned HTTP {error.code}.",
-                failure_code="http_error",
-                http_status=error.code,
-                evidence=evidence,
-            ) from error
-        except urllib.error.URLError as error:
-            reason = type(error.reason).__name__
-            raise InferenceHubDiscoveryError(
-                f"InferenceHub {path} connection failed ({reason}).",
-                failure_code="connection_error",
-            ) from error
-        except TimeoutError as error:
-            raise InferenceHubDiscoveryError(
-                f"InferenceHub {path} connection timed out.",
-                failure_code="connection_timeout",
-            ) from error
+        provider = provider_for_route(
+            upstream_provider
+            if upstream_provider is not None
+            else body.get("model")
+            if body is not None
+            else None
+        )
+        with self.rate_limiter.limit(provider):
+            try:
+                tls_context = ssl.create_default_context(cafile=certifi.where())
+                with _urlopen_no_redirect(
+                    request,
+                    timeout=self.timeout_seconds,
+                    context=tls_context,
+                ) as response:
+                    payload_bytes = response.read()
+            except urllib.error.HTTPError as error:
+                if error.code == 429 or 500 <= error.code <= 599:
+                    self.rate_limiter.penalize(
+                        provider,
+                        http_status=error.code,
+                        retry_after=error.headers.get("Retry-After"),
+                    )
+                evidence = _safe_http_error_evidence(error)
+                raise InferenceHubDiscoveryError(
+                    f"InferenceHub {path} returned HTTP {error.code}.",
+                    failure_code="http_error",
+                    http_status=error.code,
+                    evidence=evidence,
+                ) from error
+            except urllib.error.URLError as error:
+                self.rate_limiter.penalize(provider, http_status=503)
+                reason = type(error.reason).__name__
+                raise InferenceHubDiscoveryError(
+                    f"InferenceHub {path} connection failed ({reason}).",
+                    failure_code="connection_error",
+                ) from error
+            except TimeoutError as error:
+                self.rate_limiter.penalize(provider, http_status=503)
+                raise InferenceHubDiscoveryError(
+                    f"InferenceHub {path} connection timed out.",
+                    failure_code="connection_timeout",
+                ) from error
         try:
             payload = json.loads(payload_bytes)
         except (UnicodeDecodeError, json.JSONDecodeError) as error:
@@ -540,8 +572,16 @@ class InferenceHubClient:
     def get(self, path: str) -> dict[str, Any]:
         return self.request_json("GET", path)
 
-    def post(self, path: str, body: Mapping[str, Any]) -> dict[str, Any]:
-        return self.request_json("POST", path, body=body)
+    def post(
+        self,
+        path: str,
+        body: Mapping[str, Any],
+        *,
+        upstream_provider: str | None = None,
+    ) -> dict[str, Any]:
+        return self.request_json(
+            "POST", path, body=body, upstream_provider=upstream_provider
+        )
 
 
 def _models_routes(payload: Mapping[str, Any]) -> set[str]:

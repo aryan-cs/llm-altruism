@@ -134,6 +134,11 @@ uv run python -m analysis.build_manifest
 uv run python -m analysis.build_croissant_metadata
 ```
 
+By default, summary generation omits the withdrawn Part 0 model-level and
+Part 0-dependent cross-part tables. The explicit forensic-only flag
+`--include-withdrawn-part0` can recreate those deprecated artifacts, but they
+are not valid paper results.
+
 The provenance check binds the untouched April Part 2 CSVs and sidecars to the
 archived execution source and replays every population transition under the
 recorded divisor-of-five collapse rule. It does not insert the current runtime

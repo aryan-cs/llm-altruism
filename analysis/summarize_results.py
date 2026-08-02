@@ -1406,13 +1406,23 @@ def summarize_cross_part(output_dir: Path) -> tuple[Path, Path]:
     return model_path, correlation_path
 
 
-def summarize_all(raw_dir: Path = RAW_DIR, output_dir: Path = TABLES_DIR) -> list[Path]:
+def summarize_all(
+    raw_dir: Path = RAW_DIR,
+    output_dir: Path = TABLES_DIR,
+    *,
+    include_withdrawn_part0: bool = False,
+) -> list[Path]:
+    """Build release-safe tables, optionally adding withdrawn forensic outputs."""
+
     output_dir.mkdir(parents=True, exist_ok=True)
-    outputs = list(summarize_part0(raw_dir, output_dir))
+    outputs: list[Path] = []
+    if include_withdrawn_part0:
+        outputs.extend(summarize_part0(raw_dir, output_dir))
     outputs.extend(summarize_part1(raw_dir, output_dir))
     outputs.append(summarize_part2(raw_dir, output_dir))
     outputs.append(output_dir / "part2_run_summary.csv")
-    outputs.extend(summarize_cross_part(output_dir))
+    if include_withdrawn_part0:
+        outputs.extend(summarize_cross_part(output_dir))
     return outputs
 
 
@@ -1420,8 +1430,20 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Build graph-independent paper summary tables.")
     parser.add_argument("--raw-dir", default=str(RAW_DIR))
     parser.add_argument("--output-dir", default=str(TABLES_DIR))
+    parser.add_argument(
+        "--include-withdrawn-part0",
+        action="store_true",
+        help=(
+            "also emit deprecated Part 0 and Part 0-dependent cross-part tables "
+            "for forensic audit only"
+        ),
+    )
     args = parser.parse_args()
-    outputs = summarize_all(Path(args.raw_dir), Path(args.output_dir))
+    outputs = summarize_all(
+        Path(args.raw_dir),
+        Path(args.output_dir),
+        include_withdrawn_part0=args.include_withdrawn_part0,
+    )
     print("Wrote summary tables:")
     for path in outputs:
         print(f"  {path}")

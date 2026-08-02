@@ -2,6 +2,7 @@ import importlib
 import json
 import os
 import sys
+from contextlib import contextmanager
 from types import ModuleType, SimpleNamespace
 from typing import Literal
 
@@ -11,6 +12,26 @@ from pydantic import BaseModel
 from agents.base_agent import BaseAgent
 
 api_call_module = importlib.import_module("providers.api_call")
+
+
+class _NoWaitRateLimiter:
+    @contextmanager
+    def limit(self, provider: str):
+        del provider
+        yield
+
+    def penalize(self, provider: str, **kwargs: object) -> float:
+        del provider, kwargs
+        return 0.0
+
+
+@pytest.fixture(autouse=True)
+def _disable_inference_hub_waits(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        api_call_module,
+        "_inference_hub_rate_limiter",
+        lambda **_kwargs: _NoWaitRateLimiter(),
+    )
 
 
 class EchoSchema(BaseModel):
@@ -69,6 +90,7 @@ def _allow_inference_hub_route(monkeypatch: pytest.MonkeyPatch) -> None:
             "id": "verified.test-route",
             "route": model,
             "verification_status": "verified",
+            "upstream_provider": "unit-upstream",
         },
     )
 
@@ -376,6 +398,7 @@ def test_api_call_inference_hub_forwards_route_credentials_and_controls(
             "client": {
                 "api_key": "hub-test-key",
                 "base_url": "https://inference-api.nvidia.com/v1",
+                "max_retries": 0,
                 "timeout": 30,
             },
             "request": {

@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pytest
 
+import analysis.summarize_results as summary_module
+
 from analysis.build_manifest import build_manifest
 from analysis.build_supplement import MANIFEST_NAME, build_supplement, collect_supplement_files
 from analysis.summarize_results import (
@@ -22,6 +24,43 @@ from experiments.part1.part_1 import (
     PRE_ORDERING_RESULT_HEADERS as PART1_PRE_ORDERING_RESULT_HEADERS,
 )
 from experiments.part2.part_2 import PILOT_RESULT_HEADERS
+
+
+def test_default_summary_build_does_not_emit_withdrawn_part0_or_cross_part(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    called: list[str] = []
+    monkeypatch.setattr(
+        summary_module,
+        "summarize_part0",
+        lambda *_args: called.append("part0") or (),
+    )
+    monkeypatch.setattr(
+        summary_module,
+        "summarize_part1",
+        lambda *_args: called.append("part1") or (),
+    )
+    monkeypatch.setattr(
+        summary_module,
+        "summarize_part2",
+        lambda *_args: called.append("part2") or (tmp_path / "part2.csv"),
+    )
+    monkeypatch.setattr(
+        summary_module,
+        "summarize_cross_part",
+        lambda *_args: called.append("cross_part") or (),
+    )
+
+    summary_module.summarize_all(tmp_path / "raw", tmp_path / "tables")
+    assert called == ["part1", "part2"]
+
+    called.clear()
+    summary_module.summarize_all(
+        tmp_path / "raw",
+        tmp_path / "tables-forensic",
+        include_withdrawn_part0=True,
+    )
+    assert called == ["part0", "part1", "part2", "cross_part"]
 
 
 def test_part0_rejudged_schema_prefers_response_only_label() -> None:

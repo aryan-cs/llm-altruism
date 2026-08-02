@@ -1376,10 +1376,15 @@ def _query_openai_compatible_endpoint(
     base_url: str | None,
     api_key: str,
     before_dispatch: Callable[[dict[str, Any]], None] | None = None,
+    rate_limit_provider: str | None = None,
 ) -> str:
     from openai import OpenAI
 
     client_kwargs: dict[str, Any] = {"api_key": api_key}
+    if rate_limit_provider is not None:
+        # The experiment ledger owns retries; hidden SDK retries would create
+        # unreserved physical sends and defeat both budgeting and throttling.
+        client_kwargs["max_retries"] = 0
     if base_url is not None:
         client_kwargs["base_url"] = _validated_base_url(
             base_url,
@@ -1405,9 +1410,33 @@ def _query_openai_compatible_endpoint(
     if response_format is not None:
         payload["response_format"] = response_format
 
-    if before_dispatch is not None:
-        before_dispatch(dict(payload))
-    response = client.chat.completions.create(**payload)
+    if rate_limit_provider is None:
+        if before_dispatch is not None:
+            before_dispatch(dict(payload))
+        response = client.chat.completions.create(**payload)
+    else:
+        limiter = _inference_hub_rate_limiter(base_url=base_url, api_key=api_key)
+        with limiter.limit(rate_limit_provider):
+            if before_dispatch is not None:
+                before_dispatch(dict(payload))
+            try:
+                response = client.chat.completions.create(**payload)
+            except Exception as error:
+                status = _status_code(error)
+                if status == 429 or (isinstance(status, int) and 500 <= status <= 599):
+                    response_object = getattr(error, "response", None)
+                    headers = getattr(response_object, "headers", {})
+                    retry_after = (
+                        headers.get("Retry-After")
+                        if hasattr(headers, "get")
+                        else None
+                    )
+                    limiter.penalize(
+                        rate_limit_provider,
+                        http_status=status,
+                        retry_after=retry_after,
+                    )
+                raise
     return _openai_style_provider_text(
         provider=provider_label,
         model=model,
@@ -1476,7 +1505,7 @@ def _query_inference_hub(
     base_url: str | None,
     api_key: str | None,
 ) -> str:
-    _require_verified_inference_hub_route(model)
+    route_entry = _require_verified_inference_hub_route(model)
     resolved_base_url, resolved_api_key = _resolve_endpoint_connection(
         "inference_hub",
         base_url=base_url,
@@ -1510,9 +1539,27 @@ def _query_inference_hub(
         base_url=resolved_base_url,
         api_key=resolved_api_key,
         before_dispatch=reserve_exact_payload,
+        rate_limit_provider=str(
+            route_entry.get("upstream_provider")
+            or route_entry.get("provider")
+            or model.split("/", 1)[0]
+        ),
     )
     require_response_model_identity(response)
     return response
+
+
+def _inference_hub_rate_limiter(*, base_url: str | None, api_key: str):
+    """Late-bound constructor keeps credentials and process state out of imports."""
+
+    from experiments.misc.inference_hub_rate_limit import InferenceHubRateLimiter
+
+    import hashlib
+
+    scope_id = hashlib.sha256(
+        f"{base_url or ''}\0{api_key}".encode("utf-8")
+    ).hexdigest()
+    return InferenceHubRateLimiter(scope_id=scope_id)
 
 
 def _query_nvidia(

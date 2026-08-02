@@ -17,11 +17,10 @@ PAPER_VISUALS = (
     "part2_restraint_choice_over_time.png",
     "part2_restraint_rate_by_model.png",
     "part2_shared_reserve_over_time.png",
-)
-
-CROSS_PART_VISUALS = (
     "restraint_vs_final_population.png",
 )
+
+CROSS_PART_VISUALS: tuple[str, ...] = ()
 
 
 def _copy_required_files(source_dir: Path, names: tuple[str, ...], output_dir: Path) -> list[Path]:

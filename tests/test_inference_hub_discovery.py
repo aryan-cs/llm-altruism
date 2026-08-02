@@ -5,10 +5,13 @@ import threading
 import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
 import pytest
+
+import experiments.misc.inference_hub_discovery as discovery_module
 
 from analysis.reconcile_inference_hub_routes import reconcile_routes
 from experiments.misc.inference_hub_discovery import (
@@ -26,6 +29,30 @@ from experiments.misc.inference_hub_discovery import (
     smoke_verify_reconciled_candidates,
     smoke_verify_route,
 )
+
+
+class _NoWaitRateLimiter:
+    def __init__(self, **_kwargs: object) -> None:
+        pass
+
+    def contract(self) -> dict[str, Any]:
+        return {"test_double": True}
+
+    @contextmanager
+    def limit(self, provider: str):
+        del provider
+        yield
+
+    def penalize(self, provider: str, **kwargs: object) -> float:
+        del provider, kwargs
+        return 0.0
+
+
+@pytest.fixture(autouse=True)
+def _disable_real_waits(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        discovery_module, "InferenceHubRateLimiter", _NoWaitRateLimiter
+    )
 
 
 class _FakeHTTPResponse:

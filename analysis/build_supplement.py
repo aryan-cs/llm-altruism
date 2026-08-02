@@ -16,7 +16,8 @@ MANIFEST_NAME = "SUPPLEMENT_MANIFEST.json"
 ANONYMIZATION_POLICY_NAME = ".supplement-anonymization.json"
 
 INCLUDE_PATHS = (
-    Path("README.md"),
+    Path("docs") / "conference_submission" / "SUPPLEMENT_README.md",
+    Path("docs") / "conference_submission" / "SUPPLEMENT_MODEL_REGISTRY.md",
     Path("LICENSE"),
     Path(".env.example"),
     Path("pyproject.toml"),
@@ -27,11 +28,7 @@ INCLUDE_PATHS = (
     Path("providers"),
     Path("tests"),
     Path("docs") / "JUDGE_AUDIT.md",
-    Path("docs") / "CONFIRMATORY_CAMPAIGN.md",
-    Path("docs") / "CONFIRMATORY_INTEGRITY.md",
     Path("docs") / "CONFIRMATORY_PROTOCOL.md",
-    Path("docs") / "PART0_CONFIRMATORY_RUNNER.md",
-    Path("docs") / "PART1_CONFIRMATORY_IMPLEMENTATION.md",
     Path("docs") / "release",
     Path("docs") / "conference_submission" / "README.md",
     Path("docs") / "conference_submission" / "conference_submission.tex",
@@ -54,6 +51,7 @@ INCLUDE_PATHS = (
 
 EXCLUDED_RELATIVE_PATHS = {
     Path("docs") / "release" / "research-proposal-metadata.json",
+    Path("docs") / "release" / "MODEL_REGISTRY.md",
     Path("data") / "analysis" / "tables" / "part0_model_summary.csv",
     Path("data") / "analysis" / "tables" / "part0_language_robustness.csv",
     Path("data") / "analysis" / "tables" / "cross_part_model_summary.csv",
@@ -63,6 +61,34 @@ EXCLUDED_RELATIVE_PATHS = {
     Path("data") / "graphs" / "paper_visuals" / "behavioral_fingerprint_heatmap.png",
     Path("data") / "graphs" / "paper_visuals" / "model_behavior_pca.png",
     Path("tests") / "test_campaign.py",
+    # Post-pilot hosted-route discovery and local scale-control work is kept in
+    # the repository but is not evidence for this anonymous April-pilot audit.
+    Path("analysis") / "analyze_inference_hub_part1_panel.py",
+    Path("analysis") / "analyze_joint_inference_hub_part1_panels.py",
+    Path("analysis") / "analyze_local_hf_part1_panel.py",
+    Path("analysis") / "build_sota_inference_hub_roster.py",
+    Path("analysis") / "build_sota_probe_registry.py",
+    Path("analysis") / "merge_sota_compatibility_with_judge.py",
+    Path("analysis") / "reconcile_inference_hub_routes.py",
+    Path("experiments") / "misc" / "inference_hub_compatibility.py",
+    Path("experiments") / "misc" / "inference_hub_discovery.py",
+    Path("experiments") / "misc" / "inference_hub_part1_panel.py",
+    Path("experiments") / "misc" / "inference_hub_rate_limit.py",
+    Path("experiments") / "misc" / "local_hf_part1_panel.py",
+    Path("experiments") / "misc" / "local_hf_smoke.py",
+    Path("tests") / "test_analyze_joint_inference_hub_part1_panels.py",
+    Path("tests") / "test_analyze_local_hf_part1_panel.py",
+    Path("tests") / "test_build_sota_inference_hub_roster.py",
+    Path("tests") / "test_build_sota_probe_registry.py",
+    Path("tests") / "test_inference_hub_compatibility.py",
+    Path("tests") / "test_inference_hub_discovery.py",
+    Path("tests") / "test_inference_hub_part1_panel.py",
+    Path("tests") / "test_inference_hub_rate_limit.py",
+    Path("tests") / "test_local_hf_part1_panel.py",
+    Path("tests") / "test_local_hf_smoke.py",
+    Path("tests") / "test_merge_sota_compatibility_with_judge.py",
+    Path("tests") / "test_reconcile_inference_hub_routes.py",
+    Path("docs") / "LOCAL_MODEL_CONTROLS.md",
 }
 
 EXCLUDED_DIR_NAMES = {
@@ -122,8 +148,16 @@ POLICY_EXCLUSIONS = (
         "reason": "author-identifying proposal metadata is excluded from the anonymous supplement",
     },
     {
+        "path": "docs/release/MODEL_REGISTRY.md",
+        "reason": "the development registry includes post-pilot route planning; the supplement substitutes a pilot-only anonymous registry at the same archive path",
+    },
+    {
         "path": "tests/test_campaign.py",
-        "reason": "legacy campaign tests require withheld raw Part 0 prompts; the fixed confirmatory campaign and its tests are included",
+        "reason": "legacy campaign tests require withheld raw Part 0 prompts and are not needed to replay the released pilot artifacts",
+    },
+    {
+        "path": "post-pilot InferenceHub discovery/panel code and local-HF scale controls",
+        "reason": "these later exploratory workflows are not evidence for the April pilot and are omitted to keep the anonymous paper artifact focused and affiliation-neutral",
     },
 )
 
@@ -157,6 +191,21 @@ def _should_exclude(rel_path: Path, output_rel_path: Path | None = None) -> bool
     return False
 
 
+def resolve_include_path(project_root: Path, include_path: Path) -> Path | None:
+    """Resolve either the development source path or its archive-layout alias."""
+
+    candidate = project_root / include_path
+    if candidate.exists():
+        return candidate
+    archive_fallbacks = {
+        Path("docs") / "conference_submission" / "SUPPLEMENT_README.md": Path("README.md"),
+        Path("docs") / "conference_submission" / "SUPPLEMENT_MODEL_REGISTRY.md": Path("docs") / "release" / "MODEL_REGISTRY.md",
+    }
+    fallback = archive_fallbacks.get(include_path)
+    fallback_path = project_root / fallback if fallback is not None else None
+    return fallback_path if fallback_path is not None and fallback_path.exists() else None
+
+
 def collect_supplement_files(
     project_root: Path = PROJECT_ROOT,
     output_path: Path = DEFAULT_OUTPUT,
@@ -170,7 +219,9 @@ def collect_supplement_files(
 
     files: set[Path] = set()
     for include_path in INCLUDE_PATHS:
-        absolute_path = project_root / include_path
+        absolute_path = resolve_include_path(project_root, include_path)
+        if absolute_path is None:
+            continue
         if absolute_path.is_file():
             candidates = [absolute_path]
         elif absolute_path.is_dir():
@@ -270,6 +321,10 @@ def _archive_replacements(project_root: Path) -> tuple[tuple[str, str], ...]:
 def _anonymous_archive_path(
     rel_path: Path, replacements: tuple[tuple[str, str], ...]
 ) -> str:
+    if rel_path == Path("docs") / "conference_submission" / "SUPPLEMENT_README.md":
+        return "README.md"
+    if rel_path == Path("docs") / "conference_submission" / "SUPPLEMENT_MODEL_REGISTRY.md":
+        return "docs/release/MODEL_REGISTRY.md"
     return _anonymous_text(rel_path.as_posix(), replacements)
 
 
