@@ -32,10 +32,10 @@ RATE_LIMIT_SCHEMA_VERSION = 2
 class RateLimitPolicy:
     """Conservative fixed policy shared by all InferenceHub workflows."""
 
-    global_concurrency: int = 4
-    provider_concurrency: int = 1
-    global_requests_per_second: float = 2.0
-    provider_requests_per_second: float = 0.5
+    global_concurrency: int = 16
+    provider_concurrency: int = 2
+    global_requests_per_second: float = 8.0
+    provider_requests_per_second: float = 1.0
     lease_seconds: float = 900.0
     poll_seconds: float = 0.05
     transient_cooldown_seconds: float = 5.0
