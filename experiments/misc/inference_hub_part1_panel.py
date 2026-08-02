@@ -330,6 +330,7 @@ def select_routes(
     compatibility: Mapping[str, Any],
     selected_ids: Sequence[str] | None,
     judge_target_id: str,
+    excluded_ids: Sequence[str] | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Select passed subject routes and one passed, disjoint future judge route."""
 
@@ -339,10 +340,31 @@ def select_routes(
         raise InferenceHubPart1PanelError(
             "Dedicated judge must have a compatibility-selected InferenceHub route."
         )
-    requested = list(selected_ids) if selected_ids is not None else [
+    excluded = list(excluded_ids or ())
+    if len(excluded) != len(set(excluded)):
+        raise InferenceHubPart1PanelError("A subject target was excluded more than once.")
+    if judge_target_id in excluded:
+        raise InferenceHubPart1PanelError("The dedicated judge cannot be excluded.")
+    if selected_ids is not None and excluded:
+        raise InferenceHubPart1PanelError(
+            "Use either explicit subject targets or exclusions, not both."
+        )
+    available_subject_ids = {
         target_id
         for target_id in compatibility_by_id
         if target_id != judge_target_id and target_id in registry_by_id
+    }
+    unknown_exclusions = sorted(set(excluded) - available_subject_ids)
+    if unknown_exclusions:
+        raise InferenceHubPart1PanelError(
+            "Excluded targets lack compatibility-selected subject routes: "
+            + ", ".join(unknown_exclusions)
+        )
+    excluded_set = set(excluded)
+    requested = list(selected_ids) if selected_ids is not None else [
+        target_id
+        for target_id in compatibility_by_id
+        if target_id in available_subject_ids and target_id not in excluded_set
     ]
     if not requested:
         raise InferenceHubPart1PanelError("No compatibility-selected subjects remain.")
@@ -806,6 +828,7 @@ def run_panel(
     output_dir: Path,
     client: InferenceHubClient,
     selected_ids: Sequence[str] | None = None,
+    excluded_ids: Sequence[str] | None = None,
     judge_target_id: str = DEFAULT_JUDGE_TARGET_ID,
     base_seed: int = DEFAULT_BASE_SEED,
     limit: int | None = None,
@@ -857,6 +880,7 @@ def run_panel(
         compatibility=compatibility,
         selected_ids=selected_ids,
         judge_target_id=judge_target_id,
+        excluded_ids=excluded_ids,
     )
     stems = [_safe_file_stem(str(subject["target_id"])) for subject in subjects]
     if len(stems) != len(set(stems)):
@@ -952,6 +976,7 @@ def run_panel(
         "executed_trial_count_per_subject": len(trials),
         "executed_schedule_sha256": _sha256_json(schedule_binding),
         "trial_limit": limit,
+        "operationally_excluded_target_ids": sorted(excluded_ids or ()),
         "subject_routes": subject_manifest,
         "judge_reservation": {
             "target_id": judge["target_id"],
@@ -1318,6 +1343,7 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--target", action="append", dest="targets")
+    parser.add_argument("--exclude-target", action="append", dest="excluded_targets")
     parser.add_argument("--judge-target-id", default=DEFAULT_JUDGE_TARGET_ID)
     parser.add_argument("--base-seed", type=int, default=DEFAULT_BASE_SEED)
     parser.add_argument("--limit", "--trial-limit", type=_positive_int, default=None)
@@ -1348,6 +1374,7 @@ def main(argv: list[str] | None = None) -> int:
         output_dir=args.output_dir,
         client=client,
         selected_ids=args.targets,
+        excluded_ids=args.excluded_targets,
         judge_target_id=args.judge_target_id,
         base_seed=args.base_seed,
         limit=args.limit,

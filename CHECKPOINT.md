@@ -72,7 +72,13 @@ Updated: 2026-08-02 (America/Los_Angeles)
   `294bddb3775643f73ea52953132634f4ba198f4bf59044b89a285c4ef254c684`
   and it binds limiter policy SHA-256
   `99676942658cee96fb50e33dbd3e83baeb37c3af4720278f462fe54ab423b699`.
-  The fixed judge was not dispatched by this subject-only canary.
+  The fixed judge was not dispatched by this subject-only canary. The first
+  all-subject launch was stopped after the two Moonshot/Kimi routes repeatedly
+  returned HTTP 529 despite the shared 30-second provider cooldown. That
+  interrupted artifact is preserved and is not evidence. The auditable
+  replacement excludes only those two operationally overloaded routes from its
+  79-subject main pass; both Kimi identities remain frozen for isolated reruns
+  rather than substitution or silent omission.
 - Four revision-pinned local Hugging Face controls were loaded from a read-only
   cache and completed real offline greedy generations on CPU: SmolLM2 135M,
   360M, and 1.7B plus Qwen2.5 0.5B. A fresh immutable two-worker private artifact
@@ -103,7 +109,7 @@ Updated: 2026-08-02 (America/Los_Angeles)
 
 - Strict raw validation: 27 files, 14 pass, 13 warning, 0 fail. The warnings are
   the disclosed one-sided Part 2 rationale/action lexical flags.
-- Full repository suite: 672 passed, 1 optional dependency skip on 2026-08-02.
+- Full repository suite: 675 passed, 1 optional dependency skip on 2026-08-02.
   `tests/conftest.py` selects the noninteractive Agg backend before collection.
 - Clean extracted-supplement suite: 515 passed, 2 intentional skips (withheld
   raw Part 0 and one optional dependency), without a Git object store.
@@ -147,9 +153,10 @@ Updated: 2026-08-02 (America/Los_Angeles)
    compatibility, and broad SOTA compatibility are complete. These exploratory
    artifacts do not automatically promote the production registry or bypass
    the frozen confirmatory approvals.
-2. The replacement large-N hosted Part 1 execution is frozen over 81 unique
-   callable subjects and ready to start from the committed limiter snapshot.
-   Until its journal locks and strict analysis passes, no model rates may be
+2. The replacement large-N hosted Part 1 execution remains frozen over 81 unique
+   callable subjects: 79 in the shared main pass and the two operationally
+   overloaded Kimi routes in isolated reruns. Until all journals lock and strict
+   analysis passes, no model rates may be
    reported. Identity-mismatched or terminally failed targets
    are quarantined whole and rerun separately; unavailable routes are never
    substituted.
@@ -167,9 +174,9 @@ Updated: 2026-08-02 (America/Los_Angeles)
 
 ## Exact next execution order
 
-1. Execute and lock the single rate-limited 81-subject x 384-root hosted Part 1
-   panel; rerun every operationally quarantined target separately without
-   substitution.
+1. Execute and lock the rate-limited 79-subject x 384-root hosted Part 1 main
+   panel, then run both Kimi routes in isolation and rerun every other
+   operationally quarantined target separately without substitution.
 2. Validate journals and generate only the nonpromotable aggregate artifact with
    5,000-replicate stratified root bootstrap intervals.
 3. Complete genuine Part 0/Part 1 human reviews and the Part 0 two-annotator

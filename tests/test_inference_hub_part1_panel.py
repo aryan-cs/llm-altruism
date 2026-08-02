@@ -512,6 +512,45 @@ def test_subject_filter_cannot_include_judge() -> None:
         )
 
 
+def test_operational_exclusion_removes_only_named_subject_and_is_manifest_bound(
+    tmp_path: Path,
+) -> None:
+    registry_path, compatibility_path = _write_inputs(tmp_path)
+    client = _FakeClient()
+    manifest = run_panel(
+        registry_path=registry_path,
+        compatibility_path=compatibility_path,
+        output_dir=tmp_path / "excluded-panel",
+        client=client,
+        excluded_ids=["subject.beta"],
+        judge_target_id=JUDGE_ID,
+        limit=1,
+        max_workers=1,
+        max_attempts=1,
+    )
+
+    assert manifest["operationally_excluded_target_ids"] == ["subject.beta"]
+    assert [row["target_id"] for row in manifest["subject_routes"]] == [
+        "subject.alpha"
+    ]
+    assert len(client.calls) == 1
+
+
+@pytest.mark.parametrize("excluded", [[JUDGE_ID], ["missing.subject"]])
+def test_operational_exclusion_rejects_judge_or_unknown_target(
+    excluded: list[str],
+) -> None:
+    registry = _registry()
+    with pytest.raises(InferenceHubPart1PanelError):
+        select_routes(
+            registry=registry,
+            compatibility=_compatibility(registry),
+            selected_ids=None,
+            excluded_ids=excluded,
+            judge_target_id=JUDGE_ID,
+        )
+
+
 def test_chained_journal_accepts_unicode_line_separator_inside_json_string(
     tmp_path: Path,
 ) -> None:
