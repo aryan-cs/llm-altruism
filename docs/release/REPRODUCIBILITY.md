@@ -202,9 +202,9 @@ the incomplete 1,243-row checkpoint. It binds its counts to the withheld source
 CSV by path, size, and SHA-256 while explicitly prohibiting corrected
 model-level Part 0 inference.
 
-## Acceptance Criteria
+## Local Artifact Acceptance Criteria
 
-A result is paper-ready only when:
+A local pilot artifact passes this checklist only when:
 
 - the full test suite passes,
 - validation has no failures,
@@ -213,3 +213,9 @@ A result is paper-ready only when:
 - the paper-facing Croissant metadata is present at `data/analysis/croissant_metadata.json`,
 - the anonymous supplement builds successfully with `uv run python -m analysis.build_supplement`,
 - any validation warnings are either resolved or explicitly discussed.
+
+This local checklist does not authorize submission or confirmatory claims.
+Those additionally require all 30 authenticated routes and completed native
+artifacts, genuine Part 0/Part 1 approvals and judge audit, a complete fixed
+campaign/data lock, and anonymous reviewer-accessible hosting with official
+Croissant validation.

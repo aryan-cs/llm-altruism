@@ -52,9 +52,12 @@ window during that same campaign, but every request still requires exact
 requested/returned identity and byte-identical registry evidence. Any changed
 route requires a new campaign freeze.
 
-The primary analysis requires at least 12 complete systems from at least eight
-upstream developers. Equal-system and equal-developer summaries are both
-reported so providers exposing many variants do not dominate.
+The frozen campaign requires all 24 current systems from 12 upstream developers
+and all six historical systems to complete. The 24-system current cohort is the
+primary finite panel; historical routes remain descriptive. Any incomplete
+planned route leaves the campaign incomplete and blocks confirmatory estimator
+release. Equal-system and equal-developer summaries are both reported so
+providers exposing many variants do not dominate.
 
 ## Common response and failure rules
 
@@ -186,7 +189,7 @@ probabilities 0.25, 0.50, and 0.75, and the mechanical threshold policy.
 
 Six sentinel systems are selected by developer/capability stratum before
 outcomes. A 16-cell resolution-V half-fraction varies capacity per initial
-agent, depletion, death rate, population, and horizon, with four common seeds
+agent, depletion, death rate, population, and horizon, with six common seeds
 per cell. Only five main effects and prespecified interactions are tested.
 Cells are never pooled as baseline replicates. The sensitivity stage begins
 only after the primary data lock and has its own request budget and manifest.
@@ -198,7 +201,7 @@ systems. A nested finite-panel bootstrap resamples Part 0 semantic clusters,
 Part 1 scenario roots, and Part 2 trajectories within each fixed system.
 Exactly three associations form one Holm family. Equal-system and
 equal-developer coefficients and leave-one-developer-out ranges are mandatory.
-Historical systems are shown separately. With roughly 24 current systems,
+Historical systems are shown separately. With exactly 24 current systems,
 correlations below about absolute 0.5--0.6 are materially underpowered and are
 reported as descriptive profiles, not population laws.
 

@@ -43,11 +43,12 @@ These entries are catalog-display-only placeholders for planned confirmatory
 targets. Every entry is marked `verification_status=unverified` and
 `route_source=catalog_display_only`; preflight and campaign execution reject
 them. Catalog labels are not callable model IDs. Each route must be replaced by
-the exact backend-namespaced ID reported by InferenceHub Developer Tools before
-promotion. Because the benchmark adapter never sends an unverified route, the
-first approved smoke record must be captured through the separate route-review
-workflow and added as verification evidence. Only then may the entry be marked
-verified and used by the benchmark adapter or included in any result table.
+the exact backend-namespaced ID present in both authenticated `GET /models` and
+`GET /model/info` responses before promotion. Because the benchmark adapter
+never sends an unverified route, the first approved structured smoke record
+must be captured through the separate route-review workflow and added as
+verification evidence. Only then may the entry be marked verified and used by
+the benchmark adapter or included in any result table.
 
 A verified entry may use only the authoritative route source
 `inference_hub_models_api`. It must include a
@@ -122,12 +123,14 @@ response-identity smoke gate remain authoritative.
 ## Promotion Gate
 
 For every target, preserve the registry version, routing-roster hash, complete
-embedded evidence-bundle hash, Developer
-Tools-derived route source and verification status, provider
+embedded evidence-bundle hash, dual-API-derived route source and verification
+status, provider
 requested and response model IDs, model-identity match status, endpoint profile,
 run time, supported decoding controls,
 request/retry log, prompt/config hashes, and output hashes. A missing credential,
 catalog-only label, 404/deprecated route, schema failure, unsupported control,
-incomplete phase, or validation failure keeps that target out of the reported
-cohort. The campaign manifest records failures rather than replacing a route or
-silently changing a model version.
+incomplete phase, or validation failure leaves the frozen campaign incomplete
+and blocks every confirmatory estimator. The route is never removed
+individually after outcomes exist; a replacement panel requires a new
+outcome-blind campaign freeze. The campaign manifest records failures rather
+than replacing a route or silently changing a model version.

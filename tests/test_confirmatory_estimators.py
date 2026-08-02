@@ -525,6 +525,7 @@ def test_part2_cli_reports_primary_and_secondary_run_level_intervals(
     assert primary["estimate"] == pytest.approx(0.5)
     assert primary["t_ci_low"] < primary["estimate"] < primary["t_ci_high"]
     assert primary["bca_ci_low"] < primary["estimate"] < primary["bca_ci_high"]
+    assert primary["interval_unit"] == "independent_final_baseline_trajectory"
     assert {
         row["metric"] for row in artifact["results"] if row["system_id"] == "system-a"
     } == {
@@ -537,6 +538,39 @@ def test_part2_cli_reports_primary_and_secondary_run_level_intervals(
     assert {
         row["weighting"] for row in artifact["panel_results"]
     } == {"equal_system", "equal_developer"}
+
+
+def test_part2_fixed_production_uses_fixed_trajectory_interval_label(
+    tmp_path: Path,
+) -> None:
+    payload = _part2_input()
+    payload["selected_run_count"] = 24
+    payload["structural_cell_id"] = "fixed-cell"
+    for system in payload["systems"]:
+        original = system["part2_units"]
+        for index in range(20, 24):
+            original.append(
+                {
+                    **original[index % 20],
+                    "unit_id": f"fixed-{system['system_id']}-{index}",
+                }
+            )
+        for unit in original:
+            unit["analysis_source"] = "fixed_production"
+            unit["structural_cell_id"] = "fixed-cell"
+    _seal_input(payload)
+    input_path = tmp_path / "part2-fixed-private.json"
+    _write_private(input_path, payload)
+    output = tmp_path / "part2-fixed-estimates.json"
+
+    completed = _run("part2", "--input", input_path, "--output", output)
+
+    assert completed.returncode == 0, completed.stderr
+    artifact = _verify_artifact(output)
+    assert artifact["analysis_source"] == "locked_part2_fixed_production_only"
+    assert {row["interval_unit"] for row in artifact["results"]} == {
+        "independent_fixed_production_trajectory"
+    }
 
 
 def test_part2_cli_rejects_cross_system_duplicate_trajectory_and_wrong_n(

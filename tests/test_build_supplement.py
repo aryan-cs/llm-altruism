@@ -25,6 +25,11 @@ def test_supplement_has_no_declared_missing_include_roots() -> None:
     ]
 
     assert missing == []
+    policy_path = (
+        build_supplement.PROJECT_ROOT / build_supplement.ANONYMIZATION_POLICY_NAME
+    )
+    if (build_supplement.PROJECT_ROOT / ".git").exists():
+        assert policy_path.is_file()
 
 
 def test_policy_manifest_discloses_identity_exclusion() -> None:
@@ -39,15 +44,32 @@ def test_policy_manifest_discloses_identity_exclusion() -> None:
     ]
 
 
-def test_anonymous_supplement_preserves_api_contract_and_rewrites_author_markers(
+def test_anonymous_supplement_rewrites_private_gateway_and_author_markers(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     root = tmp_path / "repo"
     source = root / "experiments" / "inference_hub_probe.py"
     source.parent.mkdir(parents=True)
     source.write_text(
-        "InferenceHub https://inference-api.nvidia.com/v1 "
-        "NVIDIA_API_KEY private-handle /Users/private-login\n",
+        "InferenceHub https://employer.internal/v1 "
+        "EMPLOYER_API_KEY private-handle /Users/private-login\n",
+        encoding="utf-8",
+    )
+    (root / build_supplement.ANONYMIZATION_POLICY_NAME).write_text(
+        json.dumps(
+            {
+                "replacements": [
+                    {
+                        "source": "https://employer.internal/v1",
+                        "replacement": "https://inference-gateway.example.invalid/v1",
+                    },
+                    {
+                        "source": "EMPLOYER_API_KEY",
+                        "replacement": "INFERENCE_HUB_API_KEY",
+                    },
+                ]
+            }
+        ),
         encoding="utf-8",
     )
     output = tmp_path / "anonymous.zip"
@@ -73,8 +95,10 @@ def test_anonymous_supplement_preserves_api_contract_and_rewrites_author_markers
         ]
         payload = zf.read(names[1]).decode("utf-8")
     assert "InferenceHub" in payload
-    assert "https://inference-api.nvidia.com/v1" in payload
-    assert "NVIDIA_API_KEY" in payload
+    assert "https://employer.internal/v1" not in payload
+    assert "EMPLOYER_API_KEY" not in payload
+    assert "https://inference-gateway.example.invalid/v1" in payload
+    assert "INFERENCE_HUB_API_KEY" in payload
     assert "anonymous-author" in payload
     assert "/home/anonymous" in payload
 
@@ -103,6 +127,34 @@ def test_supplement_builder_does_not_embed_local_identity_literals() -> None:
         build_supplement.PROJECT_ROOT
     ):
         assert marker.lower() not in source
+
+
+def test_anonymity_audit_rejects_private_gateway_affiliation_marker(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "repo"
+    project_root.mkdir()
+    (project_root / build_supplement.ANONYMIZATION_POLICY_NAME).write_text(
+        json.dumps(
+            {
+                "replacements": [
+                    {
+                        "source": "EMPLOYER_API_KEY",
+                        "replacement": "INFERENCE_HUB_API_KEY",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    output = tmp_path / "leaky.zip"
+    with zipfile.ZipFile(output, "w") as archive:
+        archive.writestr("README.md", "Use EMPLOYER_API_KEY for the private route.")
+
+    findings = build_supplement.audit_anonymous_archive(output, project_root)
+
+    assert findings
+    assert "employer_api_key" in findings[0]
 
 
 def test_supplement_manifest_hashes_every_included_payload(tmp_path: Path) -> None:

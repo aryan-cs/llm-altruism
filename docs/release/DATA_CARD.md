@@ -58,7 +58,7 @@ The paper-facing Croissant metadata is stored at `data/analysis/croissant_metada
 
 ## Known Limitations
 
-- Current results are a validated pilot snapshot for the paper-facing submission package, not final leaderboard estimates.
+- Current results are a structurally validated Part 1/Part 2 pilot snapshot for the local paper-facing package, not final leaderboard estimates. Part 0 model-level evidence is withdrawn.
 - Some metadata for legacy runs is reconstructed from filenames and row counts;
   Part 1's exact provider/model identity is separately repaired from CSV rows.
 - The Part 2 collapse rate is recovered from the archived execution source and

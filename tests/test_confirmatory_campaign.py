@@ -225,7 +225,7 @@ def _args(
     evidence_path: Path,
     evidence_hash: str,
     *,
-    part2_stage: str = "variance-pilot",
+    part2_stage: str = "fixed-production",
     gate_path: Path | None = None,
     gate_hash: str | None = None,
 ) -> Any:
@@ -296,7 +296,7 @@ def planned_fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     return args, targets, build_plan(args), freeze
 
 
-def test_default_exact_30_target_union_and_variance_pilot_job_counts(
+def test_default_exact_30_target_union_and_fixed_stage_job_counts(
     planned_fixture,
 ) -> None:
     _, targets, manifest, _ = planned_fixture
@@ -306,9 +306,9 @@ def test_default_exact_30_target_union_and_variance_pilot_job_counts(
         "historical",
     ]
     assert len({row["route"] for row in manifest["targets"]}) == 30
-    assert manifest["part2_design"]["replicates_per_target"] == 8
-    assert len(manifest["part2_design"]["common_generation_seeds"]) == 8
-    assert len(manifest["jobs"]) == 390
+    assert manifest["part2_design"]["replicates_per_target"] == 24
+    assert len(manifest["part2_design"]["common_generation_seeds"]) == 24
+    assert len(manifest["jobs"]) == 870
     assert manifest["scheduling"] == {
         "protocol": campaign.CAMPAIGN_SCHEDULING_PROTOCOL,
         "seed": campaign.CAMPAIGN_SCHEDULING_SEED,
@@ -341,7 +341,7 @@ def test_default_exact_30_target_union_and_variance_pilot_job_counts(
         ("smoke", "part2"): 30,
         ("production", "part0"): 30,
         ("production", "part1"): 30,
-        ("part2_variance_pilot", "part2"): 240,
+        ("part2_fixed_production", "part2"): 720,
     }
     for job in (
         row
@@ -368,7 +368,7 @@ def test_default_exact_30_target_union_and_variance_pilot_job_counts(
             option_index + 1
         ]
     scientific = [
-        job for job in manifest["jobs"] if job["stage"] == "part2_variance_pilot"
+        job for job in manifest["jobs"] if job["stage"] == "part2_fixed_production"
     ]
     by_target: dict[str, set[tuple[int, int]]] = {}
     for job in scientific:
@@ -377,7 +377,7 @@ def test_default_exact_30_target_union_and_variance_pilot_job_counts(
             (expected["generation_seed"], expected["environment_seed"])
         )
     assert len({frozenset(value) for value in by_target.values()}) == 1
-    assert all(len(value) == 8 for value in by_target.values())
+    assert all(len(value) == 24 for value in by_target.values())
     part2_smokes = [
         job
         for job in manifest["jobs"]
@@ -461,7 +461,7 @@ def test_hash_bound_target_shard_keeps_full_union_attestation(
         "complete_union_target_count": 30,
     }
     assert [target["id"] for target in manifest["targets"]] == ["target-00"]
-    assert len(manifest["jobs"]) == 13
+    assert len(manifest["jobs"]) == 29
     assert {job["target_id"] for job in manifest["jobs"]} == {"target-00"}
     assert len(manifest["cohorts"][0]["target_ids"]) == 24
     assert len(manifest["cohorts"][1]["target_ids"]) == 6
@@ -549,163 +549,55 @@ def test_campaign_json_loader_rejects_duplicate_object_keys(tmp_path: Path) -> N
         campaign._load_json(path, label="duplicate fixture")
 
 
-def _gate(selected_n: int, *, pilot_manifest_sha256: str | None = None) -> dict[str, Any]:
-    payload: dict[str, Any] = {
-        "schema_version": 1,
-        "artifact_type": "part2_identity_masked_variance_selection",
-        "private_input_sha256": _sha("private-variance-input"),
-        "pilot_campaign_manifest_sha256": (
-            pilot_manifest_sha256 or _sha("pilot-manifest")
-        ),
-        "selection": {
-            "schema_version": 1,
-            "selection_rule": "smallest_n_with_t95_half_width_at_most_0.05_capped_20_40",
-            "identity_masked": True,
-            "group_count": 30,
-            "pilot_runs_per_group": 8,
-            "common_environment_seed_count": 8,
-            "common_environment_seeds_sha256": _sha("environment-seeds"),
-            "target_half_width": 0.05,
-            "s_max": 0.1,
-            "selected_common_run_count": selected_n,
-            "t_critical": 2.093024,
-            "achieved_half_width": 0.0468,
-            "capped_at_maximum": False,
-            "location_removed_masked_input_sha256": _sha("centered-input"),
-        },
-    }
-    canonical = (
-        json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-        + "\n"
-    ).encode("utf-8")
-    payload["artifact_sha256"] = hashlib.sha256(canonical).hexdigest()
-    return payload
-
-
-def test_baseline_count_comes_only_from_hash_pinned_blinded_gate(
-    planned_fixture,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize("retired_stage", ["variance-pilot", "baseline-production"])
+def test_new_campaign_planning_rejects_retired_two_stage_designs(
+    planned_fixture, retired_stage: str
 ) -> None:
-    from analysis import part2_confirmatory
+    args, _, _, _ = planned_fixture
+    args.part2_stage = retired_stage
+    with pytest.raises(ConfirmatoryCampaignError, match="fixed one-stage"):
+        build_plan(args)
 
-    args, _, pilot_plan, _ = planned_fixture
-    pilot_path = tmp_path / "pilot-manifest.json"
-    pilot_path.write_text("{}\n", encoding="utf-8")
-    pilot_hash = hashlib.sha256(pilot_path.read_bytes()).hexdigest()
-    args.variance_pilot_manifest = str(pilot_path)
-    args.variance_pilot_manifest_sha256 = pilot_hash
-    monkeypatch.setattr(
-        campaign,
-        "_validate_completed_variance_pilot_manifest",
-        lambda path, *, expected_sha256: {
-            **deepcopy(pilot_plan),
-            "campaign_id": "pilot-fixture",
-            "plan_sha256": _sha("pilot-plan"),
-            "manifest_sha256": _sha("pilot-payload"),
-        },
-    )
-    masked_ids = [f"masked-{index:02d}" for index in range(30)]
-    seed_keys = [
-        str(campaign.DEFAULT_PART2_ENVIRONMENT_SEED_BASE + index)
-        for index in range(campaign.VARIANCE_PILOT_REPLICATES)
-    ]
-    pilot_values = {
-        masked_id: {seed: 0.5 for seed in seed_keys}
-        for masked_id in masked_ids
-    }
-    native_input = part2_confirmatory._sealed_artifact(
+
+def test_campaign_cli_does_not_expose_retired_two_stage_options() -> None:
+    parser = campaign.build_parser()
+    with pytest.raises(SystemExit):
+        parser.parse_args(
+            ["--campaign-id", "fixture", "--part2-stage", "variance-pilot"]
+        )
+
+
+def test_archived_two_stage_manifest_cannot_be_created_or_executed(
+    planned_fixture, tmp_path: Path
+) -> None:
+    _args_value, _targets_value, fixed, _freeze = planned_fixture
+    archived = deepcopy(fixed)
+    archived["part2_design"].update(
         {
-            "schema_version": 1,
-            "artifact_type": "part2_native_identity_masked_variance_input",
-            "pilot_campaign_path": str(pilot_path.resolve()),
-            "pilot_campaign_manifest_sha256": pilot_hash,
-            "pilot_campaign_payload_sha256": _sha("pilot-payload"),
-            "native_artifact_set_sha256": _sha("native-artifacts"),
-            "identity_masking_scheme": "automated_plan_bound_location_insensitive_v1",
-            "frozen_blinded_group_ids": masked_ids,
-            "pilot_by_blinded_group": pilot_values,
+            "scientific_stage": "part2_variance_pilot",
+            "replicates_per_target": 8,
+            "variance_pilot_replicates": 8,
+            "fixed_replicates": None,
         }
     )
-    monkeypatch.setattr(
-        part2_confirmatory,
-        "_derive_native_blinded_variance_input",
-        lambda path, *, expected_sha256: deepcopy(native_input),
-    )
-    gate_path = tmp_path / "variance-gate.json"
-    valid_gate = _gate(20, pilot_manifest_sha256=pilot_hash)
-    valid_gate["private_input_sha256"] = hashlib.sha256(
-        part2_confirmatory._canonical_json_bytes(native_input)
-    ).hexdigest()
-    valid_gate["selection"] = part2_confirmatory.select_blinded_variance_run_count(
-        {
-            masked_id: {int(seed): value for seed, value in values.items()}
-            for masked_id, values in pilot_values.items()
-        },
-        expected_blinded_groups=masked_ids,
-    )
-    valid_gate["artifact_sha256"] = hashlib.sha256(
-        part2_confirmatory._canonical_json_bytes(
-            {
-                key: value
-                for key, value in valid_gate.items()
-                if key != "artifact_sha256"
-            }
-        )
-    ).hexdigest()
-    gate_hash = _write_json(gate_path, valid_gate)
-    args.part2_stage = "baseline-production"
-    args.variance_selection = str(gate_path)
-    args.variance_selection_sha256 = gate_hash
-    manifest = build_plan(args)
-    assert manifest["part2_design"]["variance_selected_n"] == 20
-    assert manifest["part2_design"]["replicates_per_target"] == 20
-    assert len(manifest["jobs"]) == 630
-    assert sum(
-        job["stage"] == "part2_baseline_production" for job in manifest["jobs"]
-    ) == 600
-    assert all(job["experiment"] == "part2" for job in manifest["jobs"])
-    monkeypatch.setattr(
-        campaign,
-        "require_fresh_route_verification",
-        lambda entry: (_ for _ in ()).throw(ValueError("elapsed freshness window")),
-    )
-    continued = build_plan(args)
-    assert continued["plan_sha256"] == manifest["plan_sha256"]
-    args.judge_target_id = "target-02"
-    with pytest.raises(ConfirmatoryCampaignError, match="continue the pilot's exact"):
-        build_plan(args)
-    args.judge_target_id = "target-01"
 
-    forged = deepcopy(valid_gate)
-    forged["selection"]["selected_common_run_count"] = 40
-    forged["selection"]["t_critical"] = 2.022691
-    forged["artifact_sha256"] = hashlib.sha256(
-        part2_confirmatory._canonical_json_bytes(
-            {key: value for key, value in forged.items() if key != "artifact_sha256"}
-        )
-    ).hexdigest()
-    args.variance_selection_sha256 = _write_json(gate_path, forged)
-    with pytest.raises(ConfirmatoryCampaignError, match="native rederived pilot rule"):
-        build_plan(args)
+    with pytest.raises(ConfirmatoryCampaignError, match="archived two-stage"):
+        create_manifest(archived)
 
-    args.variance_selection_sha256 = _write_json(
-        gate_path, _gate(19, pilot_manifest_sha256=pilot_hash)
-    )
-    with pytest.raises(ConfirmatoryCampaignError, match="20..40"):
-        build_plan(args)
-    bad = _gate(20, pilot_manifest_sha256=pilot_hash)
-    bad["selection"]["identity_masked"] = False
-    without_hash = {key: value for key, value in bad.items() if key != "artifact_sha256"}
-    bad["artifact_sha256"] = hashlib.sha256(
-        (
-            json.dumps(without_hash, sort_keys=True, separators=(",", ":"))
-            + "\n"
-        ).encode("utf-8")
-    ).hexdigest()
-    args.variance_selection_sha256 = _write_json(gate_path, bad)
-    with pytest.raises(ConfirmatoryCampaignError, match="prespecified identity-masked"):
-        build_plan(args)
+    process_called = False
+
+    def forbidden_process(*args, **kwargs):
+        nonlocal process_called
+        process_called = True
+        return ProcessResult(0)
+
+    with pytest.raises(ConfirmatoryCampaignError, match="archived two-stage"):
+        execute_manifest(
+            archived,
+            tmp_path / "manifest.json",
+            process_runner=forbidden_process,
+        )
+    assert process_called is False
 
 
 def test_clean_commit_and_source_dependency_freeze_fail_closed(
@@ -758,11 +650,22 @@ def _small_fixture(
     return args, build_plan(args)
 
 
-def test_native_variance_adapter_revalidates_completed_campaign_and_derives_aurcs(
+def test_archived_variance_adapter_revalidates_completed_campaign_and_derives_aurcs(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    _args_value, planned = _small_fixture(tmp_path, monkeypatch)
-    manifest_path = create_manifest(planned)
+    args, _fixed_plan = _small_fixture(tmp_path, monkeypatch)
+    args.part2_stage = "variance-pilot"
+    args.part2_society_size = 50
+    args.part2_days = 100
+    args.part2_resource_capacity = 2500
+    planned = campaign._build_plan_from_arguments(
+        args, archived_validation=True
+    )
+    campaign_directory = campaign._campaign_directory(planned["campaign_id"])
+    campaign_directory.mkdir(parents=True, mode=0o700)
+    manifest_path = campaign_directory / "manifest.json"
+    campaign._write_manifest(manifest_path, planned)
+    manifest_path.chmod(0o600)
     completed = load_manifest(manifest_path)
     artifacts: dict[str, dict[str, Any]] = {}
     dynamics = {"policy": "native-variance-fixture-v1"}
@@ -884,19 +787,14 @@ def test_native_variance_adapter_revalidates_completed_campaign_and_derives_aurc
     )
     part2_confirmatory._verify_sealed_artifact(derived, hash_field="artifact_sha256")
 
-    input_path = tmp_path / "native-variance-input.json"
-    part2_confirmatory._atomic_write_fresh_json(input_path, derived)
-    output_path = tmp_path / "native-variance-selection.json"
-    result = part2_confirmatory._run_select_variance(
-        SimpleNamespace(
-            input=input_path,
-            pilot_campaign=manifest_path,
-            pilot_campaign_sha256=manifest_hash,
-            output=output_path,
-        )
+    _pilot_hash, frozen_groups, pilot_values = (
+        part2_confirmatory._parse_blinded_variance_input(derived)
     )
-    assert result["selection"]["group_count"] == 2
-    assert result["selection"]["identity_masked"] is True
+    selection = part2_confirmatory.select_blinded_variance_run_count(
+        pilot_values, expected_blinded_groups=frozen_groups
+    )
+    assert selection["group_count"] == 2
+    assert selection["identity_masked"] is True
 
 
 def test_smoke_failure_blocks_only_matching_scientific_job_and_uses_argv(
@@ -1042,7 +940,7 @@ def test_rehashed_manifest_cannot_delete_a_planned_scientific_job(
     tampered["jobs"] = [
         job
         for job in tampered["jobs"]
-        if job["id"] != "part2_variance_pilot-target-00-s01"
+        if job["id"] != "part2_fixed_production-target-00-s01"
     ]
     tampered["plan_sha256"] = campaign._plan_hash(tampered)
     tampered["manifest_sha256"] = campaign._manifest_hash(tampered)
@@ -1117,7 +1015,7 @@ def test_part2_resolver_refuses_multiple_changed_seed_artifacts(
 ) -> None:
     job = {
         "id": "p2",
-        "stage": "part2_variance_pilot",
+        "stage": "part2_fixed_production",
         "experiment": "part2",
         "expected": {},
     }

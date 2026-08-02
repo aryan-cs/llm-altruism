@@ -34,7 +34,10 @@ docs/release/                 Data card, model registry, release terms, public p
 tests/                        Unit and integration tests
 ```
 
-Parts 3-5 are roadmap placeholders. Treat Parts 0-2 as the validated benchmark scope unless additional parts are implemented, validated, and rerun.
+Parts 3-5 are roadmap placeholders. Parts 0-2 are the implemented benchmark
+scope. Only the Part 1/Part 2 pilot artifacts are structurally validated; Part 0
+model-level evidence is withdrawn and confirmatory inputs remain unapproved.
+Do not promote additional parts without implementation, validation, and reruns.
 
 ## Setup
 
@@ -134,8 +137,9 @@ uv run python -m analysis.backfill_metadata --repair-part1-identities
 
 `build_croissant_metadata` deterministically refreshes distribution hashes,
 sizes, schemas, and record sets after tables or manifests change. Once an
-anonymous public landing page exists, pass its real URL with
-`--dataset-url https://...`; the generator rejects placeholders.
+anonymous reviewer-accessible landing page exists, pass its real URL with
+`--dataset-url https://...`; the generator rejects placeholders. The URL may be
+a private preview during review but must be public by camera ready.
 
 The current validation report is written to:
 
@@ -194,10 +198,11 @@ models API (Developer Tools display text alone is insufficient), preserve
 discovery and smoke-test evidence,
 and mark it verified only after review. The provider adapter independently
 requires a registered verified route before reading credentials and rejects a
-missing or different response-model identity. Registry membership is a run plan, not
-a claim that a provider route is available or that its results appear in the
-paper. A model enters the result set only after successful endpoint smoke tests,
-completed native artifacts, and validation.
+missing or different response-model identity. Registry membership is a run
+plan, not a claim that a provider route is available or that its results appear
+in the paper. All 30 frozen routes must pass smoke tests, complete native
+artifacts, and validate; one incomplete route leaves the campaign incomplete
+and prevents confirmatory estimator release.
 
 After setting the exact InferenceHub base URL and credential, verify the full
 current-plus-historical panel in one fail-closed batch:
@@ -294,7 +299,7 @@ This validation does not prove that the automated Part 0 judge is semantically c
 
 ## Data And Safety
 
-Part 0 uses harmful-request prompts and model completions for safety evaluation. Do not casually republish raw harmful prompts or completions. The anonymous supplement excludes raw Part 0 prompt-source CSVs, raw Part 0 metadata sidecars, and raw Part 0 harmful completions by default. It includes derived Part 0 aggregate tables and figures plus Part 1/Part 2 raw CSVs and metadata.
+Part 0 uses harmful-request prompts and model completions for safety evaluation. Do not casually republish raw harmful prompts or completions. The anonymous supplement excludes raw Part 0 prompt-source CSVs, raw Part 0 metadata sidecars, raw Part 0 harmful completions, and every invalid legacy Part 0 or dependent cross-part table and figure. It includes the sanitized aggregate rejudgment-audit checkpoint plus Part 1/Part 2 raw CSVs and metadata.
 
 Part 1 and Part 2 prompts, traces, and metadata are intended for auditability. Treat the current results as a pilot snapshot, not a final leaderboard. The Part 2 runs in the paper are point estimates from one same-model trajectory per model unless explicitly stated otherwise.
 

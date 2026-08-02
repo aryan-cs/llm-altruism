@@ -120,8 +120,12 @@ class ConferenceSubmissionFormatTest(unittest.TestCase):
             self.fail(f"PDF heading not found: {pattern}")
 
         conclusion_page = page_matching(r"^\s*(?:\d+\s+)?9 Conclusion\s*$")
+        conclusion_end_page = page_matching(
+            r"^\s*(?:\d+\s+)?commons dynamics\.\s*$"
+        )
         references_page = page_matching(r"^\s*(?:\d+\s+)?References\s*$")
         self.assertLessEqual(conclusion_page, 9)
+        self.assertLessEqual(conclusion_end_page, 9)
         self.assertLessEqual(references_page, 10)
 
 

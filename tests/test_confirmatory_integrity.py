@@ -651,12 +651,12 @@ def test_data_lock_requires_current_automated_unclear_gate(lock_fixture) -> None
         _build_lock(lock_fixture)
 
 
-def test_data_lock_cohort_estimand_enforces_current_panel_and_developer_minima() -> None:
+def test_data_lock_cohort_estimand_enforces_exact_frozen_panel() -> None:
     targets = [
         {
             "id": f"target-{index:02d}",
             "upstream_provider": (
-                f"developer-{index % 8}"
+                f"developer-{index % 12}"
                 if index < 24
                 else f"historical-developer-{index % 3}"
             ),
@@ -688,7 +688,7 @@ def test_data_lock_cohort_estimand_enforces_current_panel_and_developer_minima()
             "target_ids": [target["id"] for target in small["targets"]],
         }
     ]
-    with pytest.raises(data_lock.ConfirmatoryDataLockError, match="at least 12"):
+    with pytest.raises(data_lock.ConfirmatoryDataLockError, match="exactly 24"):
         data_lock._validate_cohort_estimand(small)
 
     historical_only = deepcopy(campaign)
@@ -698,7 +698,7 @@ def test_data_lock_cohort_estimand_enforces_current_panel_and_developer_minima()
             "target_ids": [target["id"] for target in historical_only["targets"]],
         }
     ]
-    with pytest.raises(data_lock.ConfirmatoryDataLockError, match="at least 12"):
+    with pytest.raises(data_lock.ConfirmatoryDataLockError, match="exactly 24"):
         data_lock._validate_cohort_estimand(historical_only)
 
 

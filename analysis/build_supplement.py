@@ -13,6 +13,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT = PROJECT_ROOT / "docs" / "conference_submission" / "supplement.zip"
 MANIFEST_NAME = "SUPPLEMENT_MANIFEST.json"
+ANONYMIZATION_POLICY_NAME = ".supplement-anonymization.json"
 
 INCLUDE_PATHS = (
     Path("README.md"),
@@ -228,6 +229,44 @@ def _identity_replacements(project_root: Path) -> tuple[tuple[str, str], ...]:
     return tuple(sorted(candidates.items(), key=lambda pair: (-len(pair[0]), pair[0])))
 
 
+def _affiliation_replacements(project_root: Path) -> tuple[tuple[str, str], ...]:
+    """Load private deployment literals from a policy excluded from the ZIP."""
+
+    policy_path = project_root / ANONYMIZATION_POLICY_NAME
+    if not policy_path.is_file():
+        return ()
+    payload = json.loads(policy_path.read_text(encoding="utf-8"))
+    raw_replacements = payload.get("replacements") if isinstance(payload, dict) else None
+    if not isinstance(raw_replacements, list) or not raw_replacements:
+        raise ValueError(f"{ANONYMIZATION_POLICY_NAME} must define replacements[].")
+    replacements: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    for index, item in enumerate(raw_replacements):
+        if not isinstance(item, dict):
+            raise ValueError(f"replacements[{index}] must be an object.")
+        source = item.get("source")
+        replacement = item.get("replacement")
+        if not isinstance(source, str) or not source.strip():
+            raise ValueError(f"replacements[{index}].source must be non-empty.")
+        if not isinstance(replacement, str) or not replacement.strip():
+            raise ValueError(f"replacements[{index}].replacement must be non-empty.")
+        if source.casefold() == replacement.casefold():
+            raise ValueError(f"replacements[{index}] must change its source.")
+        if source.casefold() in seen:
+            raise ValueError(f"replacements[{index}].source is duplicated.")
+        seen.add(source.casefold())
+        replacements.append((source, replacement))
+    return tuple(sorted(replacements, key=lambda pair: (-len(pair[0]), pair[0])))
+
+
+def _archive_replacements(project_root: Path) -> tuple[tuple[str, str], ...]:
+    replacements = (
+        *_identity_replacements(project_root),
+        *_affiliation_replacements(project_root),
+    )
+    return tuple(sorted(replacements, key=lambda pair: (-len(pair[0]), pair[0])))
+
+
 def _anonymous_archive_path(
     rel_path: Path, replacements: tuple[tuple[str, str], ...]
 ) -> str:
@@ -258,7 +297,7 @@ def audit_anonymous_archive(
     """Return entry/marker descriptions for anonymity leaks in a built ZIP."""
 
     findings: list[str] = []
-    markers = tuple(source.lower() for source, _ in _identity_replacements(project_root))
+    markers = tuple(source.lower() for source, _ in _archive_replacements(project_root))
     with zipfile.ZipFile(output_path) as zf:
         for info in zf.infolist():
             name_lower = info.filename.lower()
@@ -283,7 +322,7 @@ def build_supplement(
     project_root = project_root.resolve()
     output_path = output_path.resolve()
     files = collect_supplement_files(project_root=project_root, output_path=output_path)
-    replacements = _identity_replacements(project_root)
+    replacements = _archive_replacements(project_root)
     archive_payloads = {
         _anonymous_archive_path(rel_path, replacements): _anonymous_archive_payload(
             (project_root / rel_path).read_bytes(), replacements
@@ -305,9 +344,13 @@ def build_supplement(
             name: hashlib.sha256(payload).hexdigest()
             for name, payload in archive_payloads.items()
         },
+        "affiliation_replacements_applied": len(
+            _affiliation_replacements(project_root)
+        ),
         "anonymization": (
-            "author identifiers are deterministically replaced while executable "
-            "protocol/API identifiers are preserved"
+            "author identifiers and affiliation-revealing private gateway literals "
+            "are deterministically replaced; public scientific model/vendor metadata "
+            "is preserved"
         ),
     }
 

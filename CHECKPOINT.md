@@ -31,28 +31,29 @@ Updated: 2026-08-02 (America/Los_Angeles)
   method plus CSV SHA-256.
 - Croissant 1.1/RAI 1.0 metadata declares nine distributions and seven loadable
   record sets. Invalid Part 0 rate tables and all dependent cross-part tables
-  are excluded. A stable anonymous public landing URL is still required before
-  hosting.
+  are excluded. A stable anonymous reviewer-accessible landing URL and official
+  Croissant validation are still required before submission; public access is
+  required by camera ready.
 
 ## Verified gates
 
 - Strict raw validation: 27 files, 14 pass, 13 warning, 0 fail. The warnings are
   the disclosed one-sided Part 2 rationale/action lexical flags.
-- Full repository suite: 533 passed, 1 optional dependency skip on 2026-08-02.
+- Full repository suite: 537 passed, 1 optional dependency skip on 2026-08-02.
   `tests/conftest.py` selects the noninteractive Agg backend before collection.
-- Clean extracted-supplement suite: 511 passed, 2 intentional skips (withheld
+- Clean extracted-supplement suite: 515 passed, 2 intentional skips (withheld
   raw Part 0 and one optional dependency), without a Git object store.
 - NeurIPS format suite: 6 passed. The official style SHA-256 is
   `c3fc2894e83d2517ca18b66741d6c595986d97957dc08ec08bb2125a7ec4555a`.
-- PDF: 29 pages, 1.20 MiB, anonymous metadata, main content on pages 1--9,
+- Current local pilot PDF: 29 pages, 1.20 MiB, anonymous metadata, main content on pages 1--9,
   references beginning on page 9, all pages visually inspected. Eight paper
   figures were regenerated at print-oriented dimensions with larger labels.
-  Final PDF SHA-256: `852a2c7f482c27f68971735ae8caa28b8f6a5bbd632c4aabcb857b2e273ca551`.
-- Supplement: 297 source files plus its manifest, 15.7 MiB; every payload has a
+  Current PDF SHA-256: `c54463acf5ad13a4821ec742a01b039c960385e143979bd07c35bdd0f04544fc`.
+- Current local pilot supplement: 297 source files plus its manifest, 15.7 MiB; every payload has a
   manifest SHA-256. Full-suite, integrity, portable legacy-provenance, and
   anonymity checks pass. Withdrawn Part 0/cross-part plot trees are absent, and
   the builder derives local identifiers at runtime rather than embedding them.
-  Final ZIP SHA-256: `9b127ad5d5fa1cdbb78a22933178b9b1ee073df74df290561272ace412493a69`.
+  Current ZIP SHA-256: `8f30796d35a7795adc5618ca39f40ef3bbf43909069407aa1ae8cbd90f830985`.
 - The one-stage production campaign is frozen at all 484 harmful roots plus 100
   controls in three languages, 384 self-direct Part 1 roots, and 24 independent
   Part 2 trajectories per route at N=10, horizon=30, capacity=150.
@@ -77,8 +78,12 @@ Updated: 2026-08-02 (America/Los_Angeles)
    annotators plus adjudication.
 4. Part 2 confirmatory trajectories and the separately gated sensitivity panel
    have not been executed; no confirmatory uncertainty claim exists yet.
-5. Anonymous code/dataset hosting and a real Croissant landing URL remain
-   submission-time requirements.
+5. Anonymous reviewer-accessible code/dataset hosting, a real Croissant landing
+   URL, and official Croissant validation remain submission-time requirements.
+6. The NeurIPS 2026 E&D full-paper/data/code deadline was May 6, 2026 AoE. If
+   no final-form package was submitted by that deadline, this repository cannot
+   create a new 2026 submission retroactively; an existing OpenReview package
+   must be audited, or the completed work must target a later venue.
 
 ## Exact next execution order
 

@@ -38,7 +38,7 @@ We introduce \textbf{Prosocial Readiness Bench}, a traceable suite of controlled
 We use 56,382 stored rows from 13 local/open-weight variants to audit the benchmark and report a descriptive pilot.
 Direct self-choice cooperation ranges from 6.2--100.0\% across the pilot cohort. Commons restraint ranges from 18.6--92.5\% across 13 single trajectories, without run-level uncertainty estimates.
 The audit also finds that the legacy refusal labeler scored rationale as well as final response: a deterministic response-only rejudgment changes 300 of the first 1,243 adjudicated rows (24.1\%). We therefore report no model-level Part~0 estimate pending complete rejudgment and human validation.
-The release packages task contracts, schemas, validation, provenance seals, Croissant metadata, tables, figures, and reproduction commands; it makes both supported results and disqualifying evidence traceable.
+The local package includes task contracts, schemas, validation, provenance seals, Croissant metadata, derived outputs, and reproduction commands; it traces both supported results and disqualifying evidence.
 \end{abstract}
 
 \section{Introduction}
@@ -53,7 +53,7 @@ The pilot evaluation covers 13 related local/open-weight variants. Its Part~1 di
 Our contributions are:
 \begin{itemize}
     \item \textbf{Behavioral profile and benchmark.} We organize three controlled probes along increasing social scope and temporal externality, with explicit task contracts for multilingual safety refusal, role-conditioned dilemma responses, and commons restraint.
-    \item \textbf{Traceable release package.} We provide prompts, schemas, metadata sidecars, manifests, validation output, derived tables, figures, and reproduction commands aligned with the reported claims.
+    \item \textbf{Traceable package.} We provide prompts, schemas, sidecars, manifests, validation, derived outputs, and reproduction commands aligned with the claims.
     \item \textbf{Audited open-model pilot.} We trace 56,382 stored rows to 99 multilingual prompt roots, 48 Part~1 scenario roots per model, and 13 Part~2 trajectories; clustered intervals respect the prompt roots, and no agent-day interval is presented as run uncertainty.
     \item \textbf{Protocol findings.} We report direct-choice and commons-trajectory differences, use the role instructions as prompt-semantics calibration checks, and expose a material legacy-label failure instead of converting it into a safety result or a readiness score.
 \end{itemize}
@@ -73,7 +73,7 @@ Our contributions are:
 \node[phase] at (0,3.35) {Prompted task};
 \node[phase] at (3.45,3.35) {Recorded trace};
 \node[phase] at (6.75,3.35) {Scored output};
-\node[phase] at (10.10,3.35) {Release check};
+\node[phase] at (10.10,3.35) {Package check};
 
 \node[part=prbBlue] (p0) at (0,2.35) {\textbf{Part 0}\\Safety refusal\\{\footnotesize harmful prompts, EN/ZH/RU}};
 \node[part=prbOrange] (p1) at (0,0.75) {\textbf{Part 1}\\Focal dilemma choices\\{\footnotesize role-conditioned probes}};
@@ -87,7 +87,7 @@ Our contributions are:
 \node[metric=prbOrange] (m1) at (6.75,0.75) {self-choice rate\\cluster CI\\role gaps};
 \node[metric=prbTeal] (m2) at (6.75,-0.85) {restraint rate\\survival\\AURC/AUPC};
 
-\node[package] (release) at (10.10,0.75) {\textbf{Validated artifact}\\schemas\\coverage\\transition checks\\[0.25em]\textbf{Released outputs}\\tables and figures\\manifests\\Croissant metadata};
+\node[package] (release) at (10.10,0.75) {\textbf{Locally validated artifact}\\schemas\\coverage\\transition checks\\[0.25em]\textbf{Candidate outputs}\\tables and figures\\manifests\\Croissant metadata};
 
 \draw[arrow] (p0.east) -- (t0.west);
 \draw[arrow] (p1.east) -- (t1.west);
@@ -99,7 +99,7 @@ Our contributions are:
 \draw[arrow] (m1.east) -- (release.west);
 \draw[arrow] (m2.east) -- ([yshift=-1.60cm]release.west);
 \end{tikzpicture}}
-\caption{Prosocial Readiness Bench pipeline. Each task family produces structured traces, part-specific metrics, and one validated release package with tables, figures, manifests, and metadata.}
+\caption{Prosocial Readiness Bench pipeline. Each task family produces structured traces, metrics, and a locally checked candidate package.}
 \label{fig:overview}
 \end{figure}
 
@@ -588,7 +588,7 @@ Short label & Exact tag & Family & Parameter/quantization note \\
     \item Validation report: \path{data/analysis/validation/validation_report.json}.
     \item Manifest: \path{data/analysis/run_manifest.jsonl}.
     \item Legacy Part 2 provenance seal: \path{data/raw/part_2/legacy_structural_provenance.json}.
-    \item Croissant metadata: \path{data/analysis/croissant_metadata.json}. Croissant 1.1/RAI 1.0 validation and real-row loading pass for all seven released record sets; invalid Part~0 and dependent cross-part tables are excluded. A stable anonymous dataset URL must be added with the generator's \texttt{--dataset-url} option before public hosting.
+    \item Croissant metadata: \path{data/analysis/croissant_metadata.json}. Croissant 1.1/RAI 1.0 local validation and real-row loading pass for all seven released record sets; invalid Part~0 and dependent cross-part tables are excluded. A stable anonymous reviewer-accessible dataset URL must be added with the generator's \texttt{--dataset-url} option and pass the official hosted validator before submission; public access is required by camera ready.
     \item Figures: \path{data/graphs}.
     \item Documentation: \path{docs/release/REPRODUCIBILITY.md}, \path{docs/release/DATA_CARD.md} (datasheet- and data-card-style fields following \citealp{gebru2021datasheets,pushkarna2022datacards}), \path{docs/release/MODEL_REGISTRY.md}, \path{docs/release/COMPUTE.md}, and \path{docs/release/LICENSES_AND_TERMS.md}.
     \item Anonymous supplement: \path{supplement.zip}, generated from the repository root with \texttt{uv run python -m analysis.build\_supplement}. The package manifest records the exact file count and exclusions, and the final archive is checked with \texttt{ZipFile.testzip()}.

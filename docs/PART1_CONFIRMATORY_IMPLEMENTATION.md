@@ -195,7 +195,7 @@ eligibility object. Rewriting that mode as production, removing or adding a
 row, changing a counterbalance, or changing either eligibility field fails
 exact plan reconstruction even if an attacker recomputes the outer plan hash.
 
-After all 48 results and final metadata are durably committed, the runner
+After all 12 results and final metadata are durably committed, the runner
 writes `part1_confirmatory_analysis_exclude.json`. This mode-`0600` marker binds
 the plan, selected schedule, approved-bank bytes, result artifact, result
 count, and metadata by SHA-256 and includes its own canonical payload hash. A

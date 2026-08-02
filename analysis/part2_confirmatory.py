@@ -1,8 +1,9 @@
-"""Prespecified confirmatory statistics for Part 2.
+"""Prespecified fixed-stage confirmatory statistics for Part 2.
 
 The functions in this module are deliberately provider-independent.  They
-operate on completed run-level quantities, never on agent-days, and fail
-closed when a variance pilot or sensitivity design is incomplete.
+operate on completed run-level quantities, never on agent-days. Historical
+variance-pilot helpers remain private solely to revalidate archived two-stage
+data-lock lineage; the CLI cannot create or select a two-stage campaign.
 """
 
 from __future__ import annotations
@@ -34,6 +35,7 @@ from analysis.part2_dynamics import (
 )
 
 
+# Archived two-stage constants support historical data-lock validation only.
 VARIANCE_PILOT_SEEDS = 8
 MIN_BASELINE_RUNS = 20
 MAX_BASELINE_RUNS = 40
@@ -127,7 +129,7 @@ def select_blinded_variance_run_count(
     *,
     expected_blinded_groups: Sequence[str],
 ) -> dict[str, object]:
-    """Select one common n from eight-seed within-group AURC variance only.
+    """Recompute the archived two-stage run count for lineage validation.
 
     Group labels exist solely to separate the pilot runs during calculation.
     The returned artifact contains neither labels nor group means.  Its input
@@ -710,9 +712,11 @@ def _atomic_write_fresh_json(path: Path, value: Mapping[str, object]) -> None:
 
 
 def _require_private_input(path: Path) -> None:
+    """Require private permissions for any outcome-bearing analysis input."""
+
     mode = stat.S_IMODE(path.stat().st_mode)
     if mode & 0o077:
-        raise ValueError("variance-pilot input must have private permissions (mode 0600)")
+        raise ValueError("analysis input must have private permissions (mode 0600)")
 
 
 def _parse_blinded_variance_input(
@@ -844,7 +848,7 @@ def _read_part2_aurc(
 def _derive_native_blinded_variance_input(
     pilot_campaign_path: Path, *, expected_sha256: str
 ) -> dict[str, object]:
-    """Revalidate a complete native pilot and derive its blinded AURCs."""
+    """Revalidate archived native pilot lineage and derive its blinded AURCs."""
 
     from experiments import confirmatory_campaign
 
@@ -1165,44 +1169,6 @@ def _parse_structural_cell(document: Mapping[str, object]) -> Part2StructuralCel
     )
 
 
-def _run_build_variance_input(args: argparse.Namespace) -> dict[str, object]:
-    document = _derive_native_blinded_variance_input(
-        args.pilot_campaign,
-        expected_sha256=args.pilot_campaign_sha256,
-    )
-    _atomic_write_fresh_json(args.output, document)
-    return document
-
-
-def _run_select_variance(args: argparse.Namespace) -> dict[str, object]:
-    _require_private_input(args.input)
-    document, input_sha256 = _load_json_object(args.input)
-    derived = _derive_native_blinded_variance_input(
-        args.pilot_campaign,
-        expected_sha256=args.pilot_campaign_sha256,
-    )
-    if document != derived:
-        raise ValueError(
-            "variance input does not exactly match the rederived native pilot artifacts"
-        )
-    campaign_manifest_sha256, frozen, pilot = _parse_blinded_variance_input(document)
-    selection = select_blinded_variance_run_count(
-        pilot,
-        expected_blinded_groups=frozen,
-    )
-    artifact = _sealed_artifact(
-        {
-            "schema_version": CLI_SCHEMA_VERSION,
-            "artifact_type": "part2_identity_masked_variance_selection",
-            "private_input_sha256": input_sha256,
-            "pilot_campaign_manifest_sha256": campaign_manifest_sha256,
-            "selection": selection,
-        }
-    )
-    _atomic_write_fresh_json(args.output, artifact)
-    return artifact
-
-
 def _run_sensitivity_design(args: argparse.Namespace) -> dict[str, object]:
     manifest = _build_sensitivity_manifest(args.sentinel_id, args.environment_seed)
     _atomic_write_fresh_json(args.output, manifest)
@@ -1269,25 +1235,6 @@ def _build_cli_parser() -> argparse.ArgumentParser:
         description="Run fail-closed Part 2 confirmatory statistics and baselines."
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
-
-    variance_input = subparsers.add_parser(
-        "build-variance-input",
-        help="derive identity-masked AURCs from a hash-pinned native pilot campaign",
-    )
-    variance_input.add_argument("--pilot-campaign", required=True, type=Path)
-    variance_input.add_argument("--pilot-campaign-sha256", required=True)
-    variance_input.add_argument("--output", required=True, type=Path)
-    variance_input.set_defaults(handler=_run_build_variance_input)
-
-    variance = subparsers.add_parser(
-        "select-variance",
-        help="select n after rederiving a private native identity-masked variance pilot",
-    )
-    variance.add_argument("--input", required=True, type=Path)
-    variance.add_argument("--pilot-campaign", required=True, type=Path)
-    variance.add_argument("--pilot-campaign-sha256", required=True)
-    variance.add_argument("--output", required=True, type=Path)
-    variance.set_defaults(handler=_run_select_variance)
 
     design = subparsers.add_parser(
         "sensitivity-design",

@@ -58,6 +58,9 @@ DEFAULT_PART2_GENERATION_SEED_BASE = 2_026_080_100
 DEFAULT_PART2_ENVIRONMENT_SEED_BASE = 1_026_080_100
 PART2_SMOKE_GENERATION_SEED = 3_026_080_100
 PART2_SMOKE_ENVIRONMENT_SEED = 3_026_080_200
+# Archived two-stage constants are retained only so historical manifests can be
+# revalidated for legacy data locks. New campaign planning and execution reject
+# every two-stage scientific stage.
 VARIANCE_PILOT_REPLICATES = 8
 MIN_BASELINE_REPLICATES = 20
 MAX_BASELINE_REPLICATES = 40
@@ -950,10 +953,19 @@ def _block_randomized_jobs(jobs: Sequence[Mapping[str, Any]]) -> list[dict[str, 
     return ordered
 
 
-def build_plan(
-    args: argparse.Namespace, *, enforce_route_freshness: bool = True
+def _build_plan_from_arguments(
+    args: argparse.Namespace,
+    *,
+    enforce_route_freshness: bool = True,
+    archived_validation: bool = False,
 ) -> dict[str, Any]:
-    """Fully validate all inputs and return a pure in-memory immutable plan."""
+    """Reconstruct a plan, including archived two-stage plans for validation."""
+
+    part2_stage = getattr(args, "part2_stage", "fixed-production")
+    if part2_stage != "fixed-production" and not archived_validation:
+        raise ConfirmatoryCampaignError(
+            "New confirmatory campaigns require the fixed one-stage Part 2 design."
+        )
 
     cohort_ids = tuple(args.cohort or DEFAULT_COHORTS)
     (
@@ -964,12 +976,11 @@ def build_plan(
         routing_roster_hash,
     ) = _load_exact_cohort_union(
         cohort_ids,
-        # Baseline production is the second phase of the already-frozen
-        # variance-pilot chain.  Its exact pilot manifest/registry/routes are
-        # revalidated below, so elapsed wall time must not make the immutable
-        # campaign impossible to finish.
+        # Archived baseline manifests are reconstructed only for compatibility
+        # validation. Their elapsed route-freshness window is not execution
+        # authority and therefore cannot invalidate their historical lineage.
         enforce_freshness=(
-            enforce_route_freshness and args.part2_stage != "baseline-production"
+            enforce_route_freshness and part2_stage != "baseline-production"
         ),
     )
     target_by_id = {
@@ -1024,7 +1035,7 @@ def build_plan(
 
     selected_n: int | None = None
     gate_integrity: dict[str, Any] | None = None
-    if args.part2_stage == "fixed-production":
+    if part2_stage == "fixed-production":
         if (
             args.variance_selection
             or args.variance_selection_sha256
@@ -1044,7 +1055,7 @@ def build_plan(
             )
         part2_seeds = list(range(FIXED_PART2_REPLICATES))
         scientific_stage = "part2_fixed_production"
-    elif args.part2_stage == "variance-pilot":
+    elif part2_stage == "variance-pilot":
         if (
             args.variance_selection
             or args.variance_selection_sha256
@@ -1056,7 +1067,7 @@ def build_plan(
             )
         part2_seeds = list(range(VARIANCE_PILOT_REPLICATES))
         scientific_stage = "part2_variance_pilot"
-    elif args.part2_stage == "baseline-production":
+    elif part2_stage == "baseline-production":
         if (
             not args.variance_selection
             or not args.variance_selection_sha256
@@ -1139,7 +1150,7 @@ def build_plan(
 
     smoke_experiments = (
         ("part0", "part1", "part2")
-        if args.part2_stage in {"fixed-production", "variance-pilot"}
+        if part2_stage in {"fixed-production", "variance-pilot"}
         else ("part2",)
     )
     for experiment in smoke_experiments:
@@ -1255,7 +1266,7 @@ def build_plan(
 
     production_experiments = (
         ("part0", "part1")
-        if args.part2_stage in {"fixed-production", "variance-pilot"}
+        if part2_stage in {"fixed-production", "variance-pilot"}
         else ()
     )
     for experiment in production_experiments:
@@ -1460,13 +1471,13 @@ def build_plan(
             ],
             "variance_pilot_replicates": (
                 VARIANCE_PILOT_REPLICATES
-                if args.part2_stage == "variance-pilot"
+                if part2_stage == "variance-pilot"
                 else None
             ),
             "variance_selected_n": selected_n,
             "fixed_replicates": (
                 FIXED_PART2_REPLICATES
-                if args.part2_stage == "fixed-production"
+                if part2_stage == "fixed-production"
                 else None
             ),
             "production_config": production_config,
@@ -1486,6 +1497,18 @@ def build_plan(
     manifest["plan_sha256"] = _plan_hash(manifest)
     manifest["manifest_sha256"] = _manifest_hash(manifest)
     return manifest
+
+
+def build_plan(
+    args: argparse.Namespace, *, enforce_route_freshness: bool = True
+) -> dict[str, Any]:
+    """Build the sole authorized fixed one-stage confirmatory campaign plan."""
+
+    return _build_plan_from_arguments(
+        args,
+        enforce_route_freshness=enforce_route_freshness,
+        archived_validation=False,
+    )
 
 
 def _part2_expected(
@@ -1575,6 +1598,29 @@ def _manifest_hash(manifest: Mapping[str, Any]) -> str:
     return stable_json_hash(
         {key: value for key, value in manifest.items() if key != "manifest_sha256"}
     )
+
+
+def _require_fixed_execution_manifest(
+    manifest: Mapping[str, Any], *, action: str
+) -> None:
+    """Reject creation or execution of archived two-stage campaign plans."""
+
+    design = manifest.get("part2_design")
+    inputs = manifest.get("inputs")
+    if (
+        not isinstance(design, Mapping)
+        or design.get("scientific_stage") != "part2_fixed_production"
+        or design.get("replicates_per_target") != FIXED_PART2_REPLICATES
+        or design.get("fixed_replicates") != FIXED_PART2_REPLICATES
+        or design.get("variance_pilot_replicates") is not None
+        or design.get("variance_selected_n") is not None
+        or not isinstance(inputs, Mapping)
+        or inputs.get("variance_selection") is not None
+    ):
+        raise ConfirmatoryCampaignError(
+            f"Cannot {action} an archived two-stage campaign; only the fixed "
+            "one-stage Part 2 design is executable."
+        )
 
 
 def _write_manifest(path: Path, manifest: dict[str, Any]) -> None:
@@ -1814,9 +1860,10 @@ def validate_manifest(manifest: Mapping[str, Any]) -> None:
         smoke_id = job.get("smoke_job_id")
         if job.get("stage") != "smoke" and smoke_id not in job_ids:
             raise ConfirmatoryCampaignError("Scientific job lacks its matching smoke.")
-    rebuilt = build_plan(
+    rebuilt = _build_plan_from_arguments(
         _rebuild_arguments_from_manifest(manifest),
         enforce_route_freshness=False,
+        archived_validation=True,
     )
     if rebuilt.get("plan_sha256") != manifest.get("plan_sha256"):
         raise ConfirmatoryCampaignError(
@@ -1828,6 +1875,7 @@ def validate_manifest(manifest: Mapping[str, Any]) -> None:
 def create_manifest(manifest: dict[str, Any]) -> Path:
     """Persist a fresh validated plan beneath the private campaign root."""
 
+    _require_fixed_execution_manifest(manifest, action="create")
     validate_manifest(manifest)
     directory = _campaign_directory(str(manifest["campaign_id"]))
     path = directory / "manifest.json"
@@ -2085,6 +2133,7 @@ def execute_manifest(
 ) -> dict[str, Any]:
     """Execute/resume jobs sequentially while enforcing matching-smoke gates."""
 
+    _require_fixed_execution_manifest(manifest, action="execute")
     validate_manifest(manifest)
     manifest["status"] = "running"
     _write_manifest(manifest_path, manifest)
@@ -2231,15 +2280,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--part1-bank-sha256")
     parser.add_argument("--endpoint-evidence")
     parser.add_argument("--endpoint-evidence-sha256")
-    parser.add_argument(
-        "--part2-stage",
-        choices=("fixed-production", "variance-pilot", "baseline-production"),
-        default="fixed-production",
+    parser.set_defaults(
+        part2_stage="fixed-production",
+        variance_selection=None,
+        variance_selection_sha256=None,
+        variance_pilot_manifest=None,
+        variance_pilot_manifest_sha256=None,
     )
-    parser.add_argument("--variance-selection")
-    parser.add_argument("--variance-selection-sha256")
-    parser.add_argument("--variance-pilot-manifest")
-    parser.add_argument("--variance-pilot-manifest-sha256")
     parser.add_argument("--part2-society-size", type=_positive_int, default=10)
     parser.add_argument("--part2-days", type=_positive_int, default=30)
     parser.add_argument("--part2-resource-capacity", type=_positive_int, default=150)

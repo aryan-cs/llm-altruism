@@ -7,7 +7,7 @@
     }
   ],
   "contact_email": "aryan.cs.app@gmail.com",
-  "description": "This research proposal studies whether large language models that appear more aligned, safety-conscious, and prosocial in harmful-request benchmarks also behave more cooperatively in strategic games and more sustainably in multi-agent societies. It formalizes the research questions, operational definition of altruism, execution protocol, evaluation plan, infrastructure requirements, and roadmap for extending the current LLM Altruism codebase into reputation-based and open-world social simulations.",
+  "description": "Historical, superseded May 2026 planning document. It studied whether large language models that appear more aligned, safety-conscious, and prosocial in harmful-request benchmarks also behave more cooperatively in strategic games and more sustainably in multi-agent societies. It is not the current execution protocol: legacy Part 0 and refusal-dependent cross-part claims are invalid, Part 1 is now a focal single-response task, and no composite altruism or readiness score is supported. The current protocol is docs/CONFIRMATORY_PROTOCOL.md.",
   "publication_date": "2026-05-07",
   "upload_type": "publication",
   "publication_type": "preprint",
@@ -27,7 +27,7 @@
     "agent simulation",
     "research proposal"
   ],
-  "version": "2026-05-07-indexable",
+  "version": "2026-08-02-superseded-notice",
   "related_identifiers": [
     {
       "identifier": "https://github.com/aryan-cs/llm-altruism",
@@ -35,5 +35,5 @@
       "resource_type": "software"
     }
   ],
-  "notes": "No ORCID, institutional affiliation, funder, or DOI was found in the repository. If a DOI is reserved before upload, add it to the platform record and regenerate the PDF metadata."
+  "notes": "Historical May 2026 proposal superseded by docs/CONFIRMATORY_PROTOCOL.md. Legacy Part 0 and refusal-dependent cross-part claims are invalid; Part 1 is a focal single-response task; no composite altruism/readiness score is supported. No ORCID, institutional affiliation, funder, or DOI was found in the repository. If a DOI is reserved before upload, add it to the platform record and regenerate the PDF metadata."
 }

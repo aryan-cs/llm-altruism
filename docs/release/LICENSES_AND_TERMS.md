@@ -28,7 +28,7 @@ Raw Part 0 model outputs can contain harmful requests, jailbreak wrappers, model
 - `data/raw/part_0/*_meta.json`,
 - `data/raw/part_0/prompts/*.csv`.
 
-The released supplement includes derived Part 0 aggregate tables and figures, but not raw harmful prompt text or completions. Any future hosted raw Part 0 release should receive a separate safety review and should use explicit access conditions rather than the default anonymous supplement policy.
+The released supplement excludes the invalid legacy Part 0 aggregate tables and figures and every dependent cross-part output, as well as the raw harmful prompt text and completions. It includes only a sanitized aggregate checkpoint documenting partial response-only rejudgment instability. Any future hosted raw Part 0 release should receive a separate safety review and should use explicit access conditions rather than the default anonymous supplement policy.
 
 ## Supplement Package
 

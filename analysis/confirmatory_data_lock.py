@@ -31,8 +31,9 @@ OBJECTIVE_EXCLUSION_REASON_CODES = (
 )
 PRIMARY_COHORT_ID = "current_sota"
 HISTORICAL_COHORT_ID = "historical"
-MIN_PRIMARY_SYSTEMS = 12
-MIN_PRIMARY_DEVELOPERS = 8
+EXPECTED_PRIMARY_SYSTEMS = 24
+EXPECTED_PRIMARY_DEVELOPERS = 12
+EXPECTED_HISTORICAL_SYSTEMS = 6
 _EXCLUSION_KEYS = {
     "schema_version", "artifact_type", "status", "campaign_plan_sha256s",
     "policy_frozen_at_utc", "policy_frozen_by", "allowed_reason_codes",
@@ -109,9 +110,17 @@ def _validate_cohort_estimand(
         )
     current = [row for row in metadata if row["cohort_id"] == PRIMARY_COHORT_ID]
     developers = {row["developer_id"] for row in current}
-    if len(current) < MIN_PRIMARY_SYSTEMS or len(developers) < MIN_PRIMARY_DEVELOPERS:
+    historical = [
+        row for row in metadata if row["cohort_id"] == HISTORICAL_COHORT_ID
+    ]
+    if (
+        len(current) != EXPECTED_PRIMARY_SYSTEMS
+        or len(developers) != EXPECTED_PRIMARY_DEVELOPERS
+        or len(historical) != EXPECTED_HISTORICAL_SYSTEMS
+    ):
         raise ConfirmatoryDataLockError(
-            "current_sota primary panel requires at least 12 systems from 8 developers"
+            "fixed panel requires exactly 24 current systems from 12 developers "
+            "and 6 historical systems"
         )
     return metadata
 

@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "replacements": [
+    {
+      "source": "https://inference-api.nvidia.com/v1",
+      "replacement": "https://inference-gateway.example.invalid/v1"
+    },
+    {
+      "source": "inference-api.nvidia.com",
+      "replacement": "inference-gateway.example.invalid"
+    },
+    {
+      "source": "NVIDIA_API_KEY",
+      "replacement": "INFERENCE_HUB_API_KEY"
+    },
+    {
+      "source": "NVIDIA's internal InferenceHub",
+      "replacement": "the private InferenceHub"
+    },
+    {
+      "source": "Internal NVIDIA InferenceHub",
+      "replacement": "Private InferenceHub"
+    },
+    {
+      "source": "NVIDIA InferenceHub",
+      "replacement": "private InferenceHub"
+    }
+  ]
+}

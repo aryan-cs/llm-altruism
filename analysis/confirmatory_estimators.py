@@ -1538,6 +1538,11 @@ def estimate_part2(
     if len(analysis_sources) != 1:
         raise ValueError("Part 2 systems mix incompatible analysis sources")
     analysis_source = next(iter(analysis_sources))
+    interval_unit = (
+        "independent_fixed_production_trajectory"
+        if analysis_source == "fixed_production"
+        else "independent_final_baseline_trajectory"
+    )
     system_means: dict[str, dict[str, float]] = {}
     results: list[dict[str, object]] = []
     for system_id in frozen:
@@ -1572,7 +1577,7 @@ def estimate_part2(
                     "t_ci_high": interval["t_ci_high"],
                     "bca_ci_low": interval["bca_ci_low"],
                     "bca_ci_high": interval["bca_ci_high"],
-                    "interval_unit": "independent_final_baseline_trajectory",
+                    "interval_unit": interval_unit,
                     "run_count": selected_n,
                 }
             )

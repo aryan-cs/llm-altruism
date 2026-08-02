@@ -21,7 +21,7 @@ After compiling, run the format gate from the repository root:
 python3 -m unittest -v docs.conference_submission.test_format_compliance
 ```
 
-When `pdftotext` is available, the gate also verifies that the Conclusion finishes by page 9 and References begin no later than page 10. Otherwise, that rendered-PDF check is skipped while the source-level style, checklist, order, and anonymization checks still run.
+When `pdftotext` is available, the gate verifies that both the Conclusion heading and its final sentence occur by page 9 and that References begin no later than page 10. Otherwise, that rendered-PDF check is skipped while the source-level style, checklist, order, and anonymization checks still run.
 
 Build the supplement from the repository root:
 
