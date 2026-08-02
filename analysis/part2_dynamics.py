@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 from dataclasses import asdict, dataclass
 from math import ceil
@@ -17,6 +18,12 @@ from typing import Mapping, Sequence
 
 
 STRUCTURAL_CELL_SCHEMA_VERSION = 2
+LEGACY_PROVENANCE_FILENAME = "legacy_structural_provenance.json"
+LEGACY_PROVENANCE_ARTIFACT_TYPE = "legacy_part2_structural_provenance"
+LEGACY_PROVENANCE_PROTOCOL = "archived_source_and_full_transition_replay_v1"
+LEGACY_PART2_SOURCE_SHA256 = (
+    "e4351e8a18f0faa6cc289f261efa4bfe71a370dd46935c629901f8890d994f4f"
+)
 STRICT_PART2_ROW_IDENTITY_FIELDS = frozenset(
     {
         "run_id",
@@ -163,6 +170,206 @@ def _metadata_for_csv(path: Path) -> dict[str, object]:
     return metadata
 
 
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _reject_duplicate_pairs(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise StructuralMetadataError(
+                f"legacy Part 2 provenance contains duplicate JSON key {key!r}"
+            )
+        result[key] = value
+    return result
+
+
+def _legacy_transition_payload(
+    rows: Sequence[Mapping[str, str]],
+    *,
+    divisor: int,
+) -> tuple[list[dict[str, int]], int]:
+    by_day: dict[int, list[Mapping[str, str]]] = {}
+    try:
+        for row in rows:
+            by_day.setdefault(int(row["day"]), []).append(row)
+    except (KeyError, ValueError) as exc:
+        raise StructuralMetadataError(
+            "legacy Part 2 provenance cannot replay an invalid day field"
+        ) from exc
+    transitions: list[dict[str, int]] = []
+    collapsed_days = 0
+    previous_population_end: int | None = None
+    for day, day_rows in sorted(by_day.items()):
+        first = day_rows[0]
+        fields = (
+            "population_start",
+            "population_end",
+            "resource_units_remaining",
+            "deaths",
+        )
+        if any(
+            any(row.get(field) != first.get(field) for row in day_rows[1:])
+            for field in fields
+        ):
+            raise StructuralMetadataError(
+                f"legacy Part 2 day summary changes within day {day}"
+            )
+        try:
+            population_start = int(first["population_start"])
+            population_end = int(first["population_end"])
+            resource_units = int(first["resource_units_remaining"])
+            deaths = int(first["deaths"])
+        except (KeyError, ValueError) as exc:
+            raise StructuralMetadataError(
+                f"legacy Part 2 transition fields are invalid on day {day}"
+            ) from exc
+        if previous_population_end is not None and population_start != previous_population_end:
+            raise StructuralMetadataError(
+                f"legacy Part 2 population is discontinuous on day {day}"
+            )
+        expected_deaths = (
+            min(population_start, max(1, math.ceil(population_start / divisor)))
+            if resource_units == 0
+            else 0
+        )
+        if deaths != expected_deaths or population_end != population_start - deaths:
+            raise StructuralMetadataError(
+                f"legacy Part 2 transition disagrees with archived collapse rule on day {day}"
+            )
+        collapsed_days += int(resource_units == 0)
+        transitions.append(
+            {
+                "day": day,
+                "population_start": population_start,
+                "population_end": population_end,
+                "resource_units_remaining": resource_units,
+                "deaths": deaths,
+            }
+        )
+        previous_population_end = population_end
+    return transitions, collapsed_days
+
+
+def _legacy_collapse_death_rate(
+    path: Path,
+    rows: Sequence[Mapping[str, str]],
+    metadata: Mapping[str, object],
+) -> float:
+    """Recover a legacy rate only from an exact, self-hashed provenance seal."""
+
+    provenance_path = path.parent / LEGACY_PROVENANCE_FILENAME
+    if not provenance_path.is_file():
+        raise StructuralMetadataError(
+            "Part 2 metadata is missing parameters.collapse_death_rate and no exact "
+            f"{LEGACY_PROVENANCE_FILENAME} seal exists"
+        )
+    try:
+        provenance = json.loads(
+            provenance_path.read_text(encoding="utf-8"),
+            object_pairs_hook=_reject_duplicate_pairs,
+            parse_constant=lambda value: (_ for _ in ()).throw(
+                StructuralMetadataError(
+                    f"legacy Part 2 provenance contains nonfinite constant {value}"
+                )
+            ),
+        )
+    except (OSError, json.JSONDecodeError) as exc:
+        raise StructuralMetadataError(
+            f"could not read legacy Part 2 provenance {provenance_path.name}: {exc}"
+        ) from exc
+    if not isinstance(provenance, dict):
+        raise StructuralMetadataError("legacy Part 2 provenance is not a JSON object")
+    expected_top_keys = {
+        "schema_version",
+        "artifact_type",
+        "recovery_protocol",
+        "source_contract",
+        "entries",
+        "artifact_sha256",
+    }
+    if set(provenance) != expected_top_keys:
+        raise StructuralMetadataError("legacy Part 2 provenance has an unexpected schema")
+    recorded_hash = provenance.get("artifact_sha256")
+    payload = {key: value for key, value in provenance.items() if key != "artifact_sha256"}
+    if recorded_hash != stable_json_sha256(payload):
+        raise StructuralMetadataError("legacy Part 2 provenance artifact hash is invalid")
+    if (
+        provenance.get("schema_version") != 1
+        or provenance.get("artifact_type") != LEGACY_PROVENANCE_ARTIFACT_TYPE
+        or provenance.get("recovery_protocol") != LEGACY_PROVENANCE_PROTOCOL
+    ):
+        raise StructuralMetadataError("legacy Part 2 provenance protocol is not supported")
+    source_contract = provenance.get("source_contract")
+    if not isinstance(source_contract, dict) or set(source_contract) != {
+        "path",
+        "commits",
+        "sha256",
+        "collapse_attrition_divisor",
+        "collapse_death_rate",
+    }:
+        raise StructuralMetadataError("legacy Part 2 source contract is invalid")
+    divisor = source_contract.get("collapse_attrition_divisor")
+    rate = source_contract.get("collapse_death_rate")
+    if (
+        source_contract.get("path") != "experiments/part2/part_2.py"
+        or source_contract.get("sha256") != LEGACY_PART2_SOURCE_SHA256
+        or divisor != 5
+        or rate != 0.2
+    ):
+        raise StructuralMetadataError("legacy Part 2 source contract is not the archived rule")
+    commit = str(metadata.get("git_commit", ""))
+    commits = source_contract.get("commits")
+    if not isinstance(commits, list) or commit not in commits:
+        raise StructuralMetadataError("legacy Part 2 execution commit is not source-bound")
+
+    entries = provenance.get("entries")
+    if not isinstance(entries, list):
+        raise StructuralMetadataError("legacy Part 2 provenance entries must be a list")
+    entry_keys = {
+        "csv_filename",
+        "csv_sha256",
+        "metadata_filename",
+        "metadata_sha256",
+        "recorded_git_commit",
+        "recorded_git_dirty",
+        "collapse_death_rate",
+        "days_replayed",
+        "collapsed_days_replayed",
+        "transition_replay_sha256",
+    }
+    names = [entry.get("csv_filename") for entry in entries if isinstance(entry, dict)]
+    if len(names) != len(entries) or len(names) != len(set(names)):
+        raise StructuralMetadataError("legacy Part 2 provenance entries are invalid or duplicated")
+    matches = [entry for entry in entries if entry.get("csv_filename") == path.name]
+    if len(matches) != 1 or set(matches[0]) != entry_keys:
+        raise StructuralMetadataError("legacy Part 2 artifact has no exact provenance entry")
+    entry = matches[0]
+    metadata_path = path.with_name(f"{path.stem}_meta.json")
+    if (
+        entry.get("csv_sha256") != _sha256_file(path)
+        or entry.get("metadata_filename") != metadata_path.name
+        or entry.get("metadata_sha256") != _sha256_file(metadata_path)
+        or entry.get("recorded_git_commit") != commit
+        or entry.get("recorded_git_dirty") != bool(metadata.get("git_dirty"))
+        or entry.get("collapse_death_rate") != rate
+    ):
+        raise StructuralMetadataError("legacy Part 2 provenance bytes or metadata do not match")
+    transitions, collapsed_days = _legacy_transition_payload(rows, divisor=divisor)
+    if (
+        entry.get("days_replayed") != len(transitions)
+        or entry.get("collapsed_days_replayed") != collapsed_days
+        or entry.get("transition_replay_sha256") != stable_json_sha256(transitions)
+    ):
+        raise StructuralMetadataError("legacy Part 2 transition replay seal does not match")
+    return float(rate)
+
+
 def _constant_row_value(
     rows: Sequence[Mapping[str, str]],
     field: str,
@@ -286,9 +493,10 @@ def load_part2_structural_cell(
     """Load and cross-check the recorded structural cell for one trajectory.
 
     The death rate is required in the sidecar because it is not present in the
-    CSV schema.  There is intentionally no legacy/default fallback: silently
-    applying the current default would make sensitivity trajectories appear
-    valid under dynamics that may not have generated them.
+    CSV schema.  Strict artifacts have no fallback.  A legacy artifact may use
+    the adjacent provenance seal only when that seal binds the exact CSV and
+    sidecar bytes, the archived execution source, and a full transition replay;
+    the current runtime default is never consulted.
     """
 
     if not rows:
@@ -327,6 +535,14 @@ def load_part2_structural_cell(
                 f"metadata {field}={metadata_value!r} disagrees with CSV {field}={csv_value!r}"
             )
 
+    recorded_collapse_rate = parameters.get("collapse_death_rate")
+    if recorded_collapse_rate in (None, ""):
+        if strict_schema:
+            raise StructuralMetadataError(
+                "Part 2 metadata is missing parameters.collapse_death_rate"
+            )
+        recorded_collapse_rate = _legacy_collapse_death_rate(path, rows, metadata)
+
     cell = Part2StructuralCell(
         provider=provider,
         model=model,
@@ -362,7 +578,7 @@ def load_part2_structural_cell(
             "community_benefit",
         ),
         collapse_death_rate=_parse_rate(
-            _required_mapping_value(parameters, "collapse_death_rate", "parameters"),
+            recorded_collapse_rate,
             "collapse_death_rate",
         ),
         structural_cell_id=identity.structural_cell_id,

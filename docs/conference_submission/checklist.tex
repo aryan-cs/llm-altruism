@@ -5,7 +5,7 @@
 \item {\bf Claims}
     \item[] Question: Do the main claims made in the abstract and introduction accurately reflect the paper's contributions and scope?
     \item[] Answer: \answerYes{}
-    \item[] Justification: The abstract and Introduction state the benchmark contribution, pilot scope, observed associations, and non-claims; Sections~\ref{sec:diagnostics} and~\ref{sec:scope} preserve those qualifications when interpreting the results.
+    \item[] Justification: The abstract and Introduction distinguish the benchmark contribution from the descriptive Part~1/Part~2 pilot, disclose the 24.1\% partial-rejudgment label-change rate, and explicitly withdraw legacy Part~0 rates and refusal-based correlations.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the abstract and introduction do not include the claims made in the paper.
@@ -17,7 +17,7 @@
 \item {\bf Limitations}
     \item[] Question: Does the paper discuss the limitations of the work performed by the authors?
     \item[] Answer: \answerYes{}
-    \item[] Justification: Section~\ref{sec:scope} discusses cohort coverage, legacy-label provenance, prompt ordering, decoding controls, single-trajectory uncertainty, construct validity, and limits on deployment and societal interpretation.
+    \item[] Justification: Section~\ref{sec:scope} discusses cohort coverage, failed legacy labels, incomplete and unvalidated rejudgment, missing localized prompts, public-benchmark contamination, prompt ordering, decoding controls, identity-deterministic attrition, single-trajectory uncertainty, construct validity, and limits on deployment and societal interpretation.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the paper has no limitation while the answer \answerNo{} means that the paper has limitations, but those are not discussed in the paper.
@@ -67,7 +67,7 @@
 \item {\bf Open access to data and code}
     \item[] Question: Does the paper provide open access to the data and code, with sufficient instructions to faithfully reproduce the main experimental results, as described in supplemental material?
     \item[] Answer: \answerNo{}
-    \item[] Justification: Appendix~\ref{app:artifact-map} documents the code, commands, and intended anonymous supplement, but the supplement is not yet staged with this provisional manuscript. Raw Part~0 harmful prompts and completions will remain excluded under the responsible-release policy.
+    \item[] Justification: A reproducible anonymous supplement can be built and integrity-checked locally, but no stable anonymous public landing URL is available yet. Raw Part~0 harmful prompts and completions remain excluded from the default package and require a reviewer-accessible gated process.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that paper does not include experiments requiring code.
@@ -83,8 +83,8 @@
 
 \item {\bf Experimental setting/details}
     \item[] Question: Does the paper specify all the training and test details (e.g., data splits, hyperparameters, how they were chosen, type of optimizer) necessary to understand the results?
-    \item[] Answer: \answerYes{}
-    \item[] Justification: Sections~3--5 specify prompt matrices, model cohort, action schemas, retry behavior, decoding information, metrics, and analysis procedures; Appendices~\ref{app:model-registry} and~\ref{app:artifact-map} provide exact model tags and reproduction commands.
+    \item[] Answer: \answerNo{}
+    \item[] Justification: Sections~3--5 disclose the available prompt matrices, model tags, action schemas, metrics, and analysis procedures, but exact localized Part~0 prompts, immutable model digests/quantization, fixed pilot decoding controls, and legacy first-attempt retry logs were not retained.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the paper does not include experiments.
@@ -94,8 +94,8 @@
 
 \item {\bf Experiment statistical significance}
     \item[] Question: Does the paper report error bars suitably and correctly defined or other appropriate information about the statistical significance of the experiments?
-    \item[] Answer: \answerYes{}
-    \item[] Justification: Section~5 defines Wilson, Fisher-transform, bootstrap, and deletion-based summaries and their assumptions; Tables~\ref{tab:primary-rate-ci} and~\ref{tab:cross-part-corr} report them, while Part~2 is explicitly presented as one-trajectory point estimates without run-uncertainty intervals.
+    \item[] Answer: \answerNo{}
+    \item[] Justification: Section~5 defines root-cluster, model-row bootstrap, Fisher-transform, and deletion-based summaries and their units. Part~1 has clustered descriptive intervals, but Part~0 labels are invalid and Part~2 has one trajectory per model, so the paper does not claim complete uncertainty quantification or statistical significance for the benchmark profile.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the paper does not include experiments.
@@ -161,8 +161,8 @@
 
 \item {\bf Licenses for existing assets}
     \item[] Question: Are the creators or original owners of assets (e.g., code, data, models), used in the paper, properly credited and are the license and terms of use explicitly mentioned and properly respected?
-    \item[] Answer: \answerYes{}
-    \item[] Justification: Section~3 credits and cites the benchmark and model assets, and Appendix~\ref{app:artifact-map} points to the supplementary license-and-terms documentation covering versions, source licenses, redistribution restrictions, and the MIT license for new code and artifacts.
+    \item[] Answer: \answerNo{}
+    \item[] Justification: The source datasets are cited and license-documented, and new code/artifacts are MIT-licensed. However, mutable Ollama tags, absent immutable digests, and community derivative models prevent exact reconstruction of the governing model-license snapshots for all April runs; no model weights are redistributed and the gap is documented in \texttt{LICENSES\_AND\_TERMS.md}.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the paper does not use existing assets.

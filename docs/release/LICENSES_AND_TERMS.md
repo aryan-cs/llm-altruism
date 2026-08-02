@@ -14,9 +14,11 @@ Part 0 uses harmful-request sources only for safety/refusal evaluation. Public s
 
 - `JailbreakBench/JBB-Behaviors`: MIT license, public page at `https://huggingface.co/datasets/JailbreakBench/JBB-Behaviors`.
 - `walledai/HarmBench`: MIT license, public page at `https://huggingface.co/datasets/walledai/HarmBench`.
-- `TrustAIRLab/in-the-wild-jailbreak-prompts`: MIT license for `jailbreak_llms`, public page at `https://huggingface.co/datasets/TrustAIRLab/in-the-wild-jailbreak-prompts`.
+These two sources are cited in the paper and configuration files. The generating code loaded their behavior rows directly; the paper therefore does not claim that TrustAIRLab wrapper templates were used. Even though the public source pages are MIT-labeled, the default anonymous supplement does not redistribute the raw Part 0 prompt-source CSVs.
 
-These sources are cited in the paper and configuration files. Even though the public source pages are MIT-labeled, the default anonymous supplement does not redistribute the raw Part 0 prompt-source CSVs.
+## Model Terms
+
+The pilot records mutable Ollama tags but not immutable digests, upstream model-card snapshots, or the terms shown when each tag was pulled. The repository therefore cannot establish that one current license page is the exact governing version for every April artifact, especially community-published uncensored, derestricted, and abliterate derivatives. No model weights are redistributed. `MODEL_REGISTRY.md` records the exact retained tags and missing provenance; this gap is disclosed as unresolved rather than represented as complete license verification. Confirmatory runs must archive the model card, license/terms URL and hash, immutable digest, and access date before execution.
 
 ## Safety Release Policy
 

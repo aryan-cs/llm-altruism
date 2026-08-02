@@ -1,0 +1,174 @@
+{
+  "schema_version": 1,
+  "artifact_type": "legacy_part2_structural_provenance",
+  "recovery_protocol": "archived_source_and_full_transition_replay_v1",
+  "source_contract": {
+    "path": "experiments/part2/part_2.py",
+    "commits": [
+      "5cf6595d37f0a926895c1571062ea0e3d94fee62",
+      "69712b522357a935d3be15ba7a71d23d9a43e590"
+    ],
+    "sha256": "e4351e8a18f0faa6cc289f261efa4bfe71a370dd46935c629901f8890d994f4f",
+    "collapse_attrition_divisor": 5,
+    "collapse_death_rate": 0.2
+  },
+  "entries": [
+    {
+      "csv_filename": "part2__ollama__aratan-qwen3-5-uncensored-9b__n50__d100__water__20260429_161229.csv",
+      "csv_sha256": "c12a363684cf04fa0ecef5c7a21844e8ece43298b19a7d009a8a3e0d80571f63",
+      "metadata_filename": "part2__ollama__aratan-qwen3-5-uncensored-9b__n50__d100__water__20260429_161229_meta.json",
+      "metadata_sha256": "bd1a21dbaa0392607887f57facbb039b0e7ef3d1cb5bc09e3a8181ba3c95a22d",
+      "recorded_git_commit": "5cf6595d37f0a926895c1571062ea0e3d94fee62",
+      "recorded_git_dirty": true,
+      "collapse_death_rate": 0.2,
+      "days_replayed": 49,
+      "collapsed_days_replayed": 14,
+      "transition_replay_sha256": "f5577798b3b1e98d1f78baf810f6748e19f52524058637c015975474522385ba"
+    },
+    {
+      "csv_filename": "part2__ollama__gpt-oss-20b__n50__d100__water__20260429_051434.csv",
+      "csv_sha256": "7f37d92771cedcff0d96c970a4969ef8bc9c6a017423e0b83416be468b31f448",
+      "metadata_filename": "part2__ollama__gpt-oss-20b__n50__d100__water__20260429_051434_meta.json",
+      "metadata_sha256": "0e6274488d1dc61b872eeee6663e5e6de75001ee1f520764b20897572a69b813",
+      "recorded_git_commit": "69712b522357a935d3be15ba7a71d23d9a43e590",
+      "recorded_git_dirty": true,
+      "collapse_death_rate": 0.2,
+      "days_replayed": 80,
+      "collapsed_days_replayed": 14,
+      "transition_replay_sha256": "08e8f10f9e3988f129ebe208e4e940141c26aa261a952b82cf8f2af631ffe1f1"
+    },
+    {
+      "csv_filename": "part2__ollama__gpt-oss-safeguard-20b__n50__d100__water__20260429_062214.csv",
+      "csv_sha256": "6b4e52b8175084e8bbb093fa5e2f66ccf1cce628cc49a0e5936171fbef348089",
+      "metadata_filename": "part2__ollama__gpt-oss-safeguard-20b__n50__d100__water__20260429_062214_meta.json",
+      "metadata_sha256": "8f1ba789ec764545316f9d1bceda329eb06f0384956a4ea8a3d55935985cd707",
+      "recorded_git_commit": "69712b522357a935d3be15ba7a71d23d9a43e590",
+      "recorded_git_dirty": true,
+      "collapse_death_rate": 0.2,
+      "days_replayed": 100,
+      "collapsed_days_replayed": 12,
+      "transition_replay_sha256": "cf66890a986d3edf8f2a9714e38227a3152e0d51c4141360192554d7b8e6c45d"
+    },
+    {
+      "csv_filename": "part2__ollama__gurubot-gpt-oss-derestricted-20b__n50__d100__water__20260429_080037.csv",
+      "csv_sha256": "3fa16b9ae592d79c46978539eea1a0b19f3e50328bced55f0dc4ca4be75b2adc",
+      "metadata_filename": "part2__ollama__gurubot-gpt-oss-derestricted-20b__n50__d100__water__20260429_080037_meta.json",
+      "metadata_sha256": "e5dff33937f6c61318dc546f4a0d6ea2aaf72f0a855915b1e9bbbe3937c3d543",
+      "recorded_git_commit": "69712b522357a935d3be15ba7a71d23d9a43e590",
+      "recorded_git_dirty": true,
+      "collapse_death_rate": 0.2,
+      "days_replayed": 52,
+      "collapsed_days_replayed": 14,
+      "transition_replay_sha256": "e34d6f54ebbbe7a766cc78c309ec5ccfb52e9b98df548f1025a08b8bd16cd8f4"
+    },
+    {
+      "csv_filename": "part2__ollama__huihui-ai-qwen2-5-abliterate-7b-instruct__n50__d100__water__20260429_130125.csv",
+      "csv_sha256": "d644941a5e79ec9264551e99945716d516ab09eaa31b4f78c275b7f0b2a3d730",
+      "metadata_filename": "part2__ollama__huihui-ai-qwen2-5-abliterate-7b-instruct__n50__d100__water__20260429_130125_meta.json",
+      "metadata_sha256": "09fd24cacdea65278a3cda84a0ca9f87850ae2203d4ba49b01630d31bc86cd52",
+      "recorded_git_commit": "69712b522357a935d3be15ba7a71d23d9a43e590",
+      "recorded_git_dirty": true,
+      "collapse_death_rate": 0.2,
+      "days_replayed": 44,
+      "collapsed_days_replayed": 14,
+      "transition_replay_sha256": "4a35b24007183183b9752cc48d88502ce6d5a1039c3ba278cfc118a329cbfe1e"
+    },
+    {
+      "csv_filename": "part2__ollama__huihui-ai-qwen2-5-abliterate-7b__n50__d100__water__20260429_123930.csv",
+      "csv_sha256": "76a92f638e3479fa02e97b2b1dcd688d0a7d95231ac324b59664350cd74c51c2",
+      "metadata_filename": "part2__ollama__huihui-ai-qwen2-5-abliterate-7b__n50__d100__water__20260429_123930_meta.json",
+      "metadata_sha256": "25910e31bac34863cd9a544a67445dcbd2f70479aa961623529cd9f4aa5bd706",
+      "recorded_git_commit": "69712b522357a935d3be15ba7a71d23d9a43e590",
+      "recorded_git_dirty": true,
+      "collapse_death_rate": 0.2,
+      "days_replayed": 43,
+      "collapsed_days_replayed": 14,
+      "transition_replay_sha256": "e59431eb76648bc9978b82145851dc1e8c79912764988645d91023f56fdc3d40"
+    },
+    {
+      "csv_filename": "part2__ollama__llama2-uncensored__n50__d100__water__20260429_095234.csv",
+      "csv_sha256": "41a66fbc6cf2d630b14402136b717e49637623d24f66e5f33c1fd721895ef324",
+      "metadata_filename": "part2__ollama__llama2-uncensored__n50__d100__water__20260429_095234_meta.json",
+      "metadata_sha256": "53f8a618a826ad0320483cbb580ee28f3e927633745c410433f0c4eb0888bc9a",
+      "recorded_git_commit": "69712b522357a935d3be15ba7a71d23d9a43e590",
+      "recorded_git_dirty": true,
+      "collapse_death_rate": 0.2,
+      "days_replayed": 100,
+      "collapsed_days_replayed": 0,
+      "transition_replay_sha256": "f240a28ef0b55764078ccaf69cb528af0f06de0362d382acda7745352d2020bf"
+    },
+    {
+      "csv_filename": "part2__ollama__llama2__n50__d100__water__20260429_083658.csv",
+      "csv_sha256": "c97b56bdff372b4ed3c8520a67d932d5e68aac591f0f70fdc23697ef27e5dce1",
+      "metadata_filename": "part2__ollama__llama2__n50__d100__water__20260429_083658_meta.json",
+      "metadata_sha256": "5506bd942c4d40deb300ff3adafc2889cf1af57acdcb9c04f3edef1fd31dbe8f",
+      "recorded_git_commit": "69712b522357a935d3be15ba7a71d23d9a43e590",
+      "recorded_git_dirty": true,
+      "collapse_death_rate": 0.2,
+      "days_replayed": 100,
+      "collapsed_days_replayed": 0,
+      "transition_replay_sha256": "8b52d4e9e14ad20e661b3a505ad1bbd0f54d23aa1a97d8a6ac05f6bec84f0737"
+    },
+    {
+      "csv_filename": "part2__ollama__qwen2-5-7b-instruct__n50__d100__water__20260429_113803.csv",
+      "csv_sha256": "7b0c7c5dd58d170134be8e264e633250536f9f105a256a3a3edecf15cc14f7a9",
+      "metadata_filename": "part2__ollama__qwen2-5-7b-instruct__n50__d100__water__20260429_113803_meta.json",
+      "metadata_sha256": "b43438ba39655ce9fc9c30f9b2006ee1b57871e8247fcc88cf815192a5fbf42b",
+      "recorded_git_commit": "69712b522357a935d3be15ba7a71d23d9a43e590",
+      "recorded_git_dirty": true,
+      "collapse_death_rate": 0.2,
+      "days_replayed": 100,
+      "collapsed_days_replayed": 0,
+      "transition_replay_sha256": "09cabee1d12136c4fde793a513358e744191179c8b38f5423bf0a6943e6e2ecb"
+    },
+    {
+      "csv_filename": "part2__ollama__qwen2-5-7b__n50__d100__water__20260429_103746.csv",
+      "csv_sha256": "9998245f3cf5f08f2801bc80eb72d92e3e7346c430fc96326a42418825c86401",
+      "metadata_filename": "part2__ollama__qwen2-5-7b__n50__d100__water__20260429_103746_meta.json",
+      "metadata_sha256": "988a05cb983431d498c0440d4d1a9365536e69cfb2f800770655d6ff25fa7fe8",
+      "recorded_git_commit": "69712b522357a935d3be15ba7a71d23d9a43e590",
+      "recorded_git_dirty": true,
+      "collapse_death_rate": 0.2,
+      "days_replayed": 100,
+      "collapsed_days_replayed": 0,
+      "transition_replay_sha256": "22872978f87ea1bce961722501ff57fc7c271401efb09ff4b4f45872a91e939f"
+    },
+    {
+      "csv_filename": "part2__ollama__qwen3-5__n50__d100__water__20260429_132724.csv",
+      "csv_sha256": "22e0d4aac2d13b21b746fe0b76121934592cf80fffb0037ca32ce2e8fa657ef4",
+      "metadata_filename": "part2__ollama__qwen3-5__n50__d100__water__20260429_132724_meta.json",
+      "metadata_sha256": "e18f97b883b2e8398d5f9c617f157d5a865703ac731b097736b044d5439efafc",
+      "recorded_git_commit": "69712b522357a935d3be15ba7a71d23d9a43e590",
+      "recorded_git_dirty": true,
+      "collapse_death_rate": 0.2,
+      "days_replayed": 100,
+      "collapsed_days_replayed": 0,
+      "transition_replay_sha256": "408a67b5190b6ca9e3257d750594f01c9818894fbf87083cf827118906f5dd03"
+    },
+    {
+      "csv_filename": "part2__ollama__sorc-qwen3-5-instruct-uncensored__n50__d100__water__20260429_165724.csv",
+      "csv_sha256": "069e3aecf4ba757417b84c7f1571d0c1c4f6dc22110300ab0f8ff8e7ee9b130e",
+      "metadata_filename": "part2__ollama__sorc-qwen3-5-instruct-uncensored__n50__d100__water__20260429_165724_meta.json",
+      "metadata_sha256": "33549a6f3be9210d59732842dd2ffc21e2b06a2f841b44fb25ff214d5b80bc84",
+      "recorded_git_commit": "5cf6595d37f0a926895c1571062ea0e3d94fee62",
+      "recorded_git_dirty": true,
+      "collapse_death_rate": 0.2,
+      "days_replayed": 47,
+      "collapsed_days_replayed": 14,
+      "transition_replay_sha256": "872c57c38abd586436f52d38372f2596f2b7fed241cd25d1ea7c770bb6e1438a"
+    },
+    {
+      "csv_filename": "part2__ollama__sorc-qwen3-5-instruct__n50__d100__water__20260429_144325.csv",
+      "csv_sha256": "9da0ce244379e4380a8c77c70afb8aa4a4f9f24c2d461fe3db357d1f99a90bbb",
+      "metadata_filename": "part2__ollama__sorc-qwen3-5-instruct__n50__d100__water__20260429_144325_meta.json",
+      "metadata_sha256": "6e36196a96aa0c0287d6a58e914b249ed391f1e38df5016823a2ddf51ae550a4",
+      "recorded_git_commit": "69712b522357a935d3be15ba7a71d23d9a43e590",
+      "recorded_git_dirty": true,
+      "collapse_death_rate": 0.2,
+      "days_replayed": 100,
+      "collapsed_days_replayed": 0,
+      "transition_replay_sha256": "f5ec9c2ac779b5f78e8251e6481a5ed5e7b2792ad0e4b93aee2b5a9307281bab"
+    }
+  ],
+  "artifact_sha256": "377b488758bfbf9bd3f394b9ac74373ad1b4fa4c61ce504ce22a431aad5d3de8"
+}

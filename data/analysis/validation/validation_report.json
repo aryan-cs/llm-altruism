@@ -215,13 +215,18 @@
       "metrics": {
         "days": 49,
         "day_gaps": 0,
-        "invalid_actions": 0,
+        "unknown_actions": 0,
+        "invalid_decisions": 0,
         "incomplete_days": 0,
         "duplicate_agent_days": 0,
         "inconsistent_day_summaries": 0,
+        "attrition_errors": 0,
         "nonconstant_configuration_fields": 0,
         "transition_errors": 0,
-        "reasoning_mismatch_flags": 114
+        "reasoning_mismatch_flags": 114,
+        "structural_metadata_valid": true,
+        "structural_cell_key": "{\"collapse_death_rate\":0.2,\"community_benefit\":5,\"depletion_units\":2,\"dynamics_sha256\":\"\",\"horizon_days\":100,\"model\":\"aratan/qwen3.5-uncensored:9b\",\"part_2_schema_version\":0,\"provider\":\"ollama\",\"resource\":\"water\",\"resource_capacity\":2500,\"schema_version\":2,\"selfish_gain\":2,\"society_size\":50,\"structural_cell_id\":\"\"}",
+        "recorded_collapse_death_rate": 0.2
       }
     },
     {
@@ -236,13 +241,18 @@
       "metrics": {
         "days": 80,
         "day_gaps": 0,
-        "invalid_actions": 0,
+        "unknown_actions": 0,
+        "invalid_decisions": 0,
         "incomplete_days": 0,
         "duplicate_agent_days": 0,
         "inconsistent_day_summaries": 0,
+        "attrition_errors": 0,
         "nonconstant_configuration_fields": 0,
         "transition_errors": 0,
-        "reasoning_mismatch_flags": 83
+        "reasoning_mismatch_flags": 83,
+        "structural_metadata_valid": true,
+        "structural_cell_key": "{\"collapse_death_rate\":0.2,\"community_benefit\":5,\"depletion_units\":2,\"dynamics_sha256\":\"\",\"horizon_days\":100,\"model\":\"gpt-oss:20b\",\"part_2_schema_version\":0,\"provider\":\"ollama\",\"resource\":\"water\",\"resource_capacity\":2500,\"schema_version\":2,\"selfish_gain\":2,\"society_size\":50,\"structural_cell_id\":\"\"}",
+        "recorded_collapse_death_rate": 0.2
       }
     },
     {
@@ -257,13 +267,18 @@
       "metrics": {
         "days": 100,
         "day_gaps": 0,
-        "invalid_actions": 0,
+        "unknown_actions": 0,
+        "invalid_decisions": 0,
         "incomplete_days": 0,
         "duplicate_agent_days": 0,
         "inconsistent_day_summaries": 0,
+        "attrition_errors": 0,
         "nonconstant_configuration_fields": 0,
         "transition_errors": 0,
-        "reasoning_mismatch_flags": 49
+        "reasoning_mismatch_flags": 49,
+        "structural_metadata_valid": true,
+        "structural_cell_key": "{\"collapse_death_rate\":0.2,\"community_benefit\":5,\"depletion_units\":2,\"dynamics_sha256\":\"\",\"horizon_days\":100,\"model\":\"gpt-oss-safeguard:20b\",\"part_2_schema_version\":0,\"provider\":\"ollama\",\"resource\":\"water\",\"resource_capacity\":2500,\"schema_version\":2,\"selfish_gain\":2,\"society_size\":50,\"structural_cell_id\":\"\"}",
+        "recorded_collapse_death_rate": 0.2
       }
     },
     {
@@ -278,13 +293,18 @@
       "metrics": {
         "days": 52,
         "day_gaps": 0,
-        "invalid_actions": 0,
+        "unknown_actions": 0,
+        "invalid_decisions": 0,
         "incomplete_days": 0,
         "duplicate_agent_days": 0,
         "inconsistent_day_summaries": 0,
+        "attrition_errors": 0,
         "nonconstant_configuration_fields": 0,
         "transition_errors": 0,
-        "reasoning_mismatch_flags": 164
+        "reasoning_mismatch_flags": 164,
+        "structural_metadata_valid": true,
+        "structural_cell_key": "{\"collapse_death_rate\":0.2,\"community_benefit\":5,\"depletion_units\":2,\"dynamics_sha256\":\"\",\"horizon_days\":100,\"model\":\"gurubot/gpt-oss-derestricted:20b\",\"part_2_schema_version\":0,\"provider\":\"ollama\",\"resource\":\"water\",\"resource_capacity\":2500,\"schema_version\":2,\"selfish_gain\":2,\"society_size\":50,\"structural_cell_id\":\"\"}",
+        "recorded_collapse_death_rate": 0.2
       }
     },
     {
@@ -299,13 +319,18 @@
       "metrics": {
         "days": 44,
         "day_gaps": 0,
-        "invalid_actions": 0,
+        "unknown_actions": 0,
+        "invalid_decisions": 0,
         "incomplete_days": 0,
         "duplicate_agent_days": 0,
         "inconsistent_day_summaries": 0,
+        "attrition_errors": 0,
         "nonconstant_configuration_fields": 0,
         "transition_errors": 0,
-        "reasoning_mismatch_flags": 15
+        "reasoning_mismatch_flags": 15,
+        "structural_metadata_valid": true,
+        "structural_cell_key": "{\"collapse_death_rate\":0.2,\"community_benefit\":5,\"depletion_units\":2,\"dynamics_sha256\":\"\",\"horizon_days\":100,\"model\":\"huihui_ai/qwen2.5-abliterate:7b-instruct\",\"part_2_schema_version\":0,\"provider\":\"ollama\",\"resource\":\"water\",\"resource_capacity\":2500,\"schema_version\":2,\"selfish_gain\":2,\"society_size\":50,\"structural_cell_id\":\"\"}",
+        "recorded_collapse_death_rate": 0.2
       }
     },
     {
@@ -320,13 +345,18 @@
       "metrics": {
         "days": 43,
         "day_gaps": 0,
-        "invalid_actions": 0,
+        "unknown_actions": 0,
+        "invalid_decisions": 0,
         "incomplete_days": 0,
         "duplicate_agent_days": 0,
         "inconsistent_day_summaries": 0,
+        "attrition_errors": 0,
         "nonconstant_configuration_fields": 0,
         "transition_errors": 0,
-        "reasoning_mismatch_flags": 6
+        "reasoning_mismatch_flags": 6,
+        "structural_metadata_valid": true,
+        "structural_cell_key": "{\"collapse_death_rate\":0.2,\"community_benefit\":5,\"depletion_units\":2,\"dynamics_sha256\":\"\",\"horizon_days\":100,\"model\":\"huihui_ai/qwen2.5-abliterate:7b\",\"part_2_schema_version\":0,\"provider\":\"ollama\",\"resource\":\"water\",\"resource_capacity\":2500,\"schema_version\":2,\"selfish_gain\":2,\"society_size\":50,\"structural_cell_id\":\"\"}",
+        "recorded_collapse_death_rate": 0.2
       }
     },
     {
@@ -341,13 +371,18 @@
       "metrics": {
         "days": 100,
         "day_gaps": 0,
-        "invalid_actions": 0,
+        "unknown_actions": 0,
+        "invalid_decisions": 0,
         "incomplete_days": 0,
         "duplicate_agent_days": 0,
         "inconsistent_day_summaries": 0,
+        "attrition_errors": 0,
         "nonconstant_configuration_fields": 0,
         "transition_errors": 0,
-        "reasoning_mismatch_flags": 42
+        "reasoning_mismatch_flags": 42,
+        "structural_metadata_valid": true,
+        "structural_cell_key": "{\"collapse_death_rate\":0.2,\"community_benefit\":5,\"depletion_units\":2,\"dynamics_sha256\":\"\",\"horizon_days\":100,\"model\":\"llama2-uncensored\",\"part_2_schema_version\":0,\"provider\":\"ollama\",\"resource\":\"water\",\"resource_capacity\":2500,\"schema_version\":2,\"selfish_gain\":2,\"society_size\":50,\"structural_cell_id\":\"\"}",
+        "recorded_collapse_death_rate": 0.2
       }
     },
     {
@@ -362,13 +397,18 @@
       "metrics": {
         "days": 100,
         "day_gaps": 0,
-        "invalid_actions": 0,
+        "unknown_actions": 0,
+        "invalid_decisions": 0,
         "incomplete_days": 0,
         "duplicate_agent_days": 0,
         "inconsistent_day_summaries": 0,
+        "attrition_errors": 0,
         "nonconstant_configuration_fields": 0,
         "transition_errors": 0,
-        "reasoning_mismatch_flags": 18
+        "reasoning_mismatch_flags": 18,
+        "structural_metadata_valid": true,
+        "structural_cell_key": "{\"collapse_death_rate\":0.2,\"community_benefit\":5,\"depletion_units\":2,\"dynamics_sha256\":\"\",\"horizon_days\":100,\"model\":\"llama2\",\"part_2_schema_version\":0,\"provider\":\"ollama\",\"resource\":\"water\",\"resource_capacity\":2500,\"schema_version\":2,\"selfish_gain\":2,\"society_size\":50,\"structural_cell_id\":\"\"}",
+        "recorded_collapse_death_rate": 0.2
       }
     },
     {
@@ -383,13 +423,18 @@
       "metrics": {
         "days": 100,
         "day_gaps": 0,
-        "invalid_actions": 0,
+        "unknown_actions": 0,
+        "invalid_decisions": 0,
         "incomplete_days": 0,
         "duplicate_agent_days": 0,
         "inconsistent_day_summaries": 0,
+        "attrition_errors": 0,
         "nonconstant_configuration_fields": 0,
         "transition_errors": 0,
-        "reasoning_mismatch_flags": 15
+        "reasoning_mismatch_flags": 15,
+        "structural_metadata_valid": true,
+        "structural_cell_key": "{\"collapse_death_rate\":0.2,\"community_benefit\":5,\"depletion_units\":2,\"dynamics_sha256\":\"\",\"horizon_days\":100,\"model\":\"qwen2.5:7b-instruct\",\"part_2_schema_version\":0,\"provider\":\"ollama\",\"resource\":\"water\",\"resource_capacity\":2500,\"schema_version\":2,\"selfish_gain\":2,\"society_size\":50,\"structural_cell_id\":\"\"}",
+        "recorded_collapse_death_rate": 0.2
       }
     },
     {
@@ -404,13 +449,18 @@
       "metrics": {
         "days": 100,
         "day_gaps": 0,
-        "invalid_actions": 0,
+        "unknown_actions": 0,
+        "invalid_decisions": 0,
         "incomplete_days": 0,
         "duplicate_agent_days": 0,
         "inconsistent_day_summaries": 0,
+        "attrition_errors": 0,
         "nonconstant_configuration_fields": 0,
         "transition_errors": 0,
-        "reasoning_mismatch_flags": 26
+        "reasoning_mismatch_flags": 26,
+        "structural_metadata_valid": true,
+        "structural_cell_key": "{\"collapse_death_rate\":0.2,\"community_benefit\":5,\"depletion_units\":2,\"dynamics_sha256\":\"\",\"horizon_days\":100,\"model\":\"qwen2.5:7b\",\"part_2_schema_version\":0,\"provider\":\"ollama\",\"resource\":\"water\",\"resource_capacity\":2500,\"schema_version\":2,\"selfish_gain\":2,\"society_size\":50,\"structural_cell_id\":\"\"}",
+        "recorded_collapse_death_rate": 0.2
       }
     },
     {
@@ -425,13 +475,18 @@
       "metrics": {
         "days": 100,
         "day_gaps": 0,
-        "invalid_actions": 0,
+        "unknown_actions": 0,
+        "invalid_decisions": 0,
         "incomplete_days": 0,
         "duplicate_agent_days": 0,
         "inconsistent_day_summaries": 0,
+        "attrition_errors": 0,
         "nonconstant_configuration_fields": 0,
         "transition_errors": 0,
-        "reasoning_mismatch_flags": 58
+        "reasoning_mismatch_flags": 58,
+        "structural_metadata_valid": true,
+        "structural_cell_key": "{\"collapse_death_rate\":0.2,\"community_benefit\":5,\"depletion_units\":2,\"dynamics_sha256\":\"\",\"horizon_days\":100,\"model\":\"qwen3.5\",\"part_2_schema_version\":0,\"provider\":\"ollama\",\"resource\":\"water\",\"resource_capacity\":2500,\"schema_version\":2,\"selfish_gain\":2,\"society_size\":50,\"structural_cell_id\":\"\"}",
+        "recorded_collapse_death_rate": 0.2
       }
     },
     {
@@ -446,13 +501,18 @@
       "metrics": {
         "days": 47,
         "day_gaps": 0,
-        "invalid_actions": 0,
+        "unknown_actions": 0,
+        "invalid_decisions": 0,
         "incomplete_days": 0,
         "duplicate_agent_days": 0,
         "inconsistent_day_summaries": 0,
+        "attrition_errors": 0,
         "nonconstant_configuration_fields": 0,
         "transition_errors": 0,
-        "reasoning_mismatch_flags": 91
+        "reasoning_mismatch_flags": 91,
+        "structural_metadata_valid": true,
+        "structural_cell_key": "{\"collapse_death_rate\":0.2,\"community_benefit\":5,\"depletion_units\":2,\"dynamics_sha256\":\"\",\"horizon_days\":100,\"model\":\"sorc/qwen3.5-instruct-uncensored\",\"part_2_schema_version\":0,\"provider\":\"ollama\",\"resource\":\"water\",\"resource_capacity\":2500,\"schema_version\":2,\"selfish_gain\":2,\"society_size\":50,\"structural_cell_id\":\"\"}",
+        "recorded_collapse_death_rate": 0.2
       }
     },
     {
@@ -467,13 +527,18 @@
       "metrics": {
         "days": 100,
         "day_gaps": 0,
-        "invalid_actions": 0,
+        "unknown_actions": 0,
+        "invalid_decisions": 0,
         "incomplete_days": 0,
         "duplicate_agent_days": 0,
         "inconsistent_day_summaries": 0,
+        "attrition_errors": 0,
         "nonconstant_configuration_fields": 0,
         "transition_errors": 0,
-        "reasoning_mismatch_flags": 142
+        "reasoning_mismatch_flags": 142,
+        "structural_metadata_valid": true,
+        "structural_cell_key": "{\"collapse_death_rate\":0.2,\"community_benefit\":5,\"depletion_units\":2,\"dynamics_sha256\":\"\",\"horizon_days\":100,\"model\":\"sorc/qwen3.5-instruct\",\"part_2_schema_version\":0,\"provider\":\"ollama\",\"resource\":\"water\",\"resource_capacity\":2500,\"schema_version\":2,\"selfish_gain\":2,\"society_size\":50,\"structural_cell_id\":\"\"}",
+        "recorded_collapse_death_rate": 0.2
       }
     }
   ]

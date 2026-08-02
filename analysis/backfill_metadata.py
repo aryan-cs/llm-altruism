@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
 from pathlib import Path
 
@@ -20,6 +21,73 @@ def _metadata_path_for_csv(path: Path) -> Path:
 def _row_count(path: Path) -> int:
     with path.open("r", newline="", encoding="utf-8") as handle:
         return sum(1 for _ in csv.DictReader(handle))
+
+
+def _csv_identity(path: Path) -> tuple[str, str]:
+    """Return the single provider/model identity recorded by a legacy CSV.
+
+    Filenames slugged punctuation and repository separators, so they are not an
+    authoritative model identifier.  Refuse ambiguous or incomplete files
+    instead of silently reconstructing a different route.
+    """
+    providers: set[str] = set()
+    models: set[str] = set()
+    with path.open("r", newline="", encoding="utf-8") as handle:
+        for row in csv.DictReader(handle):
+            provider = (row.get("provider") or "").strip()
+            model = (row.get("model") or "").strip()
+            if not provider or not model:
+                raise ValueError(f"Missing provider/model identity in {path}")
+            providers.add(provider)
+            models.add(model)
+    if len(providers) != 1 or len(models) != 1:
+        raise ValueError(
+            f"Ambiguous provider/model identity in {path}: "
+            f"providers={sorted(providers)!r}, models={sorted(models)!r}"
+        )
+    return next(iter(providers)), next(iter(models))
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def repair_part1_identities(raw_dir: Path = RAW_DIR) -> list[Path]:
+    """Minimally repair reconstructed Part 1 identities from CSV evidence.
+
+    The existing legacy sidecars retain their original reconstruction time,
+    command, environment, and commit.  Only the lossy filename-derived identity
+    is replaced, with an explicit evidence record binding the authoritative CSV.
+    """
+    written: list[Path] = []
+    for csv_path in sorted((raw_dir / "part_1").glob("*.csv")):
+        if csv_path.name.endswith("_pending.csv"):
+            continue
+        metadata_path = _metadata_path_for_csv(csv_path)
+        if not metadata_path.exists():
+            raise ValueError(f"Missing Part 1 metadata sidecar: {metadata_path}")
+        provider, model = _csv_identity(csv_path)
+        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        metadata["provider"] = provider
+        metadata["model"] = model
+        metadata["identity_repair"] = {
+            "method": "unique_csv_provider_model",
+            "csv_sha256": _sha256(csv_path),
+            "note": (
+                "Legacy sidecar identity was reconstructed from a lossy filename "
+                "slug; exact provider/model values are taken from every CSV row."
+            ),
+        }
+        metadata_path.write_text(
+            json.dumps(metadata, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        written.append(metadata_path)
+    return written
 
 
 def _split_filename(path: Path) -> list[str]:
@@ -59,8 +127,7 @@ def _part0_metadata(path: Path) -> dict[str, object]:
 
 def _part1_metadata(path: Path) -> dict[str, object]:
     parts = _split_filename(path)
-    provider = parts[1] if len(parts) > 1 else "unknown"
-    model = parts[2] if len(parts) > 2 else "unknown"
+    provider, model = _csv_identity(path)
     scope = parts[3] if len(parts) > 3 else "unknown"
     timestamp = parts[4] if len(parts) > 4 else path.stem
     parameters = {
@@ -122,14 +189,23 @@ def _part2_metadata(path: Path) -> dict[str, object]:
     return metadata
 
 
-def backfill_metadata(raw_dir: Path = RAW_DIR, *, overwrite: bool = False) -> list[Path]:
+def backfill_metadata(
+    raw_dir: Path = RAW_DIR,
+    *,
+    overwrite: bool = False,
+    parts: tuple[str, ...] = ("part_0", "part_1", "part_2"),
+) -> list[Path]:
     written: list[Path] = []
     builders = {
         "part_0": _part0_metadata,
         "part_1": _part1_metadata,
         "part_2": _part2_metadata,
     }
-    for part, builder in builders.items():
+    unknown = sorted(set(parts) - set(builders))
+    if unknown:
+        raise ValueError(f"Unknown part(s): {unknown}")
+    for part in parts:
+        builder = builders[part]
         for csv_path in sorted((raw_dir / part).glob("*.csv")):
             if csv_path.name.endswith("_pending.csv"):
                 continue
@@ -162,8 +238,28 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Backfill metadata sidecars for legacy raw CSVs.")
     parser.add_argument("--raw-dir", default=str(RAW_DIR))
     parser.add_argument("--overwrite", action="store_true")
+    parser.add_argument(
+        "--repair-part1-identities",
+        action="store_true",
+        help="Minimally repair existing Part 1 sidecar identities from CSV rows.",
+    )
+    parser.add_argument(
+        "--part",
+        action="append",
+        choices=("part_0", "part_1", "part_2"),
+        help="Limit generation to one or more parts (repeatable).",
+    )
     args = parser.parse_args()
-    written = backfill_metadata(Path(args.raw_dir), overwrite=args.overwrite)
+    if args.repair_part1_identities:
+        if args.overwrite or args.part:
+            parser.error("--repair-part1-identities cannot be combined with --overwrite/--part")
+        written = repair_part1_identities(Path(args.raw_dir))
+    else:
+        written = backfill_metadata(
+            Path(args.raw_dir),
+            overwrite=args.overwrite,
+            parts=tuple(args.part) if args.part else ("part_0", "part_1", "part_2"),
+        )
     print(f"Wrote {len(written)} metadata file(s).")
     for path in written:
         print(f"  {path}")

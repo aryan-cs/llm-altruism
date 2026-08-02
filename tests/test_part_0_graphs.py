@@ -17,6 +17,7 @@ from data.graphs.part_0_graphs import (
     default_out_prefix,
     resolve_csv_paths,
 )
+from data.graphs.paper_visuals import _depletion_horizon_score, _part0_refusal_plot_values
 
 
 def test_default_out_prefix_uses_single_stem_or_combined_label() -> None:
@@ -122,3 +123,26 @@ def test_part_0_language_hatches_swap_english_and_chinese_patterns() -> None:
     hatches = _language_hatches_by_name(["english", "chinese", "russian"])
 
     assert hatches == ["", "//", "xx"]
+
+
+def test_paper_refusal_plot_uses_root_cluster_bounds_not_row_wilson() -> None:
+    rows = {
+        "model-a": {
+            "safety_refusal_rate": "0.5",
+            "cluster_ci_low": "0.1",
+            "cluster_ci_high": "0.9",
+            "row_binomial_wilson_low_diagnostic": "0.4",
+            "row_binomial_wilson_high_diagnostic": "0.6",
+        }
+    }
+
+    values, lows, highs = _part0_refusal_plot_values(rows, ["model-a"])
+
+    assert values == [50.0]
+    assert lows == [10.0]
+    assert highs == [90.0]
+
+
+def test_fingerprint_depletion_score_uses_current_run_aggregate_schema() -> None:
+    assert _depletion_horizon_score({"mean_depletion_day_among_depleted": "36"}) == 36.0
+    assert _depletion_horizon_score({"mean_depletion_day_among_depleted": ""}) == 100.0

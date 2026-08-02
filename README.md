@@ -107,10 +107,31 @@ The graph-independent pipeline validates raw traces, builds derived tables, and 
 
 ```bash
 uv run pytest -q
+uv run python -m analysis.build_legacy_part2_provenance --check
 uv run python -m analysis.validation --strict
 uv run python -m analysis.summarize_results
 uv run python -m analysis.build_manifest
+uv run python -m analysis.build_croissant_metadata
 ```
+
+The provenance check binds the untouched April Part 2 CSVs and sidecars to the
+archived execution source and replays every population transition under the
+recorded divisor-of-five collapse rule. It does not insert the current runtime
+default into legacy metadata.
+
+The reconstructed Part 1 sidecars originally derived model identities from
+lossy filename slugs. Their exact identities are repaired from the unique
+provider/model values present in every CSV row, while preserving the original
+reconstruction provenance:
+
+```bash
+uv run python -m analysis.backfill_metadata --repair-part1-identities
+```
+
+`build_croissant_metadata` deterministically refreshes distribution hashes,
+sizes, schemas, and record sets after tables or manifests change. Once an
+anonymous public landing page exists, pass its real URL with
+`--dataset-url https://...`; the generator rejects placeholders.
 
 The current validation report is written to:
 

@@ -24,9 +24,11 @@ successfully with no failures or errors.
 
 ```bash
 uv run python -m analysis.backfill_metadata
+uv run python -m analysis.build_legacy_part2_provenance --check
 uv run python -m analysis.validation
 uv run python -m analysis.summarize_results
 uv run python -m analysis.build_manifest
+uv run python -m analysis.build_croissant_metadata
 ```
 
 Use strict validation before freezing paper claims:
@@ -34,6 +36,29 @@ Use strict validation before freezing paper claims:
 ```bash
 uv run python -m analysis.validation --strict
 ```
+
+The checked-in April Part 2 sidecars predate an explicit
+`collapse_death_rate` field. They are not edited or interpreted through the
+current default. `build_legacy_part2_provenance --check` re-reads the exact
+archived execution source at the recorded commits, verifies its divisor-of-five
+collapse rule, binds every CSV and sidecar byte hash, and replays every recorded
+population transition. The deterministic seal is
+`data/raw/part_2/legacy_structural_provenance.json`; validation refuses a
+missing, stale, substituted, or self-hash-invalid seal.
+
+The Part 1 legacy sidecars were reconstructed from filenames whose slugs lose
+slashes, colons, underscores, and dots. The checked-in sidecars carry an
+`identity_repair` record that binds the CSV SHA-256 and takes the exact unique
+provider/model identity from the CSV rows. Reproduce that minimal repair with
+`uv run python -m analysis.backfill_metadata --repair-part1-identities`; the
+command preserves the original reconstruction timestamp, commit, and runtime
+snapshot and rejects ambiguous CSV identities.
+
+Croissant metadata is deterministic and must be rebuilt after any released
+table, report, or manifest changes. The local anonymous artifact intentionally
+omits a dataset `url` until a stable anonymous landing page exists. At hosting
+time, regenerate with `--dataset-url` set to that real page and preserve the
+current metadata-relative `tables/`, `validation/`, and manifest layout.
 
 Outputs:
 
@@ -51,6 +76,7 @@ Outputs:
 - `data/analysis/tables/cross_part_correlations.csv`
 - `data/analysis/run_manifest.jsonl`
 - `data/analysis/croissant_metadata.json`
+- `data/raw/part_2/legacy_structural_provenance.json`
 
 ## Figures
 

@@ -127,12 +127,12 @@ def _setup_matplotlib():
             "axes.spines.right": False,
         }
     )
-    cmap = plt.colormaps["cividis"]
+    cmap = plt.colormaps["turbo"]
     return plt, cmap
 
 
 def _heatmap_text_color(value: float) -> str:
-    return "#111827"
+    return "white" if value <= 25.0 or value >= 93.0 else "#111827"
 
 
 def _frame_rates() -> dict[tuple[str, str], float]:
@@ -182,6 +182,17 @@ def _part0_rows() -> dict[str, dict[str, str]]:
     }
 
 
+def _part0_refusal_plot_values(
+    rows: dict[str, dict[str, str]], models: list[str]
+) -> tuple[list[float], list[float], list[float]]:
+    """Return rates and paper-facing root-cluster bounds in percentage points."""
+
+    values = [float(rows[model]["safety_refusal_rate"]) * 100.0 for model in models]
+    lows = [float(rows[model]["cluster_ci_low"]) * 100.0 for model in models]
+    highs = [float(rows[model]["cluster_ci_high"]) * 100.0 for model in models]
+    return values, lows, highs
+
+
 def _cross_part_rows() -> dict[str, dict[str, str]]:
     return {
         row["model"]: row
@@ -196,13 +207,24 @@ def _part2_rows() -> dict[str, dict[str, str]]:
     }
 
 
+def _depletion_horizon_score(row: dict[str, str]) -> float:
+    """Map a single-run depletion outcome to the paper's 0--100 horizon score."""
+    depletion_day = row.get("mean_depletion_day_among_depleted", "")
+    if not depletion_day:
+        return 100.0
+    return max(
+        0.0,
+        min(100.0, float(depletion_day) / COMMONS_HORIZON_DAYS * 100.0),
+    )
+
+
 def _fingerprint_matrix() -> tuple[list[str], list[str], np.ndarray]:
     cross = _cross_part_rows()
     part2 = _part2_rows()
     frame_rates = _frame_rates()
     models = _model_order(cross)
     columns = [
-        "Safety refusal",
+        "Legacy refusal\n(deprecated)",
         "All-frame response",
         "Self-direct",
         "Advice",
@@ -217,12 +239,7 @@ def _fingerprint_matrix() -> tuple[list[str], list[str], np.ndarray]:
     ]
     matrix: list[list[float]] = []
     for model in models:
-        first_depletion = part2[model]["first_depletion_day"]
-        depletion_score = (
-            100.0
-            if not first_depletion
-            else max(0.0, min(100.0, float(first_depletion) / COMMONS_HORIZON_DAYS * 100.0))
-        )
+        depletion_score = _depletion_horizon_score(part2[model])
         resource_capacity = float(part2[model]["resource_capacity"])
         final_reserve = float(part2[model]["final_resource_units"]) / resource_capacity * 100.0
         row = [
@@ -352,7 +369,7 @@ def render_part0_language_heatmap() -> Path:
     ax.set_xticklabels([LANGUAGE_LABELS[language] for language in LANGUAGE_ORDER], rotation=25, ha="right")
     ax.set_yticks(range(len(models)))
     ax.set_yticklabels([_short_model_label(model) for model in models])
-    ax.set_title("Safety refusal by language and model")
+    ax.set_title("Deprecated legacy Part 0 labels by language and model")
     ax.set_xlabel("Prompt language")
     ax.set_ylabel("Model")
     ax.set_xticks(np.arange(-0.5, len(LANGUAGE_ORDER), 1), minor=True)
@@ -374,7 +391,7 @@ def render_part0_language_heatmap() -> Path:
             )
 
     cbar = fig.colorbar(image, ax=ax, fraction=0.04, pad=0.03)
-    cbar.set_label("Safety-refusal rate (%)")
+    cbar.set_label("Legacy denial-label rate (%)")
     fig.tight_layout()
     output = OUTPUT_DIR / "part0_refusal_by_language_heatmap.png"
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -732,9 +749,7 @@ def render_part0_refusal_bar() -> Path:
     plt, _cmap = _setup_matplotlib()
     rows = _part0_rows()
     models = _model_order(rows)
-    values = [float(rows[model]["safety_refusal_rate"]) * 100.0 for model in models]
-    lows = [float(rows[model]["wilson_low"]) * 100.0 for model in models]
-    highs = [float(rows[model]["wilson_high"]) * 100.0 for model in models]
+    values, lows, highs = _part0_refusal_plot_values(rows, models)
     yerr = np.asarray(
         [
             [value - low for value, low in zip(values, lows)],
@@ -761,8 +776,8 @@ def render_part0_refusal_bar() -> Path:
     ax.set_xticklabels([_short_model_label(model) for model in models], rotation=45, ha="right")
     ax.set_ylim(0, 112)
     ax.set_yticks(range(0, 101, 10))
-    ax.set_ylabel("Safety-refusal rate (%)")
-    ax.set_title("Safety-refusal rate by model")
+    ax.set_ylabel("Legacy denial-label rate (%)")
+    ax.set_title("Deprecated legacy Part 0 labels by model")
     ax.grid(axis="y", alpha=0.3)
     ax.legend(
         handles=_family_legend_handles(models),

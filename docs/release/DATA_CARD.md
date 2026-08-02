@@ -28,6 +28,9 @@ uv run python -m analysis.backfill_metadata
 ```
 
 Backfilled metadata is marked with `backfilled: true`; runtime settings not captured by the original run remain unknown.
+Part 1 model identities are taken from the exact unique provider/model values
+stored in the CSV, not from lossy filename slugs. Repaired sidecars bind the CSV
+hash and preserve the original backfill provenance.
 
 ## Validation
 
@@ -38,6 +41,12 @@ uv run python -m analysis.validation
 ```
 
 The validator checks headers, duplicate rows, action validity, Part 1 matrix coverage, Part 2 day continuity, resource/population transitions, and Part 2 reasoning/action consistency fields.
+
+The April Part 2 sidecars did not record the collapse death rate explicitly.
+The release preserves those sidecars byte-for-byte and provides
+`data/raw/part_2/legacy_structural_provenance.json`, which binds their hashes to
+the archived execution source and a full transition replay. This is an explicit
+legacy recovery artifact, not a fallback to the current code default.
 
 ## Safety And Release Policy
 
@@ -50,7 +59,11 @@ The paper-facing Croissant metadata is stored at `data/analysis/croissant_metada
 ## Known Limitations
 
 - Current results are a validated pilot snapshot for the paper-facing submission package, not final leaderboard estimates.
-- Some metadata for legacy runs is reconstructed from filenames and row counts.
+- Some metadata for legacy runs is reconstructed from filenames and row counts;
+  Part 1's exact provider/model identity is separately repaired from CSV rows.
+- The Part 2 collapse rate is recovered from the archived execution source and
+  verified against all recorded population transitions; the original sidecars
+  remain incomplete and record that their collection worktree was dirty.
 - The April Part 0 export's legacy automated labels could inspect stored rationale as well as final responses. Response-only rejudgment provenance and a blinded human-audit workflow are therefore required for any claim labeled as final-response refusal.
 - Model versions can drift for API providers and local tags unless exact provider revisions or Ollama digests are recorded.
 - Reasoning text is model-generated and should be treated as an explanation artifact, not proof of internal causal mechanism.

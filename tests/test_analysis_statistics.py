@@ -18,7 +18,16 @@ from analysis.statistics import (
     pearson_correlation,
     spearman_correlation,
 )
-from analysis.summarize_results import summarize_cross_part, summarize_part1, summarize_part2
+from analysis.summarize_results import (
+    PILOT_ROOT_BOOTSTRAP_METHOD,
+    PILOT_ROOT_BOOTSTRAP_REPLICATES,
+    PILOT_ROOT_BOOTSTRAP_SEED,
+    _root_cluster_rate_interval,
+    summarize_cross_part,
+    summarize_part0,
+    summarize_part1,
+    summarize_part2,
+)
 from experiments.part2.part_2 import PILOT_RESULT_HEADERS as PART2_RESULT_HEADERS
 
 
@@ -183,6 +192,18 @@ def test_cross_part_table_reports_all_correlations_and_influence_ranges(tmp_path
     assert {row["fisher_z_ci_note"] for row in correlations} == {
         "pearson_standard;rank_coefficients_approximate"
     }
+    assert {
+        (row["metric_x"], row["analysis_status"])
+        for row in correlations
+        if row["metric_x"] == "safety_refusal_rate"
+    } == {
+        ("safety_refusal_rate", "deprecated_legacy_part0_label_protocol")
+    }
+    assert all(
+        row["analysis_status"] == "supported_descriptive_pilot"
+        for row in correlations
+        if row["metric_x"] != "safety_refusal_rate"
+    )
     for row in correlations:
         assert row["pearson_fisher_z_low"]
         assert row["spearman_r"]
@@ -196,7 +217,16 @@ def test_part1_model_summary_uses_self_direct_as_primary_measure(tmp_path: Path)
     part_dir = raw_dir / "part_1"
     part_dir.mkdir(parents=True)
     csv_path = part_dir / "part1__ollama__qwen3-5__full__20260101_000000.csv"
-    fieldnames = ["provider", "model", "game", "frame", "domain", "presentation", "action"]
+    fieldnames = [
+        "provider",
+        "model",
+        "game",
+        "frame",
+        "domain",
+        "scenario_variant",
+        "presentation",
+        "action",
+    ]
     rows = [
         {
             "provider": "ollama",
@@ -204,6 +234,7 @@ def test_part1_model_summary_uses_self_direct_as_primary_measure(tmp_path: Path)
             "game": "prisoners_dilemma",
             "frame": "self_direct",
             "domain": "workplace",
+            "scenario_variant": "root-primary",
             "presentation": "structured",
             "action": "COOPERATE",
         },
@@ -214,6 +245,7 @@ def test_part1_model_summary_uses_self_direct_as_primary_measure(tmp_path: Path)
                 "game": "prisoners_dilemma",
                 "frame": "advice",
                 "domain": "workplace",
+                "scenario_variant": "root-advice",
                 "presentation": "structured",
                 "action": "DEFECT",
             }
@@ -233,6 +265,106 @@ def test_part1_model_summary_uses_self_direct_as_primary_measure(tmp_path: Path)
     assert float(summary["cooperation_rate"]) == 1.0
     assert int(summary["total"]) == 1
     assert float(summary["all_frames_cooperation_rate"]) == 0.25
+    assert summary["interval_method"] == PILOT_ROOT_BOOTSTRAP_METHOD
+    assert summary["interval_unit"] == "scenario_variant"
+    assert int(summary["interval_replicates"]) == PILOT_ROOT_BOOTSTRAP_REPLICATES
+    assert int(summary["interval_seed"]) == PILOT_ROOT_BOOTSTRAP_SEED
+    assert int(summary["root_cluster_count"]) == 1
+    assert float(summary["cluster_ci_low"]) == 1.0
+    assert float(summary["cluster_ci_high"]) == 1.0
+    assert "wilson_low" not in summary
+    assert summary["row_binomial_wilson_low_diagnostic"]
+
+
+def test_root_cluster_bootstrap_keeps_paired_rows_together_and_has_no_iid_fallback() -> None:
+    paired = [
+        ("root-a", 1),
+        ("root-a", 1),
+        ("root-a", 0),
+        ("root-b", 1),
+        ("root-b", 1),
+        ("root-b", 0),
+    ]
+
+    first = _root_cluster_rate_interval(paired)
+    second = _root_cluster_rate_interval(paired)
+
+    assert first == second
+    assert first == pytest.approx((2 / 3, 2 / 3, 2))
+    with pytest.raises(ValueError, match="design-root ID"):
+        _root_cluster_rate_interval([("", 1), ("", 0)])
+    with pytest.raises(ValueError, match="exactly 2,000"):
+        _root_cluster_rate_interval(paired, replicates=1_999)
+
+
+def test_part0_paper_summary_uses_base_prompt_cluster_intervals(tmp_path: Path) -> None:
+    raw_dir = tmp_path / "raw"
+    part_dir = raw_dir / "part_0"
+    part_dir.mkdir(parents=True)
+    rows = [
+        {
+            "provider": "ollama",
+            "model": "qwen3.5",
+            "language": language,
+            "prompt": prompt,
+            "complied?": complied,
+        }
+        for prompt, complied in (("root-a", "false"), ("root-b", "true"))
+        for language in ("english", "chinese", "russian")
+    ]
+    _write_rows(part_dir / "pilot.csv", rows)
+
+    first_dir = tmp_path / "tables-first"
+    second_dir = tmp_path / "tables-second"
+    summarize_part0(raw_dir, first_dir)
+    summarize_part0(raw_dir, second_dir)
+    [first] = _read_rows(first_dir / "part0_model_summary.csv")
+    [second] = _read_rows(second_dir / "part0_model_summary.csv")
+
+    assert first == second
+    assert float(first["safety_refusal_rate"]) == 0.5
+    assert float(first["cluster_ci_low"]) == 0.0
+    assert float(first["cluster_ci_high"]) == 1.0
+    assert first["interval_method"] == PILOT_ROOT_BOOTSTRAP_METHOD
+    assert first["interval_unit"] == "base_prompt"
+    assert int(first["interval_replicates"]) == 2_000
+    assert int(first["interval_seed"]) == PILOT_ROOT_BOOTSTRAP_SEED
+    assert int(first["root_cluster_count"]) == 2
+    assert 0.0 < float(first["row_binomial_wilson_low_diagnostic"]) < 0.5
+    assert 0.5 < float(first["row_binomial_wilson_high_diagnostic"]) < 1.0
+    assert "wilson_low" not in first
+
+
+def test_checked_in_pilot_uses_99_part0_and_48_part1_root_clusters(
+    tmp_path: Path,
+) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    raw_dir = repo_root / "data" / "raw"
+    summarize_part0(raw_dir, tmp_path)
+    summarize_part1(raw_dir, tmp_path)
+
+    part0_rows = _read_rows(tmp_path / "part0_model_summary.csv")
+    part1_rows = _read_rows(tmp_path / "part1_model_summary.csv")
+    dimension_rows = _read_rows(tmp_path / "part1_dimension_summary.csv")
+
+    assert {int(row["root_cluster_count"]) for row in part0_rows} == {99}
+    assert {int(row["root_cluster_count"]) for row in part1_rows} == {48}
+    assert {
+        dimension: {
+            int(item["root_cluster_count"])
+            for item in dimension_rows
+            if item["dimension"] == dimension
+        }
+        for dimension in {row["dimension"] for row in dimension_rows}
+    } == {
+        "domain": {8},
+        "frame": {48},
+        "game": {24},
+        "presentation": {48},
+    }
+    assert {row["interval_method"] for row in [*part0_rows, *part1_rows]} == {
+        PILOT_ROOT_BOOTSTRAP_METHOD
+    }
 
 
 def _write_part2_run(path: Path, actions: list[str]) -> None:

@@ -45,6 +45,9 @@ PART1_FACTORS = ("model", "frame", "game", "domain", "presentation")
 PART1_SENSITIVITY_DIMENSIONS = ("frame", "game", "domain", "presentation")
 PART1_FRAME_COMPARISONS = ("observer_evaluation", "self_direct", "advice")
 PART1_FRAME_BASELINE = "prediction"
+PILOT_ROOT_BOOTSTRAP_REPLICATES = 2_000
+PILOT_ROOT_BOOTSTRAP_SEED = 20260802
+PILOT_ROOT_BOOTSTRAP_METHOD = "root_cluster_bootstrap_percentile_95"
 
 
 def _read_rows(path: Path) -> list[dict[str, str]]:
@@ -72,6 +75,49 @@ def _wilson_interval(successes: int, total: int, z: float = 1.959963984540054) -
     center = (phat + z * z / (2 * total)) / denom
     margin = z * ((phat * (1 - phat) + z * z / (4 * total)) / total) ** 0.5 / denom
     return max(0.0, center - margin), min(1.0, center + margin)
+
+
+def _percentile(values: list[float], probability: float) -> float:
+    ordered = sorted(values)
+    position = probability * (len(ordered) - 1)
+    lower = math.floor(position)
+    upper = math.ceil(position)
+    if lower == upper:
+        return ordered[lower]
+    weight = position - lower
+    return ordered[lower] * (1.0 - weight) + ordered[upper] * weight
+
+
+def _root_cluster_rate_interval(
+    observations: list[tuple[str, int]],
+    *,
+    replicates: int = PILOT_ROOT_BOOTSTRAP_REPLICATES,
+    seed: int = PILOT_ROOT_BOOTSTRAP_SEED,
+) -> tuple[float, float, int]:
+    """Percentile interval resampling roots while retaining all rows per root."""
+
+    if replicates != PILOT_ROOT_BOOTSTRAP_REPLICATES:
+        raise ValueError("pilot root-cluster intervals require exactly 2,000 replicates")
+    if not observations:
+        raise ValueError("root-cluster interval requires judged observations")
+    clusters: dict[str, list[int]] = defaultdict(list)
+    for root_id, outcome in observations:
+        if not isinstance(root_id, str) or not root_id.strip():
+            raise ValueError(
+                "root-cluster interval requires a nonempty independent design-root ID"
+            )
+        if outcome not in {0, 1}:
+            raise ValueError("root-cluster interval outcomes must equal zero or one")
+        clusters[root_id].append(outcome)
+    root_ids = sorted(clusters)
+    rng = random.Random(seed)
+    draws: list[float] = []
+    for _replicate in range(replicates):
+        selected = [rng.choice(root_ids) for _ in root_ids]
+        successes = sum(sum(clusters[root_id]) for root_id in selected)
+        total = sum(len(clusters[root_id]) for root_id in selected)
+        draws.append(successes / total)
+    return _percentile(draws, 0.025), _percentile(draws, 0.975), len(root_ids)
 
 
 def _write_csv(path: Path, fieldnames: list[str], rows: list[dict[str, object]]) -> None:
@@ -167,6 +213,7 @@ def _part0_language_robustness_rows(
 def summarize_part0(raw_dir: Path, output_dir: Path) -> tuple[Path, Path]:
     counts: dict[tuple[str, str], Counter[str]] = defaultdict(Counter)
     language_counts: dict[tuple[str, str, str], Counter[str]] = defaultdict(Counter)
+    root_observations: dict[tuple[str, str], list[tuple[str, int]]] = defaultdict(list)
     model_metadata: dict[tuple[str, str], ModelMetadata] = {}
     for path in _csv_paths(raw_dir / "part_0"):
         sidecar = _metadata_for_csv(path)
@@ -177,6 +224,11 @@ def summarize_part0(raw_dir: Path, output_dir: Path) -> tuple[Path, Path]:
             key = _model_key(row)
             model_metadata[key] = resolve_model_metadata(key[0], key[1], sidecar)
             counts[key][verdict or "skipped"] += 1
+            if verdict in {"denied", "complied"}:
+                root_id = row.get("base_prompt_id", "").strip() or row.get(
+                    "prompt", ""
+                ).strip()
+                root_observations[key].append((root_id, int(verdict == "denied")))
             language = row.get("language", "").strip().lower()
             if language and verdict in {"denied", "complied"}:
                 language_counts[(key[0], key[1], language)][verdict] += 1
@@ -187,7 +239,10 @@ def summarize_part0(raw_dir: Path, output_dir: Path) -> tuple[Path, Path]:
         complied = counter["complied"]
         skipped = counter["skipped"]
         total = denied + complied
-        low, high = _wilson_interval(denied, total)
+        cluster_low, cluster_high, root_count = _root_cluster_rate_interval(
+            root_observations[(provider, model)]
+        )
+        row_low, row_high = _wilson_interval(denied, total)
         grouping = model_metadata[(provider, model)]
         rows.append(
             {
@@ -201,8 +256,15 @@ def summarize_part0(raw_dir: Path, output_dir: Path) -> tuple[Path, Path]:
                 "complied": complied,
                 "skipped": skipped,
                 "safety_refusal_rate": denied / total if total else "",
-                "wilson_low": low if total else "",
-                "wilson_high": high if total else "",
+                "cluster_ci_low": cluster_low,
+                "cluster_ci_high": cluster_high,
+                "interval_method": PILOT_ROOT_BOOTSTRAP_METHOD,
+                "interval_unit": "base_prompt",
+                "interval_replicates": PILOT_ROOT_BOOTSTRAP_REPLICATES,
+                "interval_seed": PILOT_ROOT_BOOTSTRAP_SEED,
+                "root_cluster_count": root_count,
+                "row_binomial_wilson_low_diagnostic": row_low,
+                "row_binomial_wilson_high_diagnostic": row_high,
             }
         )
 
@@ -221,8 +283,15 @@ def summarize_part0(raw_dir: Path, output_dir: Path) -> tuple[Path, Path]:
             "complied",
             "skipped",
             "safety_refusal_rate",
-            "wilson_low",
-            "wilson_high",
+            "cluster_ci_low",
+            "cluster_ci_high",
+            "interval_method",
+            "interval_unit",
+            "interval_replicates",
+            "interval_seed",
+            "root_cluster_count",
+            "row_binomial_wilson_low_diagnostic",
+            "row_binomial_wilson_high_diagnostic",
         ],
         rows,
     )
@@ -444,7 +513,9 @@ def summarize_part1(raw_dir: Path, output_dir: Path) -> tuple[Path, Path, Path, 
                     dimension_counts[(key[1], dimension, row.get(dimension, ""))][outcome] += 1
             observations.append(
                 {
+                    "provider": key[0],
                     "model": key[1],
+                    "scenario_variant": row.get("scenario_variant", "").strip(),
                     "frame": row.get("frame", ""),
                     "game": row.get("game", ""),
                     "domain": row.get("domain", ""),
@@ -460,7 +531,25 @@ def summarize_part1(raw_dir: Path, output_dir: Path) -> tuple[Path, Path, Path, 
         all_counter = all_frame_model_counts[(provider, model)]
         all_cooperate = all_counter["cooperate"]
         all_total = all_cooperate + all_counter["defect_or_overuse"]
-        low, high = _wilson_interval(cooperate, total)
+        primary_observations = [
+            (str(observation["scenario_variant"]), int(observation["cooperate"]))
+            for observation in observations
+            if observation["provider"] == provider
+            and observation["model"] == model
+            and observation["frame"] == "self_direct"
+        ]
+        all_observations = [
+            (str(observation["scenario_variant"]), int(observation["cooperate"]))
+            for observation in observations
+            if observation["provider"] == provider and observation["model"] == model
+        ]
+        cluster_low, cluster_high, root_count = _root_cluster_rate_interval(
+            primary_observations
+        )
+        all_cluster_low, all_cluster_high, all_root_count = (
+            _root_cluster_rate_interval(all_observations)
+        )
+        row_low, row_high = _wilson_interval(cooperate, total)
         grouping = model_metadata[(provider, model)]
         model_rows.append(
             {
@@ -474,11 +563,21 @@ def summarize_part1(raw_dir: Path, output_dir: Path) -> tuple[Path, Path, Path, 
                 "cooperative": cooperate,
                 "non_cooperative": counter["defect_or_overuse"],
                 "cooperation_rate": cooperate / total if total else "",
-                "wilson_low": low if total else "",
-                "wilson_high": high if total else "",
+                "cluster_ci_low": cluster_low,
+                "cluster_ci_high": cluster_high,
+                "interval_method": PILOT_ROOT_BOOTSTRAP_METHOD,
+                "interval_unit": "scenario_variant",
+                "interval_replicates": PILOT_ROOT_BOOTSTRAP_REPLICATES,
+                "interval_seed": PILOT_ROOT_BOOTSTRAP_SEED,
+                "root_cluster_count": root_count,
+                "row_binomial_wilson_low_diagnostic": row_low,
+                "row_binomial_wilson_high_diagnostic": row_high,
                 "all_frames_total": all_total,
                 "all_frames_cooperative": all_cooperate,
                 "all_frames_cooperation_rate": all_cooperate / all_total if all_total else "",
+                "all_frames_cluster_ci_low": all_cluster_low,
+                "all_frames_cluster_ci_high": all_cluster_high,
+                "all_frames_root_cluster_count": all_root_count,
             }
         )
 
@@ -486,7 +585,19 @@ def summarize_part1(raw_dir: Path, output_dir: Path) -> tuple[Path, Path, Path, 
     for (model, dimension, value), counter in sorted(dimension_counts.items()):
         cooperate = counter["cooperate"]
         total = cooperate + counter["defect_or_overuse"]
-        low, high = _wilson_interval(cooperate, total)
+        scoped_observations = [
+            (str(observation["scenario_variant"]), int(observation["cooperate"]))
+            for observation in observations
+            if observation["model"] == model
+            and (
+                observation[dimension] == value
+                and (dimension == "frame" or observation["frame"] == "self_direct")
+            )
+        ]
+        cluster_low, cluster_high, root_count = _root_cluster_rate_interval(
+            scoped_observations
+        )
+        row_low, row_high = _wilson_interval(cooperate, total)
         dimension_rows.append(
             {
                 "model": model,
@@ -496,8 +607,15 @@ def summarize_part1(raw_dir: Path, output_dir: Path) -> tuple[Path, Path, Path, 
                 "total": total,
                 "cooperative": cooperate,
                 "cooperation_rate": cooperate / total if total else "",
-                "wilson_low": low if total else "",
-                "wilson_high": high if total else "",
+                "cluster_ci_low": cluster_low,
+                "cluster_ci_high": cluster_high,
+                "interval_method": PILOT_ROOT_BOOTSTRAP_METHOD,
+                "interval_unit": "scenario_variant",
+                "interval_replicates": PILOT_ROOT_BOOTSTRAP_REPLICATES,
+                "interval_seed": PILOT_ROOT_BOOTSTRAP_SEED,
+                "root_cluster_count": root_count,
+                "row_binomial_wilson_low_diagnostic": row_low,
+                "row_binomial_wilson_high_diagnostic": row_high,
             }
         )
 
@@ -519,11 +637,21 @@ def summarize_part1(raw_dir: Path, output_dir: Path) -> tuple[Path, Path, Path, 
             "cooperative",
             "non_cooperative",
             "cooperation_rate",
-            "wilson_low",
-            "wilson_high",
+            "cluster_ci_low",
+            "cluster_ci_high",
+            "interval_method",
+            "interval_unit",
+            "interval_replicates",
+            "interval_seed",
+            "root_cluster_count",
+            "row_binomial_wilson_low_diagnostic",
+            "row_binomial_wilson_high_diagnostic",
             "all_frames_total",
             "all_frames_cooperative",
             "all_frames_cooperation_rate",
+            "all_frames_cluster_ci_low",
+            "all_frames_cluster_ci_high",
+            "all_frames_root_cluster_count",
         ],
         model_rows,
     )
@@ -537,8 +665,15 @@ def summarize_part1(raw_dir: Path, output_dir: Path) -> tuple[Path, Path, Path, 
             "total",
             "cooperative",
             "cooperation_rate",
-            "wilson_low",
-            "wilson_high",
+            "cluster_ci_low",
+            "cluster_ci_high",
+            "interval_method",
+            "interval_unit",
+            "interval_replicates",
+            "interval_seed",
+            "root_cluster_count",
+            "row_binomial_wilson_low_diagnostic",
+            "row_binomial_wilson_high_diagnostic",
         ],
         dimension_rows,
     )
@@ -1181,6 +1316,16 @@ def summarize_cross_part(output_dir: Path) -> tuple[Path, Path]:
         row: dict[str, object] = {
             "metric_x": left_metric,
             "metric_y": right_metric,
+            "analysis_status": (
+                "deprecated_legacy_part0_label_protocol"
+                if "safety_refusal_rate" in {left_metric, right_metric}
+                else "supported_descriptive_pilot"
+            ),
+            "analysis_note": (
+                "Excluded from paper findings pending complete response-only rejudgment and human validation."
+                if "safety_refusal_rate" in {left_metric, right_metric}
+                else "Descriptive across 13 related variants; not vendor- or architecture-level inference."
+            ),
             "n_models": len(model_rows),
             "n_families": len(set(family_groups)),
             "cooperation_measure": "self_direct",
@@ -1216,6 +1361,8 @@ def summarize_cross_part(output_dir: Path) -> tuple[Path, Path]:
         [
             "metric_x",
             "metric_y",
+            "analysis_status",
+            "analysis_note",
             "n_models",
             "n_families",
             "cooperation_measure",

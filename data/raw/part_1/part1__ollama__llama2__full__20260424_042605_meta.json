@@ -80,5 +80,10 @@
   "limit": null,
   "total_prompts": 384,
   "backfilled": true,
-  "backfill_note": "Created from filename and available CSV row count. Provider runtime settings not captured by the original run remain unknown."
+  "backfill_note": "Created from filename and available CSV row count. Provider runtime settings not captured by the original run remain unknown.",
+  "identity_repair": {
+    "method": "unique_csv_provider_model",
+    "csv_sha256": "53fad0eb8d7c59e262f90ee817ba608d5c93ffd4f18852472e3f4d58d7a2fd55",
+    "note": "Legacy sidecar identity was reconstructed from a lossy filename slug; exact provider/model values are taken from every CSV row."
+  }
 }
