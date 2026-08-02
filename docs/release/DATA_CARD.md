@@ -6,7 +6,7 @@ The repository stores experiment outputs under `data/raw/`:
 
 - `part_0`: safety/refusal benchmark outputs.
 - `part_1`: focal choices and role-conditioned responses to hypothetical social dilemmas, with justifications.
-- `part_2`: commons-simulation decisions, reasoning, day summaries, and survival/resource state.
+- `part_2`: tokens and state traces from a prompt--engine-mismatched repeated-resource protocol. These records support contract diagnosis, not commons-preference measurement.
 
 Derived, graph-independent artifacts are stored under `data/analysis/`:
 
@@ -54,11 +54,11 @@ Part 0 includes harmful-request evaluation prompts and may contain harmful model
 
 The anonymous supplement is built with `uv run python -m analysis.build_supplement`. It includes Part 1/Part 2 raw CSVs and metadata sidecars, supported derived tables and figures, code, tests, validation outputs, and release documentation. It excludes raw Part 0 content, invalid legacy Part 0 rate tables, all dependent cross-part tables and plots, and author-identifying proposal metadata by default.
 
-The paper-facing Croissant metadata is stored at `data/analysis/croissant_metadata.json`. It documents the derived tables, validation report, manifest, access conditions, and responsible-use constraints used for the current anonymous submission package.
+The paper-facing Croissant metadata is stored at `data/analysis/croissant_metadata.json`. It documents the raw Part 1/Part 2 traces, derived tables, validation report, manifest, access conditions, provenance, and responsible-use constraints used for the current anonymous submission package.
 
 ## Known Limitations
 
-- Current results are a structurally validated Part 1/Part 2 pilot snapshot for the local paper-facing package, not final leaderboard estimates. Part 0 model-level evidence is withdrawn.
+- Current results are a structurally validated pilot snapshot for the local paper-facing package, not final leaderboard estimates. Part 0 model-level evidence is withdrawn; Part 2 supports only prompt--engine contract diagnosis and transition replay.
 - Some metadata for legacy runs is reconstructed from filenames and row counts;
   Part 1's exact provider/model identity is separately repaired from CSV rows.
 - The Part 2 collapse rate is recovered from the archived execution source and

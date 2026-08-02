@@ -37,7 +37,7 @@ Behavioral benchmarks can produce precise model comparisons even when their labe
 We audit Prosocial Cost-Shifting Bench, a three-part pilot spanning multilingual harmful-request response, one-shot focal choices, and a repeated 50-agent resource task, using 56,382 stored rows from 13 local/open-weight variants.
 Only Part~1 direct-choice summaries remain interpretable as descriptive action-label rates: they span 6.2--100.0\%, but one eventually valid response per cell, unknown decoding settings, and mutable model tags preclude run-level inference.
 A response-only rejudgment changes 300 of 1,243 adjudicated legacy Part~0 labels (24.1\%), so Part~0 is unavailable as an evaluation module pending complete rejudgment and human validation.
-In Part~2, the prompt describes private and group payoffs that the engine never implements. Its 18.6--92.5\% stored restraint-token rates and 13 single trajectories therefore diagnose a prompt--engine contract failure, not commons preference or run-level model effects.
+In Part~2, the prompt describes private and group payoffs that the engine never implements. Its 18.6--92.5\% stored \texttt{OPTION\_A} token rates and 13 single trajectories therefore diagnose a prompt--engine contract failure, not commons preference or run-level model effects.
 The artifact packages traces, schemas, validation, and provenance needed to expose these failures. The result is a negative benchmark audit: traceability withdraws or reclassifies attractive comparisons before they become safety claims.
 \end{abstract}
 
@@ -52,7 +52,7 @@ The pilot covers 13 related local/open-weight variants. Partial response-only re
 
 Our contributions are:
 \begin{itemize}
-    \item \textbf{Benchmark audit.} We map three candidate probes to explicit task contracts and test whether the stored artifacts support their intended estimands.
+    \item \textbf{Reusable claim-status audit.} We specify ordered contract, label, independence-unit, and provenance gates that retain, narrow, reclassify, or withdraw a candidate claim rather than merely documenting its inputs.
     \item \textbf{Negative findings.} We make Part~0 unavailable as an evaluation module, identify Part~2 as a prompt--engine contract failure, and delimit Part~1 to descriptive action-label summaries.
     \item \textbf{Traceable evidence.} We trace 56,382 stored rows to the available prompts, schemas, sidecars, manifests, validation, derived outputs, and reproduction commands, while enumerating unavailable artifacts and unsupported claims.
 \end{itemize}
@@ -122,6 +122,9 @@ The intended constructs are not interchangeable, and an operational metric is no
 \paragraph{Make every claim traceable to stored artifacts.}
 Each run produces structured CSV output, actions, justifications when available, and metadata sidecars. Derived tables, validation reports, and figures are generated from these artifacts so the paper can be audited against stored traces rather than plot files alone.
 
+\paragraph{Apply a reusable claim-status protocol.}
+For each candidate metric, the audit applies four ordered gates: (1)~the prompt, engine, and scoring rule must define the same task contract; (2)~labels and failure states must match the claimed observable and have task-specific validation; (3)~the analysis unit and uncertainty calculation must match the design's independent sampling unit; and (4)~the raw trace, identity, settings, and state transitions must be recoverable or explicitly marked missing. Passing all gates permits the prespecified claim; a contract failure reclassifies the artifact as protocol-diagnostic evidence; a label or required-validation failure withdraws the metric; and an independence or provenance failure narrows it to a finite-artifact descriptive summary. This claim-state transition is the contribution beyond a passive data card: documentation records what exists, whereas the gates determine which conclusions those records license. Applied here, the same protocol yields three different states---withdrawn (Part~0), descriptive (Part~1), and reclassified (Part~2)---without rescuing a failed module through downstream statistics.
+
 \subsection{Construct Map and Selection Rationale}
 Table~\ref{tab:construct-map} states what each probe measures and, equally important, what it omits. The suite is deliberately non-exhaustive. Fairness, truthfulness, helping, negotiation, reputation, and institutional behavior are candidates for future modules rather than unmeasured evidence of prosociality.
 
@@ -145,7 +148,7 @@ Part~2 contract audit & Homogeneous population & Choose stated multiplier & Repe
 \subsection{Part 0: Unavailable Safety-Refusal Module}
 Part 0 presents harmful-request prompts and records whether the model refuses or materially complies. Prompts are drawn directly from JailbreakBench harmful behaviors and HarmBench standard behavior prompts \citep{chao2024jailbreakbench,mazeika2024harmbench}. The release uses one shared prompt-language matrix for every model: 99 base prompt texts rendered in English, Chinese, and Russian, for 297 judged rows per model and 3,861 rows total. The exact English base prompts and output language are preserved. The exact Google-Translate strings sent in the April pilot were not stored, so localized-prompt replay is not byte-identical; current runs store a \texttt{prompt\_sent} field. These public benchmarks may also have appeared in model pretraining or safety tuning; the probe measures responses on a known public set, not unseen-prompt generalization. Cross-language claims remain constrained by the translation record and multilingual jailbreak precedent \citep{deng2024multilingual}.
 
-The April pilot used a two-stage automated labeler: a lexical material-compliance shortcut followed by an LLM judge configured first as \modeltag{ollama/gpt-oss-safeguard:20b}, with \modeltag{ollama/gpt-oss:20b} as fallback. Both the shortcut and the legacy judge prompt could score material in either the stored rationale or final response, and exhausted or invalid judge attempts were stored as denial rather than unjudged. The compact pilot CSV did not retain which route, failure, or judge produced each label. A deterministic response-only rejudgment has adjudicated 1,243 of 3,861 rows and changes 300 labels (24.1\%): 275 legacy-complied rows become denied and 25 change in the other direction. A sanitized checkpoint in \path{data/analysis/part0_rejudge_audit_checkpoint.json} records the transition counts, coverage, limitations, and SHA-256 of the withheld harmful-content source. Because this incomplete single-judge audit establishes material protocol sensitivity but not corrected rates, the paper reports only these aggregate instability counts for Part~0.
+The April pilot used a two-stage automated labeler: a lexical material-compliance shortcut followed by an LLM judge configured first as \modeltag{ollama/gpt-oss-safeguard:20b}, with \modeltag{ollama/gpt-oss:20b} as fallback. Both the shortcut and the legacy judge prompt could score material in either the stored rationale or final response, and exhausted or invalid judge attempts were stored as denial rather than unjudged. The compact pilot CSV did not retain which route, failure, or judge produced each label. A deterministic response-only rejudgment has adjudicated a non-random fixed prefix of 1,243 of 3,861 rows, covering only five of thirteen models and with uneven per-model counts (64, 295, 297, 297, and 290). It changes 300 labels (24.1\%): 275 legacy-complied rows become denied and 25 change in the other direction. A sanitized checkpoint in \path{data/analysis/part0_rejudge_audit_checkpoint.json} records the transition counts, coverage, limitations, and SHA-256 of the withheld harmful-content source. Because this incomplete single-judge audit establishes material protocol sensitivity but not corrected rates, the paper reports only these aggregate instability counts for Part~0.
 
 The current protocol removes the lexical shortcut, gives the judge the harmful request as context but scores only the response, records every route, attempt, failure, and verdict, uses an explicit unjudged state, and neither requests nor stores hidden chain-of-thought. The exact legacy prompt is archived as \path{experiments/part0/part_0_prompt.legacy_20260411.json}. A deterministic blinded human-audit packet and scoring workflow are provided in \path{analysis/judge_audit.py}, but quantitative human labels are not fabricated or claimed here. General LLM-as-judge studies document systematic judge biases; they do not validate this task-specific classifier \citep{zheng2023judging}.
 
@@ -178,10 +181,10 @@ computed over frames, games, domains, and presentation styles. Because the promp
 \subsection{Part 2: Prompt--Engine Contract Audit}
 Part 2 was intended as a controlled population microworld rather than a simulation of a real society \citep{hardin1968tragedy,ostrom1990governing,piatti2024govsim}. Each configured run starts with 50 active policies, a 100-day horizon, and a water reserve with capacity 2,500 units. The legacy pilot prompt described \texttt{OPTION\_A} as a 1x private score multiplier and \texttt{OPTION\_B} as a higher private multiplier. It also stated that the group-level score would change by +5 if all participants selected \texttt{OPTION\_A} and by -5 if all selected \texttt{OPTION\_B}. The engine never computed, stored, or fed back either individual or group scores. Operationally, \texttt{OPTION\_A} maps to \texttt{RESTRAIN} and leaves the reserve unchanged, whereas \texttt{OPTION\_B} maps to \texttt{OVERUSE} and reduces it by 2 units. Every policy receives the same aggregate state: current day, living population, reserve, and previous-day \texttt{OPTION\_B} count. Actions and rationales may therefore respond to stated score incentives that were absent from the implemented environment. The audit treats the stored traces as evidence of that contract mismatch, not as estimates from a realized commons payoff system.
 
-The stored action summary is the fraction of tokens mapped to restraint:
+The stored action summary is the fraction of \texttt{OPTION\_A} tokens:
 \[
-\mathrm{restraint} =
-\frac{\#\mathrm{restrain}}{\#\mathrm{restrain}+\#\mathrm{overuse}}.
+\mathrm{OPTION\_A\ rate} =
+\frac{\#\mathrm{OPTION\_A}}{\#\mathrm{OPTION\_A}+\#\mathrm{OPTION\_B}}.
 \]
 For transition replay and contract diagnosis, Part~2 also reports final reserve, first depletion day, final population, total deaths, reserve nondepletion through the horizon, and normalized area under the reserve curve (AURC) and population curve (AUPC). Reserve nondepletion and retention of a nonzero simulated population are distinct mechanical outcomes:
 \[
@@ -207,8 +210,6 @@ The release contains 56,382 stored rows with 0 structural validation failures ac
 
 \section{Evaluation Protocol}
 For each model and part, the analysis pipeline computes the retained summary and task-specific diagnostics. Paper-facing Part~1 bands use a deterministic 2,000-replicate percentile cluster bootstrap with seed 20260802, resampling the fixed bank of 48 scenario-variant roots while retaining their frames and presentations \citep{efron1979bootstrap}. These are finite-bank root-resampling sensitivity intervals: they describe dependence on the observed root bank and do not estimate generation variability or a scenario superpopulation. Row-binomial Wilson bounds are retained only as explicitly named diagnostics, not confidence intervals for the independent sampling units \citep{wilson1927probable}. Part~1 computes calibration contrasts, prompt-sensitivity indices, and a balanced main-effect variance decomposition, with direct self-choice as the designated primary estimand and all-frame pooling secondary. Part~2 summarizes each contract-mismatched trajectory; the pilot has one trajectory per model and therefore no run-level interval. It also computes first depletion day, final reserve, final population, total deaths, reserve nondepletion, AURC, and AUPC for transition diagnosis. Retrospective model-level association analysis reports Pearson, Spearman, and Kendall $\tau_b$ correlations, conventional exchangeability-reference Fisher-transform intervals, 2,000-replicate finite-panel model-row sensitivity intervals with seed 20260429, and leave-one-model/family-out ranges. Fisher-transform intervals for rank coefficients are approximate reference calculations. Because 13 related model variants are not an exchangeable population sample, none of the association intervals supports population inference; the family-deletion range is emphasized.
-
-The separately frozen confirmatory protocol does not change the status of this pilot. Its Part~1 design has 384 independent scenario roots, exactly 32 in each of 12 game-by-domain strata; the finite-bank bootstrap resamples roots within each stratum and retains \texttt{INVALID} outcomes in the denominator as noncooperation. Its Part~2 design uses 24 common environment/generation seed offsets across routes and retains invalid decisions as nonrestraint: paired analyses resample each common seed once and apply it jointly across routes, per-route AURC uses a trajectory-level $t$ interval, and binary reserve nondepletion uses a trajectory-level Wilson interval. Marginal route intervals are not simultaneous and interval overlap is not a route-difference test. Cross-part coefficients remain descriptive unless permutation is performed on prespecified equal-weight developer summaries under an explicit developer-exchangeability assumption. The three cross-part associations form one Holm family; the five sensitivity main effects across six sentinels form a separate global 30-test Holm family.
 
 Part 1 and Part 2 require parseable JSON actions. Each action receives at most three attempts, and an incomplete run receives at most three run attempts before failing with a provenance-bearing metadata sidecar. The April pilot traversed the Part~1 matrix in fixed construction order and retained only the eventual valid response. Thus the displayed pilot denominators contain 0 retained invalid actions (0/4,992 Part~1 rows and 0/47,529 Part~2 rows), but those zeros do not estimate first-attempt invalidity or retry rates. The current runner uses a recorded seed for shuffled, cyclically counterbalanced Part~1 orders and writes every raw success, parse failure, provider error, and interruption to a durable attempt log with counts and hashes in metadata. These corrections govern confirmatory runs but do not retroactively randomize the pilot.
 
@@ -246,7 +247,7 @@ Model & Part~1 action label [root sensitivity] & Part~2 stored \texttt{OPTION\_A
 These findings over 13 related local/open-weight variants document what the stored pilot can and cannot support; they do not estimate vendor or architecture effects.
 
 \paragraph{The Part~0 audit disqualifies the legacy safety results.}
-The incomplete response-only rejudgment changes 300 of 1,243 adjudicated rows (24.1\%): 275 legacy-complied rows become denied and 25 change in the other direction. This aggregate instability count is the only Part~0 pilot result reported in the paper. Exact localized prompts and row-level legacy judge failures are unavailable, and the replacement judge has not yet passed the planned human audit.
+The incomplete response-only rejudgment changes 300 of 1,243 adjudicated rows (24.1\%): 275 legacy-complied rows become denied and 25 change in the other direction. These rows are a non-random fixed prefix spanning only five of thirteen models, with uneven coverage, so the percentage is an audit-instability diagnostic rather than an estimate for the full pilot. This aggregate count is the only Part~0 pilot result reported in the paper. Exact localized prompts and row-level legacy judge failures are unavailable, and the replacement judge has not yet passed the planned human audit.
 
 \paragraph{Direct choices vary, and role probes calibrate prompt semantics.}
 The primary direct self-choice cooperation rate ranges from 6.2\% to 100.0\% across models and is 61.4\% across all self-choice rows. As a calibration check, the same action labels appear in 66.8\% of advice prompts, 83.2\% of observer-evaluation prompts, and 4.9\% of prediction prompts. These prompts ask different questions, so their contrasts are consistent with semantic sensitivity of the response contract rather than a substantive change in one cooperation construct. The pooled all-frame rate is retained only as a secondary response-profile summary. Appendix Figure~\ref{fig:game-family} gives descriptive game-family differences.
@@ -254,45 +255,45 @@ The primary direct self-choice cooperation rate ranges from 6.2\% to 100.0\% acr
 \begin{figure*}[!t]
 \centering
 \includegraphics[width=0.96\textwidth]{figures/part2_restraint_rate_by_model.png}
-\caption{Stored restraint-token rate in one contract-mismatched, state-coupled trajectory per model. These values are audit records, not commons-preference estimates; no run-uncertainty interval is available.}
+\caption{Stored \texttt{OPTION\_A} token rate in one contract-mismatched, state-coupled trajectory per model. These values are audit records, not commons-preference estimates; no run-uncertainty interval is available.}
 \label{fig:restraint-summary}
 \end{figure*}
 
 \paragraph{The Part~2 traces diagnose the mismatched contract.}
-Stored restraint-token rates range from 18.6\% to 92.5\% (Figure~\ref{fig:restraint-summary}). Seven of thirteen same-model populations preserve a nonzero population through the 100-day horizon; Appendix Table~\ref{tab:part2} gives the mechanically implied outcomes. Qwen~2.5 base/instruct and abliterate variants have 99--100\% Part~1 direct-choice action-label rates, while their Part~2 records contain 92.5\% and 92.3\% versus 18.6--18.7\% restraint tokens and the latter deplete by days 30--31. The three stored GPT-OSS traces first deplete on days 39 (derestricted), 67 (base), and 89 (safeguard). Qwen~3.5 instruct retains all 50 simulated policies through day 100 (AUPC 100\%) but finishes with 10 reserve units (AURC 19.8\%). Both Llama~2 traces retain all 50 policies, with 1,702 versus 344 final reserve units. These are reproducible trace contrasts under the broken contract, not evidence of model-level commons preferences.
+Stored \texttt{OPTION\_A} token rates range from 18.6\% to 92.5\% (Figure~\ref{fig:restraint-summary}). Seven of thirteen same-model populations preserve a nonzero population through the 100-day horizon; Appendix Table~\ref{tab:part2} gives the mechanically implied outcomes. Qwen~2.5 base/instruct and abliterate variants have 99--100\% Part~1 direct-choice action-label rates, while their Part~2 records contain 92.5\% and 92.3\% versus 18.6--18.7\% \texttt{OPTION\_A} tokens and the latter deplete by days 30--31. The three stored GPT-OSS traces first deplete on days 39 (derestricted), 67 (base), and 89 (safeguard). Qwen~3.5 instruct retains all 50 simulated policies through day 100 (AUPC 100\%) but finishes with 10 reserve units (AURC 19.8\%). Both Llama~2 traces retain all 50 policies, with 1,702 versus 344 final reserve units. These are reproducible trace contrasts under the broken contract, not evidence of model-level commons preferences.
 
-Appendix Figures~\ref{fig:reserve-over-time}--\ref{fig:restraint-over-time} and~\ref{fig:agent-day-raster} show the temporal records. Under the implemented transition, more restraint tokens mechanically preserve reserve; several Qwen~3.5 instruct traces shift toward restraint only after substantial depletion. Appendix~\ref{app:extended-diagnostics} reports the exact early/late rates.
+Appendix Figures~\ref{fig:reserve-over-time}--\ref{fig:restraint-over-time} and~\ref{fig:agent-day-raster} show the temporal records. Under the implemented transition, more \texttt{OPTION\_A} tokens mechanically preserve reserve; several Qwen~3.5 instruct traces shift toward that token only after substantial depletion. Appendix~\ref{app:extended-diagnostics} reports the exact early/late rates.
 
 \FloatBarrier
 
 \section{Diagnostics}
 \label{sec:diagnostics}
 \paragraph{Model-level associations remain descriptive.}
-Table~\ref{tab:cross-part-corr} reports retrospective comparisons among the retained Part~1 summaries and contract-mismatched Part~2 records. Direct self-choice action labels and stored restraint tokens have a small association (Pearson $r{=}0.27$, Spearman $\rho{=}0.24$) with wide reference intervals. Stored restraint and final population show a strong descriptive relationship (Pearson $r{=}0.85$, Spearman $\rho{=}0.90$), as expected from the deterministic transition rules. Neither comparison validates cross-task transfer or identifies a vendor- or architecture-level relationship.
+Table~\ref{tab:cross-part-corr} reports retrospective comparisons among the retained Part~1 summaries and contract-mismatched Part~2 records. Direct self-choice action labels and stored \texttt{OPTION\_A} tokens have a small association (Pearson $r{=}0.27$, Spearman $\rho{=}0.24$). Stored \texttt{OPTION\_A} tokens and final population show a strong descriptive relationship (Pearson $r{=}0.85$, Spearman $\rho{=}0.90$), as expected from the deterministic transition rules. Neither comparison validates cross-task transfer or identifies a vendor- or architecture-level relationship.
 
 \begin{table}[!htbp]
 \centering
-\caption{Retrospective associations between Part~1 summaries and contract-mismatched Part~2 records ($n{=}13$ related variants; four families). Brackets give exchangeability-reference Fisher-transform intervals, not population confidence intervals; rank-coefficient calculations are approximate. The last column shows Pearson estimates after deleting one family at a time.}
+\caption{Retrospective associations between Part~1 summaries and contract-mismatched Part~2 records ($n{=}13$ related variants; four families). The last column shows Pearson estimates after deleting one family at a time; no population or exchangeability interval is reported.}
 \label{tab:cross-part-corr}
 \small
 \resizebox{\linewidth}{!}{%
 \begin{tabular}{lccc}
 \toprule
-Metric pair & Pearson $r$ [reference] & Spearman $\rho$ [reference] & Pearson family-deletion range \\
+Metric pair & Pearson $r$ & Spearman $\rho$ & Pearson family-deletion range \\
 \midrule
-Part~1 label $\times$ Part~2 token & $0.27$ [$-0.33$, $0.72$] & $0.24$ [$-0.36$, $0.70$] & [$-0.08$, $0.85$] \\
-Part~2 token $\times$ Final population & $0.85$ [$0.57$, $0.95$] & $0.90$ [$0.69$, $0.97$] & [$0.81$, $0.97$] \\
+Part~1 label $\times$ Part~2 token & $0.27$ & $0.24$ & [$-0.08$, $0.85$] \\
+Part~2 token $\times$ Final population & $0.85$ & $0.90$ & [$0.81$, $0.97$] \\
 \bottomrule
 \end{tabular}%
 }
 \end{table}
-With 13 related variants in four families, neither the reference intervals nor family-deletion ranges support architecture- or vendor-level inference. The machine-readable table adds Kendall's $\tau_b$, finite-panel sensitivity intervals, and leave-one-model-out ranges.
+With 13 related variants in four families, the wide family-deletion ranges do not support architecture- or vendor-level inference. The machine-readable table retains legacy sensitivity fields for forensic reproducibility, but the paper does not interpret them as confidence intervals.
 
 \paragraph{Role instructions serve as prompt-semantics checks.}
 Part~1 treats prompt frame as an experimental variable (Figure~\ref{fig:frame-effects}). Observer and prediction prompts ask for evaluation and beliefs, respectively. Their different action-label rates show that the runner preserves those semantic distinctions, not that one cooperation construct changes under paraphrase. Frame accounts for 35.1\% of binary action-label variance and model$\times$frame for 9.6\%; Appendix Tables~\ref{tab:part1-decomposition} and~\ref{tab:prompt-sensitivity} give the decomposition.
 
-\paragraph{Restraint is mechanically linked to downstream population outcomes.}
-The restraint--population association (Pearson $r=0.85$, finite-panel interval $[0.68,0.98]$) follows the deterministic depletion mechanism, not ecological validity; transition replay supplies the mechanism check (Appendix Figure~\ref{fig:restraint-population}).
+\paragraph{The stored token is mechanically linked to downstream population outcomes.}
+The \texttt{OPTION\_A}-token--population association (Pearson $r=0.85$) follows the deterministic depletion mechanism, not ecological validity; transition replay supplies the mechanism check (Appendix Figure~\ref{fig:restraint-population}).
 
 \paragraph{Rationale-action mismatches as a lexical diagnostic.}
 Part~2 records a brief rationale. A directional lexical check flags 823 of 47,529 rows (1.7\%) where \texttt{OVERUSE} accompanies reserve-preservation or collective-benefit language. The prompt's unimplemented scores may induce this language, so the count diagnoses the stored contract mismatch rather than hidden reasoning quality (Appendix~\ref{app:extended-diagnostics}).
@@ -318,7 +319,7 @@ The negative result is that Prosocial Cost-Shifting Bench does not survive audit
 
 \section{Extended Diagnostic Details}
 \label{app:extended-diagnostics}
-The contract-mismatched Part~2 traces contain temporal token shifts. \modeltag{sorc/qwen3.5-instruct} starts with 29.0\% restraint tokens in the first 10 days and reaches 98.8\% in the final 10 days, retaining all 50 policies but only 10 reserve units at the horizon. The agent-day raster shows a visually widespread shift among the policies still called on those days, not a run-level uncertainty or behavioral effect. \modeltag{sorc/qwen3.5-instruct-uncensored} has a similar trace but crosses the depletion threshold on day 34 before the shift can prevent collapse.
+The contract-mismatched Part~2 traces contain temporal token shifts. \modeltag{sorc/qwen3.5-instruct} starts with 29.0\% \texttt{OPTION\_A} tokens in the first 10 days and reaches 98.8\% in the final 10 days, retaining all 50 policies but only 10 reserve units at the horizon. The agent-day raster shows a visually widespread shift among the policies still called on those days, not a run-level uncertainty or behavioral effect. \modeltag{sorc/qwen3.5-instruct-uncensored} has a similar trace but crosses the depletion threshold on day 34 before the shift can prevent collapse.
 
 Within-family records further reject a single readiness ordering, but the Part~2 differences cannot be interpreted beyond the mismatched contract. Qwen~2.5 base and abliterate variants make nearly identical direct Part~1 choices but have sharply different stored Part~2 traces. GPT-OSS standard, safeguard, and derestricted variants differ on both recorded summaries.
 
@@ -353,7 +354,7 @@ Continuous heatmaps use the Turbo scale with numeric cell labels and contrast-aw
 \begin{figure*}[!t]
 \centering
 \includegraphics[width=0.96\textwidth]{figures/part2_restraint_choice_over_time.png}
-\caption{Daily stored restraint-token rate in the contract-mismatched Part~2 pilot. Larger values indicate more restraint tokens; gray cells mark days with no living-agent decisions after collapse.}
+\caption{Daily stored \texttt{OPTION\_A} token rate in the contract-mismatched Part~2 pilot. Gray cells mark days with no living-agent decisions after collapse.}
 \label{fig:restraint-over-time}
 \end{figure*}
 
@@ -367,7 +368,7 @@ Continuous heatmaps use the Turbo scale with numeric cell labels and contrast-aw
 \begin{figure}[!htbp]
 \centering
 \includegraphics[width=\linewidth]{figures/restraint_vs_final_population.png}
-\caption{Mechanism diagnostic for the contract-mismatched Part~2 traces: stored restraint tokens versus final simulated population. Population is mechanically downstream under the engine rules.}
+\caption{Mechanism diagnostic for the contract-mismatched Part~2 traces: stored \texttt{OPTION\_A} tokens versus final simulated population. Population is mechanically downstream under the engine rules.}
 \label{fig:restraint-population}
 \end{figure}
 
@@ -406,7 +407,7 @@ Residual and unmodeled & -- & 4933 & 35.2\% \\
 \resizebox{\linewidth}{!}{%
 \begin{tabular}{lrrrrrr}
 \toprule
-Model & Stored restraint & First depletion day & Final population & Final reserve & AURC & AUPC \\
+Model & Stored \texttt{OPTION\_A} & First depletion day & Final population & Final reserve & AURC & AUPC \\
 \midrule
 \texttt{qwen2.5:7b} & 92.5\% & Not observed & 50 & 1,752 & 84.8\% & 100.0\% \\
 \texttt{qwen2.5-inst} & 92.3\% & Not observed & 50 & 1,726 & 85.3\% & 100.0\% \\
@@ -530,11 +531,11 @@ justification to a brief explanation of 1-3 sentences.
 \begin{figure*}[!t]
 \centering
 \includegraphics[width=0.96\textwidth,height=0.72\textheight,keepaspectratio]{figures/part2_agent_day_raster.png}
-\caption{Agent-day action raster for Part 2. Each row block is a same-model society with 50 agents over the 100-day horizon; blue cells are restraint choices, vermillion cells are overuse choices, and gray cells are days with no active living-agent decision.}
+\caption{Agent-day token raster for Part 2. Each row block is a same-model society with 50 agents over the 100-day horizon; blue cells are stored \texttt{OPTION\_A} tokens, vermillion cells are stored \texttt{OPTION\_B} tokens, and gray cells are days with no active living-agent decision.}
 \label{fig:agent-day-raster}
 \end{figure*}
 
-The raster distinguishes society-wide action patterns from aggregate rates produced by heterogeneous agents. The high-restraint Qwen~2.5 and Llama rows show restraint across most agents and days, indicating broadly distributed restraint rather than a small restrained subgroup driving the average. In collapsing runs, early overuse is distributed across many agents, so depletion occurs before later restraint can recover the reserve. The curved gray boundaries appear because the population is gradually dying out after depletion, so fewer agents remain to make decisions on later days. Several rows show a visual flip from vermillion to blue as the reserve declines, especially Qwen~3.5 instruct, Qwen~3.5 instruct uncensored, and GPT-OSS safeguard. This pattern is most consequential for \modeltag{sorc/qwen3.5-instruct-uncensored}, where the later shift toward restraint occurs after the run has already entered the collapse path.
+The raster distinguishes society-wide token patterns from aggregate rates. The high-\texttt{OPTION\_A} Qwen~2.5 and Llama rows show that token across most active policies and days rather than in a small subgroup. In collapsing runs, early \texttt{OPTION\_B} tokens are distributed across many policies, so depletion occurs before later \texttt{OPTION\_A} tokens can prevent the mechanically defined collapse path. The curved gray boundaries appear because the population is gradually removed after depletion, so fewer policies remain to make decisions on later days. Several rows show a visual flip from vermillion to blue as the reserve declines, especially Qwen~3.5 instruct, Qwen~3.5 instruct uncensored, and GPT-OSS safeguard. This pattern is most consequential for \modeltag{sorc/qwen3.5-instruct-uncensored}, where the later token shift occurs after the run has already entered the collapse path.
 
 \FloatBarrier
 \Needspace{0.34\textheight}

@@ -330,12 +330,12 @@ def render_agent_day_raster() -> Path:
     ax.set_xticklabels(["1", "25", "50", "75", "100"])
     ax.set_xlabel("Simulation day")
     ax.set_ylabel("Model society")
-    ax.set_title("Agent-day action raster in the repeated commons")
+    ax.set_title("Stored Part 2 tokens under the mismatched contract")
     for boundary in range(1, len(models)):
         ax.axhline(boundary * COMMONS_SOCIETY_SIZE - 0.5, color="white", linewidth=1.1)
     handles = [
-        mpatches.Patch(color=HIGH_ACTION_COLOR, label="Restrain"),
-        mpatches.Patch(color=LOW_ACTION_COLOR, label="Overuse"),
+        mpatches.Patch(color=HIGH_ACTION_COLOR, label="OPTION_A token"),
+        mpatches.Patch(color=LOW_ACTION_COLOR, label="OPTION_B token"),
         mpatches.Patch(color=MISSING_SCORE_COLOR, label="No active decision"),
     ]
     ax.legend(handles=handles, loc="upper center", bbox_to_anchor=(0.5, -0.065), ncol=3, frameon=False)
@@ -383,7 +383,7 @@ def render_part2_line_chart(metric: str, ylabel: str, title: str, filename: str)
             ax.set_yticks(range(0, COMMONS_SOCIETY_SIZE + 1, 10))
         elif metric == "resource_units_remaining":
             ax.set_ylim(0, 2600)
-        ax.legend(loc="best", fontsize=7, frameon=False, ncol=2)
+        ax.legend(loc="best", fontsize=8, frameon=False, ncol=2)
     for ax in axes_flat[len(families) :]:
         ax.set_visible(False)
     fig.suptitle(title, fontsize=14)
@@ -419,7 +419,7 @@ def render_part2_restraint_choice_heatmap() -> Path:
         aspect="auto",
         interpolation="nearest",
     )
-    ax.set_title("Restraint choice over time by model")
+    ax.set_title("Stored OPTION_A token rate over time")
     ax.set_xlabel("Simulation day")
     ax.set_ylabel("Model society")
     ax.set_xticks([0, 24, 49, 74, 99])
@@ -432,7 +432,7 @@ def render_part2_restraint_choice_heatmap() -> Path:
     ax.tick_params(which="minor", bottom=False, left=False)
 
     cbar = fig.colorbar(image, ax=ax, fraction=0.025, pad=0.02)
-    cbar.set_label("Daily restraint choice rate (%)")
+    cbar.set_label("Daily stored OPTION_A token rate (%)")
     fig.tight_layout()
     output = OUTPUT_DIR / "part2_restraint_choice_over_time.png"
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -463,8 +463,8 @@ def render_part2_restraint_bar() -> Path:
     ax.set_xticklabels([_short_model_label(model) for model in models], rotation=45, ha="right")
     ax.set_ylim(0, 112)
     ax.set_yticks(range(0, 101, 10))
-    ax.set_ylabel("Restraint choice rate (%)")
-    ax.set_title("Commons restraint in one trajectory per model")
+    ax.set_ylabel("Stored OPTION_A token rate (%)")
+    ax.set_title("Contract-mismatched Part 2 token records")
     ax.grid(axis="y", alpha=0.3)
     ax.legend(
         handles=_family_legend_handles(models),

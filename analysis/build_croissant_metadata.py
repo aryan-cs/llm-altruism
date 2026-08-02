@@ -1,7 +1,7 @@
 """Build the paper-facing MLCommons Croissant metadata.
 
-The checked-in metadata describes only the release-safe, derived analysis files.
-Raw Part 0 prompts and completions are intentionally outside this metadata graph.
+The graph describes release-safe raw Part 1/Part 2 traces and their derived
+analysis files. Raw Part 0 prompts and completions remain intentionally absent.
 """
 
 from __future__ import annotations
@@ -63,6 +63,7 @@ CROISSANT_CONTEXT: dict[str, object] = {
     "name": {"@container": "@language"},
     "parentField": "cr:parentField",
     "path": "cr:path",
+    "prov": "http://www.w3.org/ns/prov#",
     "recordSet": "cr:recordSet",
     "references": "cr:references",
     "regex": "cr:regex",
@@ -86,7 +87,7 @@ class ReleaseFile:
     records: bool = False
 
 
-RELEASE_FILES = (
+DERIVED_RELEASE_FILES = (
     ReleaseFile(
         "part1-dimension-summary",
         "data/analysis/tables/part1_dimension_summary.csv",
@@ -125,14 +126,14 @@ RELEASE_FILES = (
     ReleaseFile(
         "part2-model-summary",
         "data/analysis/tables/part2_model_summary.csv",
-        "Model-level commons-restraint, survival, reserve, and trajectory summary table.",
+        "Model-level summary of stored OPTION_A tokens and mechanically downstream state in contract-mismatched Part 2 traces.",
         "text/csv",
         True,
     ),
     ReleaseFile(
         "part2-run-summary",
         "data/analysis/tables/part2_run_summary.csv",
-        "Run-level commons-restraint, survival, reserve, and trajectory summary table.",
+        "Run-level summary of stored OPTION_A tokens and mechanically downstream state in contract-mismatched Part 2 traces.",
         "text/csv",
         True,
     ),
@@ -149,6 +150,41 @@ RELEASE_FILES = (
         "application/x-ndjson",
     ),
 )
+
+
+def _raw_release_files(part: int) -> tuple[ReleaseFile, ...]:
+    raw_directory = REPOSITORY_ROOT / "data" / "raw" / f"part_{part}"
+    paths = sorted(raw_directory.glob("*.csv"))
+    expected = 13
+    if len(paths) != expected:
+        raise RuntimeError(
+            f"expected {expected} release-safe Part {part} raw CSVs, found {len(paths)}"
+        )
+    if part == 1:
+        description = (
+            "Raw Part 1 focal-dilemma prompt, action-token, and justification trace."
+        )
+    elif part == 2:
+        description = (
+            "Raw Part 2 prompt--engine contract-audit token and state trace; not a "
+            "commons-preference measurement."
+        )
+    else:  # pragma: no cover - construction is fixed above
+        raise ValueError("only release-safe Parts 1 and 2 may enter Croissant metadata")
+    return tuple(
+        ReleaseFile(
+            object_id=f"part{part}-raw-{index:02d}",
+            path=path.relative_to(REPOSITORY_ROOT).as_posix(),
+            description=description,
+            encoding_format="text/csv",
+            records=True,
+        )
+        for index, path in enumerate(paths, start=1)
+    )
+
+
+RAW_RELEASE_FILES = _raw_release_files(1) + _raw_release_files(2)
+RELEASE_FILES = RAW_RELEASE_FILES + DERIVED_RELEASE_FILES
 
 
 def _sha256(path: Path) -> str:
@@ -282,10 +318,12 @@ def build_metadata(
         "conformsTo": [CORE_SPEC, RAI_SPEC],
         "name": "Prosocial Cost-Shifting Bench",
         "description": (
-            "A behavioral evaluation artifact for choices in hypothetical dilemmas "
-            "and commons restraint in a controlled population microworld. The legacy "
-            "Part 0 label audit is documented in the paper, but invalid model-level "
-            "refusal rates and their cross-part derivatives are not distributed."
+            "A negative benchmark-audit artifact. Part 1 contains descriptive action-token "
+            "profiles for hypothetical dilemmas. Part 2 contains traces from a prompt--engine "
+            "contract mismatch and supports protocol diagnosis and transition replay, not "
+            "commons-preference measurement. The legacy Part 0 label audit is documented in "
+            "the paper, but harmful raw content, invalid refusal rates, and their cross-part "
+            "derivatives are not distributed."
         ),
         "version": DATASET_VERSION,
         "cr:sdVersion": METADATA_VERSION,
@@ -297,20 +335,40 @@ def build_metadata(
         "license": "https://opensource.org/license/mit",
         "sdLicense": "https://opensource.org/license/mit",
         "citeAs": (
-            "Anonymous Authors. Safety Beyond Refusal. Anonymous conference submission, 2026."
+            "Anonymous Authors. When a Benchmark Fails Its Audit. Anonymous conference submission, 2026."
         ),
         "keywords": [
             "large language models",
             "behavioral evaluation",
             "safety refusal",
             "cooperation",
-            "commons restraint",
+            "prompt-engine contract audit",
             "agent simulation",
         ],
         "isAccessibleForFree": True,
+        "rai:hasSyntheticData": True,
+        "prov:wasDerivedFrom": [
+            {
+                "@type": "sc:CreativeWork",
+                "name": "April 2026 Part 1 and Part 2 model-generated pilot traces",
+                "description": (
+                    "The exact release-safe raw CSV distributions and metadata sidecars "
+                    "bound by the repository run manifest and provenance checks."
+                ),
+            }
+        ],
+        "prov:wasGeneratedBy": {
+            "@type": "sc:SoftwareApplication",
+            "name": "Prosocial Cost-Shifting Bench deterministic analysis pipeline",
+            "softwareVersion": DATASET_VERSION,
+            "description": (
+                "analysis.validation, analysis.summarize_results, analysis.build_manifest, "
+                "and analysis.build_croissant_metadata"
+            ),
+        },
         "conditionsOfAccess": (
             "The anonymous release exposes derived tables, validation reports, the "
-            "run manifest, metadata, code, figures, and Part 1/Part 2 outputs. Raw "
+            "run manifest, metadata, code, figures, and raw Part 1/Part 2 traces. Raw "
             "Part 0 harmful content and every invalid legacy-label rate/correlation "
             "table or plot are excluded."
         ),
@@ -318,7 +376,8 @@ def build_metadata(
             "Rows are generated by executable experiments and summarized by the repository "
             "analysis pipeline. Part 0's legacy labels are excluded after a response-only "
             "audit found material instability; Part 1 uses constrained choices in hypothetical "
-            "dilemmas; Part 2 uses repeated stateless calls in a common-resource simulation."
+            "dilemmas; Part 2 uses repeated stateless calls under a prompt whose stated score "
+            "contract was never implemented by the engine."
         ),
         "rai:dataCollectionType": ["Experiments", "Software Collection"],
         "rai:dataCollectionRawData": (
@@ -327,9 +386,10 @@ def build_metadata(
             "anonymous release."
         ),
         "rai:dataAnnotationProtocol": (
-            "No Part 0 model-level label distribution is released. Part 1 cooperation "
-            "labels and Part 2 restraint/outcome measures are deterministic mappings "
-            "from constrained actions and simulation logs. Human labels are never imputed."
+            "No Part 0 model-level label distribution is released. Part 1 action labels and "
+            "Part 2 stored OPTION_A/OPTION_B tokens are deterministic mappings from constrained "
+            "outputs. Part 2 state columns are mechanically downstream of those tokens under "
+            "the recorded engine, not behavioral annotations. Human labels are never imputed."
         ),
         "rai:machineAnnotationTools": [
             "Deterministic Part 1/Part 2 analysis code."
@@ -337,11 +397,12 @@ def build_metadata(
         "rai:dataPreprocessingProtocol": [
             "Exclude invalid legacy Part 0 labels and all dependent model-level summaries.",
             "Aggregate Part 1 self-direct choices as the primary cooperation measure while retaining role-conditioned diagnostics.",
-            "Aggregate Part 2 trajectories with equal run weighting and compute survival, resource, and restraint summaries.",
+            "Summarize each Part 2 contract-mismatched trajectory and replay its deterministic resource and population transitions without treating it as a commons-preference estimate.",
             "Exclude raw Part 0 harmful prompts and completions from the anonymous supplement.",
         ],
         "rai:dataUseCases": [
-            "Behavioral auditing and fixed-protocol comparison of cooperation and commons-restraint metrics.",
+            "Protocol diagnosis, trace validation, and reproduction of Part 1 descriptive action-label summaries.",
+            "Inspection of the Part 2 prompt--engine mismatch and deterministic transition replay; not behavioral comparison.",
             "Validation and reproduction of the released paper's aggregate analysis.",
             "Not supported: training harmful-compliance models, globally ranking models as prosocial, or treating pilot results as production safety certification.",
         ],
@@ -349,13 +410,14 @@ def build_metadata(
             "Descriptive pilot over a limited local/open-weight model cohort; results do not estimate all models or deployment settings.",
             "Part 0 uses a fixed multilingual harmful-prompt set; response-only refusal claims still require the documented human audit.",
             "Part 1 uses fixed one-shot focal and role-conditioned prompts.",
-            "Part 2 uses homogeneous same-model societies, simplified reserve dynamics, stateless calls, and one pilot trajectory per model.",
+            "Part 2's prompt described private and group scores that the engine never computed, stored, or fed back; its traces cannot estimate commons preference.",
+            "Part 2 also uses homogeneous same-model policies, simplified reserve dynamics, stateless calls, and one pilot trajectory per model.",
             "The artifact does not measure moral agency, general human prosociality, or deployment safety outside the stated protocols.",
         ],
         "rai:dataBiases": [
             "Selection bias can arise from the fixed harmful-prompt sample, English/Chinese/Russian coverage, benchmark-derived sources, and locally runnable model cohort.",
             "Label bias can arise from the automated Part 0 judge and deterministic mappings from constrained action tokens.",
-            "The commons simulation abstracts away cultural, institutional, heterogeneous-agent, and deployment-context effects.",
+            "The contract-mismatched repeated-resource protocol abstracts away cultural, institutional, heterogeneous-agent, and deployment-context effects.",
         ],
         "rai:personalSensitiveInformation": [
             "No human-subject records or personally identifying user data are collected. Raw Part 0 model outputs may contain unsafe generated content and are excluded from the anonymous release."

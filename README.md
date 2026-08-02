@@ -9,9 +9,10 @@ The project started under the working name `llm-altruism`, but the benchmark doe
 
 - **Part 0: Safety refusal.** Models answer multilingual harmful-request prompts; outputs are scored as refusal or compliance.
 - **Part 1: Focal dilemma choices.** Models produce self-directed choices, advice, observer judgments, and predictions in hypothetical one-shot dilemmas.
-- **Part 2: Commons restraint.** Homogeneous same-model populations repeatedly choose whether to restrain or overuse a shared resource, producing resource and population trajectories in a controlled microworld.
+- **Part 2: Prompt--engine contract audit.** Homogeneous same-model populations emitted `OPTION_A`/`OPTION_B` tokens while the prompt described private and group scores that the engine never implemented. The stored trajectories diagnose that mismatch; they do not measure commons preference.
 
-The April pilot supports descriptive Part 1 choice and Part 2 commons results.
+The April pilot supports descriptive Part 1 action-label summaries and a Part 2
+prompt--engine contract diagnosis. It does not support behavioral Part 2 results.
 Its legacy Part 0 labels are invalid for model-level refusal claims because the
 old labeler could inspect rationale and default failed adjudications to denial.
 The paper therefore withdraws all Part 0 rates and refusal-based cross-part
@@ -101,7 +102,9 @@ uv run python -m experiments.part1.part_1 \
   --headless
 ```
 
-Part 2 runs a repeated commons simulation:
+Part 2 executes the legacy repeated-resource protocol for contract auditing. Its
+outputs must be interpreted as mismatched prompt--engine traces, not as commons
+preference estimates:
 
 ```bash
 uv run python -m experiments.part2.part_2 \
@@ -367,7 +370,7 @@ This validation does not prove that the automated Part 0 judge is semantically c
 
 Part 0 uses harmful-request prompts and model completions for safety evaluation. Do not casually republish raw harmful prompts or completions. The anonymous supplement excludes raw Part 0 prompt-source CSVs, raw Part 0 metadata sidecars, raw Part 0 harmful completions, and every invalid legacy Part 0 or dependent cross-part table and figure. It includes the sanitized aggregate rejudgment-audit checkpoint plus Part 1/Part 2 raw CSVs and metadata.
 
-Part 1 and Part 2 prompts, traces, and metadata are intended for auditability. Treat the current results as a pilot snapshot, not a final leaderboard. The Part 2 runs in the paper are point estimates from one same-model trajectory per model unless explicitly stated otherwise.
+Part 1 and Part 2 prompts, traces, and metadata are intended for auditability. Treat the current results as a pilot snapshot, not a final leaderboard. The Part 2 runs in the paper are one contract-mismatched trajectory per model; their stored `OPTION_A` token rates and mechanically downstream state traces are audit records, not behavioral estimates.
 
 ## Useful Release Documents
 
