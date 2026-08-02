@@ -144,50 +144,43 @@ uv run python -m analysis.build_supplement
 
 The output is `docs/conference_submission/supplement.zip`. The package contains executable code, release documentation, tests, derived analysis artifacts, figures, Part 1/Part 2 raw CSVs with metadata sidecars, and the hash-bound historical Part 2 source/prompt archive required for Git-independent legacy verification. Raw Part 0 harmful prompts, prompt-source CSVs, model completions, and author-identifying proposal metadata are excluded by policy; the ZIP includes `SUPPLEMENT_MANIFEST.json` documenting included files and exclusions.
 
-## Exact-Version Campaigns
+## Exact-Version Confirmatory Campaign
 
-The model registry has separate `current_sota` and `historical` cohorts. Inspect
-the exact versioned routes before any execution:
+`experiments.campaign` and its Cartesian Part 2 sensitivity CLI are retained
+only to replay archived pilot workflows. They are not authorized for new
+paper-facing collection. The sole active planner is
+`experiments.confirmatory_campaign`, whose fixed one-stage design covers the
+complete 24-system current cohort and six-system historical cohort. It rejects
+catalog-display-only routes, incomplete approvals, and any attempt to revive
+the retired adaptive/two-stage Part 2 design.
 
-```bash
-uv run python -m experiments.campaign --cohort current_sota --phase smoke --dry-run
-uv run python -m experiments.misc.preflight --strict
-```
-
-A registry entry is only a planned target. It is not evidence that the route is
-available and does not place the model in a paper table. Run the smoke phase
-first, then the full phases with the same campaign ID so the manifest can resume
-and verify native CSV and metadata artifacts.
-
-### Bounded Part 2 sensitivity designs
-
-Part 2 supports an explicit Cartesian sensitivity design over initial commons
-capacity, per-overuse depletion, depleted-day population death rate, starting
-population, horizon, and generation seed. Every structural cell receives the
-same seed set. A dry run materializes the exact cells, commands, job count, and
-model-request upper bound without creating files or making requests:
+First produce the authenticated dual-catalog discovery and structured-smoke
+evidence described in `docs/release/MODEL_REGISTRY.md`. After genuine Part 0
+registry and Part 1 bank approvals exist, inspect the exact immutable plan
+without writing a campaign directory or calling a provider:
 
 ```bash
-uv run python -m experiments.campaign \
-  --cohort current_sota --phase part2 --dry-run --json \
-  --part2-grid-capacity 1250 --part2-grid-capacity 2500 \
-  --part2-grid-depletion-units 1 --part2-grid-depletion-units 2 \
-  --part2-grid-death-rate 0.1 --part2-grid-death-rate 0.2 \
-  --part2-grid-population 25 --part2-grid-population 50 \
-  --part2-grid-horizon 50 --part2-grid-horizon 100 \
-  --part2-grid-seed 11 --part2-grid-seed 22 --part2-grid-seed 33
+uv run python -m experiments.confirmatory_campaign \
+  --campaign-id confirmatory-budgeted-v1 \
+  --cohort current_sota --cohort historical \
+  --judge-target-id <verified-judge-target> \
+  --part0-registry /absolute/private/part0-registry.json \
+  --part0-registry-sha256 <sha256> \
+  --part1-bank /absolute/private/part1-bank.json \
+  --part1-bank-sha256 <sha256> \
+  --endpoint-evidence /absolute/private/all-target-evidence.json \
+  --endpoint-evidence-sha256 <sha256> \
+  --dry-run
 ```
 
-For a non-Cartesian design, repeat `--part2-cell` with an exact JSON object
-containing `resource_capacity`, `depletion_units`, `collapse_death_rate`,
-`society_size`, `days`, and `seed`. The planner rejects duplicate cells, uneven
-numbers of seeds across structural cells, more than 4,096 target-cell jobs, or
-more than 10,000,000 requests at the population-by-horizon upper bound.
-
-The seed is forwarded to the provider for every request in its trajectory and
-recorded in native metadata. Provider-side seeded generation may still be only
-best-effort. The default Part 2 command remains unseeded and retains the legacy
-derived capacity and 0.2 collapse death rate.
+The dry run must report the complete 30-route matrix, source hashes, role and
+request budgets, exclusions, and immutable plan hash. Remove `--dry-run` only
+after those values match the preregistration. Resume with the same campaign ID;
+the runner revalidates pinned inputs, route evidence, smoke dependencies,
+native artifacts, and durable ledger reservations before continuing. The
+separate post-lock Part 2 sensitivity panel is specified in
+`docs/CONFIRMATORY_PROTOCOL.md`; it is not an alternative production CLI or a
+source of primary estimates.
 
 ## Part 0 Judge Audit
 

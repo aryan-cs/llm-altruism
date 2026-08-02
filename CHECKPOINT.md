@@ -46,14 +46,14 @@ Updated: 2026-08-02 (America/Los_Angeles)
 - NeurIPS format suite: 6 passed. The official style SHA-256 is
   `c3fc2894e83d2517ca18b66741d6c595986d97957dc08ec08bb2125a7ec4555a`.
 - Current local pilot PDF: 29 pages, 1.20 MiB, anonymous metadata, main content on pages 1--9,
-  references beginning on page 9, all pages visually inspected. Eight paper
+  references beginning on page 10, all pages visually inspected. Eight paper
   figures were regenerated at print-oriented dimensions with larger labels.
   Current PDF SHA-256: `c54463acf5ad13a4821ec742a01b039c960385e143979bd07c35bdd0f04544fc`.
 - Current local pilot supplement: 297 source files plus its manifest, 15.7 MiB; every payload has a
   manifest SHA-256. Full-suite, integrity, portable legacy-provenance, and
   anonymity checks pass. Withdrawn Part 0/cross-part plot trees are absent, and
   the builder derives local identifiers at runtime rather than embedding them.
-  Current ZIP SHA-256: `8f30796d35a7795adc5618ca39f40ef3bbf43909069407aa1ae8cbd90f830985`.
+  Current ZIP SHA-256: `c99cc72e8a217d1167b45d8a22f91206dc10c46ae386929deea737aa7acdab1c`.
 - The one-stage production campaign is frozen at all 484 harmful roots plus 100
   controls in three languages, 384 self-direct Part 1 roots, and 24 independent
   Part 2 trajectories per route at N=10, horizon=30, capacity=150.
