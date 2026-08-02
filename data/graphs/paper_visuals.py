@@ -16,7 +16,6 @@ from typing import Iterable
 import numpy as np
 
 from data.graphs.part_2_graphs import (
-    EDGE_COLOR,
     _model_bar_color,
     _model_family_name,
     _model_line_style,
@@ -24,7 +23,6 @@ from data.graphs.part_2_graphs import (
 )
 
 TABLES_DIR = Path("data") / "analysis" / "tables"
-RAW_PART0_PATH = Path("data") / "raw" / "part_0" / "04-11-2026_13_04_37.csv"
 OUTPUT_DIR = Path("data") / "graphs" / "paper_visuals"
 MODEL_DECISIONS_PER_FULL_COMMONS_RUN = 5000
 COMMONS_HORIZON_DAYS = 100
@@ -40,12 +38,6 @@ FRAME_LABELS = {
     "advice": "Advice",
     "observer_evaluation": "Observer eval.",
     "prediction": "Prediction",
-}
-LANGUAGE_ORDER = ("english", "chinese", "russian")
-LANGUAGE_LABELS = {
-    "english": "English",
-    "chinese": "Chinese",
-    "russian": "Russian",
 }
 GAME_ORDER = ("prisoners_dilemma", "temptation_or_commons")
 GAME_LABELS = {
@@ -155,51 +147,6 @@ def _part1_dimension_rates(dimension: str) -> dict[tuple[str, str], float]:
     return rates
 
 
-def _part0_language_rates() -> dict[tuple[str, str], float]:
-    counts: dict[tuple[str, str], list[int]] = defaultdict(lambda: [0, 0])
-    for row in _read_rows(RAW_PART0_PATH):
-        model = row["model"]
-        language = row["language"]
-        complied = row.get(
-            "new_complied" if "new_complied" in row else "complied?", ""
-        ).strip().lower()
-        if complied not in {"true", "false"}:
-            continue
-        counts[(model, language)][1] += 1
-        if complied == "false":
-            counts[(model, language)][0] += 1
-    return {
-        key: denied / total * 100.0
-        for key, (denied, total) in counts.items()
-        if total
-    }
-
-
-def _part0_rows() -> dict[str, dict[str, str]]:
-    return {
-        row["model"]: row
-        for row in _read_rows(TABLES_DIR / "part0_model_summary.csv")
-    }
-
-
-def _part0_refusal_plot_values(
-    rows: dict[str, dict[str, str]], models: list[str]
-) -> tuple[list[float], list[float], list[float]]:
-    """Return rates and paper-facing root-cluster bounds in percentage points."""
-
-    values = [float(rows[model]["safety_refusal_rate"]) * 100.0 for model in models]
-    lows = [float(rows[model]["cluster_ci_low"]) * 100.0 for model in models]
-    highs = [float(rows[model]["cluster_ci_high"]) * 100.0 for model in models]
-    return values, lows, highs
-
-
-def _cross_part_rows() -> dict[str, dict[str, str]]:
-    return {
-        row["model"]: row
-        for row in _read_rows(TABLES_DIR / "cross_part_model_summary.csv")
-    }
-
-
 def _part2_rows() -> dict[str, dict[str, str]]:
     return {
         row["model"]: row
@@ -207,105 +154,10 @@ def _part2_rows() -> dict[str, dict[str, str]]:
     }
 
 
-def _depletion_horizon_score(row: dict[str, str]) -> float:
-    """Map a single-run depletion outcome to the paper's 0--100 horizon score."""
-    depletion_day = row.get("mean_depletion_day_among_depleted", "")
-    if not depletion_day:
-        return 100.0
-    return max(
-        0.0,
-        min(100.0, float(depletion_day) / COMMONS_HORIZON_DAYS * 100.0),
-    )
-
-
-def _fingerprint_matrix() -> tuple[list[str], list[str], np.ndarray]:
-    cross = _cross_part_rows()
-    part2 = _part2_rows()
-    frame_rates = _frame_rates()
-    models = _model_order(cross)
-    columns = [
-        "Legacy refusal\n(deprecated)",
-        "All-frame response",
-        "Self-direct",
-        "Advice",
-        "Observer eval.",
-        "Prediction",
-        "Commons restraint",
-        "No-depletion horizon",
-        "Reserve AUC",
-        "Population AUC",
-        "Final population",
-        "Final reserve",
-    ]
-    matrix: list[list[float]] = []
-    for model in models:
-        depletion_score = _depletion_horizon_score(part2[model])
-        resource_capacity = float(part2[model]["resource_capacity"])
-        final_reserve = float(part2[model]["final_resource_units"]) / resource_capacity * 100.0
-        row = [
-            float(cross[model]["safety_refusal_rate"]) * 100.0,
-            float(cross[model]["all_frames_cooperation_rate"]) * 100.0,
-            frame_rates.get((model, "self_direct"), 0.0),
-            frame_rates.get((model, "advice"), 0.0),
-            frame_rates.get((model, "observer_evaluation"), 0.0),
-            frame_rates.get((model, "prediction"), 0.0),
-            float(cross[model]["restraint_rate"]) * 100.0,
-            depletion_score,
-            float(part2[model]["normalized_aurc"]) * 100.0,
-            float(part2[model]["normalized_aupc"]) * 100.0,
-            float(cross[model]["final_population"]) / COMMONS_SOCIETY_SIZE * 100.0,
-            final_reserve,
-        ]
-        matrix.append(row)
-    return models, columns, np.asarray(matrix, dtype=float)
-
-
-def render_behavioral_fingerprint_heatmap() -> Path:
-    plt, cmap = _setup_matplotlib()
-    models, columns, matrix = _fingerprint_matrix()
-
-    fig, ax = plt.subplots(figsize=(12.8, 6.2))
-    image = ax.imshow(matrix, cmap=cmap, vmin=0, vmax=100, aspect="auto")
-    ax.set_xticks(range(len(columns)))
-    ax.set_xticklabels(columns, rotation=35, ha="right")
-    ax.set_yticks(range(len(models)))
-    ax.set_yticklabels([_short_model_label(model) for model in models])
-    ax.set_title("Behavioral fingerprint across benchmark axes")
-    ax.set_xlabel("Metric")
-    ax.set_ylabel("Model")
-    ax.set_xticks(np.arange(-0.5, len(columns), 1), minor=True)
-    ax.set_yticks(np.arange(-0.5, len(models), 1), minor=True)
-    ax.grid(which="minor", color="white", linewidth=1.0)
-    ax.tick_params(which="minor", bottom=False, left=False)
-
-    for row_index in range(matrix.shape[0]):
-        for col_index in range(matrix.shape[1]):
-            value = matrix[row_index, col_index]
-            ax.text(
-                col_index,
-                row_index,
-                f"{value:.0f}",
-                ha="center",
-                va="center",
-                fontsize=7,
-                color=_heatmap_text_color(value),
-            )
-
-    cbar = fig.colorbar(image, ax=ax, fraction=0.025, pad=0.02)
-    cbar.set_label("Score (%)")
-    fig.tight_layout()
-    output = OUTPUT_DIR / "behavioral_fingerprint_heatmap.png"
-    output.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(output, bbox_inches="tight")
-    plt.close(fig)
-    return output
-
-
 def render_frame_sensitivity_heatmap() -> Path:
     plt, cmap = _setup_matplotlib()
-    cross = _cross_part_rows()
-    models = _model_order(cross)
     frame_rates = _frame_rates()
+    models = _model_order({model for model, _frame in frame_rates})
     matrix = np.asarray(
         [
             [frame_rates.get((model, frame), 0.0) for frame in FRAME_ORDER]
@@ -320,7 +172,7 @@ def render_frame_sensitivity_heatmap() -> Path:
     ax.set_xticklabels([FRAME_LABELS[frame] for frame in FRAME_ORDER], rotation=30, ha="right")
     ax.set_yticks(range(len(models)))
     ax.set_yticklabels([_short_model_label(model) for model in models])
-    ax.set_title("Role-conditioned cooperative responses")
+    ax.set_title("Prompt-semantics calibration across role instructions")
     ax.set_xlabel("Prompt frame")
     ax.set_ylabel("Model")
     ax.set_xticks(np.arange(-0.5, len(FRAME_ORDER), 1), minor=True)
@@ -342,58 +194,9 @@ def render_frame_sensitivity_heatmap() -> Path:
             )
 
     cbar = fig.colorbar(image, ax=ax, fraction=0.04, pad=0.03)
-    cbar.set_label("Cooperation rate (%)")
+    cbar.set_label("Cooperative action-label rate (%)")
     fig.tight_layout()
     output = OUTPUT_DIR / "frame_sensitivity_heatmap.png"
-    output.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(output, bbox_inches="tight")
-    plt.close(fig)
-    return output
-
-
-def render_part0_language_heatmap() -> Path:
-    plt, cmap = _setup_matplotlib()
-    rates = _part0_language_rates()
-    models = _model_order({model for model, _language in rates})
-    matrix = np.asarray(
-        [
-            [rates.get((model, language), 0.0) for language in LANGUAGE_ORDER]
-            for model in models
-        ],
-        dtype=float,
-    )
-
-    fig, ax = plt.subplots(figsize=(6.8, 6.2))
-    image = ax.imshow(matrix, cmap=cmap, vmin=0, vmax=100, aspect="auto")
-    ax.set_xticks(range(len(LANGUAGE_ORDER)))
-    ax.set_xticklabels([LANGUAGE_LABELS[language] for language in LANGUAGE_ORDER], rotation=25, ha="right")
-    ax.set_yticks(range(len(models)))
-    ax.set_yticklabels([_short_model_label(model) for model in models])
-    ax.set_title("Deprecated legacy Part 0 labels by language and model")
-    ax.set_xlabel("Prompt language")
-    ax.set_ylabel("Model")
-    ax.set_xticks(np.arange(-0.5, len(LANGUAGE_ORDER), 1), minor=True)
-    ax.set_yticks(np.arange(-0.5, len(models), 1), minor=True)
-    ax.grid(which="minor", color="white", linewidth=1.0)
-    ax.tick_params(which="minor", bottom=False, left=False)
-
-    for row_index in range(matrix.shape[0]):
-        for col_index in range(matrix.shape[1]):
-            value = matrix[row_index, col_index]
-            ax.text(
-                col_index,
-                row_index,
-                f"{value:.0f}",
-                ha="center",
-                va="center",
-                fontsize=7,
-                color=_heatmap_text_color(value),
-            )
-
-    cbar = fig.colorbar(image, ax=ax, fraction=0.04, pad=0.03)
-    cbar.set_label("Legacy denial-label rate (%)")
-    fig.tight_layout()
-    output = OUTPUT_DIR / "part0_refusal_by_language_heatmap.png"
     output.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(output, bbox_inches="tight")
     plt.close(fig)
@@ -443,81 +246,6 @@ def render_part1_game_heatmap() -> Path:
     cbar.set_label("Cooperation rate (%)")
     fig.tight_layout()
     output = OUTPUT_DIR / "part1_cooperation_by_game_heatmap.png"
-    output.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(output, bbox_inches="tight")
-    plt.close(fig)
-    return output
-
-
-def render_model_behavior_pca() -> Path:
-    plt, _cmap = _setup_matplotlib()
-    models, _columns, matrix = _fingerprint_matrix()
-    centered = matrix - matrix.mean(axis=0, keepdims=True)
-    scale = matrix.std(axis=0, ddof=1, keepdims=True)
-    scale[scale == 0] = 1.0
-    standardized = centered / scale
-    _u, singular_values, vt = np.linalg.svd(standardized, full_matrices=False)
-    scores = standardized @ vt[:2].T
-    variances = singular_values**2 / max(1, standardized.shape[0] - 1)
-    explained = variances / variances.sum()
-
-    label_offsets = {
-        "gpt-oss:20b": (7, -12),
-        "gpt-oss-safeguard:20b": (8, -4),
-        "gurubot/gpt-oss-derestricted:20b": (-8, -18),
-        "llama2": (7, -12),
-        "llama2-uncensored": (8, 8),
-        "qwen2.5:7b": (8, -16),
-        "huihui_ai/qwen2.5-abliterate:7b": (-8, 12),
-        "qwen2.5:7b-instruct": (8, 10),
-        "huihui_ai/qwen2.5-abliterate:7b-instruct": (8, -15),
-        "qwen3.5": (8, -6),
-        "aratan/qwen3.5-uncensored:9b": (8, 11),
-        "sorc/qwen3.5-instruct": (8, -11),
-        "sorc/qwen3.5-instruct-uncensored": (7, -10),
-    }
-
-    fig, ax = plt.subplots(figsize=(10.4, 6.0))
-    for model, (x_pos, y_pos) in zip(models, scores[:, :2]):
-        style_label = _model_label_for_style(model)
-        x_offset, y_offset = label_offsets.get(model, (5, 4))
-        ax.scatter(
-            x_pos,
-            y_pos,
-            s=70,
-            color=_model_bar_color(style_label),
-            edgecolor=EDGE_COLOR,
-            linewidth=0.7,
-            zorder=3,
-        )
-        ax.annotate(
-            _short_model_label(model),
-            (x_pos, y_pos),
-            xytext=(x_offset, y_offset),
-            textcoords="offset points",
-            fontsize=7.5,
-            ha="right" if x_offset < 0 else "left",
-            va="top" if y_offset < 0 else "bottom",
-        )
-
-    ax.axhline(0, color="#9ca3af", linewidth=0.8, zorder=1)
-    ax.axvline(0, color="#9ca3af", linewidth=0.8, zorder=1)
-    ax.margins(x=0.08, y=0.12)
-    ax.grid(True, alpha=0.22, linewidth=0.7)
-    ax.set_title("Model behavior map from benchmark fingerprints")
-    ax.set_xlabel(f"PC1 ({explained[0] * 100:.1f}% variance)")
-    ax.set_ylabel(f"PC2 ({explained[1] * 100:.1f}% variance)")
-    handles = _family_legend_handles(models)
-    ax.legend(
-        handles=handles,
-        title="Model family",
-        loc="upper left",
-        bbox_to_anchor=(1.01, 1.0),
-        borderaxespad=0.0,
-        frameon=False,
-    )
-    fig.tight_layout(rect=(0.0, 0.0, 0.84, 1.0))
-    output = OUTPUT_DIR / "model_behavior_pca.png"
     output.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(output, bbox_inches="tight")
     plt.close(fig)
@@ -745,62 +473,8 @@ def render_part2_restraint_bar() -> Path:
     return output
 
 
-def render_part0_refusal_bar() -> Path:
-    plt, _cmap = _setup_matplotlib()
-    rows = _part0_rows()
-    models = _model_order(rows)
-    values, lows, highs = _part0_refusal_plot_values(rows, models)
-    yerr = np.asarray(
-        [
-            [value - low for value, low in zip(values, lows)],
-            [high - value for value, high in zip(values, highs)],
-        ]
-    )
-    x_positions = np.arange(len(models))
-
-    fig, ax = plt.subplots(figsize=(13.8, 5.4))
-    ax.bar(
-        x_positions,
-        values,
-        yerr=yerr,
-        capsize=3,
-        error_kw={"ecolor": "#111827", "elinewidth": 1.0, "capthick": 1.0},
-        color=[_model_bar_color(_model_label_for_style(model)) for model in models],
-        edgecolor="none",
-        width=0.74,
-    )
-    for x_pos, value, high in zip(x_positions, values, highs):
-        label_y = min(104.5, max(value, high) + 1.4)
-        ax.text(x_pos, label_y, f"{value:.1f}", ha="center", va="bottom", fontsize=7, rotation=90)
-    ax.set_xticks(x_positions)
-    ax.set_xticklabels([_short_model_label(model) for model in models], rotation=45, ha="right")
-    ax.set_ylim(0, 112)
-    ax.set_yticks(range(0, 101, 10))
-    ax.set_ylabel("Legacy denial-label rate (%)")
-    ax.set_title("Deprecated legacy Part 0 labels by model")
-    ax.grid(axis="y", alpha=0.3)
-    ax.legend(
-        handles=_family_legend_handles(models),
-        title="Model family",
-        loc="upper left",
-        bbox_to_anchor=(1.01, 1.0),
-        borderaxespad=0.0,
-        frameon=False,
-    )
-    fig.tight_layout(rect=(0.0, 0.0, 0.84, 1.0))
-    output = OUTPUT_DIR / "part0_refusal_rate_by_model.png"
-    output.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(output, bbox_inches="tight")
-    plt.close(fig)
-    return output
-
-
 def main() -> int:
     outputs = [
-        render_behavioral_fingerprint_heatmap(),
-        render_part0_refusal_bar(),
-        render_part0_language_heatmap(),
-        render_model_behavior_pca(),
         render_frame_sensitivity_heatmap(),
         render_part1_game_heatmap(),
         render_agent_day_raster(),

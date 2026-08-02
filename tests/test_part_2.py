@@ -584,6 +584,67 @@ def test_available_provider_identity_usage_and_raw_hash_are_persisted(
     assert row["structural_cell_id"].startswith("p2cell_")
 
 
+def test_direct_confirmatory_attempt_provenance_binds_exact_route(
+    monkeypatch, tmp_path: Path
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        "experiments.part2.part_2.run_experiment_preflight",
+        lambda *args, **kwargs: None,
+    )
+    route = "vendor/exact-model"
+    content = '{"action":"OPTION_A","reasoning":"Preserve reserve."}'
+
+    def query(self, prompt: str, json_mode: bool = False) -> str:
+        del self, prompt, json_mode
+        return ProviderText(
+            content,
+            ProviderResponse(
+                provider="inference_hub",
+                model=route,
+                content=content,
+                reasoning="",
+                raw_response={"id": "req-exact", "model": route},
+                finish_reason="stop",
+                truncated=False,
+                usage={"input_tokens": 10, "output_tokens": 6},
+                request_id="req-exact",
+                requested_model=route,
+                response_model=route,
+                model_identity_match=True,
+            ),
+        )
+
+    monkeypatch.setattr("experiments.part2.part_2.Agent2.query", query)
+    csv_path = Path(
+        run_part_2(
+            provider="inference_hub",
+            model=route,
+            society_size=1,
+            days=1,
+            resource="water",
+            selfish_gain=2,
+            depletion_units=2,
+            community_benefit=5,
+            generation_seed=3,
+            environment_seed=5,
+            headless=True,
+        )
+    )
+    with csv_path.open(newline="", encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle))
+    part_2.validate_direct_attempt_provenance(
+        part_2.attempt_log_path_for_csv(csv_path),
+        rows,
+        provider="inference_hub",
+        model=route,
+    )
+    metadata = part_2._load_part_2_metadata(part_2._metadata_path_for_csv(csv_path))
+    assert metadata["generation_protocol"]["mode"] == "direct_provider_structured_output"
+    assert metadata["generation_protocol"]["output_token_cap"] == 32
+    assert metadata["resume_contract"]["generation_protocol"] == metadata["generation_protocol"]
+
+
 def test_strict_extraction_uses_subject_provider_raw_hash_not_extractor_json_hash() -> None:
     subject_raw_hash = "a" * 64
     result = part_2._decision_result(

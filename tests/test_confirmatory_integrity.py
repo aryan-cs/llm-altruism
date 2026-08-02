@@ -622,8 +622,8 @@ def test_actual_data_lock_output_materializes_native_part0_units(
     )
     assert units["source_data_lock_sha256"] == sha256_file(lock_path)
     assert units["frozen_system_ids"] == ["target-1", "target-2"]
-    assert units["generation_blocks"] == [1, 2, 3]
-    assert len(units["rows"]) == 2 * 4 * 3 * 3
+    assert units["generation_blocks"] == [1]
+    assert len(units["rows"]) == 2 * 4 * 3
     part2_confirmatory._verify_sealed_artifact(units, hash_field="artifact_sha256")
 
 

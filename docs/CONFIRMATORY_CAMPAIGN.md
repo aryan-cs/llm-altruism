@@ -1,215 +1,138 @@
-# Isolated Confirmatory Campaign
+# Budgeted Confirmatory Campaign
 
 `experiments/confirmatory_campaign.py` is the strict orchestration layer for
-the final three-part campaign. It does not import or delegate planning to the
-legacy `experiments/campaign.py`. The native Part 0 and Part 1 confirmatory
-runners remain the sole producers of their results; Part 2 continues to use its
-production entrypoint and native artifact verifier.
+the three-part InferenceHub campaign. It is isolated from the April pilot and
+from `experiments/campaign.py`. The scientific contract is frozen in
+`docs/CONFIRMATORY_PROTOCOL.md`.
 
-## Mandatory frozen inputs
+## Mandatory inputs
 
-Planning is fail-closed and does not make provider calls. Before returning a
-plan it requires all of the following:
+Planning is side-effect free and fail-closed. It requires:
 
-1. A unique ordered list of registry cohorts. With no `--cohort` flags the
-   exact union is `current_sota` followed by `historical`. Duplicate target IDs
-   or exact routes across cohorts are errors, not silently deduplicated.
-2. Every subject target and the selected extractor and Part 0 judge must be an
-   exact `provider=inference_hub` registry route with `verification_status`
-   `verified`. The registry's complete verification bundle, routing-roster
-   hash, and freshness policy must agree across cohorts. When the initial
-   variance-pilot freeze is created, every route is passed through
-   `require_fresh_route_verification`; stale evidence stops that initial plan.
-3. An all-target evidence bundle produced by
-   `experiments.misc.inference_hub_discovery verify-cohorts`, supplied with its
-   exact file SHA-256. The campaign validates the bundle's internal hash,
-   registry version/hash, routing-roster hash, cohort order and membership,
-   target order/count, exact routes, endpoint, returned model identities,
-   structured-output smoke controls, and equality with every registry target's
-   retained verification evidence.
-4. A human-approved Part 0 registry and Part 1 384-root bank, each supplied with
-   an exact file SHA-256. Their production loaders are run during initial
-   planning, manifest creation, and resume validation; there is no draft or
-   approval bypass.
-5. A clean worktree and exact 40-character commit. The manifest freezes the
-   interpreter, all campaign/runner/grading/provider sources, prompt assets,
-   model registry, analysis verifier, `pyproject.toml`, and `uv.lock`. The
-   dependency lock has a separate digest. Resume refuses any drift.
+1. the exact ordered `current_sota` and `historical` cohorts from an
+   authenticated InferenceHub census;
+2. `verification_status=verified` evidence for every exact route and the Part 0
+   judge, including matching catalog responses and a structured smoke result;
+3. a hash-pinned all-target evidence bundle from
+   `experiments.misc.inference_hub_discovery verify-cohorts`;
+4. a genuinely approved Part 0 multilingual registry and Part 1 384-root bank;
+5. the corrected Part 2 prompt and N=10, horizon=30, capacity=150 contract;
+6. the frozen request/token ledger; and
+7. a clean 40-character Git commit plus source and dependency bundle hashes.
 
-The extractor and judge target IDs must themselves be members of the requested
-cohort union, so the same all-target endpoint evidence covers every model role.
+Display labels in `agents/agent_config.registry.json` are candidates only. They
+cannot be executed or reported until authenticated evidence replaces them.
+Duplicate IDs/routes, missing families, stale evidence, silent substitutions,
+or identity mismatch are fatal planning errors.
 
-## Exact job matrix
+## One-stage matrix
 
-The initial variance-pilot plan contains, for every subject target, one Part 0
-sacrificial smoke and production job, one Part 1 sacrificial smoke and
-production job, one production-shaped Part 2 smoke, and eight Part 2 variance
-pilot jobs. The linked baseline-production continuation contains only its Part
-2 smoke and the selected common number of Part 2 baseline jobs. It never calls
-Part 0 or Part 1 a second time.
+The final campaign uses one fixed stage. There is no variance-pilot/baseline
+continuation and no extractor route.
 
-Part 0 and Part 1 use deterministic private output directories below their
-respective `data/private/*_confirmatory` roots. Their fresh and resume argv
-vectors are both frozen. The Part 2 smoke uses four agents, three days, and a
-deliberately small reserve, exercising multi-day state feedback and day-specific
-seeds while permitting collapse and attrition when agents overuse. Part 2 uses
-the native timestamped artifact directory,
-but each job freezes one exact subject target, generation seed, environment
-seed, configuration, extractor route, and grading protocol. The executor takes
-a metadata snapshot and accepts exactly one changed Part 2 artifact after a
-successful subprocess. It then runs the native strict artifact verifier.
+For each verified target it schedules:
 
-All subprocesses receive an argv list with `shell=False`; commands are never
-rendered into a shell string. Per-job logs and the campaign manifest are private
-and durable. The manifest has an immutable plan hash plus a hash over its live
-status, attempts, and artifacts, and every update is an atomic fsync-backed
-replacement.
+- Part 0: six smoke subject cells plus their six judge calls, followed by 1,752
+  production subject calls and 1,752 judge calls;
+- Part 1: one smoke root in each of 12 game-domain cells, followed by 384
+  production calls;
+- Part 2: 12 smoke agent-days, followed by 24 trajectories of at most 300
+  agent-day calls each.
 
-## Part 2 variance pilot
+For 30 routes this is 333,750 successful POSTs including the per-route route
+verification call. Attrition may reduce realized Part 2 calls, but planning
+budgets the no-collapse maximum. One complete stored-response Part 0 rejudge
+and a 10% retry reserve fit under the immutable 430,000-attempt ceiling.
 
-`--part2-stage variance-pilot` is the default. It schedules exactly eight
-common generation/environment seed pairs for every target. These seed pairs
-are identical across the full target union; no model gets an extra or missing
-replicate. For the default 30-target union the complete matrix is:
+The plan uses all 484 harmful prompt roots because their worst-case
+language-specific half-width is about 4.4 points; subsampling to 150 would widen
+it to about 8 points for only a modest operational saving. Twenty-four commons
+trajectories similarly keep a run-SD-0.15 t half-width near 6.3 points.
 
-| Stage | Jobs |
-| --- | ---: |
-| Part 0 smoke | 30 |
-| Part 1 smoke | 30 |
-| Part 2 smoke | 30 |
-| Part 0 production | 30 |
-| Part 1 production | 30 |
-| Part 2 variance pilot | 240 |
-| **Total** | **390** |
+## Durable budget ledger
 
-This mode refuses a variance-selection artifact because the selection must be
-made only after the identity-masked pilot workflow is complete.
+The manifest stores a self-hashed, role-specific budget. Before every physical
+InferenceHub POST, the caller atomically reserves the request hash, a
+character-based input-token estimate, and the full role output-token cap in a
+shared ledger. The reservation is fsynced before dispatch; a crash may
+overcount but cannot hide a request. Resume replays the ledger and rejects any
+mismatch. No request is dispatched if its conservative reservation would
+exceed a role cap, 430,000 attempts, or 200 million reserved tokens.
 
-## Part 2 baseline production gate
+Provider-reported usage remains in each response audit for reconciliation.
+Missing or internally inconsistent usage makes the route incomplete. The
+frozen schedule and role output caps must fit before the first scientific
+request; live conservative reservations enforce the combined token ceiling.
 
-`--part2-stage baseline-production` requires the exact completed complete-union
-pilot manifest and the sealed output from
-`analysis.part2_confirmatory select-variance`, each with its exact file
-SHA-256. The selector output has this exact outer schema:
+## Smoke dependencies
 
-```json
-{
-  "schema_version": 1,
-  "artifact_type": "part2_identity_masked_variance_selection",
-  "private_input_sha256": "<64 lowercase hex>",
-  "pilot_campaign_manifest_sha256": "<exact pilot manifest file SHA-256>",
-  "selection": {
-    "schema_version": 1,
-    "selection_rule": "smallest_n_with_t95_half_width_at_most_0.05_capped_20_40",
-    "identity_masked": true,
-    "selected_common_run_count": 20,
-    "...": "the remaining exact native selector fields"
-  },
-  "artifact_sha256": "<native canonical payload SHA-256>"
-}
-```
+Every scientific unit names a matching same-target, same-part smoke. Part 0
+smoke exercises subject and judge. Part 1 smoke exercises direct structured
+X/Y parsing across all 12 game-domain cells. Part 2 smoke uses four agents for
+three days and exercises state feedback, direct structured actions, transition
+checks, and collapse behavior. Smoke artifacts carry hash-bound exclusion
+markers and cannot enter analysis.
 
-`selected_common_run_count` must be an integer from 20 through 40. It is the
-only source of the scientific Part 2 replicate count; there is no command-line
-sample-size override. The campaign recomputes the selector seal, requires its
-pilot lineage to match the supplied completed campaign, and revalidates every
-pilot artifact before planning or resume. At `n=20`, the default 30-target
-continuation contains 30 Part 2 smoke jobs and 600 baseline jobs, 630 total.
+A missing, failed, or incomplete smoke marks dependent units
+`blocked_smoke`. It does not authorize a substitute route or a different model
+from the same family.
 
-The initial pilot creation is the route-freshness boundary for this two-stage
-chain. The baseline continuation may begin after the 168-hour wall-clock
-window, but only with the pilot's exact cohort, registry, routing roster, role
-routes, and endpoint-evidence bytes. Elapsed time cannot invalidate an
-immutable campaign, while every route or panel substitution still fails.
+## Execution order and failures
 
-After the pilot manifest is complete, derive and select the common run count
-from native artifacts only:
+Target/part/wave order is SHA-256 block-randomized. Waves interleave routes so
+one provider or model is not confounded with an entire early or late calendar
+period. Commands use argv arrays with `shell=False`; private logs, attempts,
+raw responses, and manifests use mode 0600 and atomic fsync-backed replacement.
 
-```bash
-python -m analysis.part2_confirmatory build-variance-input \
-  --pilot-campaign /absolute/private/pilot/manifest.json \
-  --pilot-campaign-sha256 <exact-file-sha256> \
-  --output /absolute/private/pilot/identity-masked-variance-input.json
+Only network failures, timeouts, HTTP 408/429, and 5xx failures without a
+retained response are retryable. Each retry uses identical bytes and at most
+two retries. Truncation, malformed structured output, and semantic invalidity
+are retained as outcomes and never retried. Identity mismatch is fatal.
 
-python -m analysis.part2_confirmatory select-variance \
-  --input /absolute/private/pilot/identity-masked-variance-input.json \
-  --pilot-campaign /absolute/private/pilot/manifest.json \
-  --pilot-campaign-sha256 <exact-file-sha256> \
-  --output /absolute/private/pilot/variance-selection.json
-```
+A route-role pauses after three consecutive retry-exhausted units or when
+first-attempt operational failures exceed 2% in its latest 100 dispatches.
+Pause state, exclusion code, and affected units are durable manifest state.
+Stopping never reads scientific labels or summaries.
 
-The baseline campaign then receives the same pilot path/hash plus
-`--variance-selection` and `--variance-selection-sha256`. It also receives the
-same cohort, role, registry, approved-input, and endpoint-evidence arguments as
-the pilot; any mismatch is rejected.
+## Completion and locking
 
-## Smoke gates and exclusions
+A target is complete only when all three scientific parts pass native artifact
+verification. Incomplete routes remain in the coverage report but are absent
+from complete-case cross-part analysis. Current-SOTA completeness is assessed
+separately from the historical cohort.
 
-Every scientific job stores the ID of its matching same-target, same-experiment
-smoke. A frozen SHA-256 scheduling seed block-randomizes target order and part
-order within target; within each target-part block, the matching smoke always
-precedes its scientific jobs. The executor checks the referenced status
-immediately before a scientific job. A missing, failed, or incomplete smoke
-sets the scientific job to `blocked_smoke`; failure for one target does not
-authorize that target's production run and does not substitute another
-target's smoke.
-
-Part 0 additionally receives that exact same-target smoke directory through
-its native `--completed-smoke-dir` production gate. The runner revalidates the
-smoke plan, routes, seeds, full result set, attempt chain, metadata, and
-exclusion marker before freezing or resuming the production plan.
-Part 1 applies the analogous native `--completed-smoke-directory` gate.
-
-The native Part 0/1 smoke runners write and validate their own hash-bound
-analysis-exclusion markers. Part 2 smoke CSVs receive the exact exclusion
-marker understood by `analysis.validation`, binding the CSV SHA-256 and reason
-`sacrificial_campaign_smoke`. Production Part 0/1 artifacts refuse smoke
-markers. Completed jobs are reverified on campaign resume rather than trusted
-from manifest status alone.
+The data lock revalidates route evidence, approved inputs, prompt and source
+hashes, the clean commit, every request/response and attempt record, ledger
+totals, exact Part 0/1 coverage, all 24 Part 2 trajectories per completed
+target, transition replay, and smoke exclusions. Outcomes remain private until
+this structural lock is written.
 
 ## Dry run
 
-`--dry-run` performs the complete planning validation: cohort union, route
-freshness, all-target evidence, approved registries, optional variance gate,
-clean Git/source/dependency freeze, commands, job counts, and hashes. It makes
-no campaign directory, manifest, log, result file, or provider request. The
-validated summary is printed to stdout.
-
-Example pilot dry run:
+The production CLI remains intentionally unusable while any registry target is
+`unverified` or either human-approved input is absent. Once those inputs exist,
+the dry run must print exact routes, exclusions, role counts, worst-case calls,
+token bounds, source hashes, and the immutable plan hash without creating a
+campaign directory or making a provider request.
 
 ```bash
 python -m experiments.confirmatory_campaign \
-  --campaign-id confirmatory-pilot-v1 \
-  --extractor-target-id google.google-gemma-3-27b-it \
-  --judge-target-id google.google-gemma-3-27b-it \
+  --campaign-id confirmatory-budgeted-v1 \
+  --judge-target-id <verified-judge-target> \
   --part0-registry /absolute/private/part0-registry.json \
   --part0-registry-sha256 <sha256> \
   --part1-bank /absolute/private/part1-bank.json \
   --part1-bank-sha256 <sha256> \
   --endpoint-evidence /absolute/private/all-target-evidence.json \
   --endpoint-evidence-sha256 <sha256> \
-  --part2-stage variance-pilot \
   --dry-run
 ```
 
-Remove `--dry-run` to create and execute the fresh private manifest. Resume an
-existing campaign using only:
+Remove `--dry-run` only after the printed plan matches the preregistration.
+Resume accepts only the campaign ID and revalidates every pinned byte and
+ledger entry before continuing.
 
-```bash
-python -m experiments.confirmatory_campaign \
-  --campaign-id confirmatory-pilot-v1 \
-  --resume
-```
-
-Resume revalidates all pinned files, current cohort membership, verification
-identity, routing roster, commit, source/dependency bundles, immutable plan,
-live manifest hash, job states, and every already completed artifact before
-continuing.
-
-## Target shards
-
-Repeatable `--target-id` flags can create disjoint execution shards while the
-endpoint evidence still attests the full frozen cohort union. A single shard is
-never a publication-complete panel: the final confirmatory data lock requires
-`target_selection.mode=complete_union` until an exact master-shard merge
-validator is implemented. One target's default pilot shard has 13 jobs.
+Target shards may execute in parallel only when a master merge validator
+proves disjoint route membership, identical frozen inputs, complete smoke
+lineage, and exact ledger addition. Until that validator exists, a shard is not
+a publication-complete campaign.

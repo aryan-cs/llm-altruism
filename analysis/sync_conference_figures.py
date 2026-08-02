@@ -10,11 +10,7 @@ CROSS_PART_DIR = Path("data") / "graphs" / "cross_part" / "individual-plots"
 DEFAULT_OUTPUT_DIR = Path("docs") / "conference_submission" / "figures"
 
 PAPER_VISUALS = (
-    "behavioral_fingerprint_heatmap.png",
     "frame_sensitivity_heatmap.png",
-    "model_behavior_pca.png",
-    "part0_refusal_by_language_heatmap.png",
-    "part0_refusal_rate_by_model.png",
     "part1_cooperation_by_game_heatmap.png",
     "part2_agent_day_raster.png",
     "part2_population_over_time.png",
@@ -24,7 +20,6 @@ PAPER_VISUALS = (
 )
 
 CROSS_PART_VISUALS = (
-    "safety_refusal_vs_restraint.png",
     "restraint_vs_final_population.png",
 )
 

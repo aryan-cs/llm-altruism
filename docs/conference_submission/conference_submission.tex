@@ -36,8 +36,8 @@
 Harmful-request refusal is often used as a safety indicator, but it does not characterize how a model responds to less explicit conflicts between private advantage and collective welfare.
 We introduce \textbf{Prosocial Readiness Bench}, a traceable suite of controlled probes for multilingual safety refusal, focal choices in one-shot social dilemmas, and restraint in a repeated 50-agent resource microworld.
 We use 56,382 stored rows from 13 local/open-weight variants to audit the benchmark and report a descriptive pilot.
-Direct self-choice cooperation ranges from 6.2--100.0\%; observer judgments (83.2\% cooperative) and predictions of others (4.9\%) expose strong response-frame dependence. Commons restraint ranges from 18.6--92.5\% across 13 single trajectories, without run-level uncertainty estimates.
-The audit also finds that the legacy refusal labeler scored rationale as well as final response: a deterministic response-only rejudgment changes 300 of the first 1,243 adjudicated rows (24.1\%). We therefore withdraw the legacy refusal rates and every refusal-based cross-part correlation from the empirical findings pending complete rejudgment and human validation.
+Direct self-choice cooperation ranges from 6.2--100.0\% across the pilot cohort. Commons restraint ranges from 18.6--92.5\% across 13 single trajectories, without run-level uncertainty estimates.
+The audit also finds that the legacy refusal labeler scored rationale as well as final response: a deterministic response-only rejudgment changes 300 of the first 1,243 adjudicated rows (24.1\%). We therefore report no model-level Part~0 estimate pending complete rejudgment and human validation.
 The release packages task contracts, schemas, validation, provenance seals, Croissant metadata, tables, figures, and reproduction commands; it makes both supported results and disqualifying evidence traceable.
 \end{abstract}
 
@@ -48,14 +48,14 @@ Prosocial Readiness Bench addresses this requirement through a reproducible beha
 
 The paper asks two concrete questions. First, can refusal, focal dilemma choices, and commons restraint be operationalized in one release-grade artifact with explicit task contracts, schemas, validation, and reproduction commands? Second, which pilot comparisons survive an end-to-end audit of labels, independence units, and transition provenance? Figure~\ref{fig:overview} summarizes the artifact flow.
 
-The pilot evaluation covers 13 related local/open-weight variants. Its Part~1 response-frame contrasts and Part~2 trajectories are reproducible descriptive evidence, but its legacy Part~0 labels are not: partial response-only rejudgment changes nearly one quarter of adjudicated rows. The paper consequently treats Part~0 as a protocol audit, does not use its legacy rates to support cross-part claims, and keeps the 13 Part~2 trajectories distinct from their 47,529 state-coupled agent-day rows.
+The pilot evaluation covers 13 related local/open-weight variants. Its Part~1 direct-choice outcomes and Part~2 trajectories are reproducible descriptive evidence, but its legacy Part~0 labels are not: partial response-only rejudgment changes nearly one quarter of adjudicated rows. The paper consequently treats Part~0 as a protocol audit, does not use its legacy rates to support cross-part claims, and keeps the 13 Part~2 trajectories distinct from their 47,529 state-coupled agent-day rows.
 
 Our contributions are:
 \begin{itemize}
     \item \textbf{Behavioral profile and benchmark.} We organize three controlled probes along increasing social scope and temporal externality, with explicit task contracts for multilingual safety refusal, role-conditioned dilemma responses, and commons restraint.
     \item \textbf{Traceable release package.} We provide prompts, schemas, metadata sidecars, manifests, validation output, derived tables, figures, and reproduction commands aligned with the reported claims.
     \item \textbf{Audited open-model pilot.} We trace 56,382 stored rows to 99 multilingual prompt roots, 48 Part~1 scenario roots per model, and 13 Part~2 trajectories; clustered intervals respect the prompt roots, and no agent-day interval is presented as run uncertainty.
-    \item \textbf{Protocol findings.} We report response-frame sensitivity and commons-trajectory differences, and we expose a material legacy-label failure instead of converting it into a safety result or a readiness score.
+    \item \textbf{Protocol findings.} We report direct-choice and commons-trajectory differences, use the role instructions as prompt-semantics calibration checks, and expose a material legacy-label failure instead of converting it into a safety result or a readiness score.
 \end{itemize}
 
 \begin{figure}[!htbp]
@@ -146,7 +146,7 @@ Commons & Homogeneous population & Choose stated multiplier & Repeated aggregate
 \subsection{Part 0: Safety Refusal}
 Part 0 presents harmful-request prompts and records whether the model refuses or materially complies. Prompts are drawn directly from JailbreakBench harmful behaviors and HarmBench standard behavior prompts \citep{chao2024jailbreakbench,mazeika2024harmbench}. The release uses one shared prompt-language matrix for every model: 99 base prompt texts rendered in English, Chinese, and Russian, for 297 judged rows per model and 3,861 rows total. The exact English base prompts and output language are preserved. The exact Google-Translate strings sent in the April pilot were not stored, so localized-prompt replay is not byte-identical; current runs store a \texttt{prompt\_sent} field. These public benchmarks may also have appeared in model pretraining or safety tuning; the probe measures responses on a known public set, not unseen-prompt generalization. Cross-language claims remain constrained by the translation record and multilingual jailbreak precedent \citep{deng2024multilingual}.
 
-The April pilot used a two-stage automated labeler: a lexical material-compliance shortcut followed by an LLM judge configured first as \modeltag{ollama/gpt-oss-safeguard:20b}, with \modeltag{ollama/gpt-oss:20b} as fallback. Both the shortcut and the legacy judge prompt could score material in either the stored rationale or final response, and exhausted or invalid judge attempts were stored as denial rather than unjudged. The compact pilot CSV did not retain which route, failure, or judge produced each label. A deterministic response-only rejudgment has adjudicated 1,243 of 3,861 rows and changes 300 labels (24.1\%): 275 legacy-complied rows become denied and 25 change in the other direction. Because this incomplete single-judge audit establishes material protocol sensitivity but not corrected rates, the paper withdraws all legacy refusal estimates and refusal-based correlations.
+The April pilot used a two-stage automated labeler: a lexical material-compliance shortcut followed by an LLM judge configured first as \modeltag{ollama/gpt-oss-safeguard:20b}, with \modeltag{ollama/gpt-oss:20b} as fallback. Both the shortcut and the legacy judge prompt could score material in either the stored rationale or final response, and exhausted or invalid judge attempts were stored as denial rather than unjudged. The compact pilot CSV did not retain which route, failure, or judge produced each label. A deterministic response-only rejudgment has adjudicated 1,243 of 3,861 rows and changes 300 labels (24.1\%): 275 legacy-complied rows become denied and 25 change in the other direction. Because this incomplete single-judge audit establishes material protocol sensitivity but not corrected rates, the paper reports only these aggregate instability counts for Part~0.
 
 The current protocol removes the lexical shortcut, gives the judge the harmful request as context but scores only the response, records every route, attempt, failure, and verdict, uses an explicit unjudged state, and neither requests nor stores hidden chain-of-thought. The exact legacy prompt is archived as \path{experiments/part0/part_0_prompt.legacy_20260411.json}. A deterministic blinded human-audit packet and scoring workflow are provided in \path{analysis/judge_audit.py}, but quantitative human labels are not fabricated or claimed here. General LLM-as-judge studies document systematic judge biases; they do not validate this task-specific classifier \citep{zheng2023judging}.
 
@@ -155,7 +155,7 @@ The primary metric is safety refusal:
 \mathrm{refusal} =
 \frac{\#\mathrm{denied}}{\#\mathrm{denied}+\#\mathrm{complied}}.
 \]
-The refusal metric is the intended Part~0 estimand, but no Part~0 model rate or cross-part statistic is treated as a paper finding until complete response-only rejudgment and the preregistered human audit pass. Legacy values remain machine-readable solely to make the failure reproducible.
+The refusal metric is the intended Part~0 estimand, but no Part~0 model rate or cross-part statistic appears in the paper until complete response-only rejudgment and the preregistered human audit pass.
 
 \subsection{Part 1: Focal Choices in One-Shot Dyadic Dilemmas}
 Part 1 evaluates a focal model response to a hypothetical social dilemma, drawing on prisoner-dilemma and commons traditions \citep{axelrod1984evolution,hardin1968tragedy,ostrom1990governing}. It is not live dyadic interaction: there is no paired opponent, communication, realized payoff, or outcome feedback. The prompt matrix has two game families, four frames, six domains (crime, sports, workplace, healthcare, education, neighborhood), four scenario variants per domain-game pair, and two presentation styles (narrative prose and structured bullet format), yielding $2{\times}4{\times}6{\times}4{\times}2 = 384$ decisions per model. The four scenario variants are stored in \path{experiments/part1/scenario_variants.py} and are selected by \texttt{scenario\_variant} IDs at runtime; \path{experiments/part1/part\_1\_prompt.json} stores the shared game, frame, domain, and presentation templates. The variants change surface context while preserving the same payoff structure and action labels; Appendix~\ref{app:part1-examples} shows an example pair. The game families use \texttt{COOPERATE}/\texttt{DEFECT} and \texttt{RESTRAIN}/\texttt{OVERUSE} action pairs. The frames ask for direct self choice, advice, observer evaluation, or prediction.
@@ -165,8 +165,8 @@ The primary behavioral metric is cooperation under the direct self-choice frame:
 \mathrm{cooperation} =
 \frac{\#\mathrm{cooperative}}{\#\mathrm{cooperative}+\#\mathrm{noncooperative}}.
 \]
-\texttt{COOPERATE} and \texttt{RESTRAIN} are scored as cooperative actions; \texttt{DEFECT} and \texttt{OVERUSE} are scored as non-cooperative actions. Advice, observer evaluation, and prediction are reported as distinct elicitation probes. Their pooled rate is a response-profile summary, not a behavioral cooperation estimate. The frame, domain, game, variant, and presentation fields make prompt sensitivity measurable rather than implicit.
-Frame effect sizes are reported as percentage-point differences from the prediction frame, e.g.,
+\texttt{COOPERATE} and \texttt{RESTRAIN} are scored as cooperative actions; \texttt{DEFECT} and \texttt{OVERUSE} are scored as non-cooperative actions. Advice, observer evaluation, and prediction are prompt-semantics calibration probes: they check that the response contract distinguishes recommendations, evaluations, and beliefs from direct self-choice. Their pooled rate is a response-profile summary, not a behavioral cooperation estimate. The frame, domain, game, variant, and presentation fields make prompt sensitivity measurable rather than implicit.
+Calibration contrasts are reported as percentage-point differences from the prediction frame, e.g.,
 \[
 \Delta_{f,\mathrm{prediction}} = 100(r_f-r_{\mathrm{prediction}}),
 \]
@@ -177,7 +177,7 @@ S_{m,d}=100\left(\max_v r_{m,d=v}-\min_v r_{m,d=v}\right),
 computed over frames, games, domains, and presentation styles. Because the prompt matrix is balanced, the paper also reports a Type~I (sequential) sum-of-squares decomposition for \(\mathrm{cooperate}\sim\mathrm{model}+\mathrm{frame}+\mathrm{game}+\mathrm{domain}+\mathrm{presentation}\). Since all factors are fully crossed and balanced, Type~I and Type~III decompositions produce identical main-effect sums of squares \citep{montgomery2017design}. The decomposition is not used for causal attribution; it quantifies how much observed binary outcome variance is associated with each balanced factor in this pilot.
 
 \subsection{Part 2: Commons Restraint}
-Part 2 is a controlled population microworld rather than a simulation of a real society \citep{hardin1968tragedy,ostrom1990governing,piatti2024govsim}. It creates homogeneous same-model policies in a repeated common-pool resource task. Each configured run starts with 50 active policies, a 100-day horizon, and a water reserve with capacity 2,500 units. The prompt describes \texttt{OPTION\_A} as a 1x private score multiplier and \texttt{OPTION\_B} as a higher private multiplier; the engine does not compute, store, or feed back individual scores. Operationally, \texttt{OPTION\_A} maps to \texttt{RESTRAIN} and leaves the reserve unchanged, whereas \texttt{OPTION\_B} maps to \texttt{OVERUSE} and reduces it by 2 units. Every policy receives the same aggregate state: current day, living population, reserve, and previous-day \texttt{OPTION\_B} count.
+Part 2 is a controlled population microworld rather than a simulation of a real society \citep{hardin1968tragedy,ostrom1990governing,piatti2024govsim}. It creates homogeneous same-model policies in a repeated common-pool resource task. Each configured run starts with 50 active policies, a 100-day horizon, and a water reserve with capacity 2,500 units. The legacy pilot prompt described \texttt{OPTION\_A} as a 1x private score multiplier and \texttt{OPTION\_B} as a higher private multiplier. It also stated that the group-level score would change by +5 if all participants selected \texttt{OPTION\_A} and by -5 if all selected \texttt{OPTION\_B}. The engine never computed, stored, or fed back either individual or group scores. Operationally, \texttt{OPTION\_A} maps to \texttt{RESTRAIN} and leaves the reserve unchanged, whereas \texttt{OPTION\_B} maps to \texttt{OVERUSE} and reduces it by 2 units. Every policy receives the same aggregate state: current day, living population, reserve, and previous-day \texttt{OPTION\_B} count. Actions and rationales may therefore respond to stated score incentives that were absent from the implemented environment; the pilot estimates behavior under that mismatched prompt-engine contract, not under a fully realized payoff system.
 
 The primary action metric is commons restraint:
 \[
@@ -207,7 +207,7 @@ Validation is graph-independent. It checks CSV headers, duplicate rows, missing 
 The release contains 56,382 stored rows with 0 structural validation failures across 27 CSV files: 3,861 Part~0 judgments, 4,992 Part~1 decisions, and 47,529 Part~2 agent-day decisions. These row counts are artifact scale, not an independent sample size: Part~0 has 99 shared prompt roots per model, Part~1 has 48 shared scenario roots per model, and Part~2 has only 13 trajectories. Part~2 is below the 65,000 maximum because collapsed societies stop producing living-agent decisions.
 
 \section{Evaluation Protocol}
-For each model and part, the analysis pipeline computes the primary rate and task-specific diagnostics. Paper-facing pilot rate intervals use a deterministic 2,000-replicate percentile cluster bootstrap with seed 20260802 \citep{efron1979bootstrap}: Part~0 resamples 99 base-prompt roots while retaining all three languages, and Part~1 resamples 48 scenario-variant roots while retaining their frames and presentations. Row-binomial Wilson bounds are retained only as explicitly named diagnostics, not confidence intervals for the independent sampling units \citep{wilson1927probable}. Part~1 computes frame effect sizes, prompt-sensitivity indices, and a balanced main-effect variance decomposition, with direct self-choice as the designated primary estimand and all-frame pooling secondary. Part~2 first summarizes each trajectory and then averages trajectories equally within model; the pilot has one trajectory per model, while repeated future runs receive between-run $t$ intervals rather than agent-day-pooled intervals. Part~2 additionally computes first depletion day, final reserve, final population, total deaths, AURC, and AUPC. Cross-part analysis joins model-level tables by model identifier and reports Pearson, Spearman, and Kendall $\tau_b$ correlations, conventional Fisher-transform intervals, 2,000-replicate model-row bootstrap intervals with seed 20260429, and leave-one-model/family-out ranges. Fisher-transform intervals for rank coefficients are labeled approximate. Because 13 related model variants are not an exchangeable population sample, all model-level intervals are descriptive sensitivity summaries; the family-deletion range is emphasized.
+For each model and part, the analysis pipeline computes the primary rate and task-specific diagnostics. Paper-facing Part~1 intervals use a deterministic 2,000-replicate percentile cluster bootstrap with seed 20260802, resampling 48 scenario-variant roots while retaining their frames and presentations \citep{efron1979bootstrap}. Row-binomial Wilson bounds are retained only as explicitly named diagnostics, not confidence intervals for the independent sampling units \citep{wilson1927probable}. Part~1 computes calibration contrasts, prompt-sensitivity indices, and a balanced main-effect variance decomposition, with direct self-choice as the designated primary estimand and all-frame pooling secondary. Part~2 first summarizes each trajectory and then averages trajectories equally within model; the pilot has one trajectory per model, while repeated future runs receive between-run $t$ intervals rather than agent-day-pooled intervals. Part~2 additionally computes first depletion day, final reserve, final population, total deaths, AURC, and AUPC. Model-level association analysis joins the valid tables and reports Pearson, Spearman, and Kendall $\tau_b$ correlations, conventional Fisher-transform intervals, 2,000-replicate model-row bootstrap intervals with seed 20260429, and leave-one-model/family-out ranges. Fisher-transform intervals for rank coefficients are labeled approximate. Because 13 related model variants are not an exchangeable population sample, all model-level intervals are descriptive sensitivity summaries; the family-deletion range is emphasized.
 
 Part 1 and Part 2 require parseable JSON actions. Each action receives at most three attempts, and an incomplete run receives at most three run attempts before failing with a provenance-bearing metadata sidecar. The April pilot traversed the Part~1 matrix in fixed construction order and retained only the eventual valid response, so 0 invalid retained actions (0/4,992 Part~1 rows and 0/47,529 Part~2 rows) does not estimate first-attempt validity or retry rates. The current runner uses a recorded seed for shuffled, cyclically counterbalanced Part~1 orders and writes every raw success, parse failure, provider error, and interruption to a durable attempt log with counts and hashes in metadata. These corrections govern confirmatory runs but do not retroactively randomize the pilot.
 
@@ -245,10 +245,10 @@ Model & Direct self-choice coop. & Commons restraint \\
 These descriptive results over 13 related local/open-weight variants demonstrate benchmark behavior and generate hypotheses rather than estimate vendor or architecture effects.
 
 \paragraph{The Part~0 audit disqualifies the legacy safety results.}
-The stored labels had suggested a 9.4--99.3\% refusal range and strong family contrasts. They are not reported as findings: the incomplete response-only rejudgment changes 24.1\% of adjudicated rows, with especially consequential legacy-complied to response-only-denied changes. Exact localized prompts and row-level legacy judge failures are unavailable, and the replacement judge has not yet passed the planned human audit. Appendix Figure~\ref{fig:refusal-language} and the machine-readable cross-part table retain the legacy calculations only as explicitly deprecated sensitivity artifacts.
+The incomplete response-only rejudgment changes 300 of 1,243 adjudicated rows (24.1\%): 275 legacy-complied rows become denied and 25 change in the other direction. This aggregate instability count is the only Part~0 pilot result reported in the paper. Exact localized prompts and row-level legacy judge failures are unavailable, and the replacement judge has not yet passed the planned human audit.
 
-\paragraph{Direct choices and role-conditioned probes differ.}
-The primary direct self-choice cooperation rate ranges from 6.2\% to 100.0\% across models and is 61.4\% across all self-choice rows. For comparison, models recommend cooperation in 66.8\% of advice prompts, endorse it in 83.2\% of observer prompts, and predict it in only 4.9\% of prediction prompts. The pooled all-frame rate ranges from 24.2\% to 75.0\% across models, but it mixes questions with different meanings and is retained only as a secondary response-profile summary. The observer--self difference is a response-frame gap, not evidence of a norm--action mechanism; the prediction frame probes beliefs about others rather than the model's own behavior. Appendix Figure~\ref{fig:game-family} gives game-family differences; these remain descriptive because the pilot was not designed to identify causal mechanisms behind the role effects.
+\paragraph{Direct choices vary, and role probes calibrate prompt semantics.}
+The primary direct self-choice cooperation rate ranges from 6.2\% to 100.0\% across models and is 61.4\% across all self-choice rows. As a calibration check, the same action labels appear in 66.8\% of advice prompts, 83.2\% of observer-evaluation prompts, and 4.9\% of prediction prompts. These prompts ask different questions, so their contrasts confirm semantic sensitivity of the response contract rather than a substantive change in one cooperation construct. The pooled all-frame rate is retained only as a secondary response-profile summary. Appendix Figure~\ref{fig:game-family} gives descriptive game-family differences.
 
 \begin{figure}[!htbp]
 \centering
@@ -266,12 +266,12 @@ Appendix Figures~\ref{fig:reserve-over-time}--\ref{fig:restraint-over-time} and~
 
 \section{Diagnostics}
 \label{sec:diagnostics}
-\paragraph{Valid cross-part comparisons remain descriptive.}
-Table~\ref{tab:cross-part-corr} reports the two comparisons that do not depend on legacy refusal labels. Direct self-choice cooperation and commons restraint have a small estimated association (Pearson $r{=}0.27$, Spearman $\rho{=}0.24$) with wide intervals. Restraint and final population show a strong relationship (Pearson $r{=}0.85$, Spearman $\rho{=}0.90$), as expected from the deterministic transition rules. Neither comparison identifies a vendor- or architecture-level relationship. The deprecated refusal--restraint calculation ($r{=}0.77$) is not evidence of coupling because its refusal inputs fail the label-protocol audit.
+\paragraph{Model-level associations remain descriptive.}
+Table~\ref{tab:cross-part-corr} reports the two comparisons supported by the audited Part~1 and Part~2 inputs. Direct self-choice cooperation and commons restraint have a small estimated association (Pearson $r{=}0.27$, Spearman $\rho{=}0.24$) with wide intervals. Restraint and final population show a strong relationship (Pearson $r{=}0.85$, Spearman $\rho{=}0.90$), as expected from the deterministic transition rules. Neither comparison identifies a vendor- or architecture-level relationship.
 
 \begin{table}[!htbp]
 \centering
-\caption{Descriptive pilot correlations not involving deprecated Part~0 labels ($n{=}13$ related variants; four families). Part~1 uses direct self-choice cooperation. Brackets give conventional Fisher-transform intervals; rank-coefficient intervals are approximate. The last column shows Pearson estimates after deleting one family at a time.}
+\caption{Descriptive pilot associations from the audited Part~1 and Part~2 inputs ($n{=}13$ related variants; four families). Part~1 uses direct self-choice cooperation. Brackets give conventional Fisher-transform intervals; rank-coefficient intervals are approximate. The last column shows Pearson estimates after deleting one family at a time.}
 \label{tab:cross-part-corr}
 \small
 \resizebox{\linewidth}{!}{%
@@ -285,23 +285,23 @@ Restraint $\times$ Final population & $0.85$ [$0.57$, $0.95$] & $0.90$ [$0.69$, 
 \end{tabular}%
 }
 \end{table}
-Because there are only 13 related variants in four families, neither the conventional intervals nor the family-deletion ranges support architecture- or vendor-level inference. The machine-readable correlation table additionally reports Kendall's $\tau_b$, 2,000-replicate model-row bootstrap intervals, and leave-one-model-out ranges. Rows involving refusal are marked legacy-only and are excluded from the paper's findings until Part~0 is completely and validly rejudged.
+Because there are only 13 related variants in four families, neither the conventional intervals nor the family-deletion ranges support architecture- or vendor-level inference. The machine-readable table additionally reports Kendall's $\tau_b$, 2,000-replicate model-row bootstrap intervals, and leave-one-model-out ranges for these supported comparisons.
 
 \paragraph{Family profiles are not one-dimensional.}
-Release-style variants produce distinct profiles: most notably, Qwen~2.5 base and abliterate variants have near-universal direct Part~1 cooperation but opposite commons outcomes. Appendix~\ref{app:extended-diagnostics} and Figures~\ref{fig:behavioral-fingerprint}--\ref{fig:model-behavior-pca} give the remaining contrasts.
+Release-style variants produce distinct profiles: most notably, Qwen~2.5 base and abliterate variants have near-universal direct Part~1 cooperation but opposite commons outcomes. Appendix~\ref{app:extended-diagnostics} gives additional temporal contrasts.
 
-\paragraph{Roles change the meaning of a cooperative response.}
-Part~1 treats prompt frame as an experimental variable (Figure~\ref{fig:frame-effects}). Observer prompts elicit high cooperative judgments while prediction prompts yield near-zero cooperative predictions. This gap distinguishes normative evaluation from beliefs about others; it should not be interpreted as one cooperation construct changing under superficial paraphrase.
+\paragraph{Role instructions serve as prompt-semantics checks.}
+Part~1 treats prompt frame as an experimental variable (Figure~\ref{fig:frame-effects}). Observer prompts ask for an evaluation, while prediction prompts ask about beliefs concerning others. Their different action-label rates verify that the runner preserves those semantic distinctions; they are not evidence that one behavioral cooperation construct changed under paraphrase.
 
-Appendix Figure~\ref{fig:frame-effects} shows that nearly every model predicts selfish behavior even when it cooperates under other frames; \texttt{llama2-uncensored} is the main exception (58.3\%). Frame is the largest measured main effect (35.1\% of binary outcome variance), and the model$\times$frame interaction (9.6\%) exceeds the game-family main effect (4.3\%). Appendix~\ref{app:extended-diagnostics} and Tables~\ref{tab:part1-decomposition} and~\ref{tab:prompt-sensitivity} give the full decomposition.
+Appendix Figure~\ref{fig:frame-effects} shows the calibration pattern across models. Frame accounts for 35.1\% of binary action-label variance and the model$\times$frame term for 9.6\%. These large shares are expected because the frames deliberately ask semantically different questions; they show that the outputs cannot be pooled as one behavioral construct. Appendix~\ref{app:extended-diagnostics} and Tables~\ref{tab:part1-decomposition} and~\ref{tab:prompt-sensitivity} give the full decomposition.
 
 \paragraph{Restraint mechanically drives survival in the microworld.}
-The strong restraint--population association (Pearson $r=0.85$, bootstrap interval $[0.68,0.98]$) verifies the deterministic depletion mechanism, not ecological validity; Appendix Figures~\ref{fig:cross-diagnostics} and~\ref{fig:restraint-population} show the outcomes.
+The strong restraint--population association (Pearson $r=0.85$, bootstrap interval $[0.68,0.98]$) verifies the deterministic depletion mechanism, not ecological validity; Appendix Figure~\ref{fig:restraint-population} shows the outcomes.
 
 \paragraph{Rationale-action mismatches as a lexical diagnostic.}
-Part 2 also records a brief rationale. A directional lexical check flags 823 of 47,529 rows (1.7\%) where an \texttt{OVERUSE} action accompanies reserve-preservation or collective-benefit language. This is a surface-form diagnostic, not evidence about hidden reasoning quality; Appendix~\ref{app:extended-diagnostics} gives its asymmetric definition and model breakdown.
+Part 2 also records a brief rationale. A directional lexical check flags 823 of 47,529 rows (1.7\%) where an \texttt{OVERUSE} action accompanies reserve-preservation or collective-benefit language. The legacy prompt's unimplemented individual and group-score statements may directly induce some of this language. The count is therefore a surface-form diagnostic of the stored contract mismatch, not evidence about hidden reasoning quality; Appendix~\ref{app:extended-diagnostics} gives its asymmetric definition and model breakdown.
 
-Across the supported diagnostics, response frame is a first-class specification variable and one-run commons outcomes differ substantially across release-style variants. The audit cannot test whether valid refusal rates transfer to either construct. The pilot does not identify intent, deception, or a general prosocial disposition.
+Across the supported diagnostics, prompt semantics are a first-class specification variable and one-run commons outcomes differ substantially across release-style variants. The audit cannot test whether valid refusal rates transfer to either construct. The pilot does not identify intent, deception, or a general prosocial disposition.
 
 \section{Scope and Responsible Use}
 \label{sec:scope}
@@ -312,7 +312,7 @@ Part~2 uses repeated stateless prompting, not a forecast of human institutions o
 The artifact supports behavioral auditing and mitigation comparison, not harmful compliance. Raw Part~0 harmful prompts and completions are excluded from the anonymous supplement; multilingual evaluation requires language- and culture-specific expert review before stronger cross-cultural claims. Because this coverage can surface culturally specific harmful-request patterns, downstream releases should retain safety filtering, access controls, and responsible-use documentation.
 
 \section{Conclusion}
-Safety Beyond Refusal packages traceable probes of harmful-request refusal, focal dilemma choices, and commons restraint. The artifact audit supports descriptive Part~1 response-frame and Part~2 trajectory findings while disqualifying the legacy Part~0 rates and their cross-part correlations. This trace-level evaluation is neither a latent prosociality score nor a realistic society simulation. Confirmatory claims require a complete human-validated rejudgment, broader model coverage, recorded decoding controls, repeated trajectories, and sensitivity analysis of the commons dynamics.
+Safety Beyond Refusal packages traceable probes of harmful-request refusal, focal dilemma choices, and commons restraint. The artifact audit supports descriptive Part~1 direct-choice and Part~2 trajectory findings, uses the remaining Part~1 roles as prompt-semantics checks, and disqualifies model-level Part~0 inference. This trace-level evaluation is neither a latent prosociality score nor a realistic society simulation. Confirmatory claims require a complete human-validated rejudgment, broader model coverage, recorded decoding controls, repeated trajectories, and sensitivity analysis of the commons dynamics.
 
 \bibliographystyle{plainnat}
 \bibliography{references}
@@ -324,28 +324,14 @@ Safety Beyond Refusal packages traceable probes of harmful-request refusal, foca
 \label{app:extended-diagnostics}
 The Part~2 temporal plots identify strategy-shift cases. \modeltag{sorc/qwen3.5-instruct} starts with 29.0\% restraint in the first 10 days and reaches 98.8\% in the final 10 days, barely surviving with 10 reserve units. The agent-day raster shows that this is a population-wide shift rather than a small subgroup effect. \modeltag{sorc/qwen3.5-instruct-uncensored} follows a similar pattern but crosses the depletion threshold on day 34 before the shift can prevent collapse.
 
-Within-family profiles provide further counterexamples to a single readiness ordering without using the deprecated refusal axis. Qwen~2.5 base and abliterate variants make nearly identical direct Part~1 choices but have sharply different commons trajectories. GPT-OSS standard, safeguard, and derestricted variants differ on both direct choice and restraint. The fingerprint and PCA retain the legacy refusal dimension only as a visibly marked audit artifact and must not be interpreted as a valid safety ordering.
+Within-family profiles provide further counterexamples to a single readiness ordering. Qwen~2.5 base and abliterate variants make nearly identical direct Part~1 choices but have sharply different commons trajectories. GPT-OSS standard, safeguard, and derestricted variants differ on both direct choice and restraint.
 
-The full Part~1 decomposition assigns 35.1\% of binary outcome variance to frame, 15.3\% to model, 9.6\% to model$\times$frame, 4.3\% to game family, 0.5\% to domain, and less than 0.1\% to presentation style. Frame is the maximum sensitivity dimension for 12 of 13 models, while \texttt{llama2-uncensored} is most sensitive to game family. Within matched domain-game pairs, prisoner-dilemma scenario variants differ by at most 7.7 percentage points in aggregate cooperation.
+The full Part~1 decomposition assigns 35.1\% of binary outcome variance to frame, 15.3\% to model, 9.6\% to model$\times$frame, 4.3\% to game family, 0.5\% to domain, and less than 0.1\% to presentation style. Frame is the maximum sensitivity dimension for 12 of 13 models, which is a calibration result because the role instructions ask different questions. Within matched domain-game pairs, prisoner-dilemma scenario variants differ by at most 7.7 percentage points in aggregate direct-choice cooperation.
 
-The reasoning-action diagnostic is deliberately one-sided: it flags \texttt{OVERUSE} rows containing reserve-preservation or collective-benefit language, but does not count \texttt{RESTRAIN} actions justified by selfish language. Of 823 flags, GPT-OSS derestricted contributes 164, \modeltag{sorc/qwen3.5-instruct} 142, and \modeltag{aratan/qwen3.5-uncensored:9b} 114; Qwen~2.5 abliterate variants contribute only 6--15 each. Low counts do not establish coherent reasoning and may instead reflect generic rationales.
+The reasoning-action diagnostic is deliberately one-sided: it flags \texttt{OVERUSE} rows containing reserve-preservation or collective-benefit language, but does not count \texttt{RESTRAIN} actions justified by selfish language. Of 823 flags, GPT-OSS derestricted contributes 164, \modeltag{sorc/qwen3.5-instruct} 142, and \modeltag{aratan/qwen3.5-uncensored:9b} 114; Qwen~2.5 abliterate variants contribute only 6--15 each. The legacy prompt mentioned private multipliers and an all-participant group score that the engine never implemented, so the rationales may respond to stated but nonexistent incentives. Neither high nor low counts establish coherent reasoning.
 
 \section{Additional Diagnostic Figures}
 Continuous heatmaps use the Turbo scale with numeric cell labels and contrast-aware text. The Part~2 action raster uses distinguishable vermillion and blue for overuse and restraint, respectively; values, labels, and positions also encode the distinction. Model-family bars and lines use the family palette together with text labels and line styles.
-
-\begin{figure}[!htbp]
-\centering
-\includegraphics[width=0.94\linewidth]{figures/behavioral_fingerprint_heatmap.png}
-\caption{Exploratory behavioral fingerprint across benchmark axes. The legacy-refusal column is deprecated because its label protocol failed audit and is shown only for traceability; it must not be used as a model ranking. Other values are percentages; reserve AUC and population AUC are normalized trajectory summaries, final reserve is normalized by the 2,500-unit capacity, and no-depletion horizon gives full credit when depletion is not observed within 100 days.}
-\label{fig:behavioral-fingerprint}
-\end{figure}
-
-\begin{figure}[!htbp]
-\centering
-\includegraphics[width=0.72\linewidth]{figures/part0_refusal_by_language_heatmap.png}
-\caption{Deprecated legacy Part~0 labels by language and model. The label protocol scored rationale as well as response and fails the response-only audit; cells are retained only to expose the affected artifact, not as safety-refusal estimates.}
-\label{fig:refusal-language}
-\end{figure}
 
 \begin{figure}[!htbp]
 \centering
@@ -371,35 +357,21 @@ Continuous heatmaps use the Turbo scale with numeric cell labels and contrast-aw
 \begin{figure}[!htbp]
 \centering
 \includegraphics[width=\linewidth]{figures/part2_restraint_choice_over_time.png}
-\caption{Daily restraint choice rate over time by model. Greener cells indicate higher restraint; gray cells indicate days with no active living-agent decisions after population collapse.}
+\caption{Daily restraint choice rate over time by model. Larger numeric values indicate higher restraint on the Turbo scale; gray cells indicate days with no active living-agent decisions after population collapse.}
 \label{fig:restraint-over-time}
 \end{figure}
 
 \begin{figure}[!htbp]
 \centering
-\includegraphics[width=\linewidth]{figures/model_behavior_pca.png}
-\caption{Exploratory PCA map of standardized pilot fingerprints. The projection includes the deprecated legacy-refusal column for artifact traceability and therefore is not valid evidence about safety relationships; it is neither a learned model embedding nor a confirmatory analysis.}
-\label{fig:model-behavior-pca}
-\end{figure}
-
-\begin{figure}[!htbp]
-\centering
 \includegraphics[width=0.72\linewidth]{figures/frame_sensitivity_heatmap.png}
-\caption{Part 1 cooperation by model and frame. Each cell is a cooperation rate, showing that elicitation frame is a first-class benchmark dimension.}
+\caption{Part 1 action-label rates by model and role instruction. Self-direct is the behavioral estimand; advice, observer evaluation, and prediction are prompt-semantics calibration checks that ask different questions and must not be pooled as one cooperation construct.}
 \label{fig:frame-effects}
 \end{figure}
 
 \begin{figure}[!htbp]
 \centering
-\includegraphics[width=0.86\linewidth]{figures/safety_refusal_vs_restraint.png}
-\caption{Deprecated sensitivity diagnostic: legacy Part~0 labels versus commons restraint. The apparent association is not a paper finding because the refusal-label protocol fails audit.}
-\label{fig:cross-diagnostics}
-\end{figure}
-
-\begin{figure}[!htbp]
-\centering
 \includegraphics[width=\linewidth]{figures/restraint_vs_final_population.png}
-\caption{Cross-part diagnostic: commons restraint versus final simulated population. Restraint tracks survival in the repeated commons environment.}
+\caption{Mechanism diagnostic: commons restraint versus final simulated population. Restraint tracks survival in the repeated commons environment.}
 \label{fig:restraint-population}
 \end{figure}
 
@@ -408,7 +380,7 @@ Continuous heatmaps use the Turbo scale with numeric cell labels and contrast-aw
 \section{Part 1 Variance Decomposition}
 \begin{table}[H]
 \centering
-\caption{ANOVA-style decomposition of Part 1 binary cooperation. Variance shares are descriptive sums of squares over the balanced prompt matrix. The model$\times$frame row is separated because the heatmap suggests frame sensitivity varies by model.}
+\caption{ANOVA-style decomposition of Part 1 binary action labels. Variance shares are descriptive sums of squares over the balanced prompt matrix. Frame includes semantically different role instructions and is interpreted as a calibration factor, not as one behavioral construct.}
 \label{tab:part1-decomposition}
 \small
 \begin{tabular}{lrrr}
@@ -466,43 +438,11 @@ which rounds to 41.5\%. The regular-looking AUPC values arise from the 50-agent,
 
 \FloatBarrier
 
-\Needspace{0.28\textheight}
-\section{Part 0 Multilingual Robustness}
-\begin{table}[H]
-\centering
-\caption{Deprecated legacy Part~0 multilingual calculations from \texttt{part0\_language\_robustness.csv}. The failed label protocol invalidates these as refusal estimates; the table is retained solely to make the affected artifact auditable.}
-\label{tab:part0-language-robustness}
-\small
-\resizebox{\linewidth}{!}{%
-\begin{tabular}{lrrr}
-\toprule
-Model & Mean refusal & Minimum-language refusal & Language gap \\
-\midrule
-\texttt{qwen3.5-unc} & 9.4\% & 6.1\% (English) & 6.1 pp \\
-\texttt{gpt-oss-sg} & 97.0\% & 91.9\% (Russian) & 8.1 pp \\
-\texttt{gpt-oss:20b} & 99.3\% & 99.0\% (Chinese) & 1.0 pp \\
-\texttt{gpt-oss-der} & 16.2\% & 12.1\% (English) & 8.1 pp \\
-\texttt{qwen2.5-abl} & 27.9\% & 16.2\% (English) & 20.2 pp \\
-\texttt{qwen2.5-abl-inst} & 29.0\% & 18.2\% (English) & 17.2 pp \\
-\texttt{llama2} & 77.4\% & 74.7\% (Chinese) & 5.1 pp \\
-\texttt{llama2-uncensored} & 51.2\% & 36.4\% (English) & 31.3 pp \\
-\texttt{qwen2.5:7b} & 74.4\% & 59.6\% (English) & 26.3 pp \\
-\texttt{qwen2.5-inst} & 64.3\% & 51.5\% (English) & 22.2 pp \\
-\texttt{qwen3.5} & 98.3\% & 98.0\% (Chinese) & 1.0 pp \\
-\texttt{qwen3.5-inst} & 97.6\% & 93.9\% (Chinese) & 6.1 pp \\
-\texttt{qwen3.5-inst-unc} & 32.7\% & 22.2\% (English) & 22.2 pp \\
-\bottomrule
-\end{tabular}%
-}
-\end{table}
-
-\FloatBarrier
-
 \Needspace{0.34\textheight}
-\section{Part 1 Prompt Sensitivity}
+\section{Part 1 Role Calibration and Prompt Sensitivity}
 \begin{table}[!htbp]
 \centering
-\caption{Per-model prompt-sensitivity indices from \texttt{part1\_prompt\_sensitivity.csv}. Each entry is the max--min cooperation-rate range, in percentage points, across values of the named dimension.}
+\caption{Per-model prompt-sensitivity indices from \texttt{part1\_prompt\_sensitivity.csv}. Each entry is the max--min action-label-rate range, in percentage points, across values of the named dimension. The frame column compares semantically different roles and is a calibration diagnostic, not a behavioral effect.}
 \label{tab:prompt-sensitivity}
 \small
 \resizebox{\linewidth}{!}{%

@@ -33,7 +33,9 @@ DOMAINS = (
 
 EXPECTED_ROOTS_PER_CELL = 32
 EXPECTED_ROOT_COUNT = len(GAMES) * len(DOMAINS) * EXPECTED_ROOTS_PER_CELL
-PRIMARY_BLOCKS = tuple(range(8))
+# One response per independent scenario root.  The root index assigns one of
+# four counterbalances exactly eight times inside every 32-root design cell.
+PRIMARY_BLOCKS = (0,)
 ROLE_BLOCKS = tuple(range(4))
 
 WELFARE_PRESERVING = "welfare_preserving"
@@ -1512,7 +1514,8 @@ def validate_primary_schedule(
             ValidationIssue(
                 "wrong_primary_schedule_size",
                 "schedule",
-                f"expected 3072 trials, found {len(trials)}",
+                f"expected {EXPECTED_ROOT_COUNT * len(PRIMARY_BLOCKS)} trials, "
+                f"found {len(trials)}",
             )
         )
     by_root: dict[str, list[ConfirmatoryTrial]] = defaultdict(list)
@@ -1543,17 +1546,20 @@ def validate_primary_schedule(
                 ValidationIssue(
                     "invalid_root_block_coverage",
                     root_id,
-                    "every root must occur exactly once in each of eight blocks",
+                    "every root must occur exactly once in each frozen block",
                 )
             )
+        expected_counterbalance = COUNTERBALANCES[
+            root.scenario_index_in_cell % len(COUNTERBALANCES)
+        ].counterbalance_id
         if Counter(item.counterbalance_id for item in root_trials) != Counter(
-            {item.counterbalance_id: 2 for item in COUNTERBALANCES}
+            {expected_counterbalance: 1}
         ):
             issues.append(
                 ValidationIssue(
                     "invalid_root_counterbalance_coverage",
                     root_id,
-                    "every root must receive each counterbalance exactly twice",
+                    "every root must receive its one frozen counterbalance",
                 )
             )
         for item in root_trials:

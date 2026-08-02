@@ -202,12 +202,13 @@ def _args(
         variance_selection_sha256=gate_hash,
         variance_pilot_manifest=None,
         variance_pilot_manifest_sha256=None,
-        part2_society_size=50,
-        part2_days=100,
+        part2_society_size=(10 if part2_stage == "fixed-production" else 50),
+        part2_days=(30 if part2_stage == "fixed-production" else 100),
         part2_resource="water",
         part2_selfish_gain=2,
         part2_depletion_units=2,
         part2_community_benefit=5,
+        part2_resource_capacity=(150 if part2_stage == "fixed-production" else 2500),
         timeout_seconds=100,
     )
 
@@ -346,6 +347,39 @@ def test_default_exact_30_target_union_and_variance_pilot_job_counts(
         and job["expected"]["row_count_upper_bound"] == 12
         for job in part2_smokes
     )
+
+
+def test_fixed_budgeted_stage_has_exact_common_24_run_panel(
+    planned_fixture,
+) -> None:
+    original_args, _targets_value, _manifest, _freeze = planned_fixture
+    args = deepcopy(original_args)
+    args.part2_stage = "fixed-production"
+    args.part2_society_size = 10
+    args.part2_days = 30
+    args.part2_resource_capacity = 150
+    manifest = build_plan(args)
+    design = manifest["part2_design"]
+    assert design["scientific_stage"] == "part2_fixed_production"
+    assert design["replicates_per_target"] == 24
+    assert design["fixed_replicates"] == 24
+    assert design["variance_pilot_replicates"] is None
+    assert design["variance_selected_n"] is None
+    assert design["production_config"]["society_size"] == 10
+    assert design["production_config"]["days"] == 30
+    assert design["production_config"]["resource_capacity"] == 150
+    counts: dict[tuple[str, str], int] = {}
+    for job in manifest["jobs"]:
+        key = (job["stage"], job["experiment"])
+        counts[key] = counts.get(key, 0) + 1
+    assert counts == {
+        ("smoke", "part0"): 30,
+        ("smoke", "part1"): 30,
+        ("smoke", "part2"): 30,
+        ("production", "part0"): 30,
+        ("production", "part1"): 30,
+        ("part2_fixed_production", "part2"): 720,
+    }
 
 
 def test_hash_bound_target_shard_keeps_full_union_attestation(

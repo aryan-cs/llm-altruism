@@ -39,12 +39,27 @@ uv run python -m analysis.validation --strict
 
 The checked-in April Part 2 sidecars predate an explicit
 `collapse_death_rate` field. They are not edited or interpreted through the
-current default. `build_legacy_part2_provenance --check` re-reads the exact
-archived execution source at the recorded commits, verifies its divisor-of-five
-collapse rule, binds every CSV and sidecar byte hash, and replays every recorded
-population transition. The deterministic seal is
+current default. `build_legacy_part2_provenance --check` reads the immutable,
+hash-bound historical execution source and prompt stored under
+`data/raw/part_2/legacy_execution_archive/`, verifies the source's
+divisor-of-five collapse rule, binds every CSV and sidecar byte hash, and
+replays every recorded population transition. The archive manifest is
+self-hashed and records the original paths, exact SHA-256 values, and both
+recorded execution commits. This check does not read `.git`, so the same command
+works after extracting the anonymous supplement. The deterministic seal is
 `data/raw/part_2/legacy_structural_provenance.json`; validation refuses a
 missing, stale, substituted, or self-hash-invalid seal.
+
+The immutable execution archive is a release artifact, not a routine build
+output. If it must be reconstructed from a full clone with the recorded Git
+objects, remove no existing archive and run
+
+```bash
+uv run python -m analysis.build_legacy_part2_provenance --materialize-execution-archive
+```
+
+The command refuses to overwrite an existing archive and requires both
+recorded commits to contain byte-identical source and prompt files.
 
 The Part 1 legacy sidecars were reconstructed from filenames whose slugs lose
 slashes, colons, underscores, and dots. The checked-in sidecars carry an
@@ -77,6 +92,9 @@ Outputs:
 - `data/analysis/run_manifest.jsonl`
 - `data/analysis/croissant_metadata.json`
 - `data/raw/part_2/legacy_structural_provenance.json`
+- `data/raw/part_2/legacy_execution_archive/manifest.json`
+- `data/raw/part_2/legacy_execution_archive/part_2.py`
+- `data/raw/part_2/legacy_execution_archive/part_2_prompt.json`
 
 ## Figures
 
@@ -115,7 +133,7 @@ Build the supplement archive from the repository root:
 uv run python -m analysis.build_supplement
 ```
 
-The output is `docs/conference_submission/supplement.zip`. The package contains executable code, release documentation, tests, derived analysis artifacts, figures, and Part 1/Part 2 raw CSVs with metadata sidecars. Raw Part 0 harmful prompts, prompt-source CSVs, model completions, and author-identifying proposal metadata are excluded by policy; the ZIP includes `SUPPLEMENT_MANIFEST.json` documenting included files and exclusions.
+The output is `docs/conference_submission/supplement.zip`. The package contains executable code, release documentation, tests, derived analysis artifacts, figures, Part 1/Part 2 raw CSVs with metadata sidecars, and the hash-bound historical Part 2 source/prompt archive required for Git-independent legacy verification. Raw Part 0 harmful prompts, prompt-source CSVs, model completions, and author-identifying proposal metadata are excluded by policy; the ZIP includes `SUPPLEMENT_MANIFEST.json` documenting included files and exclusions.
 
 ## Exact-Version Campaigns
 

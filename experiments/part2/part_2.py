@@ -18,6 +18,7 @@ from agents.agent_2 import Agent2
 from experiments.misc.attempt_log import (
     DurableAttemptLogger,
     attempt_log_path_for_csv,
+    iter_attempt_records,
     validate_terminal_attempt_coverage,
     verify_attempt_log_metadata,
 )
@@ -118,6 +119,8 @@ SEED_DERIVATION_POLICY = "sha256_run_day_anonymous_slot_v1"
 ATTRITION_POLICY = "python_random_sample_living_slots_per_day_v1"
 INVALID_ACTION_POLICY = "no_reserve_action_count_separately_v1"
 INCENTIVE_POLICY = "reserve_only_no_individual_or_group_scores_v1"
+DEFAULT_DIRECT_OUTPUT_TOKEN_CAP = 32
+DIRECT_GENERATION_PROTOCOL_VERSION = "part_2_direct_generation_v2"
 RESULT_HEADERS = [
     "run_id",
     "trajectory_id",
@@ -452,7 +455,12 @@ def _write_part_2_metadata(
     structural_cell_id: str,
     attempt_logger: DurableAttemptLogger,
     extraction_config: ExtractionConfig | None,
+    direct_output_token_cap: int,
 ) -> None:
+    generation_protocol = _generation_protocol_metadata(
+        extraction_config=extraction_config,
+        direct_output_token_cap=direct_output_token_cap,
+    )
     parameters = {
         "part_2_schema_version": PART_2_SCHEMA_VERSION,
         "run_id": run_id,
@@ -469,6 +477,7 @@ def _write_part_2_metadata(
         "grading_protocol": (
             extraction_config.to_metadata() if extraction_config is not None else None
         ),
+        "generation_protocol": generation_protocol,
     }
     metadata = base_run_metadata(
         experiment="part_2",
@@ -480,13 +489,13 @@ def _write_part_2_metadata(
         prompt_config_hash=PROMPT_CONFIG_HASH,
     )
     metadata.update(parameters)
-    if extraction_config is not None:
-        metadata["resume_contract"] = _strict_resume_contract(
-            provider=provider,
-            model=model,
-            run_parameters=parameters,
-            extraction_config=extraction_config,
-        )
+    metadata["resume_contract"] = _strict_resume_contract(
+        provider=provider,
+        model=model,
+        run_parameters=parameters,
+        extraction_config=extraction_config,
+        direct_output_token_cap=direct_output_token_cap,
+    )
     attempt_log = attempt_logger.summary().to_metadata()
     attempt_log["coverage"] = "full_run"
     metadata["attempt_log"] = attempt_log
@@ -543,10 +552,17 @@ def _strict_resume_contract(
     provider: str,
     model: str,
     run_parameters: dict[str, Any],
-    extraction_config: ExtractionConfig,
+    extraction_config: ExtractionConfig | None,
+    direct_output_token_cap: int = DEFAULT_DIRECT_OUTPUT_TOKEN_CAP,
 ) -> dict[str, Any]:
     repo_root = Path(__file__).resolve().parents[2]
-    grading_protocol = extraction_config.to_metadata()
+    grading_protocol = (
+        extraction_config.to_metadata() if extraction_config is not None else None
+    )
+    generation_protocol = _generation_protocol_metadata(
+        extraction_config=extraction_config,
+        direct_output_token_cap=direct_output_token_cap,
+    )
     return {
         "schema_version": 2,
         "experiment": "part_2",
@@ -572,9 +588,14 @@ def _strict_resume_contract(
         ),
         "prompt_config_hash": PROMPT_CONFIG_HASH,
         "grading_protocol": grading_protocol,
+        "generation_protocol": generation_protocol,
         "model_roles": {
             "subject": registry_identity_metadata([(provider, model)]),
-            "extractor": grading_protocol["extractor"],
+            **(
+                {"extractor": grading_protocol["extractor"]}
+                if grading_protocol is not None
+                else {}
+            ),
         },
         "run_parameters": run_parameters,
         "retry_policy": {
@@ -584,6 +605,34 @@ def _strict_resume_contract(
             "max_delay_seconds": MAX_RETRY_DELAY_SECONDS,
             "classification": "transport_only_no_semantic_retry_v1",
         },
+    }
+
+
+def _generation_protocol_metadata(
+    *,
+    extraction_config: ExtractionConfig | None,
+    direct_output_token_cap: int,
+) -> dict[str, Any]:
+    if extraction_config is not None:
+        return {
+            "schema_version": 1,
+            "mode": "independent_final_answer_extraction",
+            "subject_output_token_cap": extraction_config.subject_output_token_cap,
+        }
+    if (
+        not isinstance(direct_output_token_cap, int)
+        or isinstance(direct_output_token_cap, bool)
+        or direct_output_token_cap <= 0
+    ):
+        raise ValueError("direct_output_token_cap must be a positive integer.")
+    return {
+        "schema_version": 1,
+        "mode": "direct_provider_structured_output",
+        "protocol": DIRECT_GENERATION_PROTOCOL_VERSION,
+        "output_schema": "SocietyDecision(extra=forbid)",
+        "parser": "exact_json_object_action_reasoning_no_semantic_retry_v1",
+        "output_token_cap": direct_output_token_cap,
+        "identity_policy": "exact_requested_returned_model_required_v1",
     }
 
 
@@ -675,6 +724,7 @@ def _matching_part_2_metadata_path(
     extractor_provider: str | None = None,
     extractor_model: str | None = None,
     extractor_max_tokens: int | None = None,
+    direct_output_token_cap: int = DEFAULT_DIRECT_OUTPUT_TOKEN_CAP,
 ) -> Path | None:
     if not PART_2_RESULTS_DIR.exists():
         return None
@@ -691,6 +741,10 @@ def _matching_part_2_metadata_path(
         expected_extraction.to_metadata()
         if expected_extraction is not None
         else None
+    )
+    expected_generation_protocol = _generation_protocol_metadata(
+        extraction_config=expected_extraction,
+        direct_output_token_cap=direct_output_token_cap,
     )
     expected_generation_seed = _resolved_generation_seed(
         seed=seed,
@@ -741,6 +795,8 @@ def _matching_part_2_metadata_path(
             elif metadata.get("environment_seed") != expected_environment_seed:
                 continue
             if metadata.get("grading_protocol") != expected_grading_protocol:
+                continue
+            if metadata.get("generation_protocol") != expected_generation_protocol:
                 continue
             if (
                 expected_grading_protocol is not None
@@ -876,6 +932,7 @@ def _build_agents(
     slots: int | tuple[int, ...] | list[int],
     *,
     seed: int | None = None,
+    max_tokens: int | None = None,
     keep_alive: float | str | None = None,
 ) -> list[Agent2]:
     resolved_slots = (
@@ -888,6 +945,7 @@ def _build_agents(
             provider_=provider,
             model_=model,
             seed_=None,
+            max_tokens_=max_tokens,
             keep_alive_=keep_alive,
         )
         agent.part_2_anonymous_slot = slot
@@ -1129,16 +1187,74 @@ def _direct_generation_record(raw: str) -> dict[str, Any] | None:
     if details is None or not callable(getattr(details, "to_dict", None)):
         return None
     subject = details.to_dict()
+    subject["raw_response_sha256"] = _stable_json_sha256(
+        subject.get("raw_response")
+    )
     subject["content_sha256"] = _stable_json_sha256(str(subject.get("content", "")))
     subject["reasoning_sha256"] = _stable_json_sha256(
         str(subject.get("reasoning", ""))
     )
     return {
-        "protocol": "part_2_direct_generation_v1",
+        "protocol": DIRECT_GENERATION_PROTOCOL_VERSION,
         "status": "success",
         "kind": "part_2_commons_decision",
         "subject": subject,
     }
+
+
+def validate_direct_attempt_provenance(
+    attempt_path: str | Path,
+    rows: list[dict[str, str]],
+    *,
+    provider: str,
+    model: str,
+) -> None:
+    """Bind each direct semantic result to an exact, auditable provider response."""
+
+    by_unit = {
+        f"{row['day']}__{row['agent']}": row
+        for row in rows
+    }
+    terminal: dict[str, dict[str, Any]] = {}
+    for record in iter_attempt_records(attempt_path):
+        if record.get("will_retry") is False and record.get("outcome") in {
+            "success",
+            "invalid_response",
+        }:
+            terminal[str(record["unit_id"])] = record
+    if set(terminal) != set(by_unit):
+        raise ValueError("Direct Part 2 attempt/result coverage mismatch.")
+    for unit_id, row in by_unit.items():
+        record = terminal[unit_id]
+        if record.get("provider") != provider or record.get("model") != model:
+            raise ValueError(f"Direct Part 2 route mismatch for {unit_id}.")
+        generation = record.get("generation_record")
+        subject = generation.get("subject") if isinstance(generation, dict) else None
+        if (
+            not isinstance(generation, dict)
+            or generation.get("protocol") != DIRECT_GENERATION_PROTOCOL_VERSION
+            or not isinstance(subject, dict)
+        ):
+            raise ValueError(f"Direct Part 2 provenance is missing for {unit_id}.")
+        if (
+            subject.get("requested_model") != model
+            or subject.get("response_model") != model
+            or subject.get("model_identity_match") is not True
+        ):
+            raise ValueError(f"Direct Part 2 exact model identity failed for {unit_id}.")
+        if not str(subject.get("request_id") or "").strip():
+            raise ValueError(f"Direct Part 2 request ID is missing for {unit_id}.")
+        if not isinstance(subject.get("usage"), dict):
+            raise ValueError(f"Direct Part 2 token usage is missing for {unit_id}.")
+        if not str(subject.get("raw_response_sha256") or "").strip():
+            raise ValueError(f"Direct Part 2 raw response hash is missing for {unit_id}.")
+        if record.get("outcome") == "success":
+            if subject.get("truncated") is not False:
+                raise ValueError(f"Direct Part 2 success was truncated for {unit_id}.")
+            parsed = record.get("parsed_response")
+            parsed_action = parsed.get("action") if isinstance(parsed, dict) else None
+            if _normalize_action(str(parsed_action)) != row["action"]:
+                raise ValueError(f"Direct Part 2 parsed action mismatch for {unit_id}.")
 
 
 def _decision_result(
@@ -1551,6 +1667,7 @@ def run_part_2(
     extractor_provider: str | None = None,
     extractor_model: str | None = None,
     extractor_max_tokens: int | None = None,
+    direct_output_token_cap: int = DEFAULT_DIRECT_OUTPUT_TOKEN_CAP,
     *,
     resume: bool = False,
     resume_metadata_path: str | Path | None = None,
@@ -1564,6 +1681,13 @@ def run_part_2(
     requested_death_rate = collapse_death_rate
     requested_generation_seed = generation_seed if generation_seed is not None else seed
     requested_environment_seed = environment_seed
+    strict_generation = False
+    if (
+        not isinstance(direct_output_token_cap, int)
+        or isinstance(direct_output_token_cap, bool)
+        or direct_output_token_cap <= 0
+    ):
+        raise ValueError("direct_output_token_cap must be a positive integer.")
 
     if is_resuming:
         metadata_path = (
@@ -1572,7 +1696,8 @@ def run_part_2(
             else _latest_interrupted_part_2_metadata_path()
         )
         metadata = _load_part_2_metadata(metadata_path)
-        if metadata.get("grading_protocol") is not None:
+        strict_generation = metadata.get("generation_protocol") is not None
+        if metadata.get("grading_protocol") is not None or strict_generation:
             validate_metadata_integrity(metadata, required=True)
         extraction_config = _resume_extraction_config(metadata)
         if extraction_config is None:
@@ -1616,7 +1741,7 @@ def run_part_2(
                 raise ValueError(
                     "Resume final-answer extraction configuration does not match metadata."
                 )
-        if extraction_config is not None:
+        if extraction_config is not None or strict_generation:
             required_strict_fields = {
                 "part_2_schema_version": PART_2_SCHEMA_VERSION,
                 "result_schema": RESULT_HEADERS,
@@ -1649,9 +1774,15 @@ def run_part_2(
                             "dynamics",
                             "result_schema",
                             "grading_protocol",
+                            "generation_protocol",
                         )
                     },
                     extraction_config=extraction_config,
+                    direct_output_token_cap=int(
+                        metadata.get("generation_protocol", {}).get(
+                            "output_token_cap", direct_output_token_cap
+                        )
+                    ),
                 ),
                 experiment="Part 2",
             )
@@ -1698,7 +1829,7 @@ def run_part_2(
             or f"legacy_{_stable_json_sha256([timestamp, resumed_provider, resumed_model])[:20]}"
         )
 
-        if extraction_config is not None:
+        if extraction_config is not None or strict_generation:
             artifact_integrity = metadata.get("artifact_integrity")
             if not isinstance(artifact_integrity, dict):
                 raise ValueError(
@@ -1854,7 +1985,7 @@ def run_part_2(
     )
     if is_resuming and not configured_attempt_path:
         attempt_log_coverage = "resume_segment_only"
-    if is_resuming and extraction_config is not None:
+    if is_resuming and (extraction_config is not None or strict_generation):
         if not isinstance(attempt_log_metadata, dict):
             raise ValueError(
                 "Strict Part 2 resume metadata is missing attempt-log integrity."
@@ -1907,6 +2038,7 @@ def run_part_2(
             structural_cell_id=structural_cell_id,
             attempt_logger=attempt_logger,
             extraction_config=extraction_config,
+            direct_output_token_cap=direct_output_token_cap,
         )
 
     resume_state = _resume_state_from_rows(
@@ -1929,6 +2061,17 @@ def run_part_2(
         model,
         resume_state.living_slots,
         seed=None,
+        max_tokens=(
+            None
+            if extraction_config is not None
+            else int(
+                metadata.get("generation_protocol", {}).get(
+                    "output_token_cap", direct_output_token_cap
+                )
+                if is_resuming
+                else direct_output_token_cap
+            )
+        ),
         keep_alive=keep_alive,
     )
     stop_reason = ""
@@ -2338,6 +2481,7 @@ def run_part_2_until_complete(
     extractor_provider: str | None = None,
     extractor_model: str | None = None,
     extractor_max_tokens: int | None = None,
+    direct_output_token_cap: int = DEFAULT_DIRECT_OUTPUT_TOKEN_CAP,
     *,
     resume: bool = False,
     headless: bool = False,
@@ -2401,6 +2545,7 @@ def run_part_2_until_complete(
                 extractor_provider=extractor_provider,
                 extractor_model=extractor_model,
                 extractor_max_tokens=extractor_max_tokens,
+                direct_output_token_cap=direct_output_token_cap,
             )
 
     attempt = 0
@@ -2428,6 +2573,7 @@ def run_part_2_until_complete(
                 extractor_provider=extractor_provider,
                 extractor_model=extractor_model,
                 extractor_max_tokens=extractor_max_tokens,
+                direct_output_token_cap=direct_output_token_cap,
                 resume=resume or resume_metadata_path is not None,
                 resume_metadata_path=resume_metadata_path,
                 headless=headless,
@@ -2467,10 +2613,16 @@ def parse_part_2_args(argv: list[str] | None = None) -> Any:
     seed_parser = argparse.ArgumentParser(add_help=False)
     seed_parser.add_argument("--generation-seed", type=int, default=None)
     seed_parser.add_argument("--environment-seed", type=int, default=None)
+    seed_parser.add_argument(
+        "--direct-output-token-cap",
+        type=int,
+        default=DEFAULT_DIRECT_OUTPUT_TOKEN_CAP,
+    )
     seed_args, remaining = seed_parser.parse_known_args(argv)
     parsed = parse_society_args(remaining)
     parsed.generation_seed = seed_args.generation_seed
     parsed.environment_seed = seed_args.environment_seed
+    parsed.direct_output_token_cap = seed_args.direct_output_token_cap
     return parsed
 
 
@@ -2494,6 +2646,7 @@ if __name__ == "__main__":
         extractor_provider=cli_args.extractor_provider,
         extractor_model=cli_args.extractor_model,
         extractor_max_tokens=cli_args.extractor_max_tokens,
+        direct_output_token_cap=cli_args.direct_output_token_cap,
         resume=cli_args.resume,
         headless=cli_args.headless,
     )

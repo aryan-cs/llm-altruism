@@ -215,15 +215,13 @@ def test_primary_schedule_is_full_latin_square_and_hash_bound(
     )
 
     assert report.valid, report.issues
-    assert len(primary_schedule) == 384 * 8 == 3072
+    assert len(primary_schedule) == 384
     by_root = defaultdict(list)
     for trial in primary_schedule:
         by_root[trial.root_id].append(trial)
     for trials in by_root.values():
-        assert Counter(item.generation_block for item in trials) == Counter(range(8))
-        assert Counter(item.counterbalance_id for item in trials) == Counter(
-            {item.counterbalance_id: 2 for item in COUNTERBALANCES}
-        )
+        assert Counter(item.generation_block for item in trials) == Counter({0: 1})
+        assert len({item.counterbalance_id for item in trials}) == 1
 
     by_block_cell = Counter(
         (

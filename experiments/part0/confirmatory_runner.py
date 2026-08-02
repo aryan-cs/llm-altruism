@@ -8,7 +8,6 @@ translates, substitutes, or regenerates a semantic response.
 from __future__ import annotations
 
 import argparse
-import base64
 import hashlib
 import json
 import os
@@ -32,11 +31,6 @@ from experiments.misc.attempt_log import (
     attempt_log_path_for_csv,
     load_attempt_records,
     verify_attempt_log_metadata,
-)
-from experiments.misc.final_answer import (
-    EXTRACTOR_PROMPT_TEMPLATE,
-    EXTRACTOR_SYSTEM_PROMPT,
-    FINAL_ANSWER_PROTOCOL,
 )
 from experiments.misc.run_metadata import (
     git_commit,
@@ -65,13 +59,13 @@ from providers.api_call import (
 )
 
 
-PLAN_SCHEMA_VERSION = 1
-RESULT_SCHEMA_VERSION = 1
+PLAN_SCHEMA_VERSION = 2
+RESULT_SCHEMA_VERSION = 2
 RUN_METADATA_SCHEMA_VERSION = 1
 EXPECTED_HARMFUL_PROMPTS = 484
 EXPECTED_CONTROL_PROMPTS = 100
 EXPECTED_HARMFUL_SOURCE_ROWS = 500
-EXPECTED_BLOCKS = (1, 2, 3)
+EXPECTED_BLOCKS = (1,)
 EXPECTED_TRIALS_PER_MODEL = (
     (EXPECTED_HARMFUL_PROMPTS + EXPECTED_CONTROL_PROMPTS)
     * len(TARGET_LANGUAGES)
@@ -82,10 +76,6 @@ SUBJECT_SYSTEM_PROMPT = ""
 SUBJECT_TEMPERATURE = 0.2
 SUBJECT_TOP_P = 1.0
 SUBJECT_MAX_TOKENS = 8_192
-# The extractor must reproduce up to SUBJECT_MAX_TOKENS inside JSON without
-# truncation.  The maximum supported cap leaves room for JSON escaping and
-# tokenizer differences instead of invalidating longer subject answers.
-EXTRACTOR_MAX_TOKENS = 32_768
 JUDGE_MAX_TOKENS = 256
 MAX_TRANSPORT_ATTEMPTS = 3
 DEFAULT_ORDERING_SEED = 7_314_159
@@ -93,7 +83,7 @@ DEFAULT_GENERATION_SEED = 2_718_281
 SEED_DERIVATION = "sha256-first-63-bits-v1"
 RANDOMIZATION_METHOD = "python-random-v1/block-local-shuffle"
 EXECUTION_MODES = ("production", "sacrificial_smoke")
-SMOKE_SELECTION_METHOD = "sha256-rank-one-per-arm-language-block-v1"
+SMOKE_SELECTION_METHOD = "sha256-rank-one-per-arm-language-v2"
 SMOKE_EXCLUSION_REASON = "sacrificial_part0_full_path_smoke"
 SMOKE_TRIALS_PER_ARM_LANGUAGE_BLOCK = 1
 EXPECTED_SMOKE_TRIALS = (
@@ -153,13 +143,6 @@ class TransportExhaustedError(ConfirmatoryPart0Error):
 
 class RouteIdentityError(ConfirmatoryPart0Error):
     """A request did not return the exact frozen route identity."""
-
-
-class VisibleAnswer(BaseModel):
-    """Mechanical final-answer extraction from visible content only."""
-
-    model_config = ConfigDict(extra="forbid")
-    response: str
 
 
 class JudgeDecision(BaseModel):
@@ -305,7 +288,6 @@ def _production_source_bundle() -> dict[str, Any]:
             Path(__file__),
             repo_root / "experiments" / "part0" / "stimulus_registry.py",
             repo_root / "experiments" / "misc" / "attempt_log.py",
-            repo_root / "experiments" / "misc" / "final_answer.py",
             repo_root / "experiments" / "misc" / "run_metadata.py",
             repo_root / "providers" / "api_call.py",
             repo_root / "agents" / "agent_config.py",
@@ -545,7 +527,7 @@ def build_confirmatory_schedule(
     ordering_seed: int = DEFAULT_ORDERING_SEED,
     generation_seed: int = DEFAULT_GENERATION_SEED,
 ) -> list[dict[str, Any]]:
-    """Build three complete, independently seeded randomized blocks."""
+    """Build one seeded generation for every approved root-language cell."""
 
     _validate_confirmatory_registry_contract(loaded_registry.payload)
     route = _route_dict(subject_route)
@@ -743,7 +725,6 @@ def _freeze_execution_plan(
     loaded_registry: LoadedStimulusRegistry,
     *,
     subject_route: FrozenRoute,
-    extractor_route: FrozenRoute,
     judge_route: FrozenRoute,
     ordering_seed: int = DEFAULT_ORDERING_SEED,
     generation_seed: int = DEFAULT_GENERATION_SEED,
@@ -754,7 +735,7 @@ def _freeze_execution_plan(
 
     if execution_mode not in EXECUTION_MODES:
         raise ConfirmatoryPart0Error(f"Unsupported Part 0 execution mode: {execution_mode}.")
-    for route in (subject_route, extractor_route, judge_route):
+    for route in (subject_route, judge_route):
         validate_frozen_route(route)
     clean_commit = _require_clean_git_state()
     production_schedule = build_confirmatory_schedule(
@@ -799,7 +780,6 @@ def _freeze_execution_plan(
             "environment_lock": _environment_lock(),
         },
         "subject_route": _route_dict(subject_route),
-        "extractor_route": _route_dict(extractor_route),
         "judge_route": _route_dict(judge_route),
         "protocol": {
             "subject_system_prompt": SUBJECT_SYSTEM_PROMPT,
@@ -810,19 +790,10 @@ def _freeze_execution_plan(
                 "max_tokens": SUBJECT_MAX_TOKENS,
                 "hidden_reasoning": False,
             },
-            "extraction_protocol": FINAL_ANSWER_PROTOCOL,
-            "extractor_system_prompt_sha256": _sha256_text(EXTRACTOR_SYSTEM_PROMPT),
-            "extractor_prompt_template_sha256": _sha256_text(EXTRACTOR_PROMPT_TEMPLATE),
-            "extractor_input_policy": "visible_subject_content_only_exact",
-            "extractor_settings": {
-                "temperature": 0,
-                "max_tokens": EXTRACTOR_MAX_TOKENS,
-                "exact_visible_copy_required": True,
-            },
             "judge_protocol": JUDGE_PROTOCOL,
             "judge_system_prompt_sha256": _sha256_text(JUDGE_SYSTEM_PROMPT),
             "judge_prompt_template_sha256": _sha256_text(JUDGE_PROMPT_TEMPLATE),
-            "judge_input_policy": "exact_original_language_prompt_and_extracted_visible_response",
+            "judge_input_policy": "exact_original_language_prompt_and_raw_visible_response",
             "judge_settings": {"temperature": 0, "max_tokens": JUDGE_MAX_TOKENS},
             "translation_fallback": False,
             "semantic_retry": False,
@@ -837,7 +808,7 @@ def _freeze_execution_plan(
             "exclusion_reason": SMOKE_EXCLUSION_REASON,
             "trials_per_arm_language_block": SMOKE_TRIALS_PER_ARM_LANGUAGE_BLOCK,
             "expected_trials": EXPECTED_SMOKE_TRIALS,
-            "full_call_path": ["subject", "extractor", "judge"],
+            "full_call_path": ["subject", "judge"],
         }
     elif completed_smoke_gate is not None:
         payload["completed_smoke_gate"] = deepcopy(dict(completed_smoke_gate))
@@ -854,7 +825,6 @@ def freeze_execution_plan(
     loaded_registry: LoadedStimulusRegistry,
     *,
     subject_route: FrozenRoute,
-    extractor_route: FrozenRoute,
     judge_route: FrozenRoute,
     ordering_seed: int = DEFAULT_ORDERING_SEED,
     generation_seed: int = DEFAULT_GENERATION_SEED,
@@ -862,7 +832,7 @@ def freeze_execution_plan(
 ) -> dict[str, Any]:
     """Freeze the complete, analysis-eligible confirmatory production plan."""
 
-    for route in (subject_route, extractor_route, judge_route):
+    for route in (subject_route, judge_route):
         try:
             require_fresh_route_verification(route.identity)
         except ValueError as error:
@@ -872,7 +842,6 @@ def freeze_execution_plan(
     smoke_gate = validate_completed_smoke_directory(
         loaded_registry,
         subject_route=subject_route,
-        extractor_route=extractor_route,
         judge_route=judge_route,
         ordering_seed=ordering_seed,
         generation_seed=generation_seed,
@@ -881,7 +850,6 @@ def freeze_execution_plan(
     return _freeze_execution_plan(
         loaded_registry,
         subject_route=subject_route,
-        extractor_route=extractor_route,
         judge_route=judge_route,
         ordering_seed=ordering_seed,
         generation_seed=generation_seed,
@@ -894,14 +862,13 @@ def freeze_sacrificial_smoke_plan(
     loaded_registry: LoadedStimulusRegistry,
     *,
     subject_route: FrozenRoute,
-    extractor_route: FrozenRoute,
     judge_route: FrozenRoute,
     ordering_seed: int = DEFAULT_ORDERING_SEED,
     generation_seed: int = DEFAULT_GENERATION_SEED,
 ) -> dict[str, Any]:
     """Freeze a small full-path plan that can never qualify as production data."""
 
-    for route in (subject_route, extractor_route, judge_route):
+    for route in (subject_route, judge_route):
         try:
             require_fresh_route_verification(route.identity)
         except ValueError as error:
@@ -911,7 +878,6 @@ def freeze_sacrificial_smoke_plan(
     return _freeze_execution_plan(
         loaded_registry,
         subject_route=subject_route,
-        extractor_route=extractor_route,
         judge_route=judge_route,
         ordering_seed=ordering_seed,
         generation_seed=generation_seed,
@@ -923,7 +889,6 @@ def _reconstruct_execution_plan_for_resume(
     loaded_registry: LoadedStimulusRegistry,
     *,
     subject_route: FrozenRoute,
-    extractor_route: FrozenRoute,
     judge_route: FrozenRoute,
     ordering_seed: int,
     generation_seed: int,
@@ -946,7 +911,6 @@ def _reconstruct_execution_plan_for_resume(
         completed_smoke_gate = validate_completed_smoke_directory(
             loaded_registry,
             subject_route=subject_route,
-            extractor_route=extractor_route,
             judge_route=judge_route,
             ordering_seed=ordering_seed,
             generation_seed=generation_seed,
@@ -955,7 +919,6 @@ def _reconstruct_execution_plan_for_resume(
     return _freeze_execution_plan(
         loaded_registry,
         subject_route=subject_route,
-        extractor_route=extractor_route,
         judge_route=judge_route,
         ordering_seed=ordering_seed,
         generation_seed=generation_seed,
@@ -1005,7 +968,7 @@ def validate_execution_plan(
         "exclusion_reason": SMOKE_EXCLUSION_REASON,
         "trials_per_arm_language_block": SMOKE_TRIALS_PER_ARM_LANGUAGE_BLOCK,
         "expected_trials": EXPECTED_SMOKE_TRIALS,
-        "full_call_path": ["subject", "extractor", "judge"],
+        "full_call_path": ["subject", "judge"],
     }
     if execution_mode == "sacrificial_smoke":
         if plan.get("smoke_design") != expected_smoke_design:
@@ -1046,19 +1009,10 @@ def validate_execution_plan(
             "max_tokens": SUBJECT_MAX_TOKENS,
             "hidden_reasoning": False,
         },
-        "extraction_protocol": FINAL_ANSWER_PROTOCOL,
-        "extractor_system_prompt_sha256": _sha256_text(EXTRACTOR_SYSTEM_PROMPT),
-        "extractor_prompt_template_sha256": _sha256_text(EXTRACTOR_PROMPT_TEMPLATE),
-        "extractor_input_policy": "visible_subject_content_only_exact",
-        "extractor_settings": {
-            "temperature": 0,
-            "max_tokens": EXTRACTOR_MAX_TOKENS,
-            "exact_visible_copy_required": True,
-        },
         "judge_protocol": JUDGE_PROTOCOL,
         "judge_system_prompt_sha256": _sha256_text(JUDGE_SYSTEM_PROMPT),
         "judge_prompt_template_sha256": _sha256_text(JUDGE_PROMPT_TEMPLATE),
-        "judge_input_policy": "exact_original_language_prompt_and_extracted_visible_response",
+        "judge_input_policy": "exact_original_language_prompt_and_raw_visible_response",
         "judge_settings": {"temperature": 0, "max_tokens": JUDGE_MAX_TOKENS},
         "translation_fallback": False,
         "semantic_retry": False,
@@ -1069,7 +1023,7 @@ def validate_execution_plan(
         raise ConfirmatoryPart0Error("Part 0 frozen protocol changed.")
     routes = {
         name: _route_from_dict(plan[name])
-        for name in ("subject_route", "extractor_route", "judge_route")
+        for name in ("subject_route", "judge_route")
     }
     for route in routes.values():
         validate_frozen_route(route)
@@ -1082,7 +1036,6 @@ def validate_execution_plan(
         current_gate = validate_completed_smoke_directory(
             loaded_registry,
             subject_route=routes["subject_route"],
-            extractor_route=routes["extractor_route"],
             judge_route=routes["judge_route"],
             ordering_seed=int(plan["ordering_seed_base"]),
             generation_seed=int(plan["generation_seed_base"]),
@@ -1210,7 +1163,6 @@ def _call_stage(
     top_p: float | None,
     max_tokens: int,
     seed: int | None,
-    expected_visible_copy: str | None = None,
 ) -> tuple[ProviderResponse | None, dict[str, Any] | None, str | None]:
     request_sha256 = _sha256_text(query)
     unit = _attempt_unit(trial, stage=stage, request_sha256=request_sha256)
@@ -1325,19 +1277,7 @@ def _call_stage(
             return response, audit, reason
         if json_schema is not None:
             try:
-                parsed_semantic = json_schema.model_validate_json(response.content)
-                if isinstance(parsed_semantic, VisibleAnswer) and not (
-                    parsed_semantic.response.strip()
-                ):
-                    raise ValueError("extracted response is empty")
-                if (
-                    isinstance(parsed_semantic, VisibleAnswer)
-                    and expected_visible_copy is not None
-                    and parsed_semantic.response != expected_visible_copy
-                ):
-                    raise ValueError(
-                        "extractor response is not an exact visible-response copy"
-                    )
+                json_schema.model_validate_json(response.content)
             except (ValidationError, ValueError, json.JSONDecodeError) as error:
                 reason = f"{stage}:semantic_invalid:{type(error).__name__}"
                 _append_private_attempt(
@@ -1378,7 +1318,6 @@ def _base_result(trial: Mapping[str, Any]) -> dict[str, Any]:
         "schema_version": RESULT_SCHEMA_VERSION,
         **deepcopy(dict(trial)),
         "subject": None,
-        "extractor": None,
         "judge": None,
         "visible_response": None,
         "judge_label": None,
@@ -1391,7 +1330,6 @@ def _base_result(trial: Mapping[str, Any]) -> dict[str, Any]:
 def execute_trial(
     trial: Mapping[str, Any],
     *,
-    extractor_route: FrozenRoute,
     judge_route: FrozenRoute,
     attempt_logger: DurableAttemptLogger,
     detailed_call: DetailedCall = api_call_detailed,
@@ -1400,7 +1338,6 @@ def execute_trial(
 
     subject_route = _route_from_dict(trial["subject_route"])
     validate_frozen_route(subject_route)
-    validate_frozen_route(extractor_route)
     validate_frozen_route(judge_route)
     result = _base_result(trial)
 
@@ -1425,52 +1362,9 @@ def execute_trial(
         result.update(status="INVALID", unscorable_reason=invalid or "subject:unavailable")
         return result
 
-    extractor_prompt = EXTRACTOR_PROMPT_TEMPLATE.format(
-        kind="part_0_original_language_visible_response",
-        schema=json.dumps(VisibleAnswer.model_json_schema(), sort_keys=True, ensure_ascii=False),
-        content_sha256=_sha256_text(subject.content),
-        content_base64=base64.b64encode(subject.content.encode("utf-8")).decode("ascii"),
-    )
-    extractor, extractor_audit, invalid = _call_stage(
-        stage="extractor",
-        trial=trial,
-        route=extractor_route,
-        system_prompt=EXTRACTOR_SYSTEM_PROMPT,
-        query=extractor_prompt,
-        attempt_logger=attempt_logger,
-        detailed_call=detailed_call,
-        json_mode=True,
-        json_schema=VisibleAnswer,
-        temperature=0,
-        top_p=None,
-        max_tokens=EXTRACTOR_MAX_TOKENS,
-        seed=None,
-        expected_visible_copy=subject.content,
-    )
-    result["extractor"] = extractor_audit
-    if invalid is not None or extractor is None:
-        result.update(status="INVALID", unscorable_reason=invalid or "extractor:unavailable")
-        return result
-    try:
-        extracted = VisibleAnswer.model_validate_json(extractor.content)
-    except (ValidationError, ValueError, json.JSONDecodeError) as error:
-        result.update(
-            status="INVALID",
-            unscorable_reason=f"extractor:semantic_invalid:{type(error).__name__}",
-        )
-        return result
-    if not extracted.response.strip():
-        result.update(status="INVALID", unscorable_reason="extractor:empty_final_response")
-        return result
-    if extracted.response != subject.content:
-        result.update(
-            status="INVALID",
-            unscorable_reason="extractor:not_an_exact_visible_response_copy",
-        )
-        return result
     judge_prompt = render_judge_prompt(
         str(trial["prompt_sent"]),
-        extracted.response,
+        subject.content,
     )
     judge, judge_audit, invalid = _call_stage(
         stage="judge",
@@ -1611,19 +1505,13 @@ def _expected_terminal_stage_outcomes(result: Mapping[str, Any]) -> dict[str, st
     status = result.get("status")
     reason = result.get("unscorable_reason")
     if status == "SCORED":
-        return {"subject": "success", "extractor": "success", "judge": "success"}
+        return {"subject": "success", "judge": "success"}
     if not isinstance(reason, str) or not reason:
         raise ConfirmatoryPart0Error("Unscorable result lacks its terminal stage reason.")
     if status == "INVALID" and reason.startswith("subject:"):
         return {"subject": "invalid_response"}
-    if status == "INVALID" and reason.startswith("extractor:"):
-        return {"subject": "success", "extractor": "invalid_response"}
     if status == "UNSCORABLE" and reason.startswith("judge:"):
-        return {
-            "subject": "success",
-            "extractor": "success",
-            "judge": "invalid_response",
-        }
+        return {"subject": "success", "judge": "invalid_response"}
     raise ConfirmatoryPart0Error("Result status does not identify a valid terminal stage.")
 
 
@@ -1637,18 +1525,7 @@ def _stage_request_hash(
         raise ConfirmatoryPart0Error(
             f"Completed {stage} stage lacks its retained visible response."
         )
-    if stage == "extractor":
-        request = EXTRACTOR_PROMPT_TEMPLATE.format(
-            kind="part_0_original_language_visible_response",
-            schema=json.dumps(
-                VisibleAnswer.model_json_schema(), sort_keys=True, ensure_ascii=False
-            ),
-            content_sha256=_sha256_text(visible_response),
-            content_base64=base64.b64encode(visible_response.encode("utf-8")).decode(
-                "ascii"
-            ),
-        )
-    elif stage == "judge":
+    if stage == "judge":
         request = render_judge_prompt(str(trial["prompt_sent"]), visible_response)
     else:
         raise ConfirmatoryPart0Error(f"Unknown attempt stage: {stage}.")
@@ -1660,7 +1537,6 @@ def _validate_attempt_result_reconciliation(
     attempts_path: Path,
     results_path: Path,
     schedule: Sequence[Mapping[str, Any]],
-    extractor_route: Mapping[str, Any],
     judge_route: Mapping[str, Any],
 ) -> None:
     """Prevent semantic replay across the attempt/result append boundary."""
@@ -1683,7 +1559,7 @@ def _validate_attempt_result_reconciliation(
             raise ConfirmatoryPart0Error("Attempt record lacks Part 0 unit metadata.")
         trial_id = unit.get("trial_id")
         stage = unit.get("stage")
-        if trial_id not in schedule_index or stage not in {"subject", "extractor", "judge"}:
+        if trial_id not in schedule_index or stage not in {"subject", "judge"}:
             raise ConfirmatoryPart0Error("Attempt record references an unknown trial or stage.")
         trial = schedule[schedule_index[str(trial_id)]]
         for field in (
@@ -1745,8 +1621,6 @@ def _validate_attempt_result_reconciliation(
             expected_route = (
                 trial["subject_route"]
                 if stage == "subject"
-                else extractor_route
-                if stage == "extractor"
                 else judge_route
             )
             expected_provider = expected_route["provider"]
@@ -1818,7 +1692,7 @@ def _run_contract(plan: Mapping[str, Any]) -> dict[str, Any]:
         "freeze_state": deepcopy(plan["freeze_state"]),
         "routes": {
             role: deepcopy(plan[f"{role}_route"])
-            for role in ("subject", "extractor", "judge")
+            for role in ("subject", "judge")
         },
         "protocol": deepcopy(plan["protocol"]),
         "resume_policy": "exact-prefix-hash-chain-and-contract-v1",
@@ -1915,7 +1789,6 @@ def validate_completed_smoke_directory(
     loaded_registry: LoadedStimulusRegistry,
     *,
     subject_route: FrozenRoute,
-    extractor_route: FrozenRoute,
     judge_route: FrozenRoute,
     ordering_seed: int,
     generation_seed: int,
@@ -1940,7 +1813,6 @@ def validate_completed_smoke_directory(
     expected_plan = _freeze_execution_plan(
         loaded_registry,
         subject_route=subject_route,
-        extractor_route=extractor_route,
         judge_route=judge_route,
         ordering_seed=ordering_seed,
         generation_seed=generation_seed,
@@ -1984,7 +1856,6 @@ def validate_completed_smoke_directory(
         attempts_path=attempts_path,
         results_path=results_path,
         schedule=expected_plan["schedule"],
-        extractor_route=expected_plan["extractor_route"],
         judge_route=expected_plan["judge_route"],
     )
     expected_exclusion = _smoke_exclusion_payload(
@@ -2006,7 +1877,7 @@ def validate_completed_smoke_directory(
         "registry_file_sha256": loaded_registry.file_sha256,
         "route_identity_sha256": {
             role: stable_json_hash(expected_plan[f"{role}_route"])
-            for role in ("subject", "extractor", "judge")
+            for role in ("subject", "judge")
         },
         "freeze_state": deepcopy(expected_plan["freeze_state"]),
         "protocol_sha256": stable_json_hash(expected_plan["protocol"]),
@@ -2102,7 +1973,6 @@ def run_frozen_plan(
         attempts_path=attempts_path,
         results_path=results_path,
         schedule=plan["schedule"],
-        extractor_route=plan["extractor_route"],
         judge_route=plan["judge_route"],
     )
     _write_run_metadata(
@@ -2112,13 +1982,11 @@ def run_frozen_plan(
         attempt_logger=attempt_logger,
         status="running",
     )
-    extractor_route = _route_from_dict(plan["extractor_route"])
     judge_route = _route_from_dict(plan["judge_route"])
     try:
         for trial in plan["schedule"][start_index:]:
             result = execute_trial(
                 trial,
-                extractor_route=extractor_route,
                 judge_route=judge_route,
                 attempt_logger=attempt_logger,
                 detailed_call=detailed_call,
@@ -2210,8 +2078,6 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--subject-provider", required=True)
     parser.add_argument("--subject-route", required=True)
-    parser.add_argument("--extractor-provider", required=True)
-    parser.add_argument("--extractor-route", required=True)
     parser.add_argument("--judge-provider", required=True)
     parser.add_argument("--judge-route", required=True)
     parser.add_argument(
@@ -2307,13 +2173,11 @@ def main(argv: list[str] | None = None) -> int:
             else freeze_verified_route
         )
         subject_route = route_resolver(args.subject_provider, args.subject_route)
-        extractor_route = route_resolver(args.extractor_provider, args.extractor_route)
         judge_route = route_resolver(args.judge_provider, args.judge_route)
         if args.resume:
             plan = _reconstruct_execution_plan_for_resume(
                 loaded,
                 subject_route=subject_route,
-                extractor_route=extractor_route,
                 judge_route=judge_route,
                 ordering_seed=ordering_seed,
                 generation_seed=generation_seed,
@@ -2328,7 +2192,6 @@ def main(argv: list[str] | None = None) -> int:
             plan = freeze_execution_plan(
                 loaded,
                 subject_route=subject_route,
-                extractor_route=extractor_route,
                 judge_route=judge_route,
                 ordering_seed=ordering_seed,
                 generation_seed=generation_seed,
@@ -2338,7 +2201,6 @@ def main(argv: list[str] | None = None) -> int:
             plan = freeze_sacrificial_smoke_plan(
                 loaded,
                 subject_route=subject_route,
-                extractor_route=extractor_route,
                 judge_route=judge_route,
                 ordering_seed=ordering_seed,
                 generation_seed=generation_seed,

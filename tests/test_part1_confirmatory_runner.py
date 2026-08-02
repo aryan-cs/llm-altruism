@@ -159,8 +159,8 @@ def frozen_fixture(
 ):
     path, bank_hash = _write_bank(tmp_path, approved_roots)
     loaded = load_production_bank(path, expected_sha256=bank_hash)
-    subject, extractor = _route("subject"), _route("extractor")
-    identities = {route.route: route.identity for route in (subject, extractor)}
+    subject = _route("subject")
+    identities = {subject.route: subject.identity}
     monkeypatch.setattr(
         confirmatory_runner,
         "resolve_model_registry_entry",
@@ -192,10 +192,9 @@ def frozen_fixture(
     plan = freeze_execution_plan(
         loaded,
         subject_route=subject,
-        extractor_route=extractor,
         completed_smoke_directory=smoke_directory,
     )
-    return path, loaded, plan, subject, extractor
+    return path, loaded, plan, subject
 
 
 def test_loader_requires_exact_hash_and_three_real_unanimous_approvals(
@@ -231,18 +230,28 @@ def test_bank_schema_rejects_unknown_fields(tmp_path: Path, approved_roots) -> N
 def test_complete_schedule_is_exact_hash_bound_and_independently_seeded(
     frozen_fixture,
 ) -> None:
-    _, loaded, plan, subject, _ = frozen_fixture
+    _, loaded, plan, subject = frozen_fixture
     schedule = plan["schedule"]
-    assert len(schedule) == EXPECTED_TRIALS_PER_MODEL == 4_224
+    assert len(schedule) == EXPECTED_TRIALS_PER_MODEL == 384
     assert sum(row["phase"] == "primary" for row in schedule) == EXPECTED_PRIMARY_TRIALS
     assert sum(row["phase"] == "secondary" for row in schedule) == EXPECTED_SECONDARY_TRIALS
-    assert [row["execution_index"] for row in schedule] == list(range(4_224))
-    assert len({row["trial_id"] for row in schedule}) == 4_224
+    assert [row["execution_index"] for row in schedule] == list(range(384))
+    assert len({row["trial_id"] for row in schedule}) == 384
     assert len(
         {row["generation_settings"]["generation_seed"] for row in schedule}
-    ) == 4_224
-    assert len({row["extractor_seed"] for row in schedule}) == 4_224
+    ) == 384
+    assert all(row["frame_id"] == "self_direct" for row in schedule)
+    assert all(row["generation_block"] == 0 for row in schedule)
+    assert set(
+        Counter(
+            (row["game"], row["domain"], row["counterbalance_id"])
+            for row in schedule
+        ).values()
+    ) == {8}
+    assert all("extractor_seed" not in row for row in schedule)
     assert all(row["subject_route"] == subject.to_dict() for row in schedule)
+    assert "extractor_route" not in plan
+    assert "extraction_protocol" not in plan["protocol"]
     assert schedule == build_confirmatory_schedule(loaded, subject_route=subject)
 
 
@@ -250,7 +259,7 @@ def test_plan_rejects_prompt_seed_route_and_source_freeze_tampering(
     frozen_fixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _, loaded, plan, _, _ = frozen_fixture
+    _, loaded, plan, _ = frozen_fixture
     for mutate in (
         lambda value: value["schedule"][0].__setitem__("prompt_text", "tampered"),
         lambda value: value["schedule"][0]["generation_settings"].__setitem__(
@@ -271,11 +280,11 @@ def test_plan_rejects_prompt_seed_route_and_source_freeze_tampering(
         validate_execution_plan(plan, loaded)
 
 
-def test_trial_runs_subject_then_visible_only_extractor_and_scores_exact_token(
+def test_trial_parses_raw_visible_subject_response_and_scores_exact_token(
     frozen_fixture,
     tmp_path: Path,
 ) -> None:
-    _, _, plan, subject, extractor = frozen_fixture
+    _, _, plan, subject = frozen_fixture
     trial = plan["schedule"][0]
     attempts = tmp_path / "attempts.jsonl"
     logger = DurableAttemptLogger(attempts, experiment="part_1_confirmatory")
@@ -291,17 +300,10 @@ def test_trial_runs_subject_then_visible_only_extractor_and_scores_exact_token(
                 **kwargs,
             }
         )
-        if model == subject.route:
-            return _response(subject, "Reasoning that remains visible.\nX", "subject-1")
-        return _response(
-            extractor,
-            json.dumps({"response": "Reasoning that remains visible.\nX"}),
-            "extractor-1",
-        )
+        return _response(subject, "Reasoning that remains visible.\nX", "subject-1")
 
     result = execute_trial(
         trial,
-        extractor_route=extractor,
         attempt_logger=logger,
         detailed_call=fake_call,
     )
@@ -312,32 +314,18 @@ def test_trial_runs_subject_then_visible_only_extractor_and_scores_exact_token(
     assert result["welfare_preserving"] is (
         trial["counterbalance_id"] in {"CB_X_FIRST", "CB_X_SECOND"}
     )
-    assert len(calls) == 2
+    assert len(calls) == 1
     assert calls[0]["seed"] == trial["generation_settings"]["generation_seed"]
-    assert calls[1]["seed"] == trial["extractor_seed"]
-    assert "PRIVATE HIDDEN REASONING" not in calls[1]["query"]
-    encoded = base64_from_extractor_prompt(calls[1]["query"])
-    assert encoded == "Reasoning that remains visible.\nX"
     records = load_attempt_records(attempts)
-    assert [record["outcome"] for record in records] == ["success", "success"]
+    assert [record["outcome"] for record in records] == ["success"]
     assert all(record["raw_response"] is None for record in records)
     assert all("Reasoning that remains visible" not in record["prompt_text"] for record in records)
-
-
-def base64_from_extractor_prompt(prompt: str) -> str:
-    import base64
-
-    encoded = prompt.split("<assistant_response_base64>", 1)[1].split(
-        "</assistant_response_base64>", 1
-    )[0]
-    return base64.b64decode(encoded).decode("utf-8")
-
 
 def test_malformed_terminal_choice_is_retained_invalid_without_semantic_retry(
     frozen_fixture,
     tmp_path: Path,
 ) -> None:
-    _, _, plan, subject, extractor = frozen_fixture
+    _, _, plan, subject = frozen_fixture
     trial = plan["schedule"][1]
     attempts = tmp_path / "attempts.jsonl"
     logger = DurableAttemptLogger(attempts, experiment="part_1_confirmatory")
@@ -346,31 +334,24 @@ def test_malformed_terminal_choice_is_retained_invalid_without_semantic_retry(
     def fake_call(provider, model, system_prompt, query, **kwargs):
         nonlocal call_count
         call_count += 1
-        if model == subject.route:
-            return _response(subject, "I choose X.", "subject-malformed")
-        return _response(
-            extractor,
-            json.dumps({"response": "I choose X."}),
-            "extractor-malformed",
-        )
+        return _response(subject, "I choose X.", "subject-malformed")
 
     result = execute_trial(
         trial,
-        extractor_route=extractor,
         attempt_logger=logger,
         detailed_call=fake_call,
     )
     assert result["status"] == "INVALID"
     assert result["choice"] == "INVALID"
     assert result["unscorable_reason"] == "parser:malformed_final_token"
-    assert call_count == 2
+    assert call_count == 1
 
 
-def test_truncation_and_extractor_hallucination_fail_closed_without_retry(
+def test_truncation_fails_closed_without_retry(
     frozen_fixture,
     tmp_path: Path,
 ) -> None:
-    _, _, plan, subject, extractor = frozen_fixture
+    _, _, plan, subject = frozen_fixture
 
     truncated_logger = DurableAttemptLogger(
         tmp_path / "truncated.jsonl", experiment="part_1_confirmatory"
@@ -384,7 +365,6 @@ def test_truncation_and_extractor_hallucination_fail_closed_without_retry(
 
     result = execute_trial(
         plan["schedule"][2],
-        extractor_route=extractor,
         attempt_logger=truncated_logger,
         detailed_call=truncated_call,
     )
@@ -392,54 +372,25 @@ def test_truncation_and_extractor_hallucination_fail_closed_without_retry(
     assert result["unscorable_reason"] == "subject:truncation_status_True"
     assert calls == 1
 
-    hallucination_logger = DurableAttemptLogger(
-        tmp_path / "hallucination.jsonl", experiment="part_1_confirmatory"
-    )
-
-    def hallucination_call(provider, model, system_prompt, query, **kwargs):
-        if model == subject.route:
-            return _response(subject, "X", "subject-grounded")
-        return _response(
-            extractor,
-            json.dumps({"response": "Y"}),
-            "extractor-ungrounded",
-        )
-
-    result = execute_trial(
-        plan["schedule"][3],
-        extractor_route=extractor,
-        attempt_logger=hallucination_logger,
-        detailed_call=hallucination_call,
-    )
-    assert result["status"] == "INVALID"
-    assert result["unscorable_reason"] == "extractor:semantic_invalid:ValueError"
-    assert [item["outcome"] for item in load_attempt_records(hallucination_logger.path)] == [
-        "success",
-        "invalid_response",
-    ]
-
 
 def test_transport_retries_only_same_route_with_identical_seed(
     frozen_fixture,
     tmp_path: Path,
 ) -> None:
-    _, _, plan, subject, extractor = frozen_fixture
+    _, _, plan, subject = frozen_fixture
     logger = DurableAttemptLogger(
         tmp_path / "transport.jsonl", experiment="part_1_confirmatory"
     )
     subject_seeds: list[int] = []
 
     def flaky_call(provider, model, system_prompt, query, **kwargs):
-        if model == subject.route:
-            subject_seeds.append(kwargs["seed"])
-            if len(subject_seeds) == 1:
-                raise ConnectionError("temporary network loss")
-            return _response(subject, "Y", "subject-recovered")
-        return _response(extractor, json.dumps({"response": "Y"}), "extractor-ok")
+        subject_seeds.append(kwargs["seed"])
+        if len(subject_seeds) == 1:
+            raise ConnectionError("temporary network loss")
+        return _response(subject, "Y", "subject-recovered")
 
     result = execute_trial(
         plan["schedule"][4],
-        extractor_route=extractor,
         attempt_logger=logger,
         detailed_call=flaky_call,
     )
@@ -451,7 +402,6 @@ def test_transport_retries_only_same_route_with_identical_seed(
     assert [item["outcome"] for item in records] == [
         "provider_error",
         "success",
-        "success",
     ]
     assert {item["model"] for item in records[:2]} == {subject.route}
 
@@ -460,7 +410,7 @@ def test_returned_alias_or_missing_identity_is_fatal(
     frozen_fixture,
     tmp_path: Path,
 ) -> None:
-    _, _, plan, subject, extractor = frozen_fixture
+    _, _, plan, subject = frozen_fixture
     logger = DurableAttemptLogger(
         tmp_path / "identity.jsonl", experiment="part_1_confirmatory"
     )
@@ -472,7 +422,6 @@ def test_returned_alias_or_missing_identity_is_fatal(
     with pytest.raises(RouteIdentityError):
         execute_trial(
             plan["schedule"][5],
-            extractor_route=extractor,
             attempt_logger=logger,
             detailed_call=alias_call,
         )
@@ -484,12 +433,12 @@ def test_private_full_lifecycle_and_exact_completed_resume(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    bank_path, _, plan, subject, extractor = frozen_fixture
+    bank_path, _, plan, subject = frozen_fixture
     private_root = tmp_path / "private"
     monkeypatch.setattr(confirmatory_runner, "PRIVATE_RESULTS_ROOT", private_root)
     # The production plan cardinality is already tested above.  Limit this I/O
     # lifecycle test to two exact plan rows so it exercises real artifact and
-    # resume behavior without issuing 8,448 fixture provider calls.
+    # resume behavior without running the full approved bank.
     small_plan = deepcopy(plan)
     small_plan["schedule"] = small_plan["schedule"][:2]
     small_plan["plan_sha256"] = confirmatory_runner.stable_json_hash(
@@ -505,9 +454,7 @@ def test_private_full_lifecycle_and_exact_completed_resume(
     def fake_call(provider, model, system_prompt, query, **kwargs):
         nonlocal calls
         calls += 1
-        if model == subject.route:
-            return _response(subject, "X", f"subject-{calls}")
-        return _response(extractor, json.dumps({"response": "X"}), f"extractor-{calls}")
+        return _response(subject, "X", f"subject-{calls}")
 
     output = private_root / "model-run"
     results_path = run_frozen_plan(
@@ -517,7 +464,7 @@ def test_private_full_lifecycle_and_exact_completed_resume(
         detailed_call=fake_call,
     )
     assert len(results_path.read_text(encoding="utf-8").splitlines()) == 2
-    assert calls == 4
+    assert calls == 2
     for artifact in output.iterdir():
         assert stat.S_IMODE(artifact.stat().st_mode) == 0o600
     assert stat.S_IMODE(output.stat().st_mode) == 0o700
@@ -532,12 +479,55 @@ def test_private_full_lifecycle_and_exact_completed_resume(
     assert resumed == results_path
 
 
+def test_crash_after_visible_subject_response_refuses_semantic_replay(
+    frozen_fixture,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bank_path, _, plan, subject = frozen_fixture
+    private_root = tmp_path / "private"
+    output = private_root / "crash-boundary"
+    monkeypatch.setattr(confirmatory_runner, "PRIVATE_RESULTS_ROOT", private_root)
+
+    def subject_call(provider, model, system_prompt, query, **kwargs):
+        assert model == subject.route
+        return _response(subject, "X", "subject-before-crash")
+
+    original_append = confirmatory_runner._append_result
+    monkeypatch.setattr(
+        confirmatory_runner,
+        "_append_result",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            OSError("simulated result append crash")
+        ),
+    )
+    with pytest.raises(OSError, match="simulated result append crash"):
+        run_frozen_plan(
+            plan=plan,
+            bank_path=bank_path,
+            output_directory=output,
+            detailed_call=subject_call,
+        )
+    monkeypatch.setattr(confirmatory_runner, "_append_result", original_append)
+
+    with pytest.raises(ConfirmatoryPart1Error, match="retained a semantic result"):
+        run_frozen_plan(
+            plan=plan,
+            bank_path=bank_path,
+            output_directory=output,
+            resume=True,
+            detailed_call=lambda *args, **kwargs: pytest.fail(
+                "resume must fail before replaying the subject"
+            ),
+        )
+
+
 def test_strict_resume_accepts_stale_frozen_identity_but_new_freeze_does_not(
     frozen_fixture,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    bank_path, loaded, plan, subject, extractor = frozen_fixture
+    bank_path, loaded, plan, subject = frozen_fixture
     private_root = tmp_path / "private"
     output = private_root / "resume-stale-evidence"
     output.mkdir(parents=True, mode=0o700)
@@ -575,10 +565,6 @@ def test_strict_resume_accepts_stale_frozen_identity_but_new_freeze_does_not(
                 subject.provider,
                 "--subject-model",
                 subject.route,
-                "--extractor-provider",
-                extractor.provider,
-                "--extractor-model",
-                extractor.route,
                 "--completed-smoke-directory",
                 smoke_directory,
                 "--output-directory",
@@ -597,7 +583,7 @@ def test_resume_refuses_result_attempt_or_permission_tampering(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    bank_path, _, plan, subject, extractor = frozen_fixture
+    bank_path, _, plan, subject = frozen_fixture
     private_root = tmp_path / "private"
     monkeypatch.setattr(confirmatory_runner, "PRIVATE_RESULTS_ROOT", private_root)
     small_plan = deepcopy(plan)
@@ -608,9 +594,7 @@ def test_resume_refuses_result_attempt_or_permission_tampering(
     monkeypatch.setattr(confirmatory_runner, "validate_execution_plan", lambda *args: None)
 
     def fake_call(provider, model, system_prompt, query, **kwargs):
-        if model == subject.route:
-            return _response(subject, "Y", "subject")
-        return _response(extractor, json.dumps({"response": "Y"}), "extractor")
+        return _response(subject, "Y", "subject")
 
     output = private_root / "tamper-run"
     results = run_frozen_plan(
@@ -635,7 +619,7 @@ def test_outputs_outside_private_root_are_refused(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    bank_path, _, plan, _, _ = frozen_fixture
+    bank_path, _, plan, _ = frozen_fixture
     monkeypatch.setattr(
         confirmatory_runner, "PRIVATE_RESULTS_ROOT", tmp_path / "approved-private"
     )
@@ -650,11 +634,10 @@ def test_outputs_outside_private_root_are_refused(
 def test_sacrificial_smoke_schedule_is_small_deterministic_and_fully_balanced(
     frozen_fixture,
 ) -> None:
-    _, loaded, production_plan, subject, extractor = frozen_fixture
+    _, loaded, production_plan, subject = frozen_fixture
     smoke_plan = freeze_sacrificial_smoke_plan(
         loaded,
         subject_route=subject,
-        extractor_route=extractor,
     )
     schedule = smoke_plan["schedule"]
 
@@ -664,22 +647,13 @@ def test_sacrificial_smoke_schedule_is_small_deterministic_and_fully_balanced(
         "purpose": "sacrificial_part1_full_path_smoke",
         "exclusion_required": True,
     }
-    assert len(schedule) == EXPECTED_SMOKE_TRIALS == 48
+    assert len(schedule) == EXPECTED_SMOKE_TRIALS == 12
     assert sum(item["phase"] == "primary" for item in schedule) == 12
-    assert sum(item["phase"] == "secondary" for item in schedule) == 36
-    assert Counter(item["frame_id"] for item in schedule) == Counter(
-        {
-            "self_direct": 12,
-            "advice": 12,
-            "observer_evaluation": 12,
-            "prediction": 12,
-        }
-    )
-    assert set(Counter(item["game"] for item in schedule).values()) == {24}
-    assert set(Counter(item["domain"] for item in schedule).values()) == {8}
-    assert set(Counter(item["counterbalance_id"] for item in schedule).values()) == {
-        12
-    }
+    assert sum(item["phase"] == "secondary" for item in schedule) == 0
+    assert Counter(item["frame_id"] for item in schedule) == Counter({"self_direct": 12})
+    assert set(Counter(item["game"] for item in schedule).values()) == {6}
+    assert set(Counter(item["domain"] for item in schedule).values()) == {2}
+    assert set(Counter(item["counterbalance_id"] for item in schedule).values()) == {3}
     by_cell: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     for item in schedule:
         assert item["execution_mode"] == "sacrificial_smoke"
@@ -687,18 +661,8 @@ def test_sacrificial_smoke_schedule_is_small_deterministic_and_fully_balanced(
         by_cell[(item["game"], item["domain"])].append(item)
     assert len(by_cell) == 12
     for rows in by_cell.values():
-        assert {row["frame_id"] for row in rows} == {
-            "self_direct",
-            "advice",
-            "observer_evaluation",
-            "prediction",
-        }
-        assert {row["counterbalance_id"] for row in rows} == {
-            "CB_X_FIRST",
-            "CB_Y_FIRST",
-            "CB_X_SECOND",
-            "CB_Y_SECOND",
-        }
+        assert len(rows) == 1
+        assert rows[0]["frame_id"] == "self_direct"
     assert schedule == build_sacrificial_smoke_schedule(production_plan["schedule"])
     with pytest.raises(ConfirmatoryPart1Error, match="exact unique production"):
         build_sacrificial_smoke_schedule(production_plan["schedule"][:-1])
@@ -714,10 +678,6 @@ def test_cli_exposes_only_exact_production_and_sacrificial_smoke_modes() -> None
         "inference_hub",
         "--subject-model",
         "exact/subject",
-        "--extractor-provider",
-        "inference_hub",
-        "--extractor-model",
-        "exact/extractor",
         "--output-directory",
         "data/private/part1_confirmatory/smoke",
     ]
@@ -730,37 +690,43 @@ def test_cli_exposes_only_exact_production_and_sacrificial_smoke_modes() -> None
     with pytest.raises(SystemExit):
         confirmatory_runner._parser().parse_args(["--mode", "smoke", *required])
 
+    with pytest.raises(SystemExit):
+        confirmatory_runner._parser().parse_args(
+            [
+                "--mode",
+                "sacrificial-smoke",
+                *required,
+                "--extractor-provider",
+                "inference_hub",
+                "--extractor-model",
+                "legacy/extractor",
+            ]
+        )
 
-def test_sacrificial_smoke_runs_all_48_subject_extractor_parser_paths_and_marks_data(
+
+def test_sacrificial_smoke_runs_all_12_subject_parser_paths_and_marks_data(
     frozen_fixture,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    bank_path, loaded, _, subject, extractor = frozen_fixture
+    bank_path, loaded, _, subject = frozen_fixture
     private_root = tmp_path / "private"
     monkeypatch.setattr(confirmatory_runner, "PRIVATE_RESULTS_ROOT", private_root)
     smoke_plan = freeze_sacrificial_smoke_plan(
         loaded,
         subject_route=subject,
-        extractor_route=extractor,
     )
     calls: list[tuple[str, int]] = []
-    latest_visible = ""
     subject_count = 0
 
     def fake_call(provider, model, system_prompt, query, **kwargs):
-        nonlocal latest_visible, subject_count
+        nonlocal subject_count
         calls.append((model, kwargs["seed"]))
-        if model == subject.route:
-            subject_count += 1
-            token = "X" if subject_count % 2 else "Y"
-            latest_visible = f"Visible smoke reasoning {subject_count}.\n{token}"
-            return _response(subject, latest_visible, f"smoke-subject-{subject_count}")
-        return _response(
-            extractor,
-            json.dumps({"response": latest_visible}),
-            f"smoke-extractor-{subject_count}",
-        )
+        assert model == subject.route
+        subject_count += 1
+        token = "X" if subject_count % 2 else "Y"
+        visible = f"Visible smoke reasoning {subject_count}.\n{token}"
+        return _response(subject, visible, f"smoke-subject-{subject_count}")
 
     output = private_root / "full-smoke"
     results_path = run_frozen_plan(
@@ -774,11 +740,9 @@ def test_sacrificial_smoke_runs_all_48_subject_extractor_parser_paths_and_marks_
         for line in results_path.read_text(encoding="utf-8").splitlines()
     ]
     assert len(records) == EXPECTED_SMOKE_TRIALS
-    assert len(calls) == EXPECTED_SMOKE_TRIALS * 2 == 96
-    assert Counter(model for model, _ in calls) == Counter(
-        {subject.route: 48, extractor.route: 48}
-    )
-    assert Counter(record["choice"] for record in records) == Counter({"X": 24, "Y": 24})
+    assert len(calls) == EXPECTED_SMOKE_TRIALS == 12
+    assert Counter(model for model, _ in calls) == Counter({subject.route: 12})
+    assert Counter(record["choice"] for record in records) == Counter({"X": 6, "Y": 6})
     assert all(record["status"] == "SCORED" for record in records)
     assert all(record["execution_mode"] == "sacrificial_smoke" for record in records)
     assert all(record["analysis_eligible"] is False for record in records)
@@ -791,7 +755,7 @@ def test_sacrificial_smoke_runs_all_48_subject_extractor_parser_paths_and_marks_
     assert marker["reason"] == "sacrificial_part1_full_path_smoke"
     assert marker["analysis_eligible"] is False
     assert marker["execution_mode"] == "sacrificial_smoke"
-    assert marker["total_results"] == 48
+    assert marker["total_results"] == 12
     assert marker["plan_sha256"] == smoke_plan["plan_sha256"]
     assert marker["schedule_sha256"] == confirmatory_runner.stable_json_hash(
         smoke_plan["schedule"]
@@ -811,14 +775,11 @@ def test_sacrificial_smoke_runs_all_48_subject_extractor_parser_paths_and_marks_
     gate = _REAL_VALIDATE_COMPLETED_SMOKE_DIRECTORY(
         loaded,
         subject_route=subject,
-        extractor_route=extractor,
         primary_seed=smoke_plan["primary_seed_base"],
-        secondary_seed=smoke_plan["secondary_seed_base"],
-        extractor_seed=smoke_plan["extractor_seed_base"],
         smoke_directory=output,
     )
     assert gate["status"] == "validated_complete_full_path_smoke"
-    assert gate["result_count"] == 48
+    assert gate["result_count"] == 12
     assert len(gate["smoke_gate_sha256"]) == 64
 
     before_resume_calls = len(calls)
@@ -835,15 +796,14 @@ def test_sacrificial_smoke_runs_all_48_subject_extractor_parser_paths_and_marks_
 def test_smoke_plan_mode_design_and_schedule_tampering_fail_closed(
     frozen_fixture,
 ) -> None:
-    _, loaded, _, subject, extractor = frozen_fixture
+    _, loaded, _, subject = frozen_fixture
     smoke_plan = freeze_sacrificial_smoke_plan(
         loaded,
         subject_route=subject,
-        extractor_route=extractor,
     )
 
     mutations = (
-        lambda value: value["smoke_design"].__setitem__("expected_trials", 47),
+        lambda value: value["smoke_design"].__setitem__("expected_trials", 11),
         lambda value: value["schedule"].pop(),
         lambda value: value["schedule"][0].__setitem__("analysis_eligible", True),
         lambda value: value.__setitem__("execution_mode", "production"),
@@ -881,22 +841,16 @@ def test_completed_smoke_refuses_missing_or_tampered_exclusion_before_calls(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    bank_path, loaded, _, subject, extractor = frozen_fixture
+    bank_path, loaded, _, subject = frozen_fixture
     private_root = tmp_path / "private"
     monkeypatch.setattr(confirmatory_runner, "PRIVATE_RESULTS_ROOT", private_root)
     smoke_plan = freeze_sacrificial_smoke_plan(
         loaded,
         subject_route=subject,
-        extractor_route=extractor,
     )
-    latest_visible = "X"
-
     def fake_call(provider, model, system_prompt, query, **kwargs):
-        nonlocal latest_visible
-        if model == subject.route:
-            latest_visible = "X"
-            return _response(subject, latest_visible, "subject-smoke")
-        return _response(extractor, json.dumps({"response": latest_visible}), "extractor-smoke")
+        assert model == subject.route
+        return _response(subject, "X", "subject-smoke")
 
     output = private_root / "marker-tamper"
     run_frozen_plan(
@@ -939,7 +893,7 @@ def test_production_resume_rejects_any_smoke_exclusion_marker(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    bank_path, _, plan, subject, extractor = frozen_fixture
+    bank_path, _, plan, subject = frozen_fixture
     private_root = tmp_path / "private"
     monkeypatch.setattr(confirmatory_runner, "PRIVATE_RESULTS_ROOT", private_root)
     small_plan = deepcopy(plan)
@@ -951,9 +905,8 @@ def test_production_resume_rejects_any_smoke_exclusion_marker(
     latest_visible = "X"
 
     def fake_call(provider, model, system_prompt, query, **kwargs):
-        if model == subject.route:
-            return _response(subject, latest_visible, "subject-production")
-        return _response(extractor, json.dumps({"response": latest_visible}), "extractor-production")
+        assert model == subject.route
+        return _response(subject, latest_visible, "subject-production")
 
     output = private_root / "production-marker"
     run_frozen_plan(

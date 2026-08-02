@@ -304,6 +304,43 @@ def _collection_timing(
     }
 
 
+def _single_stage_collection_timing(
+    jobs: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    rows = [
+        _scientific_attempt_timing(job, campaign_stage="fixed_stage")
+        for job in jobs
+        if job.get("stage") != "smoke"
+    ]
+    if not rows:
+        raise ConfirmatoryDataLockError("fixed_stage has no timestamped scientific jobs")
+    starts = [
+        _utc_datetime(row["completed_attempt"]["started_at_utc"], "attempt start")
+        for row in rows
+    ]
+    finishes = [
+        _utc_datetime(row["completed_attempt"]["finished_at_utc"], "attempt finish")
+        for row in rows
+    ]
+    return {
+        "policy": "single_block_randomized_campaign_timing_v1",
+        "exact_attempt_timestamps_preserved": True,
+        "stage_part_temporal_confounding": {
+            "flagged": False,
+            "reason": "All three parts were interleaved in one preregistered block-randomized campaign.",
+        },
+        "per_stage": {
+            "fixed_stage": {
+                "job_count": len(rows),
+                "started_at_utc": min(starts).isoformat().replace("+00:00", "Z"),
+                "finished_at_utc": max(finishes).isoformat().replace("+00:00", "Z"),
+                "elapsed_seconds": (max(finishes) - min(starts)).total_seconds(),
+            }
+        },
+        "scientific_job_attempts": rows,
+    }
+
+
 def _reference(path: Path, *, kind: str) -> dict[str, Any]:
     if not path.is_file():
         raise ConfirmatoryDataLockError(f"required {kind} file is missing: {path}")
@@ -823,12 +860,173 @@ def build_data_lock(
     return locked
 
 
+def build_fixed_data_lock(
+    *,
+    campaign_manifest_path: str | Path,
+    judge_criterion_path: str | Path,
+    exclusions_path: str | Path,
+    output_path: str | Path,
+) -> dict[str, Any]:
+    """Create the final lock for the preregistered one-stage fixed design."""
+
+    campaign_path, campaign, campaign_file_hash = _validated_campaign_stage(
+        campaign_manifest_path,
+        label="fixed-stage campaign manifest",
+        expected_scientific_stage="part2_fixed_production",
+    )
+    design = campaign.get("part2_design", {})
+    production_config = design.get("production_config", {})
+    if (
+        design.get("fixed_replicates") != confirmatory_campaign.FIXED_PART2_REPLICATES
+        or production_config.get("society_size") != 10
+        or production_config.get("days") != 30
+        or production_config.get("resource_capacity") != 150
+    ):
+        raise ConfirmatoryDataLockError("fixed-stage Part 2 design changed")
+    system_metadata = _validate_cohort_estimand(campaign)
+    jobs = list(campaign["jobs"])
+    scientific_jobs = [job for job in jobs if job["stage"] != "smoke"]
+    artifacts = _artifact_references(jobs, lineage_role="single_fixed_stage_final")
+    exclusions = _validate_exclusions(
+        exclusions_path, {"fixed_stage": campaign}, scientific_jobs
+    )
+    judge_gate = _validate_judge_gate(judge_criterion_path)
+    inputs: list[dict[str, Any]] = []
+    for key in ("part0_registry", "part1_bank", "endpoint_evidence"):
+        value = campaign["inputs"].get(key)
+        if not isinstance(value, Mapping) or not value.get("path") or not value.get("sha256"):
+            raise ConfirmatoryDataLockError(f"campaign input pin is invalid: {key}")
+        reference = _reference(Path(str(value["path"])), kind=f"campaign_input:{key}")
+        if reference["sha256"] != value["sha256"]:
+            raise ConfirmatoryDataLockError(f"campaign input changed: {key}")
+        inputs.append(reference)
+    inputs.append(
+        _reference(
+            confirmatory_campaign.REPO_ROOT / "agents" / "agent_config.registry.json",
+            kind="model_registry",
+        )
+    )
+    protocols = [
+        _reference(path, kind="protocol_or_lock_source")
+        for path in (
+            confirmatory_campaign.REPO_ROOT / "docs" / "CONFIRMATORY_PROTOCOL.md",
+            confirmatory_campaign.REPO_ROOT / "analysis" / "judge_audit.py",
+            confirmatory_campaign.REPO_ROOT / "analysis" / "confirmatory_estimators.py",
+            Path(__file__).resolve(),
+            confirmatory_campaign.REPO_ROOT / "analysis" / "confirmatory_judge_adapter.py",
+        )
+    ]
+    excluded_ids = set(exclusions["excluded_job_ids"])
+    decisions = {row["job_id"]: row for row in exclusions["decisions"]}
+    included = [str(job["id"]) for job in scientific_jobs if job["id"] not in excluded_ids]
+    locked: dict[str, Any] = {
+        "schema_version": SCHEMA_VERSION,
+        "artifact_type": ARTIFACT_TYPE,
+        "status": "locked",
+        "campaigns": {
+            "fixed_stage": {
+                "path": str(campaign_path),
+                "file_sha256": campaign_file_hash,
+                "manifest_sha256": campaign["manifest_sha256"],
+                "plan_sha256": campaign["plan_sha256"],
+                "part2_role": "final_scientific_outcomes_exactly_24_runs",
+            }
+        },
+        "completed_jobs": {
+            "fixed_stage_total": len(jobs),
+            "final_analysis_source_total": len(scientific_jobs),
+            "final_by_experiment": dict(
+                sorted(Counter(str(job["experiment"]) for job in scientific_jobs).items())
+            ),
+        },
+        "analysis_sources": {
+            "part0": "fixed_stage",
+            "part1": "fixed_stage",
+            "part2_final": "fixed_stage",
+        },
+        "collection_timing": _single_stage_collection_timing(jobs),
+        "panel_estimands": {
+            "primary_cohort_id": PRIMARY_COHORT_ID,
+            "historical_cohort_id": HISTORICAL_COHORT_ID,
+            "current_system_count": sum(row["cohort_id"] == PRIMARY_COHORT_ID for row in system_metadata),
+            "current_developer_count": len({row["developer_id"] for row in system_metadata if row["cohort_id"] == PRIMARY_COHORT_ID}),
+            "historical_system_count": sum(row["cohort_id"] == HISTORICAL_COHORT_ID for row in system_metadata),
+            "developer_balanced_summary_required": True,
+        },
+        "deferred_non_lockable": {},
+        "artifacts": artifacts,
+        "approved_inputs": inputs,
+        "protocol_and_source_files": protocols,
+        "gates": {
+            "judge_criterion": judge_gate,
+            "exclusion_decisions": {
+                "path": exclusions["path"],
+                "sha256": exclusions["sha256"],
+                "status": "approved_outcome_blind",
+            },
+        },
+        "exclusions": {
+            "sacrificial_smoke_job_ids": [
+                {"campaign_stage": "fixed_stage", "job_id": job["id"]}
+                for job in jobs if job["stage"] == "smoke"
+            ],
+            "included_scientific_job_ids": included,
+            "excluded_scientific_job_ids": exclusions["excluded_job_ids"],
+            "excluded_scientific_job_audit_table": [
+                {
+                    "job_id": job["id"],
+                    "experiment": job["experiment"],
+                    "stage": job["stage"],
+                    "target_id": job.get("target_id"),
+                    "route": job.get("route"),
+                    "campaign_stage": "fixed_stage",
+                    **decisions[str(job["id"])],
+                }
+                for job in scientific_jobs if job["id"] in excluded_ids
+            ],
+            "policy_frozen_at_utc": exclusions["policy_frozen_at_utc"],
+            "allowed_reason_codes": list(OBJECTIVE_EXCLUSION_REASON_CODES),
+        },
+        "completeness": {
+            "all_planned_jobs_complete": True,
+            "all_selected_lineage_artifacts_reverified": True,
+            "parts_present": ["part0", "part1", "part2"],
+            "required_gate_count": 2,
+            "required_gates_present": True,
+            "scientific_attempt_timestamps_validated": True,
+            "artifact_file_count": len(artifacts),
+        },
+    }
+    locked["data_lock_sha256"] = stable_json_hash(locked)
+    destination = Path(output_path).resolve()
+    if destination.exists():
+        raise ConfirmatoryDataLockError(f"data-lock output already exists: {destination}")
+    destination.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    descriptor, temporary = tempfile.mkstemp(dir=destination.parent, prefix=f".{destination.name}.")
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            json.dump(locked, handle, indent=2, sort_keys=True, ensure_ascii=False)
+            handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.chmod(temporary, 0o600)
+        os.replace(temporary, destination)
+    except BaseException:
+        try:
+            os.unlink(temporary)
+        except FileNotFoundError:
+            pass
+        raise
+    return locked
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Build the final self-hashed confirmatory data lock.")
-    parser.add_argument("--variance-campaign-manifest", required=True)
-    parser.add_argument("--baseline-campaign-manifest", required=True)
+    parser.add_argument("--fixed-campaign-manifest")
+    parser.add_argument("--variance-campaign-manifest")
+    parser.add_argument("--baseline-campaign-manifest")
     parser.add_argument("--judge-criterion", required=True)
-    parser.add_argument("--variance-selection", required=True)
+    parser.add_argument("--variance-selection")
     parser.add_argument("--exclusions", required=True)
     parser.add_argument("--output", required=True)
     return parser
@@ -837,14 +1035,39 @@ def _parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
-        result = build_data_lock(
-            variance_campaign_manifest_path=args.variance_campaign_manifest,
-            baseline_campaign_manifest_path=args.baseline_campaign_manifest,
-            judge_criterion_path=args.judge_criterion,
-            variance_selection_path=args.variance_selection,
-            exclusions_path=args.exclusions,
-            output_path=args.output,
-        )
+        if args.fixed_campaign_manifest:
+            if any(
+                value is not None
+                for value in (
+                    args.variance_campaign_manifest,
+                    args.baseline_campaign_manifest,
+                    args.variance_selection,
+                )
+            ):
+                raise ConfirmatoryDataLockError(
+                    "fixed-stage lock cannot be combined with legacy two-stage inputs"
+                )
+            result = build_fixed_data_lock(
+                campaign_manifest_path=args.fixed_campaign_manifest,
+                judge_criterion_path=args.judge_criterion,
+                exclusions_path=args.exclusions,
+                output_path=args.output,
+            )
+        else:
+            if not all(
+                (args.variance_campaign_manifest, args.baseline_campaign_manifest, args.variance_selection)
+            ):
+                raise ConfirmatoryDataLockError(
+                    "provide --fixed-campaign-manifest or all legacy two-stage inputs"
+                )
+            result = build_data_lock(
+                variance_campaign_manifest_path=args.variance_campaign_manifest,
+                baseline_campaign_manifest_path=args.baseline_campaign_manifest,
+                judge_criterion_path=args.judge_criterion,
+                variance_selection_path=args.variance_selection,
+                exclusions_path=args.exclusions,
+                output_path=args.output,
+            )
     except ConfirmatoryDataLockError as error:
         print(f"error: {error}", file=sys.stderr)
         return 2

@@ -23,6 +23,12 @@ from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping, Sequence
 
 from agents.agent_config import load_model_cohort, require_fresh_route_verification
+from experiments.confirmatory_budget import (
+    build_frozen_budget,
+    create_ledger,
+    validate_frozen_budget,
+    validate_ledger,
+)
 from experiments.misc.attempt_log import attempt_log_path_for_csv, verify_attempt_log_metadata
 from experiments.misc.final_answer import (
     DEFAULT_EXTRACTOR_MAX_TOKENS,
@@ -40,6 +46,7 @@ from experiments.misc.run_metadata import (
 )
 from experiments.part0 import confirmatory_runner as part0_runner
 from experiments.part1 import confirmatory_runner as part1_runner
+from experiments.part2 import part_2
 from experiments.part2.part_2 import DEFAULT_COLLAPSE_DEATH_RATE, _initial_resource_units
 from experiments.misc.wizard import SocietyConfig
 
@@ -58,6 +65,7 @@ PART2_SMOKE_ENVIRONMENT_SEED = 3_026_080_200
 VARIANCE_PILOT_REPLICATES = 8
 MIN_BASELINE_REPLICATES = 20
 MAX_BASELINE_REPLICATES = 40
+FIXED_PART2_REPLICATES = 24
 CAMPAIGN_SCHEDULING_SEED = 2_026_080_202
 CAMPAIGN_SCHEDULING_PROTOCOL = (
     "sha256_seeded_target_then_part_blocks_smoke_before_science_v1"
@@ -662,7 +670,10 @@ def _part2_config(*, smoke: bool, args: argparse.Namespace) -> dict[str, Any]:
     resource_capacity = (
         config.society_size * config.depletion_units
         if smoke
-        else _initial_resource_units(config)
+        else int(
+            getattr(args, "part2_resource_capacity", 0)
+            or _initial_resource_units(config)
+        )
     )
     return {
         "society_size": config.society_size,
@@ -686,6 +697,7 @@ def _part2_argv(
     environment_seed: int,
     resume: bool,
 ) -> list[str]:
+    del extractor
     argv = [
         python,
         "-m",
@@ -694,14 +706,8 @@ def _part2_argv(
         "inference_hub",
         "--model",
         str(target["route"]),
-        "--extractor-provider",
-        "inference_hub",
-        "--extractor-model",
-        str(extractor["route"]),
-        "--output-token-cap",
-        str(DEFAULT_OUTPUT_TOKEN_CAP),
-        "--extractor-max-tokens",
-        str(DEFAULT_EXTRACTOR_MAX_TOKENS),
+        "--direct-output-token-cap",
+        "32",
         "--society-size",
         str(config["society_size"]),
         "--days",
@@ -734,7 +740,6 @@ def _p0_argv(
     python: str,
     mode: str,
     target: Mapping[str, Any],
-    extractor: Mapping[str, Any],
     judge: Mapping[str, Any],
     registry_path: str,
     registry_hash: str,
@@ -756,10 +761,6 @@ def _p0_argv(
         "inference_hub",
         "--subject-route",
         str(target["route"]),
-        "--extractor-provider",
-        "inference_hub",
-        "--extractor-route",
-        str(extractor["route"]),
         "--judge-provider",
         "inference_hub",
         "--judge-route",
@@ -787,6 +788,7 @@ def _p1_argv(
     completed_smoke_dir: str | None,
     resume: bool,
 ) -> list[str]:
+    del extractor
     argv = [
         python,
         "-m",
@@ -801,10 +803,6 @@ def _p1_argv(
         "inference_hub",
         "--subject-model",
         str(target["route"]),
-        "--extractor-provider",
-        "inference_hub",
-        "--extractor-model",
-        str(extractor["route"]),
         "--output-directory",
         output_dir,
     ]
@@ -902,7 +900,7 @@ def build_plan(args: argparse.Namespace) -> dict[str, Any]:
         # variance-pilot chain.  Its exact pilot manifest/registry/routes are
         # revalidated below, so elapsed wall time must not make the immutable
         # campaign impossible to finish.
-        enforce_freshness=args.part2_stage == "variance-pilot",
+        enforce_freshness=args.part2_stage != "baseline-production",
     )
     target_by_id = {
         str(target["id"]): target for target in complete_union_targets
@@ -957,7 +955,27 @@ def build_plan(args: argparse.Namespace) -> dict[str, Any]:
 
     selected_n: int | None = None
     gate_integrity: dict[str, Any] | None = None
-    if args.part2_stage == "variance-pilot":
+    if args.part2_stage == "fixed-production":
+        if (
+            args.variance_selection
+            or args.variance_selection_sha256
+            or args.variance_pilot_manifest
+            or args.variance_pilot_manifest_sha256
+        ):
+            raise ConfirmatoryCampaignError(
+                "Fixed production does not consume a variance-pilot artifact."
+            )
+        if (
+            args.part2_society_size != 10
+            or args.part2_days != 30
+            or getattr(args, "part2_resource_capacity", 150) != 150
+        ):
+            raise ConfirmatoryCampaignError(
+                "Fixed production requires Part 2 N=10, horizon=30, capacity=150."
+            )
+        part2_seeds = list(range(FIXED_PART2_REPLICATES))
+        scientific_stage = "part2_fixed_production"
+    elif args.part2_stage == "variance-pilot":
         if (
             args.variance_selection
             or args.variance_selection_sha256
@@ -1055,7 +1073,7 @@ def build_plan(args: argparse.Namespace) -> dict[str, Any]:
 
     smoke_experiments = (
         ("part0", "part1", "part2")
-        if args.part2_stage == "variance-pilot"
+        if args.part2_stage in {"fixed-production", "variance-pilot"}
         else ("part2",)
     )
     for experiment in smoke_experiments:
@@ -1074,7 +1092,6 @@ def build_plan(args: argparse.Namespace) -> dict[str, Any]:
                     python=python,
                     mode="sacrificial-smoke",
                     target=target,
-                    extractor=extractor,
                     judge=judge,
                     registry_path=str(p0_path),
                     registry_hash=p0_hash,
@@ -1086,7 +1103,6 @@ def build_plan(args: argparse.Namespace) -> dict[str, Any]:
                     python=python,
                     mode="sacrificial-smoke",
                     target=target,
-                    extractor=extractor,
                     judge=judge,
                     registry_path=str(p0_path),
                     registry_hash=p0_hash,
@@ -1098,7 +1114,6 @@ def build_plan(args: argparse.Namespace) -> dict[str, Any]:
                     "execution_mode": "sacrificial_smoke",
                     "registry_path": str(p0_path),
                     "registry_sha256": p0_hash,
-                    "extractor_route": extractor["route"],
                     "judge_route": judge["route"],
                 }
             elif experiment == "part1":
@@ -1134,7 +1149,6 @@ def build_plan(args: argparse.Namespace) -> dict[str, Any]:
                     "execution_mode": "sacrificial_smoke",
                     "bank_path": str(p1_path),
                     "bank_sha256": p1_hash,
-                    "extractor_route": extractor["route"],
                 }
             else:
                 output = None
@@ -1180,7 +1194,7 @@ def build_plan(args: argparse.Namespace) -> dict[str, Any]:
 
     production_experiments = (
         ("part0", "part1")
-        if args.part2_stage == "variance-pilot"
+        if args.part2_stage in {"fixed-production", "variance-pilot"}
         else ()
     )
     for experiment in production_experiments:
@@ -1204,7 +1218,6 @@ def build_plan(args: argparse.Namespace) -> dict[str, Any]:
                     python=python,
                     mode="production",
                     target=target,
-                    extractor=extractor,
                     judge=judge,
                     registry_path=str(p0_path),
                     registry_hash=p0_hash,
@@ -1216,7 +1229,6 @@ def build_plan(args: argparse.Namespace) -> dict[str, Any]:
                     python=python,
                     mode="production",
                     target=target,
-                    extractor=extractor,
                     judge=judge,
                     registry_path=str(p0_path),
                     registry_hash=p0_hash,
@@ -1274,7 +1286,6 @@ def build_plan(args: argparse.Namespace) -> dict[str, Any]:
                             "execution_mode": "production",
                             "registry_path": str(p0_path),
                             "registry_sha256": p0_hash,
-                            "extractor_route": extractor["route"],
                             "judge_route": judge["route"],
                         }
                         if experiment == "part0"
@@ -1282,7 +1293,6 @@ def build_plan(args: argparse.Namespace) -> dict[str, Any]:
                             "execution_mode": "production",
                             "bank_path": str(p1_path),
                             "bank_sha256": p1_hash,
-                            "extractor_route": extractor["route"],
                         }
                     ),
                 )
@@ -1400,6 +1410,11 @@ def build_plan(args: argparse.Namespace) -> dict[str, Any]:
                 else None
             ),
             "variance_selected_n": selected_n,
+            "fixed_replicates": (
+                FIXED_PART2_REPLICATES
+                if args.part2_stage == "fixed-production"
+                else None
+            ),
             "production_config": production_config,
             "smoke_config": smoke_config,
         },
@@ -1410,6 +1425,7 @@ def build_plan(args: argparse.Namespace) -> dict[str, Any]:
             "smoke_dependency": "same_target_same_part_smoke_precedes_science",
         },
         "timeout_seconds": int(args.timeout_seconds),
+        "request_budget": build_frozen_budget(len(targets)),
         "execution_freeze": freeze,
         "jobs": jobs,
     }
@@ -1427,6 +1443,7 @@ def _part2_expected(
     grading_protocol: Mapping[str, Any],
     git_commit: str,
 ) -> dict[str, Any]:
+    del grading_protocol
     return {
         "provider": "inference_hub",
         "model": target["route"],
@@ -1446,7 +1463,16 @@ def _part2_expected(
         "generation_seed": generation_seed,
         "environment_seed": environment_seed,
         "row_count_upper_bound": int(config["society_size"]) * int(config["days"]),
-        "grading_protocol": deepcopy(dict(grading_protocol)),
+        "grading_protocol": None,
+        "generation_protocol": {
+            "schema_version": 1,
+            "mode": "direct_provider_structured_output",
+            "protocol": part_2.DIRECT_GENERATION_PROTOCOL_VERSION,
+            "output_schema": "SocietyDecision(extra=forbid)",
+            "parser": "exact_json_object_action_reasoning_no_semantic_retry_v1",
+            "output_token_cap": part_2.DEFAULT_DIRECT_OUTPUT_TOKEN_CAP,
+            "identity_policy": "exact_requested_returned_model_required_v1",
+        },
         "campaign_git_commit": git_commit,
     }
 
@@ -1485,6 +1511,7 @@ def _plan_hash(manifest: Mapping[str, Any]) -> str:
             "part2_design",
             "scheduling",
             "timeout_seconds",
+            "request_budget",
             "execution_freeze",
         )
     }
@@ -1533,7 +1560,13 @@ def _rebuild_arguments_from_manifest(manifest: Mapping[str, Any]) -> argparse.Na
         part1_bank_sha256=inputs["part1_bank"]["sha256"],
         endpoint_evidence=inputs["endpoint_evidence"]["path"],
         endpoint_evidence_sha256=inputs["endpoint_evidence"]["sha256"],
-        part2_stage=("baseline-production" if is_baseline else "variance-pilot"),
+        part2_stage=(
+            "baseline-production"
+            if is_baseline
+            else "fixed-production"
+            if scientific_stage == "part2_fixed_production"
+            else "variance-pilot"
+        ),
         variance_selection=(gate.get("path") if is_baseline else None),
         variance_selection_sha256=(gate.get("sha256") if is_baseline else None),
         variance_pilot_manifest=(pilot.get("path") if is_baseline else None),
@@ -1544,6 +1577,7 @@ def _rebuild_arguments_from_manifest(manifest: Mapping[str, Any]) -> argparse.Na
         part2_selfish_gain=production["selfish_gain"],
         part2_depletion_units=production["depletion_units"],
         part2_community_benefit=production["community_benefit"],
+        part2_resource_capacity=production["resource_capacity"],
         timeout_seconds=manifest["timeout_seconds"],
     )
 
@@ -1551,6 +1585,10 @@ def _rebuild_arguments_from_manifest(manifest: Mapping[str, Any]) -> argparse.Na
 def validate_manifest(manifest: Mapping[str, Any]) -> None:
     if manifest.get("schema_version") != MANIFEST_SCHEMA_VERSION:
         raise ConfirmatoryCampaignError("Unsupported confirmatory manifest schema.")
+    try:
+        validate_frozen_budget(manifest.get("request_budget", {}))
+    except Exception as error:
+        raise ConfirmatoryCampaignError(f"Manifest request budget is invalid: {error}") from error
     if manifest.get("plan_sha256") != _plan_hash(manifest):
         raise ConfirmatoryCampaignError("Confirmatory manifest plan hash mismatch.")
     if manifest.get("manifest_sha256") != _manifest_hash(manifest):
@@ -1749,6 +1787,11 @@ def create_manifest(manifest: dict[str, Any]) -> Path:
     directory.mkdir(parents=True, mode=0o700)
     os.chmod(directory, 0o700)
     (directory / "logs").mkdir(mode=0o700)
+    _atomic_json_write(directory / "request_budget.json", manifest["request_budget"])
+    _atomic_json_write(
+        directory / "request_ledger.json",
+        create_ledger(manifest["request_budget"]),
+    )
     _write_manifest(path, manifest)
     return path
 
@@ -1828,9 +1871,7 @@ def _verify_private_runner_artifact(job: Mapping[str, Any]) -> dict[str, Any]:
         )
         part0_runner.validate_execution_plan(plan, loaded)
         if (
-            plan.get("extractor_route", {}).get("route")
-            != job["expected"]["extractor_route"]
-            or plan.get("judge_route", {}).get("route")
+            plan.get("judge_route", {}).get("route")
             != job["expected"]["judge_route"]
         ):
             raise ConfirmatoryCampaignError("Native Part 0 role routes changed.")
@@ -1845,11 +1886,6 @@ def _verify_private_runner_artifact(job: Mapping[str, Any]) -> dict[str, Any]:
             expected_sha256=job["expected"]["bank_sha256"],
         )
         part1_runner.validate_execution_plan(plan, loaded)
-        if (
-            plan.get("extractor_route", {}).get("route")
-            != job["expected"]["extractor_route"]
-        ):
-            raise ConfirmatoryCampaignError("Native Part 1 extractor route changed.")
     metadata = _load_json(metadata_path, label="confirmatory run metadata")
     validate_metadata_integrity(metadata, required=True)
     if metadata.get("status") != "complete":
@@ -2017,10 +2053,23 @@ def execute_manifest(
         job["last_error"] = None
         _write_manifest(manifest_path, manifest)
         log_path = logs / f"{job['id']}.log"
+        process_env = os.environ.copy()
+        process_env.update(
+            {
+                "CONFIRMATORY_BUDGET_PATH": str(manifest_path.parent / "request_budget.json"),
+                "CONFIRMATORY_LEDGER_PATH": str(manifest_path.parent / "request_ledger.json"),
+                "CONFIRMATORY_EXPERIMENT": str(job["experiment"]),
+            }
+        )
+        validate_frozen_budget(manifest["request_budget"])
+        validate_ledger(
+            _load_json(manifest_path.parent / "request_ledger.json", label="request ledger"),
+            manifest["request_budget"],
+        )
         result = process_runner(
             argv,
             REPO_ROOT,
-            os.environ.copy(),
+            process_env,
             log_path,
             int(manifest["timeout_seconds"]),
         )
@@ -2081,15 +2130,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--endpoint-evidence-sha256")
     parser.add_argument(
         "--part2-stage",
-        choices=("variance-pilot", "baseline-production"),
-        default="variance-pilot",
+        choices=("fixed-production", "variance-pilot", "baseline-production"),
+        default="fixed-production",
     )
     parser.add_argument("--variance-selection")
     parser.add_argument("--variance-selection-sha256")
     parser.add_argument("--variance-pilot-manifest")
     parser.add_argument("--variance-pilot-manifest-sha256")
-    parser.add_argument("--part2-society-size", type=_positive_int, default=50)
-    parser.add_argument("--part2-days", type=_positive_int, default=100)
+    parser.add_argument("--part2-society-size", type=_positive_int, default=10)
+    parser.add_argument("--part2-days", type=_positive_int, default=30)
+    parser.add_argument("--part2-resource-capacity", type=_positive_int, default=150)
     parser.add_argument("--part2-resource", default="water")
     parser.add_argument("--part2-selfish-gain", type=_positive_int, default=2)
     parser.add_argument("--part2-depletion-units", type=_positive_int, default=2)

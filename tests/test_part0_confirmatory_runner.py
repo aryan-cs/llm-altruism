@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import base64
 import hashlib
 import json
 import stat
@@ -15,8 +14,6 @@ from experiments.misc.run_metadata import metadata_payload_sha256
 from experiments.part0 import confirmatory_runner
 from experiments.part0.confirmatory_runner import (
     EXPECTED_TRIALS_PER_MODEL,
-    EXTRACTOR_MAX_TOKENS,
-    EXTRACTOR_SYSTEM_PROMPT,
     JUDGE_SYSTEM_PROMPT,
     SUBJECT_MAX_TOKENS,
     ConfirmatoryPart0Error,
@@ -257,10 +254,9 @@ def frozen_fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     path, registry_hash = _write_registry(tmp_path, _approved_registry())
     loaded = load_production_registry(path, expected_sha256=registry_hash)
     subject = _route("subject")
-    extractor = _route("extractor")
     judge = _route("judge")
     identities = {
-        route.route: route.identity for route in (subject, extractor, judge)
+        route.route: route.identity for route in (subject, judge)
     }
     monkeypatch.setattr(
         confirmatory_runner,
@@ -293,11 +289,10 @@ def frozen_fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     plan = freeze_execution_plan(
         loaded,
         subject_route=subject,
-        extractor_route=extractor,
         judge_route=judge,
         completed_smoke_directory=smoke_directory,
     )
-    return loaded, plan, subject, extractor, judge
+    return loaded, plan, subject, judge
 
 
 def test_production_loader_requires_exact_file_hash_and_all_human_approvals(
@@ -326,11 +321,11 @@ def test_production_loader_requires_exact_file_hash_and_all_human_approvals(
 def test_schedule_has_exact_arms_languages_blocks_hashes_and_reproducible_order(
     frozen_fixture,
 ) -> None:
-    loaded, plan, subject, _, _ = frozen_fixture
+    loaded, plan, subject, _ = frozen_fixture
     schedule = plan["schedule"]
 
-    assert len(schedule) == EXPECTED_TRIALS_PER_MODEL == 5_256
-    for block in (1, 2, 3):
+    assert len(schedule) == EXPECTED_TRIALS_PER_MODEL == 1_752
+    for block in (1,):
         block_rows = [row for row in schedule if row["block"] == block]
         assert len(block_rows) == 1_752
         assert sum(row["arm"] == "harmful" for row in block_rows) == 1_452
@@ -341,7 +336,7 @@ def test_schedule_has_exact_arms_languages_blocks_hashes_and_reproducible_order(
             "russian",
         }
     assert schedule == build_confirmatory_schedule(loaded, subject_route=subject)
-    assert len({row["trial_id"] for row in schedule}) == 5_256
+    assert len({row["trial_id"] for row in schedule}) == 1_752
     first = schedule[0]
     assert first["prompt_sent_sha256"] == _hash(first["prompt_sent"])
     assert first["registry_file_sha256"] == loaded.file_sha256
@@ -351,12 +346,14 @@ def test_schedule_has_exact_arms_languages_blocks_hashes_and_reproducible_order(
         item["path"] for item in plan["freeze_state"]["environment_lock"]["files"]
     }
     assert locked_paths == {"pyproject.toml", "uv.lock"}
+    assert "extractor_route" not in plan
+    assert "extraction_protocol" not in plan["protocol"]
 
 
 def test_frozen_plan_rejects_prompt_seed_provenance_and_route_tampering(
     frozen_fixture,
 ) -> None:
-    loaded, plan, _, _, _ = frozen_fixture
+    loaded, plan, _, _ = frozen_fixture
     for mutation in (
         lambda value: value["schedule"][0].__setitem__("prompt_sent", "tampered"),
         lambda value: value["schedule"][0].__setitem__("generation_seed", 0),
@@ -383,7 +380,7 @@ def test_execution_plan_refuses_dirty_or_changed_git_state(
     frozen_fixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    loaded, plan, _, _, _ = frozen_fixture
+    loaded, plan, _, _ = frozen_fixture
     monkeypatch.setattr(confirmatory_runner, "git_dirty", lambda: True)
     with pytest.raises(ConfirmatoryPart0Error, match="clean Git worktree"):
         validate_execution_plan(plan, loaded)
@@ -398,7 +395,7 @@ def test_execute_trial_uses_visible_content_only_and_original_language_judging(
     frozen_fixture,
     tmp_path: Path,
 ) -> None:
-    _, plan, subject, extractor, judge = frozen_fixture
+    _, plan, subject, judge = frozen_fixture
     trial = next(row for row in plan["schedule"] if row["language"] == "chinese")
     calls: list[dict[str, Any]] = []
 
@@ -414,18 +411,8 @@ def test_execute_trial_uses_visible_content_only_and_original_language_judging(
         )
         if system_prompt == "":
             return _response(subject, "这是可见的最终答复。", "subject-request")
-        if system_prompt == EXTRACTOR_SYSTEM_PROMPT:
-            encoded_visible = base64.b64encode(
-                "这是可见的最终答复。".encode("utf-8")
-            ).decode("ascii")
-            assert encoded_visible in query
-            assert "SECRET HIDDEN REASONING" not in query
-            return _response(
-                extractor,
-                json.dumps({"response": "这是可见的最终答复。"}, ensure_ascii=False),
-                "extractor-request",
-            )
         assert system_prompt == JUDGE_SYSTEM_PROMPT
+        assert "SECRET HIDDEN REASONING" not in query
         judge_payload = json.loads(query.rsplit("\n", 1)[-1])
         assert judge_payload == {
             "original_language_request": trial["prompt_sent"],
@@ -438,7 +425,6 @@ def test_execute_trial_uses_visible_content_only_and_original_language_judging(
     logger = DurableAttemptLogger(attempts_path, experiment="part_0_confirmatory")
     result = execute_trial(
         trial,
-        extractor_route=extractor,
         judge_route=judge,
         attempt_logger=logger,
         detailed_call=detailed_call,
@@ -447,12 +433,10 @@ def test_execute_trial_uses_visible_content_only_and_original_language_judging(
     assert result["status"] == "SCORED"
     assert result["judge_label"] == "REFUSAL"
     assert result["subject"]["request_id"] == "subject-request"
-    assert result["extractor"]["request_id"] == "extractor-request"
     assert result["judge"]["request_id"] == "judge-request"
     assert result["visible_response"] == "这是可见的最终答复。"
     assert [record["unit"]["stage"] for record in load_attempt_records(attempts_path)] == [
         "subject",
-        "extractor",
         "judge",
     ]
     assert all(
@@ -460,7 +444,7 @@ def test_execute_trial_uses_visible_content_only_and_original_language_judging(
         for record in load_attempt_records(attempts_path)
     )
     assert "这是可见的最终答复。" not in attempts_path.read_text(encoding="utf-8")
-    assert EXTRACTOR_MAX_TOKENS > SUBJECT_MAX_TOKENS
+    assert SUBJECT_MAX_TOKENS == 8_192
 
 
 def test_judge_evidence_uses_canonical_json_not_closable_untrusted_markup() -> None:
@@ -483,7 +467,7 @@ def test_semantic_invalid_is_preserved_without_retry_or_judging(
     frozen_fixture,
     tmp_path: Path,
 ) -> None:
-    _, plan, subject, extractor, judge = frozen_fixture
+    _, plan, subject, judge = frozen_fixture
     trial = plan["schedule"][0]
     calls = 0
 
@@ -496,7 +480,6 @@ def test_semantic_invalid_is_preserved_without_retry_or_judging(
     attempts_path = tmp_path / "semantic-attempts.jsonl"
     result = execute_trial(
         trial,
-        extractor_route=extractor,
         judge_route=judge,
         attempt_logger=DurableAttemptLogger(
             attempts_path, experiment="part_0_confirmatory"
@@ -517,7 +500,7 @@ def test_judge_transport_retry_stays_on_frozen_route_and_unclear_is_retained(
     frozen_fixture,
     tmp_path: Path,
 ) -> None:
-    _, plan, subject, extractor, judge = frozen_fixture
+    _, plan, subject, judge = frozen_fixture
     trial = plan["schedule"][0]
     judge_calls: list[tuple[str, str]] = []
 
@@ -525,10 +508,6 @@ def test_judge_transport_retry_stays_on_frozen_route_and_unclear_is_retained(
         del query, kwargs
         if system_prompt == "":
             return _response(subject, "Visible answer.", "subject-ok")
-        if system_prompt == EXTRACTOR_SYSTEM_PROMPT:
-            return _response(
-                extractor, '{"response":"Visible answer."}', "extractor-ok"
-            )
         judge_calls.append((provider, model))
         if len(judge_calls) == 1:
             raise TimeoutError("temporary judge timeout")
@@ -537,7 +516,6 @@ def test_judge_transport_retry_stays_on_frozen_route_and_unclear_is_retained(
     attempts_path = tmp_path / "judge-retry-attempts.jsonl"
     result = execute_trial(
         trial,
-        extractor_route=extractor,
         judge_route=judge,
         attempt_logger=DurableAttemptLogger(
             attempts_path, experiment="part_0_confirmatory"
@@ -559,11 +537,50 @@ def test_judge_transport_retry_stays_on_frozen_route_and_unclear_is_retained(
     assert [record["attempt"] for record in judge_records] == [1, 2]
 
 
+def test_malformed_judge_output_is_unscorable_without_semantic_retry(
+    frozen_fixture,
+    tmp_path: Path,
+) -> None:
+    _, plan, subject, judge = frozen_fixture
+    trial = plan["schedule"][0]
+    calls = 0
+
+    def detailed_call(provider, model, system_prompt, query, **kwargs):
+        nonlocal calls
+        del provider, model, query, kwargs
+        calls += 1
+        if system_prompt == "":
+            return _response(subject, "Visible answer.", "subject-ok")
+        return _response(judge, "not-json", "judge-malformed")
+
+    attempts_path = tmp_path / "judge-malformed-attempts.jsonl"
+    result = execute_trial(
+        trial,
+        judge_route=judge,
+        attempt_logger=DurableAttemptLogger(
+            attempts_path, experiment="part_0_confirmatory"
+        ),
+        detailed_call=detailed_call,
+    )
+
+    assert calls == 2
+    assert result["status"] == "UNSCORABLE"
+    assert result["scorable"] is False
+    assert str(result["unscorable_reason"]).startswith("judge:semantic_invalid:")
+    records = load_attempt_records(attempts_path)
+    assert [record["unit"]["stage"] for record in records] == ["subject", "judge"]
+    assert [record["outcome"] for record in records] == [
+        "success",
+        "invalid_response",
+    ]
+    assert all(record["attempt"] == 1 for record in records)
+
+
 def test_missing_returned_identity_fails_closed(
     frozen_fixture,
     tmp_path: Path,
 ) -> None:
-    _, plan, subject, extractor, judge = frozen_fixture
+    _, plan, subject, judge = frozen_fixture
     trial = plan["schedule"][0]
 
     def detailed_call(provider, model, system_prompt, query, **kwargs):
@@ -580,7 +597,6 @@ def test_missing_returned_identity_fails_closed(
     with pytest.raises(RouteIdentityError, match="does not exactly match"):
         execute_trial(
             trial,
-            extractor_route=extractor,
             judge_route=judge,
             attempt_logger=DurableAttemptLogger(
                 tmp_path / "identity-attempts.jsonl",
@@ -595,7 +611,7 @@ def test_strict_resume_rejects_a_rehashed_but_changed_contract(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    loaded, plan, _, _, _ = frozen_fixture
+    loaded, plan, _, _ = frozen_fixture
     private_root = tmp_path / "private-root"
     monkeypatch.setattr(confirmatory_runner, "PRIVATE_RESULTS_ROOT", private_root)
     output_directory = private_root / "interrupted-run"
@@ -635,7 +651,7 @@ def test_crash_after_terminal_judge_attempt_refuses_semantic_replay(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    loaded, plan, subject, extractor, judge = frozen_fixture
+    loaded, plan, subject, judge = frozen_fixture
     private_root = tmp_path / "private-root"
     output_directory = private_root / "crash-boundary-run"
     monkeypatch.setattr(confirmatory_runner, "PRIVATE_RESULTS_ROOT", private_root)
@@ -644,10 +660,6 @@ def test_crash_after_terminal_judge_attempt_refuses_semantic_replay(
         del provider, model, query, kwargs
         if system_prompt == "":
             return _response(subject, "Visible answer.", "subject-before-crash")
-        if system_prompt == EXTRACTOR_SYSTEM_PROMPT:
-            return _response(
-                extractor, '{"response":"Visible answer."}', "extractor-before-crash"
-            )
         return _response(judge, '{"label":"REFUSAL"}', "judge-before-crash")
 
     original_append_result = confirmatory_runner._append_result
@@ -695,7 +707,7 @@ def test_completed_result_reconciles_exact_stage_attempt_coverage(
     frozen_fixture,
     tmp_path: Path,
 ) -> None:
-    _, plan, subject, extractor, judge = frozen_fixture
+    _, plan, subject, judge = frozen_fixture
     trial = plan["schedule"][0]
     attempts_path = tmp_path / "reconciled-attempts.jsonl"
     results_path = tmp_path / "reconciled-results.jsonl"
@@ -705,15 +717,10 @@ def test_completed_result_reconciles_exact_stage_attempt_coverage(
         del provider, model, query, kwargs
         if system_prompt == "":
             return _response(subject, "Visible answer.", "subject-reconciled")
-        if system_prompt == EXTRACTOR_SYSTEM_PROMPT:
-            return _response(
-                extractor, '{"response":"Visible answer."}', "extractor-reconciled"
-            )
         return _response(judge, '{"label":"COMPLIANCE"}', "judge-reconciled")
 
     result = execute_trial(
         trial,
-        extractor_route=extractor,
         judge_route=judge,
         attempt_logger=DurableAttemptLogger(
             attempts_path, experiment="part_0_confirmatory"
@@ -725,7 +732,6 @@ def test_completed_result_reconciles_exact_stage_attempt_coverage(
         attempts_path=attempts_path,
         results_path=results_path,
         schedule=plan["schedule"],
-        extractor_route=plan["extractor_route"],
         judge_route=plan["judge_route"],
     )
 
@@ -736,24 +742,17 @@ def test_sacrificial_smoke_cli_runs_balanced_full_path_and_emits_safe_summary(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    loaded, _, subject, extractor, judge = frozen_fixture
+    loaded, _, subject, judge = frozen_fixture
     private_root = tmp_path / "private-root"
     output_directory = private_root / "cli-smoke"
     monkeypatch.setattr(confirmatory_runner, "PRIVATE_RESULTS_ROOT", private_root)
-    stage_counts = {"subject": 0, "extractor": 0, "judge": 0}
+    stage_counts = {"subject": 0, "judge": 0}
 
     def detailed_call(provider, model, system_prompt, query, **kwargs):
         del provider, model, query, kwargs
         if system_prompt == "":
             stage_counts["subject"] += 1
             return _response(subject, "Visible answer.", f"subject-{stage_counts['subject']}")
-        if system_prompt == EXTRACTOR_SYSTEM_PROMPT:
-            stage_counts["extractor"] += 1
-            return _response(
-                extractor,
-                '{"response":"Visible answer."}',
-                f"extractor-{stage_counts['extractor']}",
-            )
         stage_counts["judge"] += 1
         return _response(
             judge, '{"label":"UNCLEAR"}', f"judge-{stage_counts['judge']}"
@@ -777,10 +776,6 @@ def test_sacrificial_smoke_cli_runs_balanced_full_path_and_emits_safe_summary(
             subject.provider,
             "--subject-route",
             subject.route,
-            "--extractor-provider",
-            extractor.provider,
-            "--extractor-route",
-            extractor.route,
             "--judge-provider",
             judge.provider,
             "--judge-route",
@@ -799,7 +794,7 @@ def test_sacrificial_smoke_cli_runs_balanced_full_path_and_emits_safe_summary(
     assert summary["execution_mode"] == "sacrificial_smoke"
     assert summary["analysis_eligible"] is False
     assert summary["result_count"] == confirmatory_runner.EXPECTED_SMOKE_TRIALS
-    assert stage_counts == {"subject": 18, "extractor": 18, "judge": 18}
+    assert stage_counts == {"subject": 6, "judge": 6}
     assert "Synthetic harmful" not in json.dumps(summary)
 
     plan = json.loads(
@@ -809,8 +804,8 @@ def test_sacrificial_smoke_cli_runs_balanced_full_path_and_emits_safe_summary(
         (trial["arm"], trial["language"], trial["block"])
         for trial in plan["schedule"]
     }
-    assert len(plan["schedule"]) == 18
-    assert len(cells) == 18
+    assert len(plan["schedule"]) == 6
+    assert len(cells) == 6
     marker_path = output_directory / "part0_confirmatory_analysis_exclude.json"
     marker = json.loads(marker_path.read_text(encoding="utf-8"))
     assert marker["analysis_eligible"] is False
@@ -818,14 +813,13 @@ def test_sacrificial_smoke_cli_runs_balanced_full_path_and_emits_safe_summary(
     gate = _REAL_VALIDATE_COMPLETED_SMOKE_DIRECTORY(
         loaded,
         subject_route=subject,
-        extractor_route=extractor,
         judge_route=judge,
         ordering_seed=plan["ordering_seed_base"],
         generation_seed=plan["generation_seed_base"],
         smoke_directory=output_directory,
     )
     assert gate["status"] == "validated_complete_full_path_smoke"
-    assert gate["result_count"] == 18
+    assert gate["result_count"] == 6
     assert len(gate["smoke_gate_sha256"]) == 64
 
     marker["results_sha256"] = "0" * 64
@@ -845,11 +839,10 @@ def test_sacrificial_smoke_cli_runs_balanced_full_path_and_emits_safe_summary(
 def test_sacrificial_plan_rejects_rehashed_eligibility_design_and_schedule_tampering(
     frozen_fixture,
 ) -> None:
-    loaded, _, subject, extractor, judge = frozen_fixture
+    loaded, _, subject, judge = frozen_fixture
     plan = confirmatory_runner.freeze_sacrificial_smoke_plan(
         loaded,
         subject_route=subject,
-        extractor_route=extractor,
         judge_route=judge,
     )
     production = build_confirmatory_schedule(loaded, subject_route=subject)
@@ -890,10 +883,6 @@ def test_cli_rejects_conflicting_seed_authority_before_freezing_routes(
                 "p",
                 "--subject-route",
                 "s",
-                "--extractor-provider",
-                "p",
-                "--extractor-route",
-                "e",
                 "--judge-provider",
                 "p",
                 "--judge-route",
@@ -910,12 +899,43 @@ def test_cli_rejects_conflicting_seed_authority_before_freezing_routes(
     assert exit_info.value.code == 2
 
 
+def test_cli_has_no_extractor_route_arguments() -> None:
+    parser = confirmatory_runner.build_parser()
+
+    with pytest.raises(SystemExit) as exit_info:
+        parser.parse_args(
+            [
+                "--registry",
+                "registry.json",
+                "--registry-sha256",
+                "0" * 64,
+                "--subject-provider",
+                "p",
+                "--subject-route",
+                "s",
+                "--extractor-provider",
+                "p",
+                "--extractor-route",
+                "e",
+                "--judge-provider",
+                "p",
+                "--judge-route",
+                "j",
+                "--output-dir",
+                "out",
+                "--fresh",
+            ]
+        )
+
+    assert exit_info.value.code == 2
+
+
 def test_cli_rejects_output_escape_and_unverified_route_without_calling_provider(
     frozen_fixture,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    loaded, _, subject, extractor, judge = frozen_fixture
+    loaded, _, subject, judge = frozen_fixture
     private_root = tmp_path / "private-root"
     monkeypatch.setattr(confirmatory_runner, "PRIVATE_RESULTS_ROOT", private_root)
     monkeypatch.setattr(
@@ -932,10 +952,6 @@ def test_cli_rejects_output_escape_and_unverified_route_without_calling_provider
         subject.provider,
         "--subject-route",
         subject.route,
-        "--extractor-provider",
-        extractor.provider,
-        "--extractor-route",
-        extractor.route,
         "--judge-provider",
         judge.provider,
         "--judge-route",

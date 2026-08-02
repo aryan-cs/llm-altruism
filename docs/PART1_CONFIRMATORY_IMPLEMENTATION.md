@@ -33,10 +33,10 @@ changed by label or option order. The renderer includes the objective outcome
 table, labels both actions neutrally, and asks for an exact final `X` or `Y`
 line.
 
-`build_primary_schedule()` creates 3,072 planned calls per model. The
-counterbalance for cell-local root index `i` and block `b` is `(i + b) mod 4`.
-Across eight blocks, each root receives every counterbalance exactly twice;
-within every game-domain-block cell, each counterbalance has eight roots.
+`build_primary_schedule()` creates 384 planned calls per model, exactly one for
+each approved root. The sole primary block is block 0, and the counterbalance
+for cell-local root index `i` is `i mod 4`. Within every game-domain cell, each
+of the four counterbalances therefore has exactly eight roots.
 Generation settings and independently derived SHA-256 seeds are stored per
 trial. Requested provider and exact model route are explicit placeholders until
 selected, while returned model, request ID, and finish reason remain empty
@@ -44,11 +44,10 @@ until a real response exists. Every prompt and referenced root is hash-bound.
 
 ## Secondary roles and demand-cue control
 
-`select_role_subset()` chooses 96 roots, exactly eight from each game-domain
-cell and balanced over the structured actor/resource strata. The neutral
-secondary schedule contains advice, observer-evaluation, and prediction frames
-over four blocks, for 1,152 calls per model. Every root-frame combination sees
-all four counterbalances once.
+The design module retains utilities for constructing advice,
+observer-evaluation, prediction, and demand-cue-control schedules. These are
+not part of the confirmatory production runner. Confirmatory production contains
+only the 384 `self_direct` roots and records a secondary trial count of zero.
 
 The historical instruction about a rational participant maximizing immediate
 personal payoff is not included in those frames. It has a separate builder,
@@ -126,26 +125,23 @@ review dimension, stale reviewed-content hash, missing timestamp, incomplete
 mapping review, or any content/hash/design violation stops before a route is
 called. The runner never manufactures reviewer fields or offers an override.
 
-Freezing resolves the subject and extractor to exact model-registry entries
-whose verification status and evidence are current. It requires a clean,
+Freezing resolves the subject to an exact model-registry entry whose
+verification status and evidence are current. It requires a clean,
 40-character Git commit and binds the runner, design, shared execution code,
 provider adapter, model registry, prompt assets, `pyproject.toml`, and `uv.lock`
-by SHA-256. The plan contains all 3,072 primary trials followed by all 1,152
-neutral role trials. It reconstructs and validates both schedules on every
-fresh execution and resume. Primary, secondary, and extractor seed bases are
-separate; each of the 4,224 subject calls and each extractor call has its own
-deterministically derived seed.
+by SHA-256. The plan contains exactly 384 self-directed trials and no neutral
+role trials. It reconstructs and validates the complete primary schedule on
+every fresh execution and resume. Each subject call has its own deterministically
+derived generation seed.
 
 For each trial the subject generates normally with its frozen per-trial
-settings. An independently routed extractor receives only the base64-encoded
-visible assistant content and must return an exact copy in a strict JSON
-schema. Hidden reasoning and raw provider bodies are never extractor inputs.
-The copied visible response is then passed to the original
-`parse_exact_final_token()` function with the subject's explicit finish and
-truncation evidence. Exact terminal `X` and `Y` are scored; every other
+settings. The raw provider-visible assistant response is passed directly to the
+existing `parse_exact_final_token()` function with the subject's explicit
+finish and truncation evidence. Hidden reasoning and raw provider bodies are
+never parser inputs. Exact terminal `X` and `Y` are scored; every other
 semantic terminal form is durably retained as `INVALID`. Truncation, empty
-content, and invalid extraction are also retained as `INVALID`. None triggers
-a semantic retry. Only classified transport/gateway failures may retry, at
+content, and malformed terminal choices are retained as `INVALID`. None
+triggers a semantic retry. Only classified transport/gateway failures may retry, at
 most three times, on the same frozen route with the identical per-call seed.
 
 Plans, visible responses, results, attempts, and metadata are restricted to
@@ -168,16 +164,14 @@ python -m experiments.part1.confirmatory_runner \
   --bank-sha256 <64-lowercase-hex> \
   --subject-provider inference_hub \
   --subject-model <exact-verified-route> \
-  --extractor-provider inference_hub \
-  --extractor-model <exact-verified-route> \
   --output-directory data/private/part1_confirmatory/<model-run>
 ```
 
 Add `--resume` only when all four existing private artifacts are present and
 unchanged. The focused runner coverage is in
-`tests/test_part1_confirmatory_runner.py`; it exercises the full 4,224-row
-schedule plus subject/extractor execution, transport-only retries, exact
-identity, malformed terminal answers, truncation, extractor hallucination,
+`tests/test_part1_confirmatory_runner.py`; it exercises the full 384-row
+schedule plus direct subject-response parsing, transport-only retries, exact
+identity, malformed terminal answers, truncation,
 private permissions, hash chains, completed resume, and tamper refusal.
 
 ## Sacrificial full-path smoke
@@ -185,19 +179,15 @@ private permissions, hash chains, completed resume, and tamper refusal.
 Before a production campaign, use `--mode sacrificial-smoke` with the same
 approved bank, exact routes, seed bases, and private-output requirements. This
 is a separately frozen execution mode, not a production plan truncated by the
-operator. It reconstructs the full 4,224-row production schedule and then
-selects 48 trials without inspecting model output. The selection contains one
-trial for every game by domain by frame cell: two games, six domains, and the
-four `self_direct`, `advice`, `observer_evaluation`, and `prediction` frames.
-Within every game-domain cell, a Latin assignment maps those four frames onto
-all four X/Y-label and displayed-position counterbalances exactly once.
-Purpose-bound SHA-256 ranking deterministically chooses the trial within each
-eligible cell. The result is 12 primary and 36 secondary trials, with every
-frame containing three instances of each counterbalance.
+operator. It reconstructs the full 384-row production schedule and then
+selects 12 trials without inspecting model output: exactly one self-directed
+root from every game-domain cell. A fixed assignment covers each of the four
+X/Y-label and displayed-position counterbalances exactly three times.
+Purpose-bound SHA-256 ranking deterministically chooses the root within each
+eligible cell.
 
-Every smoke trial executes the real subject request, independently routed
-visible-only extractor, and exact X/Y terminal parser. Thus a successful smoke
-requires 48 subject calls and 48 extractor calls. Trial rows are explicitly
+Every smoke trial executes the real subject request and exact X/Y terminal
+parser. Thus a successful smoke requires exactly 12 provider calls. Trial rows are explicitly
 bound to `execution_mode=sacrificial_smoke` and
 `analysis_eligible=false`. The plan records the deterministic selection method,
 exact expected count and strata, complete call path, and a fail-closed analysis
@@ -224,12 +214,10 @@ python -m experiments.part1.confirmatory_runner \
   --bank-sha256 <64-lowercase-hex> \
   --subject-provider inference_hub \
   --subject-model <exact-verified-route> \
-  --extractor-provider inference_hub \
-  --extractor-model <exact-verified-route> \
   --output-directory data/private/part1_confirmatory/<model-smoke>
 ```
 
-The runner tests execute the entire 48-trial smoke lifecycle with 96 provider
+The runner tests execute the entire 12-trial smoke lifecycle with 12 provider
 responses and verify balance, call counts, parser output, private permissions,
 marker hashes, zero-call completed resume, marker tampering, missing markers,
 plan and schedule tampering, attempted smoke-to-production relabeling, and the

@@ -1256,7 +1256,10 @@ def verify_artifact(job: dict[str, Any], metadata_path: Path) -> dict[str, Any]:
         raise CampaignError(f"artifact is not marked complete: {metadata_path}")
 
     expected = job["expected"]
-    if "grading_protocol" in expected:
+    strict_expected = (
+        "grading_protocol" in expected or "generation_protocol" in expected
+    )
+    if strict_expected:
         try:
             validate_metadata_integrity(metadata, required=True)
         except ValueError as error:
@@ -1275,6 +1278,13 @@ def verify_artifact(job: dict[str, Any], metadata_path: Path) -> dict[str, Any]:
     ):
         raise CampaignError(
             f"artifact grading protocol mismatch: {metadata_path}"
+        )
+    if (
+        "generation_protocol" in expected
+        and metadata.get("generation_protocol") != expected["generation_protocol"]
+    ):
+        raise CampaignError(
+            f"artifact generation protocol mismatch: {metadata_path}"
         )
     if experiment == "part_0":
         if metadata.get("models") != expected["models"]:
@@ -1327,7 +1337,7 @@ def verify_artifact(job: dict[str, Any], metadata_path: Path) -> dict[str, Any]:
     csv_path = _safe_result_path(metadata_path, metadata.get("csv_path"), experiment)
     if not csv_path.is_file():
         raise CampaignError(f"result CSV does not exist: {csv_path}")
-    strict_protocol = "grading_protocol" in expected
+    strict_protocol = strict_expected
     if strict_protocol:
         artifact_integrity = metadata.get("artifact_integrity")
         if not isinstance(artifact_integrity, dict):
@@ -1346,8 +1356,10 @@ def verify_artifact(job: dict[str, Any], metadata_path: Path) -> dict[str, Any]:
             from experiments.part1 import part_1
             from experiments.part2 import part_2
 
-            extraction_config = ExtractionConfig.from_metadata(
-                expected["grading_protocol"]
+            extraction_config = (
+                ExtractionConfig.from_metadata(expected["grading_protocol"])
+                if expected.get("grading_protocol") is not None
+                else None
             )
             expected_resume_contract = {
                 "part_0": lambda: part_0._strict_resume_contract(
@@ -1394,9 +1406,15 @@ def verify_artifact(job: dict[str, Any], metadata_path: Path) -> dict[str, Any]:
                             "dynamics",
                             "result_schema",
                             "grading_protocol",
+                            "generation_protocol",
                         )
                     },
                     extraction_config=extraction_config,
+                    direct_output_token_cap=int(
+                        expected.get("generation_protocol", {}).get(
+                            "output_token_cap", part_2.DEFAULT_DIRECT_OUTPUT_TOKEN_CAP
+                        )
+                    ),
                 ),
             }[experiment]()
             validate_resume_contract(
@@ -1420,6 +1438,15 @@ def verify_artifact(job: dict[str, Any], metadata_path: Path) -> dict[str, Any]:
                 raise CampaignError(
                     "strict Part 2 artifact failed transition/attrition validation: "
                     + "; ".join(validation.errors)
+                )
+            if expected.get("generation_protocol", {}).get("mode") == (
+                "direct_provider_structured_output"
+            ):
+                part_2.validate_direct_attempt_provenance(
+                    attempt_log_path_for_csv(csv_path),
+                    strict_rows,
+                    provider=expected["provider"],
+                    model=expected["model"],
                 )
         rows = len(strict_rows)
     else:

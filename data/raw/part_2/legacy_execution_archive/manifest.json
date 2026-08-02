@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "artifact_type": "legacy_part2_execution_archive",
+  "recorded_commits": [
+    "5cf6595d37f0a926895c1571062ea0e3d94fee62",
+    "69712b522357a935d3be15ba7a71d23d9a43e590"
+  ],
+  "assets": [
+    {
+      "archive_filename": "part_2.py",
+      "original_path": "experiments/part2/part_2.py",
+      "sha256": "e4351e8a18f0faa6cc289f261efa4bfe71a370dd46935c629901f8890d994f4f"
+    },
+    {
+      "archive_filename": "part_2_prompt.json",
+      "original_path": "experiments/part2/part_2_prompt.json",
+      "sha256": "26cabafbf3bc03c6d0287c4b82f1037db8c43a0b410b3d5f7debd4ff220580c5",
+      "canonical_json_sha256": "b8ab4a3611f1f7ea9e360b821dbfec778f671c0c01840629abfc3a58cd2c5fdb"
+    }
+  ],
+  "artifact_sha256": "65da3d318856a8744707d5b35dec6018d909aa3205a1063ef44bbdff05cdf7af"
+}

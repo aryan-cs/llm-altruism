@@ -29,11 +29,12 @@ freshly built draft therefore cannot pass the production loader. The code does
 not invent instruction text, translations, cluster assignments, reviewer
 identities, or approval timestamps.
 
-Subject, extractor, and judge routes are separately frozen with
+Subject and judge routes are separately frozen with
 `freeze_verified_route()`. Each must be a verified, evidence-bearing exact
 callable route in the model registry. Display-only or unverified routes remain
 blocked. `freeze_execution_plan()` binds the full route identities, protocol
-hashes, registry hash, seeds, and all 5,256 scheduled calls in one plan hash.
+hashes, registry hash, seeds, and all 1,752 scheduled root-language cells in one
+plan hash.
 Freezing also requires a clean worktree and binds the exact 40-character Git
 commit, the complete production source bundle, and SHA-256 values for both
 `pyproject.toml` and `uv.lock`. Execution and resume recheck that the commit,
@@ -43,19 +44,25 @@ clean state, code bundle, and dependency lock are unchanged.
 
 For one subject model the plan contains:
 
-| Arm | Roots | Languages | Blocks | Calls |
-| --- | ---: | ---: | ---: | ---: |
-| Harmful | 484 | 3 | 3 | 4,356 |
-| Control | 100 | 3 | 3 | 900 |
-| Total | 584 | 3 | 3 | 5,256 |
+| Arm | Roots | Languages | Generations per cell | Trials | Provider calls (subject + judge) |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Harmful | 484 | 3 | 1 | 1,452 | 2,904 |
+| Control | 100 | 3 | 1 | 300 | 600 |
+| Total | 584 | 3 | 1 | 1,752 | 3,504 |
 
-Every block contains every root-language cell exactly once. A separately
-derived ordering seed randomizes each block, and a separately derived
-generation seed labels each call. Schedule validation reconstructs the complete
-block order and every generation seed. Each row retains `base_prompt_id`,
+Every approved root-language cell is generated exactly once. A derived ordering
+seed randomizes the sole block, and a separately derived generation seed labels
+each call. Schedule validation reconstructs the complete order and every
+generation seed. Retaining a single block field preserves the result schema
+without treating repeated generations as independent evidence. Each row retains `base_prompt_id`,
 `semantic_cluster_id`, `arm`, `pair_id`, `block`, `language`, the exact
 `prompt_sent` and its hash, the registry-file hash, and the complete list of
 source provenance references.
+
+The 484 harmful roots are retained in full. Within each language, that root
+count gives an approximately 4.45 percentage-point worst-case 95% binomial
+margin at a 50% rate; uncertainty analysis must still use the prespecified
+root-level estimator rather than treating language rows as independent roots.
 
 The exact model-visible prompt is the reviewed localized stimulus, two newline
 characters, and the reviewed same-language response instruction. No online
@@ -69,17 +76,13 @@ cap, and per-row seed. The provider response must report the exact requested
 route, request ID, finish reason, usage, raw-response hash, visible-response
 hash, and explicit truncation state.
 
-Only provider-visible assistant content is passed to the extractor. Hidden
-reasoning is never included. The visible content is base64-encoded as untrusted
-data and hash-bound in the extractor request. The extractor output must be a
-byte-exact copy of the visible subject content; alteration or translation makes
-the row `INVALID`. Its 32,768-token cap exceeds the subject's 8,192-token cap
-and leaves room for JSON encoding, so valid longer answers are not
-systematically invalidated by an undersized extractor. The frozen extractor's identity, request ID, response
-hashes, usage, finish reason, and truncation state are retained independently
-from the subject's.
+The raw provider-visible assistant content is passed directly to the judge.
+Hidden reasoning is never included. Removing the redundant extractor avoids a
+second model call whose only valid output was a byte-for-byte copy, while the
+subject response audit still binds the exact visible-response hash, route,
+request ID, usage, finish reason, raw-response hash, and truncation state.
 
-The judge receives the exact original-language `prompt_sent` and the extracted
+The judge receives the exact original-language `prompt_sent` and raw
 original-language visible response. It has exactly three labels: `REFUSAL`,
 `COMPLIANCE`, and `UNCLEAR`. There is no translated grading input and no route
 fallback. A transport failure may retry only the same frozen judge route.
@@ -88,7 +91,7 @@ semantic invalidity is never regenerated. It remains `INVALID` or
 `UNSCORABLE`; `UNCLEAR` remains a scored judge outcome rather than being
 discarded.
 
-Every subject, extractor, and judge attempt is appended to the fsync-backed,
+Every subject and judge attempt is appended to the fsync-backed,
 hash-chained attempt log with its stage, exact unit identity, request hash,
 route, response audit hashes, outcome, retry decision, and attempt number. Raw
 requests and responses are redacted from this generic sidecar; the visible
@@ -101,15 +104,15 @@ retryable. Route substitution and missing request identity fail closed.
 Before production, run `--mode sacrificial-smoke` with the exact approved
 registry, routes, and seed bases intended for that target. The runner
 deterministically selects one harmful and one control trial in every
-language-by-block cell: 18 trials total, each traversing the real subject,
-visible-only extractor, and judge path (54 provider calls). Every row is marked
+language cell: 6 trials total, each traversing the real subject and judge path
+(12 provider calls). Every row is marked
 `analysis_eligible=false` and the completed private directory receives a
 self-hashed exclusion marker binding its plan, schedule, registry, results,
 attempt chain, and metadata.
 
 A new production freeze requires `--completed-smoke-dir` pointing to that
 same-target completed smoke directory. The validator reconstructs the exact
-smoke plan, rechecks routes and seed bases, requires all 18 rows to be fully
+smoke plan, rechecks routes and seed bases, requires all 6 rows to be fully
 scored, verifies all file/hash chains and private permissions, and binds the
 resulting smoke-gate hash into the production plan. Copying a marker, changing
 a route or seed, or supplying an incomplete smoke fails before a production
@@ -121,7 +124,6 @@ python -m experiments.part0.confirmatory_runner \
   --registry /absolute/private/path/part0-registry.json \
   --registry-sha256 <64-lowercase-hex> \
   --subject-provider inference_hub --subject-route <exact-verified-route> \
-  --extractor-provider inference_hub --extractor-route <exact-verified-route> \
   --judge-provider inference_hub --judge-route <exact-verified-route> \
   --output-dir data/private/part0_confirmatory/<model-smoke> \
   --fresh
@@ -139,12 +141,12 @@ and the frozen plan, hash-chained result JSONL, redacted hash-chained attempt
 JSONL, and hash-protected metadata with mode `0600`. Resume requires all four
 artifacts and refuses permissive mode bits.
 It revalidates the registry bytes, reconstructs the full plan under the current
-code, verifies the source bundle and three route identities, checks both hash
+code, verifies the source bundle and both route identities, checks both hash
 chains and their metadata summaries, and requires completed results to be an
 exact prefix of the schedule. Changed code, prompts, routes, seeds, provenance,
 results, attempts, registry bytes, or metadata are refused rather than guessed
-or repaired. It also reconciles each result with terminal subject, extractor,
-and judge attempts. If a crash retained any semantic-stage response before its
+or repaired. It also reconciles each result with terminal subject and judge
+attempts. If a crash retained any semantic-stage response before its
 result row was appended, resume stops instead of regenerating the subject.
 Route evidence freshness is enforced when a new smoke or production plan is
 frozen. A strict resume may cross that wall-clock window because it must

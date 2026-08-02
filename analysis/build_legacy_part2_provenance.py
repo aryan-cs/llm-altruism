@@ -2,8 +2,10 @@
 
 The original pilot sidecars predate explicit recording of
 ``collapse_death_rate``.  This builder does not guess or edit those sidecars.
-It binds their exact bytes to the archived execution source and replays every
-recorded population transition under the archived divisor-of-five rule.
+It binds their exact bytes to a portable, immutable copy of the historical
+execution source and prompt, then replays every recorded population transition
+under the archived divisor-of-five rule.  Verification deliberately requires
+no Git repository so it also works inside the anonymous supplement.
 """
 
 from __future__ import annotations
@@ -23,6 +25,9 @@ SCHEMA_VERSION = 1
 RECOVERY_PROTOCOL = "archived_source_and_full_transition_replay_v1"
 SOURCE_PATH = "experiments/part2/part_2.py"
 SOURCE_SHA256 = "e4351e8a18f0faa6cc289f261efa4bfe71a370dd46935c629901f8890d994f4f"
+PROMPT_PATH = "experiments/part2/part_2_prompt.json"
+PROMPT_SHA256 = "26cabafbf3bc03c6d0287c4b82f1037db8c43a0b410b3d5f7debd4ff220580c5"
+PROMPT_CONFIG_SHA256 = "b8ab4a3611f1f7ea9e360b821dbfec778f671c0c01840629abfc3a58cd2c5fdb"
 ALLOWED_SOURCE_COMMITS = frozenset(
     {
         "69712b522357a935d3be15ba7a71d23d9a43e590",
@@ -33,6 +38,11 @@ COLLAPSE_ATTRITION_DIVISOR = 5
 COLLAPSE_DEATH_RATE = 0.2
 DEFAULT_RAW_DIR = Path("data/raw/part_2")
 DEFAULT_OUTPUT = DEFAULT_RAW_DIR / "legacy_structural_provenance.json"
+ARCHIVE_DIRNAME = "legacy_execution_archive"
+ARCHIVE_MANIFEST_FILENAME = "manifest.json"
+ARCHIVE_ARTIFACT_TYPE = "legacy_part2_execution_archive"
+ARCHIVE_SOURCE_FILENAME = "part_2.py"
+ARCHIVE_PROMPT_FILENAME = "part_2_prompt.json"
 
 
 def _sha256_bytes(data: bytes) -> str:
@@ -54,21 +64,24 @@ def _stable_hash(value: object) -> str:
     return _sha256_bytes(encoded)
 
 
-def _archived_source(commit: str, project_root: Path) -> bytes:
+def _git_file(commit: str, source_path: str, project_root: Path) -> bytes:
     completed = subprocess.run(
-        ["git", "show", f"{commit}:{SOURCE_PATH}"],
+        ["git", "show", f"{commit}:{source_path}"],
         cwd=project_root,
         check=False,
         capture_output=True,
     )
     if completed.returncode != 0:
         raise ValueError(
-            f"Could not read archived Part 2 source at {commit}: "
+            f"Could not read archived Part 2 file {source_path} at {commit}: "
             + completed.stderr.decode("utf-8", errors="replace").strip()
         )
-    source = completed.stdout
+    return completed.stdout
+
+
+def _validate_source(source: bytes) -> None:
     if _sha256_bytes(source) != SOURCE_SHA256:
-        raise ValueError(f"Archived Part 2 source hash disagrees at {commit}")
+        raise ValueError("Portable archived Part 2 source hash disagrees")
     text = source.decode("utf-8")
     required_fragments = (
         "COLLAPSE_ATTRITION_DIVISOR = 5",
@@ -76,8 +89,101 @@ def _archived_source(commit: str, project_root: Path) -> bytes:
         "ceil(population / COLLAPSE_ATTRITION_DIVISOR)",
     )
     if any(fragment not in text for fragment in required_fragments):
-        raise ValueError(f"Archived Part 2 collapse rule is not the frozen rule at {commit}")
-    return source
+        raise ValueError("Portable archived Part 2 source is not the frozen rule")
+
+
+def _validate_prompt(prompt: bytes) -> None:
+    if _sha256_bytes(prompt) != PROMPT_SHA256:
+        raise ValueError("Portable archived Part 2 prompt hash disagrees")
+    try:
+        payload = json.loads(prompt.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError("Portable archived Part 2 prompt is not valid UTF-8 JSON") from exc
+    if (
+        not isinstance(payload, dict)
+        or payload.get("experiment_name") != "Part 2: Society Starter"
+        or not isinstance(payload.get("agent"), dict)
+        or "commons_prompt_template" not in payload["agent"]
+    ):
+        raise ValueError("Portable archived Part 2 prompt is not the frozen prompt")
+    if _stable_hash(payload) != PROMPT_CONFIG_SHA256:
+        raise ValueError("Portable archived Part 2 prompt canonical hash disagrees")
+
+
+def _archive_manifest_payload() -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "artifact_type": ARCHIVE_ARTIFACT_TYPE,
+        "recorded_commits": sorted(ALLOWED_SOURCE_COMMITS),
+        "assets": [
+            {
+                "archive_filename": ARCHIVE_SOURCE_FILENAME,
+                "original_path": SOURCE_PATH,
+                "sha256": SOURCE_SHA256,
+            },
+            {
+                "archive_filename": ARCHIVE_PROMPT_FILENAME,
+                "original_path": PROMPT_PATH,
+                "sha256": PROMPT_SHA256,
+                "canonical_json_sha256": PROMPT_CONFIG_SHA256,
+            },
+        ],
+    }
+
+
+def _render_archive_manifest() -> str:
+    payload = _archive_manifest_payload()
+    payload["artifact_sha256"] = _stable_hash(payload)
+    return json.dumps(payload, ensure_ascii=False, indent=2, allow_nan=False) + "\n"
+
+
+def materialize_execution_archive(
+    *,
+    raw_dir: Path = DEFAULT_RAW_DIR,
+    project_root: Path | None = None,
+) -> Path:
+    """Write the immutable historical files once, using the local Git object store."""
+
+    project_root = (
+        Path(__file__).resolve().parents[1]
+        if project_root is None
+        else project_root.resolve()
+    )
+    archive_dir = raw_dir / ARCHIVE_DIRNAME
+    if archive_dir.exists():
+        raise FileExistsError(f"Refusing to overwrite existing archive: {archive_dir}")
+    commit = sorted(ALLOWED_SOURCE_COMMITS)[0]
+    source = _git_file(commit, SOURCE_PATH, project_root)
+    prompt = _git_file(commit, PROMPT_PATH, project_root)
+    _validate_source(source)
+    _validate_prompt(prompt)
+    # Verify both recorded commits contain byte-identical source and prompt.
+    for recorded_commit in sorted(ALLOWED_SOURCE_COMMITS)[1:]:
+        if _git_file(recorded_commit, SOURCE_PATH, project_root) != source:
+            raise ValueError(f"Part 2 source differs at {recorded_commit}")
+        if _git_file(recorded_commit, PROMPT_PATH, project_root) != prompt:
+            raise ValueError(f"Part 2 prompt differs at {recorded_commit}")
+    archive_dir.mkdir(parents=True)
+    (archive_dir / ARCHIVE_SOURCE_FILENAME).write_bytes(source)
+    (archive_dir / ARCHIVE_PROMPT_FILENAME).write_bytes(prompt)
+    (archive_dir / ARCHIVE_MANIFEST_FILENAME).write_text(
+        _render_archive_manifest(), encoding="utf-8"
+    )
+    return archive_dir
+
+
+def _verify_execution_archive(raw_dir: Path) -> None:
+    archive_dir = raw_dir / ARCHIVE_DIRNAME
+    manifest_path = archive_dir / ARCHIVE_MANIFEST_FILENAME
+    if not manifest_path.is_file():
+        raise ValueError(f"Portable legacy Part 2 archive is missing: {manifest_path}")
+    expected_manifest = _render_archive_manifest()
+    if manifest_path.read_text(encoding="utf-8") != expected_manifest:
+        raise ValueError(f"Portable legacy Part 2 archive manifest is stale: {manifest_path}")
+    source = (archive_dir / ARCHIVE_SOURCE_FILENAME).read_bytes()
+    prompt = (archive_dir / ARCHIVE_PROMPT_FILENAME).read_bytes()
+    _validate_source(source)
+    _validate_prompt(prompt)
 
 
 def _transition_payload(csv_path: Path) -> tuple[list[dict[str, int]], int]:
@@ -146,11 +252,10 @@ def build_provenance(
     raw_dir: Path = DEFAULT_RAW_DIR,
     project_root: Path | None = None,
 ) -> dict[str, Any]:
-    project_root = (
-        Path(__file__).resolve().parents[1]
-        if project_root is None
-        else project_root.resolve()
-    )
+    # Keep the keyword for API compatibility with earlier releases.  The
+    # portable check intentionally does not consult project_root or `.git`.
+    del project_root
+    _verify_execution_archive(raw_dir)
     entries: list[dict[str, Any]] = []
     observed_commits: set[str] = set()
     for csv_path in sorted(raw_dir.glob("*.csv")):
@@ -165,6 +270,10 @@ def build_provenance(
             raise ValueError(f"Legacy Part 2 sidecar has no parameters object: {metadata_path}")
         if "collapse_death_rate" in parameters:
             continue
+        if metadata.get("prompt_config_hash") != PROMPT_CONFIG_SHA256:
+            raise ValueError(
+                f"Legacy Part 2 sidecar is not bound to the archived prompt: {metadata_path}"
+            )
         commit = str(metadata.get("git_commit", ""))
         if commit not in ALLOWED_SOURCE_COMMITS:
             raise ValueError(f"Unrecognized legacy Part 2 execution commit {commit!r}")
@@ -189,8 +298,6 @@ def build_provenance(
         )
     if not entries:
         raise ValueError(f"No legacy Part 2 artifacts requiring provenance were found in {raw_dir}")
-    for commit in sorted(observed_commits):
-        _archived_source(commit, project_root)
     payload: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "artifact_type": ARTIFACT_TYPE,
@@ -233,7 +340,16 @@ def main() -> None:
     parser.add_argument("--raw-dir", type=Path, default=DEFAULT_RAW_DIR)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--check", action="store_true")
+    parser.add_argument(
+        "--materialize-execution-archive",
+        action="store_true",
+        help="write the immutable source/prompt archive once from local Git history",
+    )
     args = parser.parse_args()
+    if args.materialize_execution_archive:
+        archive_dir = materialize_execution_archive(raw_dir=args.raw_dir)
+        print(f"Wrote {archive_dir}")
+        return
     output = write_or_check_provenance(
         raw_dir=args.raw_dir,
         output_path=args.output,

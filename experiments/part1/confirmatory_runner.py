@@ -3,25 +3,23 @@
 The exploratory Part 1 runner is intentionally not imported.  This module
 accepts only a byte-pinned 384-root registry that passes every production
 content-review gate in :mod:`experiments.part1.confirmatory_design`, freezes
-the complete primary and secondary schedules, and writes private, hash-chained
+the complete self-directed primary schedule, and writes private, hash-chained
 execution artifacts.  Semantic responses are never regenerated.
 """
 
 from __future__ import annotations
 
 import argparse
-import base64
 import hashlib
 import json
 import os
 import re
 import tempfile
+from collections import Counter
 from copy import deepcopy
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
-
-from pydantic import BaseModel, ConfigDict, ValidationError
 
 from agents.agent_config import (
     require_fresh_route_verification,
@@ -32,11 +30,6 @@ from experiments.misc.attempt_log import (
     attempt_log_path_for_csv,
     load_attempt_records,
     verify_attempt_log_metadata,
-)
-from experiments.misc.final_answer import (
-    EXTRACTOR_PROMPT_TEMPLATE,
-    EXTRACTOR_SYSTEM_PROMPT,
-    FINAL_ANSWER_PROTOCOL,
 )
 from experiments.misc.run_metadata import (
     git_commit,
@@ -54,7 +47,6 @@ from experiments.part1.confirmatory_design import (
     DOMAINS,
     EXPECTED_ROOT_COUNT,
     GAMES,
-    ROLE_FRAME_IDS,
     ActionSpec,
     ConfirmatoryTrial,
     HumanContentApproval,
@@ -66,11 +58,9 @@ from experiments.part1.confirmatory_design import (
     ScenarioRoot,
     WelfareMapping,
     build_primary_schedule,
-    build_role_schedule,
     parse_exact_final_token,
     validate_bank,
     validate_primary_schedule,
-    validate_role_schedule,
     welfare_preserving_choice,
 )
 from providers.api_call import (
@@ -82,27 +72,22 @@ from providers.api_call import (
 
 
 BANK_SCHEMA_VERSION = 1
-PLAN_SCHEMA_VERSION = 1
-RESULT_SCHEMA_VERSION = 1
+PLAN_SCHEMA_VERSION = 2
+RESULT_SCHEMA_VERSION = 2
 RUN_METADATA_SCHEMA_VERSION = 1
-EXPECTED_PRIMARY_TRIALS = 3_072
-EXPECTED_SECONDARY_TRIALS = 1_152
+EXPECTED_PRIMARY_TRIALS = EXPECTED_ROOT_COUNT
+EXPECTED_SECONDARY_TRIALS = 0
 EXPECTED_TRIALS_PER_MODEL = EXPECTED_PRIMARY_TRIALS + EXPECTED_SECONDARY_TRIALS
 EXECUTION_MODES = ("production", "sacrificial_smoke")
-SMOKE_FRAMES = ("self_direct", *ROLE_FRAME_IDS)
 SMOKE_SELECTION_METHOD = (
-    "sha256-rank-one-per-game-domain-frame-latin-counterbalance-v1"
+    "sha256-rank-one-per-game-domain-balanced-counterbalance-v2"
 )
 SMOKE_EXCLUSION_REASON = "sacrificial_part1_full_path_smoke"
-EXPECTED_SMOKE_TRIALS = len(GAMES) * len(DOMAINS) * len(SMOKE_FRAMES)
+EXPECTED_SMOKE_TRIALS = len(GAMES) * len(DOMAINS)
 DEFAULT_PRIMARY_SEED = 20_260_801
-DEFAULT_SECONDARY_SEED = 20_260_802
-DEFAULT_EXTRACTOR_SEED = 20_260_803
 SUBJECT_SYSTEM_PROMPT = ""
-EXTRACTOR_MAX_TOKENS = 1_024
 MAX_TRANSPORT_ATTEMPTS = 3
-SEED_DERIVATION = "sha256-first-63-bits-v1"
-SCHEDULE_PROTOCOL = "part1-primary-secondary-exact-order-v1"
+SCHEDULE_PROTOCOL = "part1-self-direct-once-per-root-v2"
 PRIVATE_RESULTS_ROOT = (
     Path(__file__).resolve().parents[2] / "data" / "private" / "part1_confirmatory"
 )
@@ -121,13 +106,6 @@ class TransportExhaustedError(ConfirmatoryPart1Error):
 
 class RouteIdentityError(ConfirmatoryPart1Error):
     """A configured or returned route identity was not exact and verified."""
-
-
-class VisibleAnswer(BaseModel):
-    """Exact visible-response copy returned by the independent extractor."""
-
-    model_config = ConfigDict(extra="forbid")
-    response: str
 
 
 @dataclass(frozen=True)
@@ -170,13 +148,6 @@ def _canonical_json(value: Any) -> str:
 def _record_hash(value: Mapping[str, Any]) -> str:
     return stable_json_hash(
         {key: item for key, item in value.items() if key != "record_sha256"}
-    )
-
-
-def _derived_seed(seed_base: int, *parts: object) -> int:
-    material = "|".join([str(seed_base), *(str(part) for part in parts)])
-    return int(hashlib.sha256(material.encode("utf-8")).hexdigest()[:16], 16) & (
-        (1 << 63) - 1
     )
 
 
@@ -266,7 +237,6 @@ def _production_source_bundle() -> dict[str, Any]:
             repo_root / "experiments" / "part1" / "scenario_variants.py",
             repo_root / "experiments" / "part1" / "part_1_prompt.json",
             repo_root / "experiments" / "misc" / "attempt_log.py",
-            repo_root / "experiments" / "misc" / "final_answer.py",
             repo_root / "experiments" / "misc" / "preflight.py",
             repo_root / "experiments" / "misc" / "prompt_loader.py",
             repo_root / "experiments" / "misc" / "result_writer.py",
@@ -471,7 +441,6 @@ def _serialize_trial(
     phase: str,
     execution_index: int,
     subject_route: FrozenRoute,
-    extractor_seed_base: int,
 ) -> dict[str, Any]:
     return {
         **asdict(trial),
@@ -480,11 +449,6 @@ def _serialize_trial(
         "analysis_eligible": True,
         "execution_index": execution_index,
         "subject_route": subject_route.to_dict(),
-        "extractor_seed": _derived_seed(
-            extractor_seed_base, "part1", trial.trial_id, "extractor"
-        ),
-        "extractor_seed_base": extractor_seed_base,
-        "extractor_seed_derivation": SEED_DERIVATION,
     }
 
 
@@ -493,10 +457,8 @@ def build_confirmatory_schedule(
     *,
     subject_route: FrozenRoute,
     primary_seed: int = DEFAULT_PRIMARY_SEED,
-    secondary_seed: int = DEFAULT_SECONDARY_SEED,
-    extractor_seed: int = DEFAULT_EXTRACTOR_SEED,
 ) -> list[dict[str, Any]]:
-    """Construct the exact 3,072 primary plus 1,152 secondary calls."""
+    """Construct exactly one self-directed trial for each approved root."""
 
     validate_bank(loaded_bank.roots, production=True).require_valid()
     validate_frozen_route(subject_route)
@@ -507,35 +469,24 @@ def build_confirmatory_schedule(
         requested_model=subject_route.route,
         production=True,
     )
-    secondary = build_role_schedule(
-        loaded_bank.roots,
-        base_seed=secondary_seed,
-        requested_provider=subject_route.provider,
-        requested_model=subject_route.route,
-        production=True,
-    )
     validate_primary_schedule(primary, loaded_bank.roots, production=True).require_valid()
-    validate_role_schedule(secondary, loaded_bank.roots, production=True).require_valid()
     schedule: list[dict[str, Any]] = []
-    for phase, trials in (("primary", primary), ("secondary", secondary)):
-        for trial in trials:
-            schedule.append(
-                _serialize_trial(
-                    trial,
-                    phase=phase,
-                    execution_index=len(schedule),
-                    subject_route=subject_route,
-                    extractor_seed_base=extractor_seed,
-                )
+    for trial in primary:
+        schedule.append(
+            _serialize_trial(
+                trial,
+                phase="primary",
+                execution_index=len(schedule),
+                subject_route=subject_route,
             )
+        )
     if len(schedule) != EXPECTED_TRIALS_PER_MODEL:
         raise ConfirmatoryPart1Error("Part 1 schedule cardinality is not exact.")
     subject_seeds = [item["generation_settings"]["generation_seed"] for item in schedule]
-    extractor_seeds = [item["extractor_seed"] for item in schedule]
     if len(set(subject_seeds)) != len(subject_seeds):
         raise ConfirmatoryPart1Error("Subject per-call generation seeds are not unique.")
-    if len(set(extractor_seeds)) != len(extractor_seeds):
-        raise ConfirmatoryPart1Error("Extractor per-call generation seeds are not unique.")
+    if any(item["frame_id"] != "self_direct" for item in schedule):
+        raise ConfirmatoryPart1Error("Part 1 production contains a secondary role frame.")
     return schedule
 
 
@@ -544,11 +495,10 @@ def build_sacrificial_smoke_schedule(
 ) -> list[dict[str, Any]]:
     """Select a deterministic, balanced, analysis-ineligible full-path smoke.
 
-    One trial is selected for every game/domain/frame cell.  A Latin assignment
-    maps the four frames onto all four counterbalances inside every game/domain
-    cell.  Purpose-bound SHA-256 ranking chooses among eligible frozen trials,
-    without observing any model response.  Selected rows retain every original
-    production prompt, seed, root binding, and execution index.
+    One self-directed root is selected for every game/domain cell.  The frozen
+    assignment covers each of the four counterbalances exactly three times.
+    Purpose-bound SHA-256 ranking chooses among eligible frozen trials without
+    observing any model response.
     """
 
     if len(production_schedule) != EXPECTED_TRIALS_PER_MODEL or len(
@@ -564,59 +514,50 @@ def build_sacrificial_smoke_schedule(
             "Sacrificial smoke selection requires exact production execution indices."
         )
 
-    frame_index = {frame: index for index, frame in enumerate(SMOKE_FRAMES)}
     game_index = {game: index for index, game in enumerate(GAMES)}
     domain_index = {domain: index for index, domain in enumerate(DOMAINS)}
     counterbalance_ids = tuple(item.counterbalance_id for item in COUNTERBALANCES)
-    buckets: dict[tuple[str, str, str, str], list[Mapping[str, Any]]] = {}
+    buckets: dict[tuple[str, str, str], list[Mapping[str, Any]]] = {}
     for trial in production_schedule:
         game = str(trial.get("game"))
         domain = str(trial.get("domain"))
-        frame = str(trial.get("frame_id"))
         counterbalance = str(trial.get("counterbalance_id"))
         if (
             game not in game_index
             or domain not in domain_index
-            or frame not in frame_index
             or counterbalance not in counterbalance_ids
+            or trial.get("frame_id") != "self_direct"
             or trial.get("execution_mode") != "production"
             or trial.get("analysis_eligible") is not True
         ):
             raise ConfirmatoryPart1Error(
                 "Production schedule contains an invalid sacrificial-smoke cell."
             )
-        buckets.setdefault((game, domain, frame, counterbalance), []).append(trial)
+        buckets.setdefault((game, domain, counterbalance), []).append(trial)
 
     selected: list[Mapping[str, Any]] = []
     for game in GAMES:
         for domain in DOMAINS:
-            for frame in SMOKE_FRAMES:
-                desired_counterbalance = counterbalance_ids[
-                    (
-                        game_index[game] * len(DOMAINS)
-                        + domain_index[domain]
-                        + frame_index[frame]
-                    )
-                    % len(counterbalance_ids)
-                ]
-                candidates = buckets.get(
-                    (game, domain, frame, desired_counterbalance), []
+            desired_counterbalance = counterbalance_ids[
+                (game_index[game] * len(DOMAINS) + domain_index[domain])
+                % len(counterbalance_ids)
+            ]
+            candidates = buckets.get((game, domain, desired_counterbalance), [])
+            if not candidates:
+                raise ConfirmatoryPart1Error(
+                    "Sacrificial smoke schedule lacks exact balanced coverage."
                 )
-                if not candidates:
-                    raise ConfirmatoryPart1Error(
-                        "Sacrificial smoke schedule lacks exact balanced coverage."
-                    )
-                ranked = sorted(
-                    candidates,
-                    key=lambda trial: (
-                        _sha256_text(
-                            f"{SMOKE_EXCLUSION_REASON}|{SMOKE_SELECTION_METHOD}|"
-                            f"{trial['trial_id']}"
-                        ),
-                        str(trial["trial_id"]),
+            ranked = sorted(
+                candidates,
+                key=lambda trial: (
+                    _sha256_text(
+                        f"{SMOKE_EXCLUSION_REASON}|{SMOKE_SELECTION_METHOD}|"
+                        f"{trial['trial_id']}"
                     ),
-                )
-                selected.append(ranked[0])
+                    str(trial["trial_id"]),
+                ),
+            )
+            selected.append(ranked[0])
 
     selected.sort(key=lambda trial: int(trial["execution_index"]))
     result: list[dict[str, Any]] = []
@@ -631,34 +572,11 @@ def build_sacrificial_smoke_schedule(
         raise ConfirmatoryPart1Error(
             "Sacrificial smoke schedule is not exact and unique."
         )
-    frame_counterbalances: dict[tuple[str, str], int] = {}
-    cell_frames: dict[tuple[str, str, str], int] = {}
-    cell_counterbalances: dict[tuple[str, str, str], int] = {}
-    for trial in result:
-        frame_cb = (str(trial["frame_id"]), str(trial["counterbalance_id"]))
-        cell_frame = (
-            str(trial["game"]),
-            str(trial["domain"]),
-            str(trial["frame_id"]),
-        )
-        cell_cb = (
-            str(trial["game"]),
-            str(trial["domain"]),
-            str(trial["counterbalance_id"]),
-        )
-        frame_counterbalances[frame_cb] = frame_counterbalances.get(frame_cb, 0) + 1
-        cell_frames[cell_frame] = cell_frames.get(cell_frame, 0) + 1
-        cell_counterbalances[cell_cb] = cell_counterbalances.get(cell_cb, 0) + 1
-    if (
-        set(frame_counterbalances.values()) != {3}
-        or set(cell_frames.values()) != {1}
-        or set(cell_counterbalances.values()) != {1}
-        or len(frame_counterbalances) != len(SMOKE_FRAMES) * len(COUNTERBALANCES)
-        or len(cell_frames) != EXPECTED_SMOKE_TRIALS
-        or len(cell_counterbalances) != EXPECTED_SMOKE_TRIALS
-    ):
+    cell_counts = Counter((str(row["game"]), str(row["domain"])) for row in result)
+    counterbalance_counts = Counter(str(row["counterbalance_id"]) for row in result)
+    if set(cell_counts.values()) != {1} or set(counterbalance_counts.values()) != {3}:
         raise ConfirmatoryPart1Error(
-            "Sacrificial smoke frame/counterbalance strata are not exactly balanced."
+            "Sacrificial smoke cell/counterbalance strata are not exactly balanced."
         )
     return result
 
@@ -667,10 +585,7 @@ def _freeze_execution_plan(
     loaded_bank: LoadedScenarioBank,
     *,
     subject_route: FrozenRoute,
-    extractor_route: FrozenRoute,
     primary_seed: int = DEFAULT_PRIMARY_SEED,
-    secondary_seed: int = DEFAULT_SECONDARY_SEED,
-    extractor_seed: int = DEFAULT_EXTRACTOR_SEED,
     execution_mode: str,
     completed_smoke_gate: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
@@ -680,15 +595,12 @@ def _freeze_execution_plan(
         raise ConfirmatoryPart1Error(
             f"Unsupported Part 1 execution mode: {execution_mode}."
         )
-    for route in (subject_route, extractor_route):
-        validate_frozen_route(route)
+    validate_frozen_route(subject_route)
     clean_commit = _require_clean_git_state()
     production_schedule = build_confirmatory_schedule(
         loaded_bank,
         subject_route=subject_route,
         primary_seed=primary_seed,
-        secondary_seed=secondary_seed,
-        extractor_seed=extractor_seed,
     )
     schedule = (
         production_schedule
@@ -723,8 +635,6 @@ def _freeze_execution_plan(
         "planned_trial_count": len(schedule),
         "schedule_protocol": SCHEDULE_PROTOCOL,
         "primary_seed_base": primary_seed,
-        "secondary_seed_base": secondary_seed,
-        "extractor_seed_base": extractor_seed,
         "freeze_state": {
             "git_commit": clean_commit,
             "git_dirty": False,
@@ -732,22 +642,12 @@ def _freeze_execution_plan(
             "environment_lock": _environment_lock(),
         },
         "subject_route": subject_route.to_dict(),
-        "extractor_route": extractor_route.to_dict(),
         "protocol": {
             "subject_system_prompt": SUBJECT_SYSTEM_PROMPT,
             "subject_system_prompt_sha256": _sha256_text(SUBJECT_SYSTEM_PROMPT),
             "subject_settings_source": "per_trial_generation_settings",
-            "extraction_protocol": FINAL_ANSWER_PROTOCOL,
-            "extractor_system_prompt_sha256": _sha256_text(EXTRACTOR_SYSTEM_PROMPT),
-            "extractor_prompt_template_sha256": _sha256_text(EXTRACTOR_PROMPT_TEMPLATE),
-            "extractor_input_policy": "base64_visible_subject_content_only_exact_copy",
-            "extractor_settings": {
-                "temperature": 0,
-                "top_p": 1.0,
-                "max_tokens": EXTRACTOR_MAX_TOKENS,
-                "schema": VisibleAnswer.model_json_schema(),
-            },
             "terminal_parser": "parse_exact_final_token",
+            "parser_input_policy": "raw_visible_subject_response_only",
             "allowed_outcomes": ["X", "Y", "INVALID"],
             "hidden_reasoning_input": False,
             "semantic_retry": False,
@@ -761,13 +661,13 @@ def _freeze_execution_plan(
             "selection_method": SMOKE_SELECTION_METHOD,
             "exclusion_reason": SMOKE_EXCLUSION_REASON,
             "expected_trials": EXPECTED_SMOKE_TRIALS,
-            "frames": list(SMOKE_FRAMES),
+            "frame": "self_direct",
             "games": list(GAMES),
             "domains": list(DOMAINS),
             "counterbalance_assignment": (
-                "(game_index * 6 + domain_index + frame_index) mod 4"
+                "(game_index * 6 + domain_index) mod 4"
             ),
-            "full_call_path": ["subject", "extractor", "exact_xy_parser"],
+            "full_call_path": ["subject", "exact_xy_parser"],
         }
     elif completed_smoke_gate is not None:
         payload["completed_smoke_gate"] = deepcopy(dict(completed_smoke_gate))
@@ -784,37 +684,27 @@ def freeze_execution_plan(
     loaded_bank: LoadedScenarioBank,
     *,
     subject_route: FrozenRoute,
-    extractor_route: FrozenRoute,
     primary_seed: int = DEFAULT_PRIMARY_SEED,
-    secondary_seed: int = DEFAULT_SECONDARY_SEED,
-    extractor_seed: int = DEFAULT_EXTRACTOR_SEED,
     completed_smoke_directory: str | Path,
 ) -> dict[str, Any]:
     """Freeze the complete analysis-eligible Part 1 production plan."""
 
-    for route in (subject_route, extractor_route):
-        try:
-            require_fresh_route_verification(route.identity)
-        except ValueError as error:
-            raise RouteIdentityError(
-                "A new Part 1 production freeze requires fresh route evidence."
-            ) from error
+    try:
+        require_fresh_route_verification(subject_route.identity)
+    except ValueError as error:
+        raise RouteIdentityError(
+            "A new Part 1 production freeze requires fresh route evidence."
+        ) from error
     smoke_gate = validate_completed_smoke_directory(
         loaded_bank,
         subject_route=subject_route,
-        extractor_route=extractor_route,
         primary_seed=primary_seed,
-        secondary_seed=secondary_seed,
-        extractor_seed=extractor_seed,
         smoke_directory=completed_smoke_directory,
     )
     return _freeze_execution_plan(
         loaded_bank,
         subject_route=subject_route,
-        extractor_route=extractor_route,
         primary_seed=primary_seed,
-        secondary_seed=secondary_seed,
-        extractor_seed=extractor_seed,
         execution_mode="production",
         completed_smoke_gate=smoke_gate,
     )
@@ -824,27 +714,20 @@ def freeze_sacrificial_smoke_plan(
     loaded_bank: LoadedScenarioBank,
     *,
     subject_route: FrozenRoute,
-    extractor_route: FrozenRoute,
     primary_seed: int = DEFAULT_PRIMARY_SEED,
-    secondary_seed: int = DEFAULT_SECONDARY_SEED,
-    extractor_seed: int = DEFAULT_EXTRACTOR_SEED,
 ) -> dict[str, Any]:
     """Freeze a balanced full-path plan that can never be production data."""
 
-    for route in (subject_route, extractor_route):
-        try:
-            require_fresh_route_verification(route.identity)
-        except ValueError as error:
-            raise RouteIdentityError(
-                "A new Part 1 smoke freeze requires fresh route evidence."
-            ) from error
+    try:
+        require_fresh_route_verification(subject_route.identity)
+    except ValueError as error:
+        raise RouteIdentityError(
+            "A new Part 1 smoke freeze requires fresh route evidence."
+        ) from error
     return _freeze_execution_plan(
         loaded_bank,
         subject_route=subject_route,
-        extractor_route=extractor_route,
         primary_seed=primary_seed,
-        secondary_seed=secondary_seed,
-        extractor_seed=extractor_seed,
         execution_mode="sacrificial_smoke",
     )
 
@@ -878,13 +761,13 @@ def validate_execution_plan(
         "selection_method": SMOKE_SELECTION_METHOD,
         "exclusion_reason": SMOKE_EXCLUSION_REASON,
         "expected_trials": EXPECTED_SMOKE_TRIALS,
-        "frames": list(SMOKE_FRAMES),
+        "frame": "self_direct",
         "games": list(GAMES),
         "domains": list(DOMAINS),
         "counterbalance_assignment": (
-            "(game_index * 6 + domain_index + frame_index) mod 4"
+            "(game_index * 6 + domain_index) mod 4"
         ),
-        "full_call_path": ["subject", "extractor", "exact_xy_parser"],
+        "full_call_path": ["subject", "exact_xy_parser"],
     }
     if execution_mode == "sacrificial_smoke":
         if plan.get("smoke_design") != expected_smoke_design:
@@ -926,7 +809,6 @@ def validate_execution_plan(
             "Part 1 freeze state changed: commit, sources, or environment differ."
         )
     subject_route = _route_from_dict(plan["subject_route"])
-    extractor_route = _route_from_dict(plan["extractor_route"])
     if execution_mode == "production":
         gate = plan.get("completed_smoke_gate")
         if not isinstance(gate, Mapping):
@@ -936,10 +818,7 @@ def validate_execution_plan(
         current_gate = validate_completed_smoke_directory(
             loaded_bank,
             subject_route=subject_route,
-            extractor_route=extractor_route,
             primary_seed=int(plan["primary_seed_base"]),
-            secondary_seed=int(plan["secondary_seed_base"]),
-            extractor_seed=int(plan["extractor_seed_base"]),
             smoke_directory=str(gate.get("smoke_directory", "")),
         )
         if dict(gate) != current_gate:
@@ -957,8 +836,6 @@ def validate_execution_plan(
         loaded_bank,
         subject_route=subject_route,
         primary_seed=int(plan["primary_seed_base"]),
-        secondary_seed=int(plan["secondary_seed_base"]),
-        extractor_seed=int(plan["extractor_seed_base"]),
     )
     expected_schedule = (
         production_schedule
@@ -976,17 +853,8 @@ def freeze_protocol() -> dict[str, Any]:
         "subject_system_prompt": SUBJECT_SYSTEM_PROMPT,
         "subject_system_prompt_sha256": _sha256_text(SUBJECT_SYSTEM_PROMPT),
         "subject_settings_source": "per_trial_generation_settings",
-        "extraction_protocol": FINAL_ANSWER_PROTOCOL,
-        "extractor_system_prompt_sha256": _sha256_text(EXTRACTOR_SYSTEM_PROMPT),
-        "extractor_prompt_template_sha256": _sha256_text(EXTRACTOR_PROMPT_TEMPLATE),
-        "extractor_input_policy": "base64_visible_subject_content_only_exact_copy",
-        "extractor_settings": {
-            "temperature": 0,
-            "top_p": 1.0,
-            "max_tokens": EXTRACTOR_MAX_TOKENS,
-            "schema": VisibleAnswer.model_json_schema(),
-        },
         "terminal_parser": "parse_exact_final_token",
+        "parser_input_policy": "raw_visible_subject_response_only",
         "allowed_outcomes": ["X", "Y", "INVALID"],
         "hidden_reasoning_input": False,
         "semantic_retry": False,
@@ -1036,7 +904,7 @@ def _transport_retryable(
     provenance = failure_provenance(error, provider=route.provider, model=route.route)
     status_code = provenance.get("status_code") if provenance else None
     retryable = bool(
-        not isinstance(error, (ResponseParseError, TypeError, ValueError, ValidationError))
+        not isinstance(error, (ResponseParseError, TypeError, ValueError))
         and provenance
         and (
             provenance.get("category") in {"gateway", "transport"}
@@ -1047,17 +915,6 @@ def _transport_retryable(
         )
     )
     return retryable, provenance
-
-
-def _extractor_prompt(visible_response: str) -> str:
-    return EXTRACTOR_PROMPT_TEMPLATE.format(
-        kind="part_1_exact_visible_response_copy",
-        schema=json.dumps(
-            VisibleAnswer.model_json_schema(), sort_keys=True, ensure_ascii=False
-        ),
-        content_sha256=_sha256_text(visible_response),
-        content_base64=base64.b64encode(visible_response.encode("utf-8")).decode("ascii"),
-    )
 
 
 def _attempt_unit(
@@ -1080,7 +937,6 @@ def _attempt_unit(
         "prompt_sha256": trial["prompt_hash"],
         "root_content_hash": trial["root_content_hash"],
         "generation_seed": trial["generation_settings"]["generation_seed"],
-        "extractor_seed": trial["extractor_seed"],
         "stage_request_sha256": request_sha256,
     }
 
@@ -1102,12 +958,10 @@ def _call_stage(
     attempt_logger: DurableAttemptLogger,
     detailed_call: DetailedCall,
     json_mode: bool,
-    json_schema: type[BaseModel] | None,
     temperature: float,
     top_p: float,
     max_tokens: int,
     seed: int,
-    expected_visible_copy: str | None = None,
 ) -> tuple[ProviderResponse | None, dict[str, Any] | None, str | None]:
     request_sha256 = _sha256_text(query)
     unit = _attempt_unit(trial, stage=stage, request_sha256=request_sha256)
@@ -1121,7 +975,7 @@ def _call_stage(
                 system_prompt,
                 query,
                 json_mode=json_mode,
-                json_schema=json_schema,
+                json_schema=None,
                 temperature=temperature,
                 top_p=top_p,
                 max_tokens=max_tokens,
@@ -1220,29 +1074,6 @@ def _call_stage(
                 error={"exception_type": "EmptyVisibleResponse", "message": reason},
             )
             return response, audit, reason
-        if json_schema is not None:
-            try:
-                parsed = json_schema.model_validate_json(response.content)
-                if not isinstance(parsed, VisibleAnswer) or not parsed.response.strip():
-                    raise ValueError("extractor response is empty")
-                if expected_visible_copy is None or parsed.response != expected_visible_copy:
-                    raise ValueError("extractor did not return an exact visible copy")
-            except (ValidationError, ValueError, json.JSONDecodeError) as error:
-                reason = f"{stage}:semantic_invalid:{type(error).__name__}"
-                _append_private_attempt(
-                    attempt_logger,
-                    provider=route.provider,
-                    model=route.route,
-                    unit_id=unit_id,
-                    unit=unit,
-                    attempt=attempt,
-                    max_attempts=MAX_TRANSPORT_ATTEMPTS,
-                    prompt_text=redacted_prompt,
-                    outcome="invalid_response",
-                    generation_record=audit,
-                    error={"exception_type": type(error).__name__, "message": reason},
-                )
-                return response, audit, reason
         _append_private_attempt(
             attempt_logger,
             provider=route.provider,
@@ -1264,9 +1095,7 @@ def _base_result(trial: Mapping[str, Any]) -> dict[str, Any]:
         "schema_version": RESULT_SCHEMA_VERSION,
         **deepcopy(dict(trial)),
         "subject": None,
-        "extractor": None,
         "visible_response": None,
-        "extracted_visible_response": None,
         "choice": None,
         "parse_reason": None,
         "final_line": None,
@@ -1280,14 +1109,12 @@ def _base_result(trial: Mapping[str, Any]) -> dict[str, Any]:
 def execute_trial(
     trial: Mapping[str, Any],
     *,
-    extractor_route: FrozenRoute,
     attempt_logger: DurableAttemptLogger,
     detailed_call: DetailedCall = api_call_detailed,
 ) -> dict[str, Any]:
     """Execute one trial; only transport failures can retry."""
 
     subject_route = _route_from_dict(trial["subject_route"])
-    validate_frozen_route(extractor_route)
     result = _base_result(trial)
     settings = trial["generation_settings"]
     subject, subject_audit, invalid = _call_stage(
@@ -1299,7 +1126,6 @@ def execute_trial(
         attempt_logger=attempt_logger,
         detailed_call=detailed_call,
         json_mode=False,
-        json_schema=None,
         temperature=float(settings["temperature"]),
         top_p=float(settings["top_p"]),
         max_tokens=int(settings["max_output_tokens"]),
@@ -1315,35 +1141,8 @@ def execute_trial(
         )
         return result
 
-    extractor_query = _extractor_prompt(subject.content)
-    extractor, extractor_audit, invalid = _call_stage(
-        stage="extractor",
-        trial=trial,
-        route=extractor_route,
-        system_prompt=EXTRACTOR_SYSTEM_PROMPT,
-        query=extractor_query,
-        attempt_logger=attempt_logger,
-        detailed_call=detailed_call,
-        json_mode=True,
-        json_schema=VisibleAnswer,
-        temperature=0,
-        top_p=1.0,
-        max_tokens=EXTRACTOR_MAX_TOKENS,
-        seed=int(trial["extractor_seed"]),
-        expected_visible_copy=subject.content,
-    )
-    result["extractor"] = extractor_audit
-    if invalid is not None or extractor is None:
-        result.update(
-            status="INVALID",
-            choice="INVALID",
-            unscorable_reason=invalid or "extractor:unavailable",
-        )
-        return result
-    extracted = VisibleAnswer.model_validate_json(extractor.content)
-    result["extracted_visible_response"] = extracted.response
     parsed = parse_exact_final_token(
-        extracted.response,
+        subject.content,
         finish_reason=subject.finish_reason,
         truncated=subject.truncated,
     )
@@ -1467,7 +1266,6 @@ def _validate_result_prefix(
             "prompt_hash",
             "root_content_hash",
             "generation_settings",
-            "extractor_seed",
             "subject_route",
         ):
             if record.get(field) != trial[field]:
@@ -1481,12 +1279,9 @@ def _validate_result_prefix(
             or subject_audit.get("visible_response_sha256") != _sha256_text(visible)
         ):
             raise ConfirmatoryPart1Error("Visible response is not bound to subject audit.")
-        extracted = record.get("extracted_visible_response")
-        if extracted is not None and extracted != visible:
-            raise ConfirmatoryPart1Error("Extractor output is not the exact visible response.")
-        if record.get("choice") is not None and isinstance(extracted, str):
+        if record.get("choice") is not None and isinstance(visible, str):
             parsed = parse_exact_final_token(
-                extracted,
+                visible,
                 finish_reason=subject_audit.get("finish_reason"),
                 truncated=subject_audit.get("truncated"),
             )
@@ -1509,11 +1304,9 @@ def _expected_terminal_stages(result: Mapping[str, Any]) -> dict[str, str]:
     if status == "SCORED" or (
         status == "INVALID" and isinstance(reason, str) and reason.startswith("parser:")
     ):
-        return {"subject": "success", "extractor": "success"}
+        return {"subject": "success"}
     if status == "INVALID" and isinstance(reason, str) and reason.startswith("subject:"):
         return {"subject": "invalid_response"}
-    if status == "INVALID" and isinstance(reason, str) and reason.startswith("extractor:"):
-        return {"subject": "success", "extractor": "invalid_response"}
     raise ConfirmatoryPart1Error("Result does not identify an exact terminal stage.")
 
 
@@ -1522,10 +1315,7 @@ def _stage_request_hash(
 ) -> str:
     if stage == "subject":
         return str(trial["prompt_hash"])
-    visible = result.get("visible_response")
-    if not isinstance(visible, str):
-        raise ConfirmatoryPart1Error("Completed extractor stage lacks visible response.")
-    return _sha256_text(_extractor_prompt(visible))
+    raise ConfirmatoryPart1Error(f"Unknown Part 1 attempt stage: {stage}.")
 
 
 def _validate_attempt_result_reconciliation(
@@ -1533,7 +1323,6 @@ def _validate_attempt_result_reconciliation(
     attempts_path: Path,
     results_path: Path,
     schedule: Sequence[Mapping[str, Any]],
-    extractor_route: Mapping[str, Any],
 ) -> None:
     results = _load_result_records(results_path)
     attempts = load_attempt_records(attempts_path)
@@ -1556,7 +1345,6 @@ def _validate_attempt_result_reconciliation(
         "prompt_sha256",
         "root_content_hash",
         "generation_seed",
-        "extractor_seed",
     )
     for record in attempts:
         if record.get("experiment") != "part_1_confirmatory":
@@ -1567,7 +1355,7 @@ def _validate_attempt_result_reconciliation(
         if not isinstance(unit, dict):
             raise ConfirmatoryPart1Error("Attempt record lacks Part 1 unit metadata.")
         trial_id, stage = unit.get("trial_id"), unit.get("stage")
-        if trial_id not in schedule_index or stage not in {"subject", "extractor"}:
+        if trial_id not in schedule_index or stage != "subject":
             raise ConfirmatoryPart1Error("Attempt references unknown trial or stage.")
         trial = schedule[schedule_index[str(trial_id)]]
         expected_unit = _attempt_unit(
@@ -1613,7 +1401,7 @@ def _validate_attempt_result_reconciliation(
                 raise ConfirmatoryPart1Error(
                     f"Result {trial_id} disagrees with {stage} response audit."
                 )
-            expected_route = trial["subject_route"] if stage == "subject" else extractor_route
+            expected_route = trial["subject_route"]
             if isinstance(result_audit, Mapping):
                 if result_audit.get("frozen_route") != expected_route:
                     raise ConfirmatoryPart1Error(f"{trial_id} has mixed {stage} route.")
@@ -1640,9 +1428,7 @@ def _validate_attempt_result_reconciliation(
         raise ConfirmatoryPart1Error("Attempt log skips beyond the result prefix.")
     if unfinished:
         if any(record["unit"].get("stage") != "subject" for record in unfinished):
-            raise ConfirmatoryPart1Error(
-                "Unfinished trial reached extraction; semantic replay is forbidden."
-            )
+            raise ConfirmatoryPart1Error("Unfinished trial has an unknown stage.")
         terminal = unfinished[-1]
         if terminal.get("outcome") != "interrupted" or terminal.get("generation_record") is not None:
             raise ConfirmatoryPart1Error(
@@ -1667,7 +1453,6 @@ def _run_contract(plan: Mapping[str, Any]) -> dict[str, Any]:
         "freeze_state": deepcopy(plan["freeze_state"]),
         "routes": {
             "subject": deepcopy(plan["subject_route"]),
-            "extractor": deepcopy(plan["extractor_route"]),
         },
         "protocol": deepcopy(plan["protocol"]),
         "resume_policy": "exact-prefix-hash-chain-crash-boundary-v1",
@@ -1768,10 +1553,7 @@ def validate_completed_smoke_directory(
     loaded_bank: LoadedScenarioBank,
     *,
     subject_route: FrozenRoute,
-    extractor_route: FrozenRoute,
     primary_seed: int,
-    secondary_seed: int,
-    extractor_seed: int,
     smoke_directory: str | Path,
 ) -> dict[str, Any]:
     """Revalidate the exact operational smoke required by a production freeze."""
@@ -1793,10 +1575,7 @@ def validate_completed_smoke_directory(
     expected_plan = _freeze_execution_plan(
         loaded_bank,
         subject_route=subject_route,
-        extractor_route=extractor_route,
         primary_seed=primary_seed,
-        secondary_seed=secondary_seed,
-        extractor_seed=extractor_seed,
         execution_mode="sacrificial_smoke",
     )
     try:
@@ -1826,13 +1605,12 @@ def validate_completed_smoke_directory(
         or metadata.get("results") != results
         or len(records) != EXPECTED_SMOKE_TRIALS
         or any(
-            _expected_terminal_stages(record)
-            != {"subject": "success", "extractor": "success"}
+            _expected_terminal_stages(record) != {"subject": "success"}
             for record in records
         )
     ):
         raise ConfirmatoryPart1Error(
-            "Part 1 production requires every smoke trial to complete both call stages."
+            "Part 1 production requires every smoke trial to complete the subject call."
         )
     attempt_summary = verify_attempt_log_metadata(
         attempts_path,
@@ -1843,7 +1621,6 @@ def validate_completed_smoke_directory(
         attempts_path=attempts_path,
         results_path=results_path,
         schedule=expected_plan["schedule"],
-        extractor_route=expected_plan["extractor_route"],
     )
     expected_exclusion = _smoke_exclusion_payload(
         plan=expected_plan,
@@ -1864,8 +1641,7 @@ def validate_completed_smoke_directory(
         "bank_file_sha256": loaded_bank.file_sha256,
         "bank_manifest_sha256": expected_plan["bank_manifest_sha256"],
         "route_identity_sha256": {
-            role: stable_json_hash(expected_plan[f"{role}_route"])
-            for role in ("subject", "extractor")
+            "subject": stable_json_hash(expected_plan["subject_route"])
         },
         "freeze_state": deepcopy(expected_plan["freeze_state"]),
         "protocol_sha256": stable_json_hash(expected_plan["protocol"]),
@@ -1959,7 +1735,6 @@ def run_frozen_plan(
         attempts_path=attempts_path,
         results_path=results_path,
         schedule=plan["schedule"],
-        extractor_route=plan["extractor_route"],
     )
     if (
         resume
@@ -1975,12 +1750,10 @@ def run_frozen_plan(
         attempt_logger=attempt_logger,
         status="running",
     )
-    extractor_route = _route_from_dict(plan["extractor_route"])
     try:
         for trial in plan["schedule"][start_index:]:
             result = execute_trial(
                 trial,
-                extractor_route=extractor_route,
                 attempt_logger=attempt_logger,
                 detailed_call=detailed_call,
             )
@@ -2035,8 +1808,6 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--bank-sha256", required=True, help="Exact bank file SHA-256.")
     parser.add_argument("--subject-provider", required=True)
     parser.add_argument("--subject-model", required=True, help="Exact verified model route.")
-    parser.add_argument("--extractor-provider", required=True)
-    parser.add_argument("--extractor-model", required=True, help="Exact verified route.")
     parser.add_argument(
         "--completed-smoke-directory",
         help=(
@@ -2046,8 +1817,6 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--output-directory", required=True)
     parser.add_argument("--primary-seed", type=int, default=DEFAULT_PRIMARY_SEED)
-    parser.add_argument("--secondary-seed", type=int, default=DEFAULT_SECONDARY_SEED)
-    parser.add_argument("--extractor-seed", type=int, default=DEFAULT_EXTRACTOR_SEED)
     parser.add_argument("--resume", action="store_true")
     return parser
 
@@ -2059,11 +1828,7 @@ def _load_strict_resume_plan(
     mode: str,
     subject_provider: str,
     subject_model: str,
-    extractor_provider: str,
-    extractor_model: str,
     primary_seed: int,
-    secondary_seed: int,
-    extractor_seed: int,
     completed_smoke_directory: str | Path | None,
 ) -> dict[str, Any]:
     """Reconstruct an immutable run without reapplying wall-clock freshness.
@@ -2089,21 +1854,13 @@ def _load_strict_resume_plan(
         "execution_mode": expected_mode,
         "subject_provider": subject_provider,
         "subject_model": subject_model,
-        "extractor_provider": extractor_provider,
-        "extractor_model": extractor_model,
         "primary_seed": primary_seed,
-        "secondary_seed": secondary_seed,
-        "extractor_seed": extractor_seed,
     }
     actual_cli = {
         "execution_mode": plan.get("execution_mode"),
         "subject_provider": plan.get("subject_route", {}).get("provider"),
         "subject_model": plan.get("subject_route", {}).get("route"),
-        "extractor_provider": plan.get("extractor_route", {}).get("provider"),
-        "extractor_model": plan.get("extractor_route", {}).get("route"),
         "primary_seed": plan.get("primary_seed_base"),
-        "secondary_seed": plan.get("secondary_seed_base"),
-        "extractor_seed": plan.get("extractor_seed_base"),
     }
     if actual_cli != expected_cli:
         raise ConfirmatoryPart1Error(
@@ -2139,35 +1896,23 @@ def main(argv: Sequence[str] | None = None) -> int:
             mode=args.mode,
             subject_provider=args.subject_provider,
             subject_model=args.subject_model,
-            extractor_provider=args.extractor_provider,
-            extractor_model=args.extractor_model,
             primary_seed=args.primary_seed,
-            secondary_seed=args.secondary_seed,
-            extractor_seed=args.extractor_seed,
             completed_smoke_directory=args.completed_smoke_directory,
         )
     elif args.mode == "production":
         subject_route = freeze_verified_route(args.subject_provider, args.subject_model)
-        extractor_route = freeze_verified_route(args.extractor_provider, args.extractor_model)
         plan = freeze_execution_plan(
             loaded,
             subject_route=subject_route,
-            extractor_route=extractor_route,
             primary_seed=args.primary_seed,
-            secondary_seed=args.secondary_seed,
-            extractor_seed=args.extractor_seed,
             completed_smoke_directory=args.completed_smoke_directory,
         )
     else:
         subject_route = freeze_verified_route(args.subject_provider, args.subject_model)
-        extractor_route = freeze_verified_route(args.extractor_provider, args.extractor_model)
         plan = freeze_sacrificial_smoke_plan(
             loaded,
             subject_route=subject_route,
-            extractor_route=extractor_route,
             primary_seed=args.primary_seed,
-            secondary_seed=args.secondary_seed,
-            extractor_seed=args.extractor_seed,
         )
     results = run_frozen_plan(
         plan=plan,
@@ -2193,7 +1938,6 @@ __all__ = [
     "FrozenRoute",
     "LoadedScenarioBank",
     "RouteIdentityError",
-    "VisibleAnswer",
     "build_confirmatory_schedule",
     "build_sacrificial_smoke_schedule",
     "execute_trial",

@@ -59,12 +59,12 @@ PART1_DOMAINS = (
     "digital_services",
 )
 PART1_PRIMARY_FRAME = "self_direct"
-PART1_ROLE_FRAMES = ("advice", "observer_evaluation", "prediction")
-PART1_PRIMARY_BLOCKS = tuple(range(8))
-PART1_ROLE_BLOCKS = tuple(range(4))
+PART1_ROLE_FRAMES: tuple[str, ...] = ()
+PART1_PRIMARY_BLOCKS = (0,)
+PART1_ROLE_BLOCKS: tuple[int, ...] = ()
 PART1_PRIMARY_ROOT_COUNT = 384
-PART1_SECONDARY_ROOT_COUNT = 96
-PART1_CALLS_PER_SYSTEM = 4_224
+PART1_SECONDARY_ROOT_COUNT = 0
+PART1_CALLS_PER_SYSTEM = 384
 PRIMARY_COHORT_ID = "current_sota"
 HISTORICAL_COHORT_ID = "historical"
 MIN_PRIMARY_SYSTEMS = 12
@@ -334,7 +334,7 @@ def _parse_part0(
     if document["languages"] != list(PART0_LANGUAGES):
         raise ValueError("Part 0 languages must be english, chinese, russian in order")
     if document["generation_blocks"] != list(PART0_BLOCKS):
-        raise ValueError("Part 0 generation_blocks must be [1, 2, 3]")
+        raise ValueError(f"Part 0 generation_blocks must be {list(PART0_BLOCKS)}")
 
     roots_value = document["prompt_roots"]
     if not isinstance(roots_value, list) or not roots_value:
@@ -764,10 +764,10 @@ def estimate_part0(
 
     return {
         "schema_version": SCHEMA_VERSION,
-        "artifact_type": "part0_two_way_cluster_estimates",
+        "artifact_type": "part0_semantic_cluster_estimates",
         "campaign_manifest_sha256": manifest,
         "source_artifact_sha256": source_artifact,
-        "bootstrap_method": "two_way_semantic_prompt_cluster_by_generation_block_clusters_stratified_by_arm",
+        "bootstrap_method": "semantic_prompt_cluster_bootstrap_stratified_by_arm",
         "system_resampling": "none_primary_finite_panel",
         "bootstrap_replicates": replicates,
         "bootstrap_seed": seed,
@@ -861,25 +861,10 @@ def _parse_part1(
     ):
         raise ValueError("Part 1 primary roots must have exactly 32 per game/domain cell")
 
-    secondary_ids = _identifiers(
-        document["secondary_root_ids"],
-        "secondary_root_ids",
-        minimum=PART1_SECONDARY_ROOT_COUNT,
-    )
-    if len(secondary_ids) != PART1_SECONDARY_ROOT_COUNT or any(
-        root_id not in root_by_id for root_id in secondary_ids
-    ):
-        raise ValueError("secondary_root_ids must be an exact 96-root primary subset")
-    secondary_cell_counts = Counter(
-        (root_by_id[root_id]["game"], root_by_id[root_id]["domain"])
-        for root_id in secondary_ids
-    )
-    if any(
-        secondary_cell_counts[(game, domain)] != 8
-        for game in PART1_GAMES
-        for domain in PART1_DOMAINS
-    ):
-        raise ValueError("Part 1 secondary roots must have exactly 8 per game/domain cell")
+    secondary_value = document["secondary_root_ids"]
+    if secondary_value != []:
+        raise ValueError("secondary_root_ids must be empty in the one-stage design")
+    secondary_ids: list[str] = []
 
     rows_value = document["rows"]
     expected_count = len(systems) * PART1_CALLS_PER_SYSTEM
@@ -887,7 +872,6 @@ def _parse_part1(
         raise ValueError(f"Part 1 input requires exactly {expected_count} rows")
     rows: list[dict[str, object]] = []
     coverage: set[tuple[str, str, str, str, int]] = set()
-    secondary_set = set(secondary_ids)
     for index, row in enumerate(rows_value):
         if not isinstance(row, dict):
             raise ValueError(f"Part 1 row {index} must be an object")
@@ -905,15 +889,8 @@ def _parse_part1(
         if phase == "primary":
             if frame != PART1_PRIMARY_FRAME or block not in PART1_PRIMARY_BLOCKS:
                 raise ValueError("Part 1 primary row has an unplanned frame or block")
-        elif phase == "secondary_role":
-            if (
-                root_id not in secondary_set
-                or frame not in PART1_ROLE_FRAMES
-                or block not in PART1_ROLE_BLOCKS
-            ):
-                raise ValueError("Part 1 secondary row has an unplanned root, frame, or block")
         else:
-            raise ValueError("Part 1 row phase must be primary or secondary_role")
+            raise ValueError("Part 1 row phase must be primary")
         if row["outcome"] not in PART1_OUTCOMES:
             raise ValueError("Part 1 row has an invalid retained outcome")
         key = (str(system), str(root_id), str(phase), str(frame), int(block))
@@ -937,11 +914,8 @@ def _part1_metrics(
     systems: Sequence[str],
     system_metadata: Mapping[str, Mapping[str, str]],
     roots: Sequence[Mapping[str, str]],
-    secondary_root_ids: Sequence[str],
     primary_root_weights: Mapping[str, Mapping[str, int]],
     primary_block_weights: Mapping[int, int],
-    secondary_root_weights: Mapping[str, Mapping[str, int]],
-    secondary_block_weights: Mapping[int, int],
 ) -> dict[tuple[str, ...], float]:
     root_metadata = {root["root_id"]: root for root in roots}
     observations = {
@@ -963,20 +937,13 @@ def _part1_metrics(
         frame: str,
         invalid: bool = False,
     ) -> float:
-        if phase == "primary":
-            eligible_roots = [
-                root["root_id"] for root in roots if root["domain"] == domain
-            ]
-            root_weights = primary_root_weights[domain]
-            block_weights = primary_block_weights
-        else:
-            eligible_roots = [
-                root_id
-                for root_id in secondary_root_ids
-                if root_metadata[root_id]["domain"] == domain
-            ]
-            root_weights = secondary_root_weights[domain]
-            block_weights = secondary_block_weights
+        if phase != "primary" or frame != PART1_PRIMARY_FRAME:
+            raise ValueError("Part 1 confirmatory metrics accept only self_direct primary rows")
+        eligible_roots = [
+            root["root_id"] for root in roots if root["domain"] == domain
+        ]
+        root_weights = primary_root_weights[domain]
+        block_weights = primary_block_weights
         numerator = 0.0
         denominator = 0
         for root_id in eligible_roots:
@@ -996,7 +963,6 @@ def _part1_metrics(
 
     metrics: dict[tuple[str, ...], float] = {}
     primary_rates: dict[tuple[str, str], float] = {}
-    role_rates: dict[tuple[str, str, str], float] = {}
     for system in systems:
         for domain in PART1_DOMAINS:
             primary = phase_rate(
@@ -1014,22 +980,6 @@ def _part1_metrics(
                 frame=PART1_PRIMARY_FRAME,
                 invalid=True,
             )
-            for frame in PART1_ROLE_FRAMES:
-                rate = phase_rate(
-                    system,
-                    domain,
-                    phase="secondary_role",
-                    frame=frame,
-                )
-                role_rates[(system, domain, frame)] = rate
-                metrics[("secondary_role_rate", system, domain, frame)] = rate
-                metrics[("secondary_role_invalid_rate", system, domain, frame)] = phase_rate(
-                    system,
-                    domain,
-                    phase="secondary_role",
-                    frame=frame,
-                    invalid=True,
-                )
         overall = math.fsum(
             primary_rates[(system, domain)] for domain in PART1_DOMAINS
         ) / len(PART1_DOMAINS)
@@ -1045,23 +995,14 @@ def _part1_metrics(
         if system_metadata[system]["cohort_id"] == PRIMARY_COHORT_ID
     ]
     for domain in PART1_DOMAINS:
-        for frame in (PART1_PRIMARY_FRAME, *PART1_ROLE_FRAMES):
-            source = (
-                primary_rates
-                if frame == PART1_PRIMARY_FRAME
-                else role_rates
-            )
+        for frame in (PART1_PRIMARY_FRAME,):
             metrics[(
-                "panel_primary_domain_rate"
-                if frame == PART1_PRIMARY_FRAME
-                else "panel_secondary_role_rate",
+                "panel_primary_domain_rate",
                 "finite_panel_equal_system_weight",
                 domain,
                 frame,
             )] = math.fsum(
-                source[(system, domain)]
-                if frame == PART1_PRIMARY_FRAME
-                else source[(system, domain, frame)]
+                primary_rates[(system, domain)]
                 for system in primary_systems
             ) / len(primary_systems)
     metrics[(
@@ -1134,20 +1075,6 @@ def _part1_metrics(
                         ("primary_domain_effect", system, dom, PART1_PRIMARY_FRAME)
                     ],
                 )
-                for frame in PART1_ROLE_FRAMES:
-                    metrics[(
-                        "cohort_panel_secondary_role_rate",
-                        cohort_id,
-                        weighting,
-                        domain,
-                        frame,
-                    )] = panel_mean(
-                        cohort_id,
-                        weighting,
-                        lambda system, dom=domain, frm=frame: role_rates[
-                            (system, dom, frm)
-                        ],
-                    )
             metrics[(
                 "cohort_panel_primary_overall_rate",
                 cohort_id,
@@ -1186,35 +1113,18 @@ def estimate_part1(
         domain: sorted(root["root_id"] for root in roots if root["domain"] == domain)
         for domain in PART1_DOMAINS
     }
-    secondary_roots_by_domain = {
-        domain: sorted(
-            root_id
-            for root_id in secondary_ids
-            if next(root for root in roots if root["root_id"] == root_id)["domain"]
-            == domain
-        )
-        for domain in PART1_DOMAINS
-    }
     unit_primary_roots = {
         domain: {root_id: 1 for root_id in primary_roots_by_domain[domain]}
         for domain in PART1_DOMAINS
     }
-    unit_secondary_roots = {
-        domain: {root_id: 1 for root_id in secondary_roots_by_domain[domain]}
-        for domain in PART1_DOMAINS
-    }
     unit_primary_blocks = {block: 1 for block in PART1_PRIMARY_BLOCKS}
-    unit_secondary_blocks = {block: 1 for block in PART1_ROLE_BLOCKS}
     estimates = _part1_metrics(
         rows,
         systems,
         system_metadata,
         roots,
-        secondary_ids,
         unit_primary_roots,
         unit_primary_blocks,
-        unit_secondary_roots,
-        unit_secondary_blocks,
     )
     distributions = {key: [] for key in estimates}
     rng = random.Random(seed)
@@ -1223,22 +1133,14 @@ def estimate_part1(
             domain: _sample_counts(primary_roots_by_domain[domain], rng)
             for domain in PART1_DOMAINS
         }
-        secondary_root_weights = {
-            domain: _sample_counts(secondary_roots_by_domain[domain], rng)
-            for domain in PART1_DOMAINS
-        }
         primary_block_weights = _sample_counts(PART1_PRIMARY_BLOCKS, rng)
-        secondary_block_weights = _sample_counts(PART1_ROLE_BLOCKS, rng)
         replicate_metrics = _part1_metrics(
             rows,
             systems,
             system_metadata,
             roots,
-            secondary_ids,
             primary_root_weights,
             primary_block_weights,
-            secondary_root_weights,
-            secondary_block_weights,
         )
         for key, value in replicate_metrics.items():
             distributions[key].append(value)
@@ -1276,11 +1178,9 @@ def estimate_part1(
         "campaign_manifest_sha256": manifest,
         "source_artifact_sha256": source_artifact,
         "primary_bootstrap_method": (
-            "two_way_primary_root_by_primary_execution_block_roots_stratified_by_domain"
+            "root_cluster_bootstrap_stratified_by_domain"
         ),
-        "secondary_bootstrap_method": (
-            "two_way_secondary_root_by_role_execution_block_roots_stratified_by_domain"
-        ),
+        "secondary_bootstrap_method": None,
         "bootstrap_replicates": replicates,
         "bootstrap_seed": seed,
         "system_count": len(systems),
@@ -1294,8 +1194,8 @@ def estimate_part1(
         ),
         "root_count": len(roots),
         "secondary_root_count": len(secondary_ids),
-        "primary_calls_per_system": 3_072,
-        "secondary_calls_per_system": 1_152,
+        "primary_calls_per_system": 384,
+        "secondary_calls_per_system": 0,
         "total_calls_per_system": PART1_CALLS_PER_SYSTEM,
         "retained_row_count": len(rows),
         "retained_invalid_count": sum(row["outcome"] == "INVALID" for row in rows),
@@ -1371,8 +1271,10 @@ def _parse_part2_units(
             raise ValueError(f"{location} trajectory {index} must be an object")
         _require_exact_keys(unit, _PART2_UNIT_FIELDS, f"{location} trajectory")
         unit_id = unit["unit_id"]
-        if unit["analysis_source"] != "final_baseline":
-            raise ValueError(f"{location} trajectories must come from final_baseline")
+        if unit["analysis_source"] not in {"final_baseline", "fixed_production"}:
+            raise ValueError(
+                f"{location} trajectories must come from final_baseline or fixed_production"
+            )
         structural_cell_id = unit["structural_cell_id"]
         if (
             not isinstance(structural_cell_id, str)
@@ -1614,7 +1516,7 @@ def _part2_panel_mean(
 def estimate_part2(
     document: Mapping[str, object], *, replicates: int, seed: int
 ) -> dict[str, object]:
-    """Estimate the locked final-baseline Part 2 panel from run-level units."""
+    """Estimate the locked Part 2 panel from independent run-level units."""
 
     _validate_replicates(replicates)
     (
@@ -1628,6 +1530,14 @@ def estimate_part2(
         systems,
     ) = _parse_part2(document)
     by_id = {str(system["system_id"]): system for system in systems}
+    analysis_sources = {
+        str(unit["analysis_source"])
+        for system in systems
+        for unit in system["part2_units"]
+    }
+    if len(analysis_sources) != 1:
+        raise ValueError("Part 2 systems mix incompatible analysis sources")
+    analysis_source = next(iter(analysis_sources))
     system_means: dict[str, dict[str, float]] = {}
     results: list[dict[str, object]] = []
     for system_id in frozen:
@@ -1757,7 +1667,11 @@ def estimate_part2(
         "artifact_type": "part2_run_level_confirmatory_estimates",
         "campaign_manifest_sha256": manifest,
         "source_artifact_sha256": source_artifact,
-        "analysis_source": "locked_part2_baseline_production_only",
+        "analysis_source": (
+            "locked_part2_fixed_production_only"
+            if analysis_source == "fixed_production"
+            else "locked_part2_baseline_production_only"
+        ),
         "primary_metric": "normalized_aurc",
         "secondary_metrics": [
             "restraint_rate",
@@ -2221,7 +2135,7 @@ def _validated_native_context(
     list[dict[str, str]],
     str,
 ]:
-    """Revalidate a locked two-stage campaign and all estimator source bytes."""
+    """Revalidate a locked fixed-stage (or archived two-stage) campaign."""
 
     if (
         not isinstance(expected_sha256, str)
@@ -2261,22 +2175,35 @@ def _validated_native_context(
         for index, reference in enumerate(references):
             _locked_reference_bytes(reference, f"data lock {collection}[{index}]")
     campaigns = document.get("campaigns")
-    if not isinstance(campaigns, Mapping) or set(campaigns) != {
-        "variance_stage", "baseline_stage"
-    }:
-        raise ValueError("data lock lacks the exact two-stage campaign lineage")
-    variance_record = campaigns["variance_stage"]
-    baseline_record = campaigns["baseline_stage"]
-    variance_path, variance, variance_hash = confirmatory_data_lock._validated_campaign_stage(
-        variance_record["path"],
-        label="locked variance-stage campaign",
-        expected_scientific_stage="part2_variance_pilot",
-    )
-    baseline_path, baseline, baseline_hash = confirmatory_data_lock._validated_campaign_stage(
-        baseline_record["path"],
-        label="locked baseline-stage campaign",
-        expected_scientific_stage="part2_baseline_production",
-    )
+    if not isinstance(campaigns, Mapping):
+        raise ValueError("data lock lacks campaign lineage")
+    fixed_stage = set(campaigns) == {"fixed_stage"}
+    if fixed_stage:
+        fixed_record = campaigns["fixed_stage"]
+        fixed_path, fixed, fixed_hash = confirmatory_data_lock._validated_campaign_stage(
+            fixed_record["path"],
+            label="locked fixed-stage campaign",
+            expected_scientific_stage="part2_fixed_production",
+        )
+        variance_record = baseline_record = fixed_record
+        variance_path = baseline_path = fixed_path
+        variance = baseline = fixed
+        variance_hash = baseline_hash = fixed_hash
+    elif set(campaigns) == {"variance_stage", "baseline_stage"}:
+        variance_record = campaigns["variance_stage"]
+        baseline_record = campaigns["baseline_stage"]
+        variance_path, variance, variance_hash = confirmatory_data_lock._validated_campaign_stage(
+            variance_record["path"],
+            label="locked variance-stage campaign",
+            expected_scientific_stage="part2_variance_pilot",
+        )
+        baseline_path, baseline, baseline_hash = confirmatory_data_lock._validated_campaign_stage(
+            baseline_record["path"],
+            label="locked baseline-stage campaign",
+            expected_scientific_stage="part2_baseline_production",
+        )
+    else:
+        raise ValueError("data lock has unsupported campaign lineage")
     if (
         str(variance_path) != str(Path(str(variance_record["path"])).resolve())
         or variance_hash != variance_record.get("file_sha256")
@@ -2328,15 +2255,19 @@ def _validated_native_context(
             "native estimators require the complete frozen panel; excluded scientific jobs "
             "need a separately frozen missing-data estimand"
         )
-    expected_scientific = [
-        str(job["id"])
-        for job in variance["jobs"]
-        if job["experiment"] in {"part0", "part1"} and job["stage"] != "smoke"
-    ] + [
-        str(job["id"])
-        for job in baseline["jobs"]
-        if job["experiment"] == "part2" and job["stage"] != "smoke"
-    ]
+    expected_scientific = (
+        [str(job["id"]) for job in variance["jobs"] if job["stage"] != "smoke"]
+        if fixed_stage
+        else [
+            str(job["id"])
+            for job in variance["jobs"]
+            if job["experiment"] in {"part0", "part1"} and job["stage"] != "smoke"
+        ] + [
+            str(job["id"])
+            for job in baseline["jobs"]
+            if job["experiment"] == "part2" and job["stage"] != "smoke"
+        ]
+    )
     if exclusions.get("included_scientific_job_ids") != expected_scientific:
         raise ValueError("data-lock included-job list differs from native campaign jobs")
     return document, variance, baseline, system_metadata, file_sha256
@@ -2349,6 +2280,15 @@ def _native_lineage(
         "source_data_lock_path": str(data_lock_path.resolve()),
         "source_data_lock_sha256": data_lock_sha256,
     }
+
+
+def _locked_campaign_file_sha256(
+    lock: Mapping[str, object], legacy_stage: str
+) -> str:
+    campaigns = lock["campaigns"]
+    if "fixed_stage" in campaigns:
+        return str(campaigns["fixed_stage"]["file_sha256"])
+    return str(campaigns[legacy_stage]["file_sha256"])
 
 
 def _materialize_part0_from_context(
@@ -2400,7 +2340,7 @@ def _materialize_part0_from_context(
     document = {
         "schema_version": 1,
         "artifact_type": "part0_confirmatory_units",
-        "campaign_manifest_sha256": lock["campaigns"]["variance_stage"]["file_sha256"],
+        "campaign_manifest_sha256": _locked_campaign_file_sha256(lock, "variance_stage"),
         **_native_lineage(lock, data_lock_path, data_lock_sha256),
         "frozen_system_ids": systems,
         "system_metadata": [dict(row) for row in system_metadata],
@@ -2431,7 +2371,6 @@ def _materialize_part1_from_context(
     if Counter(str(job["target_id"]) for job in jobs) != Counter(systems):
         raise ValueError("native Part 1 jobs do not exactly cover the frozen systems")
     roots: dict[str, dict[str, str]] = {}
-    secondary_ids: set[str] = set()
     rows: list[dict[str, object]] = []
     for system_id in systems:
         [job] = [job for job in jobs if str(job["target_id"]) == system_id]
@@ -2451,11 +2390,8 @@ def _materialize_part1_from_context(
                 raise ValueError("native Part 1 root metadata changes across systems")
             roots[root_id] = root
             native_phase = record["phase"]
-            phase = "primary" if native_phase == "primary" else "secondary_role"
-            if native_phase not in {"primary", "secondary"}:
-                raise ValueError("native Part 1 result has an unknown phase")
-            if native_phase == "secondary":
-                secondary_ids.add(root_id)
+            if native_phase != "primary":
+                raise ValueError("native Part 1 result must be a primary self_direct row")
             outcome = (
                 "COOPERATE"
                 if record.get("status") == "SCORED" and record.get("welfare_preserving") is True
@@ -2467,7 +2403,7 @@ def _materialize_part1_from_context(
                 {
                     "system_id": system_id,
                     **root,
-                    "phase": phase,
+                    "phase": "primary",
                     "frame": record["frame_id"],
                     "execution_block": record["generation_block"],
                     "outcome": outcome,
@@ -2476,12 +2412,12 @@ def _materialize_part1_from_context(
     document = {
         "schema_version": 1,
         "artifact_type": "part1_confirmatory_units",
-        "campaign_manifest_sha256": lock["campaigns"]["variance_stage"]["file_sha256"],
+        "campaign_manifest_sha256": _locked_campaign_file_sha256(lock, "variance_stage"),
         **_native_lineage(lock, data_lock_path, data_lock_sha256),
         "frozen_system_ids": systems,
         "system_metadata": [dict(row) for row in system_metadata],
         "primary_root_design": [roots[root_id] for root_id in sorted(roots)],
-        "secondary_root_ids": sorted(secondary_ids),
+        "secondary_root_ids": [],
         "rows": rows,
     }
     sealed = _sealed_artifact(document)
@@ -2489,7 +2425,9 @@ def _materialize_part1_from_context(
     return sealed
 
 
-def _native_part2_unit(job: Mapping[str, Any]) -> dict[str, object]:
+def _native_part2_unit(
+    job: Mapping[str, Any], *, analysis_source: str = "final_baseline"
+) -> dict[str, object]:
     verified = confirmatory_campaign.resolve_job_artifact(job, None)
     csv_path = (confirmatory_campaign.REPO_ROOT / str(verified["csv_path"])).resolve()
     try:
@@ -2553,7 +2491,7 @@ def _native_part2_unit(job: Mapping[str, Any]) -> dict[str, object]:
         )
     return {
         "unit_id": identity.trajectory_id,
-        "analysis_source": "final_baseline",
+        "analysis_source": analysis_source,
         "structural_cell_id": identity.structural_cell_id,
         "horizon_days": cell.horizon_days,
         "restraint_rate": actions["RESTRAIN"] / total_actions,
@@ -2578,20 +2516,32 @@ def _materialize_part2_from_context(
 ) -> dict[str, object]:
     systems = [str(target["id"]) for target in baseline["targets"]]
     metadata_by_system = {str(row["system_id"]): row for row in system_metadata}
-    expected_n = baseline.get("part2_design", {}).get("variance_selected_n")
+    design = baseline.get("part2_design", {})
+    fixed_stage = design.get("scientific_stage") == "part2_fixed_production"
+    expected_n = (
+        design.get("fixed_replicates")
+        if fixed_stage
+        else design.get("variance_selected_n")
+    )
     if (
         isinstance(expected_n, bool)
         or not isinstance(expected_n, int)
-        or not MIN_BASELINE_RUNS <= expected_n <= MAX_BASELINE_RUNS
+        or (
+            expected_n != confirmatory_campaign.FIXED_PART2_REPLICATES
+            if fixed_stage
+            else not MIN_BASELINE_RUNS <= expected_n <= MAX_BASELINE_RUNS
+        )
     ):
         raise ValueError(
-            "locked final-baseline selected run count is outside the prespecified 20-40 range"
+            "locked Part 2 run count differs from the prespecified design"
         )
     baseline_jobs = [
         job
         for job in baseline["jobs"]
         if job["experiment"] == "part2"
-        and job["stage"] == "part2_baseline_production"
+        and job["stage"] == (
+            "part2_fixed_production" if fixed_stage else "part2_baseline_production"
+        )
     ]
     if Counter(str(job["target_id"]) for job in baseline_jobs) != Counter(
         {system: expected_n for system in systems}
@@ -2607,7 +2557,14 @@ def _materialize_part2_from_context(
         system_jobs = [
             job for job in baseline_jobs if str(job["target_id"]) == system_id
         ]
-        units = [_native_part2_unit(job) for job in system_jobs]
+        units = [
+            (
+                _native_part2_unit(job, analysis_source="fixed_production")
+                if fixed_stage
+                else _native_part2_unit(job)
+            )
+            for job in system_jobs
+        ]
         for unit in units:
             trajectory_id = str(unit["unit_id"])
             if trajectory_id in seen_trajectories:
@@ -2633,9 +2590,7 @@ def _materialize_part2_from_context(
     document = {
         "schema_version": 1,
         "artifact_type": "part2_confirmatory_units",
-        "campaign_manifest_sha256": lock["campaigns"]["baseline_stage"][
-            "file_sha256"
-        ],
+        "campaign_manifest_sha256": _locked_campaign_file_sha256(lock, "baseline_stage"),
         **_native_lineage(lock, data_lock_path, data_lock_sha256),
         "frozen_system_ids": systems,
         "system_metadata": [dict(row) for row in system_metadata],
@@ -2747,7 +2702,7 @@ def _materialize_cross_from_context(
     document = {
         "schema_version": 1,
         "artifact_type": "cross_part_confirmatory_units",
-        "campaign_manifest_sha256": lock["campaigns"]["baseline_stage"]["file_sha256"],
+        "campaign_manifest_sha256": _locked_campaign_file_sha256(lock, "baseline_stage"),
         **_native_lineage(lock, data_lock_path, data_lock_sha256),
         "frozen_system_ids": systems,
         "systems": by_system,

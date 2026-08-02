@@ -265,6 +265,17 @@ def api_call(
         request_kwargs["base_url"] = base_url
         request_kwargs["api_key"] = api_key
 
+    if provider_key == "inference_hub":
+        from experiments.confirmatory_budget import reserve_environment_attempt
+
+        reserve_environment_attempt(
+            provider=provider_key,
+            model=model,
+            system_prompt=system_prompt,
+            query=query,
+            max_tokens=max_tokens,
+        )
+
     try:
         return dispatch[provider_key](**request_kwargs)
     except Exception as error:

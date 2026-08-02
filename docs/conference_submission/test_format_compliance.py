@@ -81,6 +81,26 @@ class ConferenceSubmissionFormatTest(unittest.TestCase):
         self.assertNotRegex(source, r"\\author\{[^}]*@[^}]*\}")
         self.assertNotIn(r"\usepackage[final", source)
 
+    def test_invalid_part0_model_evidence_is_not_rendered(self) -> None:
+        source = TEX.read_text(encoding="utf-8")
+        retired_figures = (
+            "behavioral_fingerprint_heatmap.png",
+            "model_behavior_pca.png",
+            "part0_refusal_by_language_heatmap.png",
+            "part0_refusal_rate_by_model.png",
+            "safety_refusal_vs_restraint.png",
+        )
+        for figure in retired_figures:
+            self.assertNotIn(figure, source)
+        self.assertNotIn("9.4--99.3", source)
+        self.assertNotIn("$r{=}0.77$", source)
+        self.assertIn("300 of 1,243 adjudicated rows", source)
+        self.assertIn("group-level score would change by +5", source)
+        self.assertIn(
+            "never computed, stored, or fed back either individual or group scores",
+            source,
+        )
+
     def test_rendered_main_text_boundary_when_extractor_is_available(self) -> None:
         extractor = _find_pdftotext()
         if extractor is None or not PDF.is_file():

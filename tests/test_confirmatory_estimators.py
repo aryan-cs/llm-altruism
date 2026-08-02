@@ -117,7 +117,7 @@ def _part0_input() -> dict[str, object]:
     for system in systems:
         for root in roots:
             for language in ("english", "chinese", "russian"):
-                for block in (1, 2, 3):
+                for block in (1,):
                     if root["prompt_root_id"] == "harmful-1":
                         outcome = "REFUSAL"
                     elif root["prompt_root_id"] == "harmful-2":
@@ -151,7 +151,7 @@ def _part0_input() -> dict[str, object]:
             for index, system in enumerate(systems)
         ],
         "languages": ["english", "chinese", "russian"],
-        "generation_blocks": [1, 2, 3],
+        "generation_blocks": [1],
         "prompt_roots": roots,
         "rows": rows,
     })
@@ -183,10 +183,10 @@ def test_part0_cli_two_way_clusters_and_retains_invalids_exactly(tmp_path: Path)
     assert artifact["source_artifact_sha256"] == _part0_input()["artifact_sha256"]
     assert artifact["bootstrap_replicates"] == 2000
     assert artifact["bootstrap_method"] == (
-        "two_way_semantic_prompt_cluster_by_generation_block_clusters_stratified_by_arm"
+        "semantic_prompt_cluster_bootstrap_stratified_by_arm"
     )
     assert artifact["system_resampling"] == "none_primary_finite_panel"
-    assert artifact["retained_invalid_count"] == 9
+    assert artifact["retained_invalid_count"] == 3
     harmful = _result(artifact, "primary_rate", "harmful", "english")
     invalid = _result(artifact, "invalid_rate", "harmful", "english")
     contrast = _result(
@@ -224,7 +224,7 @@ def test_part0_cli_fails_on_incomplete_duplicate_or_row_iid_request(tmp_path: Pa
     _write_private(path, incomplete)
     rejected = _run("part0", "--input", path, "--output", tmp_path / "out.json")
     assert rejected.returncode == 2
-    assert "exactly 72 rows" in rejected.stderr
+    assert "exactly 24 rows" in rejected.stderr
     assert "Traceback" not in rejected.stderr
 
     duplicate = _part0_input()
@@ -261,17 +261,11 @@ def test_part0_estimator_uses_exact_native_runner_block_contract() -> None:
     )
 
 
-def test_part0_bootstrap_resamples_blocks_but_not_frozen_systems(tmp_path: Path) -> None:
-    block_varying = _part0_input()
-    for row in block_varying["rows"]:
-        if row["arm"] == "harmful":
-            row["outcome"] = (
-                "REFUSAL" if row["generation_block"] == 1 else "COMPLIANCE"
-            )
-    _seal_input(block_varying)
-    varying_path = tmp_path / "block-varying.json"
-    _write_private(varying_path, block_varying)
-    varying_output = tmp_path / "block-varying-output.json"
+def test_part0_bootstrap_resamples_roots_but_not_frozen_systems(tmp_path: Path) -> None:
+    root_varying = _part0_input()
+    varying_path = tmp_path / "root-varying.json"
+    _write_private(varying_path, root_varying)
+    varying_output = tmp_path / "root-varying-output.json"
     assert _run("part0", "--input", varying_path, "--output", varying_output).returncode == 0
     varying = _verify_artifact(varying_output)
     interval = _result(varying, "primary_rate", "harmful", "english")
@@ -338,14 +332,11 @@ def _part1_input() -> dict[str, object]:
         "digital_services",
     )
     roots: list[dict[str, str]] = []
-    secondary_ids: list[str] = []
     for game in games:
         for domain in domains:
             for index in range(32):
                 root_id = f"{game}-{domain}-{index:02d}"
                 roots.append({"root_id": root_id, "game": game, "domain": domain})
-                if index < 8:
-                    secondary_ids.append(root_id)
     rows: list[dict[str, object]] = []
     for system in systems:
         for root in roots:
@@ -353,42 +344,16 @@ def _part1_input() -> dict[str, object]:
             primary_outcome = (
                 "COOPERATE" if system == "system-b" or root_index < 16 else "INVALID"
             )
-            for block in range(8):
-                rows.append(
-                    {
-                        "system_id": system,
-                        **root,
-                        "phase": "primary",
-                        "frame": "self_direct",
-                        "execution_block": block,
-                        "outcome": primary_outcome,
-                    }
-                )
-            if root["root_id"] in secondary_ids:
-                for frame in ("advice", "observer_evaluation", "prediction"):
-                    for block in range(4):
-                        if system == "system-a":
-                            outcome = {
-                                "advice": "COOPERATE",
-                                "observer_evaluation": "NONCOOPERATE",
-                                "prediction": "INVALID",
-                            }[frame]
-                        else:
-                            outcome = {
-                                "advice": "NONCOOPERATE",
-                                "observer_evaluation": "COOPERATE",
-                                "prediction": "NONCOOPERATE",
-                            }[frame]
-                        rows.append(
-                            {
-                                "system_id": system,
-                                **root,
-                                "phase": "secondary_role",
-                                "frame": frame,
-                                "execution_block": block,
-                                "outcome": outcome,
-                            }
-                        )
+            rows.append(
+                {
+                    "system_id": system,
+                    **root,
+                    "phase": "primary",
+                    "frame": "self_direct",
+                    "execution_block": 0,
+                    "outcome": primary_outcome,
+                }
+            )
     return _seal_input({
         "schema_version": 1,
         "artifact_type": "part1_confirmatory_units",
@@ -405,7 +370,7 @@ def _part1_input() -> dict[str, object]:
             for index, system in enumerate(systems)
         ],
         "primary_root_design": roots,
-        "secondary_root_ids": secondary_ids,
+        "secondary_root_ids": [],
         "rows": rows,
     })
 
@@ -433,16 +398,14 @@ def test_part1_cli_root_by_block_within_system_domain_frame_effects(
     assert completed.returncode == 0, completed.stderr
     artifact = _verify_artifact(output)
     assert artifact["primary_bootstrap_method"] == (
-        "two_way_primary_root_by_primary_execution_block_roots_stratified_by_domain"
+        "root_cluster_bootstrap_stratified_by_domain"
     )
-    assert artifact["secondary_bootstrap_method"] == (
-        "two_way_secondary_root_by_role_execution_block_roots_stratified_by_domain"
-    )
-    assert artifact["primary_calls_per_system"] == 3072
-    assert artifact["secondary_calls_per_system"] == 1152
-    assert artifact["total_calls_per_system"] == 4224
-    assert artifact["retained_row_count"] == 8448
-    assert artifact["retained_invalid_count"] == 1920
+    assert artifact["secondary_bootstrap_method"] is None
+    assert artifact["primary_calls_per_system"] == 384
+    assert artifact["secondary_calls_per_system"] == 0
+    assert artifact["total_calls_per_system"] == 384
+    assert artifact["retained_row_count"] == 768
+    assert artifact["retained_invalid_count"] == 192
     assert _part1_result(
         artifact,
         "primary_domain_rate",
@@ -457,20 +420,6 @@ def test_part1_cli_root_by_block_within_system_domain_frame_effects(
         "shared_workspaces",
         "self_direct",
     )["estimate"] == 0.5
-    assert _part1_result(
-        artifact,
-        "secondary_role_rate",
-        "system-a",
-        "shared_workspaces",
-        "advice",
-    )["estimate"] == 1.0
-    assert _part1_result(
-        artifact,
-        "panel_secondary_role_rate",
-        "finite_panel_equal_system_weight",
-        "shared_workspaces",
-        "advice",
-    )["estimate"] == 0.5
 
 
 def test_part1_cli_rejects_incomplete_and_duplicate_root_block_units(tmp_path: Path) -> None:
@@ -481,7 +430,7 @@ def test_part1_cli_rejects_incomplete_and_duplicate_root_block_units(tmp_path: P
     _write_private(path, incomplete)
     rejected = _run("part1", "--input", path, "--output", tmp_path / "out.json")
     assert rejected.returncode == 2
-    assert "exactly 8448 rows" in rejected.stderr
+    assert "exactly 768 rows" in rejected.stderr
 
     duplicate = _part1_input()
     duplicate["rows"][-1] = dict(duplicate["rows"][0])
