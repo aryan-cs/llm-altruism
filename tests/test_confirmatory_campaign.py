@@ -76,6 +76,21 @@ def _targets(count: int = 30) -> list[dict[str, Any]]:
     return result
 
 
+def _judge_target() -> dict[str, Any]:
+    route = "nvidia/evals-nemotron-3-30b-a3b"
+    return {
+        "id": "judge.nvidia-evals-nemotron-3-30b-a3b",
+        "provider": "inference_hub",
+        "upstream_provider": "nvidia",
+        "model": route,
+        "route": route,
+        "endpoint_profile": "inference_hub",
+        "verification_status": "verified",
+        "route_source": "inference_hub_models_api",
+        "verification_evidence": _verification(route, 10_000),
+    }
+
+
 def _install_cohorts(
     monkeypatch: pytest.MonkeyPatch, targets: list[dict[str, Any]]
 ) -> list[dict[str, Any]]:
@@ -83,6 +98,7 @@ def _install_cohorts(
     cohorts = {
         "current_sota": targets[:split],
         "historical": targets[split:],
+        "judge_only": [_judge_target()],
     }
     monkeypatch.setattr(campaign, "require_fresh_route_verification", lambda entry: None)
     if not cohorts["historical"]:
@@ -130,11 +146,17 @@ def _evidence(
             "version": "fixture-v1",
             "target_ids": [target["id"] for target in targets[split:]],
         },
+        {
+            "id": "judge_only",
+            "version": "fixture-v1",
+            "target_ids": [_judge_target()["id"]],
+        },
     ]
     target_records = []
     discovery_records = []
     census = []
-    for index, target in enumerate(targets):
+    covered_targets = [*targets, _judge_target()]
+    for index, target in enumerate(covered_targets):
         request_sha256 = _sha(f"request-{target['route']}")
         request_id = target["verification_evidence"]["smoke_test"]["request_id"]
         target_records.append(
@@ -195,8 +217,8 @@ def _evidence(
         "routing_roster_sha256": _sha("fixture-routing-roster"),
         "catalog_source_payload_sha256": _sha("catalog"),
         "cohorts": cohort_rows,
-        "target_count": len(targets),
-        "verified_target_count": len(targets),
+        "target_count": len(covered_targets),
+        "verified_target_count": len(covered_targets),
         "targets": target_records,
         "rejected_targets": [],
         "catalog_census": census,
@@ -239,7 +261,7 @@ def _args(
         campaign_id="fixture-campaign",
         cohort=None,
         target_id=None,
-        judge_target_id="target-01",
+        judge_target_id="judge.nvidia-evals-nemotron-3-30b-a3b",
         part0_registry=str(p0),
         part0_registry_sha256=hashlib.sha256(p0.read_bytes()).hexdigest(),
         part1_bank=str(p1),
@@ -280,7 +302,9 @@ def planned_fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         "dependency_lock": {"files": [], "bundle_sha256": _sha("lock")},
     }
     monkeypatch.setattr(campaign, "_execution_freeze", lambda: deepcopy(freeze))
-    route_by_name = {target["route"]: target for target in targets}
+    route_by_name = {
+        target["route"]: target for target in [*targets, _judge_target()]
+    }
     from experiments.misc import final_answer
 
     monkeypatch.setattr(
@@ -432,8 +456,9 @@ def test_fixed_budgeted_stage_has_exact_common_24_run_panel(
         ("part2_fixed_production", "part2"): 720,
     }
     assert manifest["roles"] == {
-        "judge_target_id": "target-01",
-        "judge_route": "vendor/model-01",
+        "judge_cohort_id": "judge_only",
+        "judge_target_id": "judge.nvidia-evals-nemotron-3-30b-a3b",
+        "judge_route": "nvidia/evals-nemotron-3-30b-a3b",
     }
     assert all(
         "--extractor-provider" not in job["argv_fresh"]
@@ -445,6 +470,38 @@ def test_fixed_budgeted_stage_has_exact_common_24_run_panel(
         for job in manifest["jobs"]
         if job["experiment"] in {"part0", "part1"}
     )
+
+
+@pytest.mark.parametrize(
+    ("mutate", "message"),
+    [
+        (lambda judge, target: judge.__setitem__("id", target["id"]), "target id"),
+        (
+            lambda judge, target: (
+                judge.__setitem__("provider", target["provider"]),
+                judge.__setitem__("route", target["route"]),
+            ),
+            r"provider\+route",
+        ),
+        (
+            lambda judge, target: (
+                judge.__setitem__(
+                    "upstream_provider", target["upstream_provider"]
+                ),
+                judge.__setitem__("model", target["model"]),
+            ),
+            r"upstream-provider\+model",
+        ),
+    ],
+)
+def test_campaign_rejects_judge_overlap_at_every_identity_layer(
+    mutate, message: str
+) -> None:
+    target = _targets(1)[0]
+    judge = _judge_target()
+    mutate(judge, target)
+    with pytest.raises(ConfirmatoryCampaignError, match=message):
+        campaign._reject_judge_overlap(judge, [target])
 
 
 def test_hash_bound_target_shard_keeps_full_union_attestation(
@@ -804,9 +861,9 @@ def test_smoke_failure_blocks_only_matching_scientific_job_and_uses_argv(
     _, manifest = _small_fixture(tmp_path, monkeypatch)
     path = create_manifest(manifest)
     ledger = json.loads((path.parent / "request_ledger.json").read_text(encoding="utf-8"))
-    assert ledger["physical_attempts"] == 2
-    assert ledger["attempts_by_role"]["discovery"] == 2
-    assert len({record["attempt_id"] for record in ledger["records"]}) == 2
+    assert ledger["physical_attempts"] == 3
+    assert ledger["attempts_by_role"]["discovery"] == 3
+    assert len({record["attempt_id"] for record in ledger["records"]}) == 3
     observed: list[list[str]] = []
 
     def process(argv, cwd, env, log_path, timeout):

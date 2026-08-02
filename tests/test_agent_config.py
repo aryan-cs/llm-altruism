@@ -176,7 +176,7 @@ def test_versioned_current_sota_cohort_contains_exact_inference_hub_roster() -> 
     load_model_registry.cache_clear()
     cohort = load_model_cohort("current_sota")
 
-    assert cohort["registry_version"] == "2026-08-02.1"
+    assert cohort["registry_version"] == "2026-08-02.2"
     assert cohort["version"] == "2026-08-02.1"
     assert [target["model"] for target in cohort["targets"]] == [
         "gpt-5.6-sol",
@@ -213,6 +213,20 @@ def test_versioned_current_sota_cohort_contains_exact_inference_hub_roster() -> 
     assert {target["route_source"] for target in cohort["targets"]} == {
         "catalog_display_only"
     }
+
+
+def test_dedicated_judge_cohort_contains_only_evals_nemotron() -> None:
+    load_model_registry.cache_clear()
+    cohort = load_model_cohort("judge_only")
+
+    assert cohort["version"] == "2026-08-02.1"
+    assert [target["id"] for target in cohort["targets"]] == [
+        "judge.nvidia-evals-nemotron-3-30b-a3b"
+    ]
+    assert cohort["targets"][0]["model"] == (
+        "nvidia/evals-nemotron-3-30b-a3b"
+    )
+    assert cohort["targets"][0]["upstream_provider"] == "nvidia"
 
 
 def test_historical_cohort_and_route_metadata_are_pinned() -> None:

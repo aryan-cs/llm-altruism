@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -65,6 +67,20 @@ def test_fingerprint_snapshot_hashes_required_assets(tmp_path: Path) -> None:
     assert len(result["snapshot_tree_sha256"]) == 64
 
 
+def test_fingerprint_snapshot_hashes_nested_and_hidden_assets(tmp_path: Path) -> None:
+    snapshot = _snapshot(tmp_path)
+    nested = snapshot / "tokenizer" / "vocab.json"
+    nested.parent.mkdir()
+    nested.write_text('{"token": 1}', encoding="utf-8")
+    (snapshot / ".metadata").write_text("revision", encoding="utf-8")
+
+    result = fingerprint_snapshot(cache_root=tmp_path, snapshot=snapshot)
+
+    names = {row["name"] for row in result["assets"]}
+    assert "tokenizer/vocab.json" in names
+    assert ".metadata" in names
+
+
 def test_run_smokes_retains_real_generator_evidence(tmp_path: Path) -> None:
     registry = _registry(tmp_path / "registry.json")
     _snapshot(tmp_path / "cache")
@@ -92,6 +108,10 @@ def test_run_smokes_retains_real_generator_evidence(tmp_path: Path) -> None:
     assert evidence["attempts"][0]["status"] == "passed"
     assert evidence["attempts"][0]["response_text"] == "READY"
     assert evidence["attempts"][0]["format_contract_match"] is True
+    assert evidence["generation_contract"]["parallelization"] == (
+        "bounded_model_level_thread_pool"
+    )
+    assert evidence["generation_contract"]["max_workers"] == 1
     assert calls[0]["seed"] == 20260802
     assert json.loads(output.read_text(encoding="utf-8")) == evidence
 
@@ -150,3 +170,93 @@ def test_snapshot_symlink_may_not_escape_cache_root(tmp_path: Path) -> None:
     (snapshot / "escape.bin").symlink_to(outside)
     with pytest.raises(LocalHFSmokeError, match="escapes the cache root"):
         fingerprint_snapshot(cache_root=tmp_path / "cache", snapshot=snapshot)
+
+
+def test_run_smokes_refuses_to_overwrite_prior_evidence(tmp_path: Path) -> None:
+    registry = _registry(tmp_path / "registry.json")
+    _snapshot(tmp_path / "cache")
+    output = tmp_path / "evidence.json"
+    output.write_text('{"prior": true}\n', encoding="utf-8")
+
+    with pytest.raises(LocalHFSmokeError, match="already exists"):
+        run_smokes(
+            registry_path=registry,
+            cache_root=tmp_path / "cache",
+            output_path=output,
+            generator=lambda **_kwargs: ("READY", {}),
+        )
+    assert json.loads(output.read_text(encoding="utf-8")) == {"prior": True}
+
+
+def test_run_smokes_executes_models_concurrently_and_keeps_registry_order(
+    tmp_path: Path,
+) -> None:
+    registry = _registry(tmp_path / "registry.json")
+    payload = json.loads(registry.read_text(encoding="utf-8"))
+    second = dict(payload["models"][0])
+    second.update(
+        {
+            "id": "hf.second",
+            "model_id": "example/second",
+            "cache_repository_dir": "models--example--second",
+            "revision": "b" * 40,
+        }
+    )
+    payload["models"].append(second)
+    registry.write_text(json.dumps(payload), encoding="utf-8")
+    _snapshot(tmp_path / "cache")
+    second_snapshot = (
+        tmp_path
+        / "cache"
+        / second["cache_repository_dir"]
+        / "snapshots"
+        / second["revision"]
+    )
+    second_snapshot.mkdir(parents=True)
+    (second_snapshot / "config.json").write_text("{}", encoding="utf-8")
+    (second_snapshot / "tokenizer_config.json").write_text("{}", encoding="utf-8")
+    (second_snapshot / "model.safetensors").write_bytes(b"weights")
+
+    lock = threading.Lock()
+    active = 0
+    maximum_active = 0
+
+    def generator(**_kwargs):
+        nonlocal active, maximum_active
+        with lock:
+            active += 1
+            maximum_active = max(maximum_active, active)
+        time.sleep(0.05)
+        with lock:
+            active -= 1
+        return "READY", {}
+
+    evidence = run_smokes(
+        registry_path=registry,
+        cache_root=tmp_path / "cache",
+        output_path=tmp_path / "parallel.json",
+        max_workers=2,
+        generator=generator,
+    )
+
+    assert maximum_active == 2
+    assert [row["model_id"] for row in evidence["attempts"]] == [
+        "hf.test",
+        "hf.second",
+    ]
+    assert evidence["generation_contract"]["max_workers"] == 2
+    assert evidence["complete"] is True
+
+
+@pytest.mark.parametrize("max_workers", [0, -1, True])
+def test_run_smokes_rejects_invalid_worker_count(
+    tmp_path: Path, max_workers: int
+) -> None:
+    registry = _registry(tmp_path / f"registry-{max_workers}.json")
+    with pytest.raises(LocalHFSmokeError, match="positive integer"):
+        run_smokes(
+            registry_path=registry,
+            cache_root=tmp_path / "cache",
+            output_path=tmp_path / f"evidence-{max_workers}.json",
+            max_workers=max_workers,
+        )

@@ -1,5 +1,9 @@
+import hashlib
 import json
+import threading
 import urllib.error
+import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
@@ -9,6 +13,10 @@ from analysis.reconcile_inference_hub_routes import reconcile_routes
 from experiments.misc.inference_hub_discovery import (
     InferenceHubClient,
     InferenceHubDiscoveryError,
+    _NoRedirectHandler,
+    _build_parser,
+    _load_discovery_ledger,
+    _reserve_discovery_attempt,
     capture_catalog,
     chat_probe_route,
     cli,
@@ -59,7 +67,10 @@ def _install_responses(
         assert key in responses
         return _FakeHTTPResponse(responses[key])
 
-    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    monkeypatch.setattr(
+        "experiments.misc.inference_hub_discovery._urlopen_no_redirect",
+        fake_urlopen,
+    )
     return calls
 
 
@@ -257,9 +268,11 @@ def test_full_catalog_probe_attempts_every_route_and_retains_rejections(
     tmp_path: Path,
 ) -> None:
     catalog = _candidate_catalog()
+    rendezvous = threading.Barrier(2)
 
     def probe(_client, *, catalog, route, max_tokens):
         del catalog, max_tokens
+        rendezvous.wait(timeout=2)
         if route.endswith("model-b"):
             raise InferenceHubDiscoveryError("route is not a chat model")
         return {
@@ -275,6 +288,7 @@ def test_full_catalog_probe_attempts_every_route_and_retains_rejections(
         InferenceHubClient(api_key="test-key"),
         catalog=catalog,
         attempt_ledger_path=tmp_path / "catalog-attempts.json",
+        max_workers=2,
     )
 
     assert bundle["status"] == "complete"
@@ -290,6 +304,13 @@ def test_full_catalog_probe_attempts_every_route_and_retains_rejections(
     ]
     assert len(bundle["run_attempt_ids"]) == 2
     assert bundle["discovery_attempt_ledger"]["record_count"] == 2
+    assert bundle["execution"] == {
+        "strategy": "bounded_thread_pool",
+        "configured_max_workers": 2,
+        "effective_worker_count": 2,
+        "result_ordering": "route_lexicographic",
+        "ledger_strategy": "locked_reservation_before_each_dispatch",
+    }
 
 
 def test_cohort_verification_covers_every_exact_target_once(
@@ -339,10 +360,13 @@ def test_cohort_verification_covers_every_exact_target_once(
         lambda cohort_id: cohorts[cohort_id],
     )
     calls: list[str] = []
+    rendezvous = threading.Barrier(2)
 
     def verify(_client, *, catalog, route, max_tokens):
         del catalog
         calls.append(route)
+        if route != "us/openai/historical":
+            rendezvous.wait(timeout=2)
         return {
             "requested_route": route,
             "verification_status": "verified",
@@ -378,13 +402,14 @@ def test_cohort_verification_covers_every_exact_target_once(
         cohort_ids=["current_sota", "historical"],
         max_tokens=9,
         attempt_ledger_path=tmp_path / "discovery-attempts.json",
+        max_workers=2,
     )
 
-    assert calls == [
+    assert set(calls) == {
         "us/openai/current",
         "aws/anthropic/current",
         "us/openai/historical",
-    ]
+    }
     assert bundle["target_count"] == 3
     assert [target["target_id"] for target in bundle["targets"]] == [
         "openai.current",
@@ -396,6 +421,10 @@ def test_cohort_verification_covers_every_exact_target_once(
     assert bundle["status"] == "verified"
     assert bundle["verified_target_count"] == 3
     assert bundle["discovery_attempt_ledger"]["record_count"] == 3
+    assert bundle["execution"]["effective_worker_count"] == 2
+    assert bundle["execution"]["result_ordering"] == (
+        "requested_cohort_then_registry_target"
+    )
     assert bundle["catalog_census"][-1] == {
         "route": "other/chat-model",
         "decision": "excluded_outside_frozen_panel",
@@ -452,8 +481,8 @@ def _candidate_catalog() -> dict[str, Any]:
     }
 
 
-def _candidate_reconciliation(catalog: dict[str, Any]) -> dict[str, Any]:
-    registry = {
+def _candidate_registry() -> dict[str, Any]:
+    return {
         "registry_version": "registry-v1",
         "targets": [
             {
@@ -482,7 +511,10 @@ def _candidate_reconciliation(catalog: dict[str, Any]) -> dict[str, Any]:
             }
         },
     }
-    return reconcile_routes(catalog=catalog, registry=registry)
+
+
+def _candidate_reconciliation(catalog: dict[str, Any]) -> dict[str, Any]:
+    return reconcile_routes(catalog=catalog, registry=_candidate_registry())
 
 
 def test_reconciled_candidate_verification_retains_passes_and_failures(
@@ -491,9 +523,11 @@ def test_reconciled_candidate_verification_retains_passes_and_failures(
 ) -> None:
     catalog = _candidate_catalog()
     reconciliation = _candidate_reconciliation(catalog)
+    rendezvous = threading.Barrier(2)
 
     def verify(_client, *, catalog, route, max_tokens):
         del catalog, max_tokens
+        rendezvous.wait(timeout=2)
         if route.endswith("model-b"):
             raise InferenceHubDiscoveryError("structured controls rejected")
         return {
@@ -510,8 +544,10 @@ def test_reconciled_candidate_verification_retains_passes_and_failures(
     bundle = smoke_verify_reconciled_candidates(
         InferenceHubClient(api_key="test-key"),
         catalog=catalog,
+        registry=_candidate_registry(),
         reconciliation=reconciliation,
         attempt_ledger_path=tmp_path / "candidate-attempts.json",
+        max_workers=2,
     )
 
     assert bundle["status"] == "incomplete"
@@ -534,6 +570,10 @@ def test_reconciled_candidate_verification_retains_passes_and_failures(
     ]
     assert bundle["automatic_registry_promotion"] is False
     assert bundle["discovery_attempt_ledger"]["record_count"] == 2
+    assert bundle["execution"]["effective_worker_count"] == 2
+    assert bundle["execution"]["result_ordering"] == (
+        "reconciliation_resolution_order"
+    )
     assert len(bundle["bundle_sha256"]) == 64
 
 
@@ -548,9 +588,180 @@ def test_reconciled_candidate_verification_rejects_catalog_drift(
         smoke_verify_reconciled_candidates(
             InferenceHubClient(api_key="test-key"),
             catalog=catalog,
+            registry=_candidate_registry(),
             reconciliation=reconciliation,
             attempt_ledger_path=tmp_path / "candidate-attempts.json",
         )
+
+
+def test_reconciliation_is_recomputed_from_fixed_catalog_and_registry(
+    tmp_path: Path,
+) -> None:
+    catalog = _candidate_catalog()
+    catalog["routes"].append(
+        {
+            "route": "gcp/google/unrelated",
+            "listed_by_models": True,
+            "chat_capability": "unverified_until_structured_smoke",
+        }
+    )
+    catalog["route_count"] = len(catalog["routes"])
+    reconciliation = _candidate_reconciliation(catalog)
+    reconciliation["resolutions"][0]["selected_candidate"] = "gcp/google/unrelated"
+    reconciliation["resolutions"][0]["all_exact_suffix_candidates"] = [
+        "gcp/google/unrelated"
+    ]
+    reconciliation.pop("report_sha256")
+    reconciliation["report_sha256"] = hashlib.sha256(
+        json.dumps(
+            reconciliation,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        ).encode("utf-8")
+    ).hexdigest()
+
+    with pytest.raises(InferenceHubDiscoveryError, match="exactly reproduce"):
+        smoke_verify_reconciled_candidates(
+            InferenceHubClient(api_key="test-key"),
+            catalog=catalog,
+            registry=_candidate_registry(),
+            reconciliation=reconciliation,
+            attempt_ledger_path=tmp_path / "candidate-attempts.json",
+        )
+
+
+def test_full_catalog_rejection_retains_sanitized_response_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    catalog = _candidate_catalog()
+    catalog["routes"] = catalog["routes"][:1]
+    catalog["route_count"] = 1
+    client = InferenceHubClient(api_key="test-key")
+    raw_content = "sensitive generated response"
+    monkeypatch.setattr(
+        client,
+        "post",
+        lambda *_args, **_kwargs: {
+            "id": "completion-wrong-model",
+            "model": "silent-alias/other-model",
+            "choices": [
+                {
+                    "message": {"role": "assistant", "content": raw_content},
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {"total_tokens": 7},
+        },
+    )
+    ledger_path = tmp_path / "catalog-attempts.json"
+
+    bundle = probe_catalog_routes(
+        client,
+        catalog=catalog,
+        attempt_ledger_path=ledger_path,
+    )
+
+    rejection = bundle["rejected_routes"][0]
+    assert rejection["failure_code"] == "response_model_identity_mismatch"
+    assert rejection["failure_evidence"]["request_id"] == "completion-wrong-model"
+    assert rejection["failure_evidence"]["response_model"] == "silent-alias/other-model"
+    assert rejection["failure_evidence"]["finish_reason"] == "stop"
+    assert len(rejection["failure_evidence"]["response_sha256"]) == 64
+    assert len(rejection["failure_evidence"]["content_sha256"]) == 64
+    assert raw_content not in json.dumps(bundle)
+    ledger = _load_discovery_ledger(ledger_path)
+    assert ledger["records"][0]["request_id"] == "completion-wrong-model"
+    assert ledger["records"][0]["response_model"] == "silent-alias/other-model"
+    assert ledger["records"][0]["response_sha256"] == rejection["failure_evidence"][
+        "response_sha256"
+    ]
+
+
+def test_discovery_ledger_concurrent_reservations_are_never_lost(
+    tmp_path: Path,
+) -> None:
+    ledger_path = tmp_path / "concurrent-attempts.json"
+
+    def reserve(index: int) -> str:
+        return _reserve_discovery_attempt(
+            ledger_path,
+            target_id=f"target-{index}",
+            route=f"route-{index}",
+            request_body={"model": f"route-{index}"},
+            max_tokens=1,
+        )
+
+    with ThreadPoolExecutor(max_workers=12) as pool:
+        attempt_ids = list(pool.map(reserve, range(48)))
+
+    ledger = _load_discovery_ledger(ledger_path)
+    assert len(ledger["records"]) == 48
+    assert {row["attempt_id"] for row in ledger["records"]} == set(attempt_ids)
+    assert all(row["outcome"] == "reserved_before_dispatch" for row in ledger["records"])
+
+
+def test_redirect_handler_refuses_to_create_redirect_request() -> None:
+    request = urllib.request.Request(
+        "https://inference-api.nvidia.com/v1/models",
+        headers={"Authorization": "Bearer must-not-forward"},
+    )
+    redirected = _NoRedirectHandler().redirect_request(
+        request,
+        None,
+        302,
+        "Found",
+        {},
+        "https://attacker.invalid/collect",
+    )
+    assert redirected is None
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        [
+            "verify-cohorts",
+            "--cohort",
+            "panel",
+            "--output",
+            "evidence.json",
+            "--attempt-ledger",
+            "ledger.json",
+        ],
+        [
+            "verify-candidates",
+            "--catalog-input",
+            "catalog.json",
+            "--registry-input",
+            "registry.json",
+            "--reconciliation",
+            "routes.json",
+            "--output",
+            "evidence.json",
+            "--attempt-ledger",
+            "ledger.json",
+        ],
+        [
+            "probe-catalog",
+            "--catalog-input",
+            "catalog.json",
+            "--output",
+            "evidence.json",
+            "--attempt-ledger",
+            "ledger.json",
+        ],
+    ],
+)
+def test_parallel_cli_has_positive_default_and_rejects_zero(
+    argv: list[str],
+) -> None:
+    parser = _build_parser()
+    assert parser.parse_args(argv).max_workers == 16
+    assert parser.parse_args([*argv, "--max-workers", "7"]).max_workers == 7
+    with pytest.raises(SystemExit):
+        parser.parse_args([*argv, "--max-workers", "0"])
 
 
 def test_smoke_refuses_route_absent_from_models_catalog(
@@ -596,12 +807,17 @@ def test_http_errors_do_not_echo_credentials(monkeypatch: pytest.MonkeyPatch) ->
             fp=None,
         )
 
-    monkeypatch.setattr("urllib.request.urlopen", fail_urlopen)
+    monkeypatch.setattr(
+        "experiments.misc.inference_hub_discovery._urlopen_no_redirect",
+        fail_urlopen,
+    )
     client = InferenceHubClient(api_key=secret)
 
     with pytest.raises(InferenceHubDiscoveryError) as captured:
         client.get("/models")
     assert secret not in str(captured.value)
+    assert captured.value.failure_code == "http_error"
+    assert captured.value.http_status == 401
 
 
 def test_cli_missing_key_fails_cleanly_without_traceback(

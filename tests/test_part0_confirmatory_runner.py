@@ -20,6 +20,7 @@ from experiments.part0.confirmatory_runner import (
     FrozenRoute,
     RouteIdentityError,
     build_confirmatory_schedule,
+    enforce_globally_distinct_judge,
     execute_trial,
     freeze_execution_plan,
     load_production_registry,
@@ -186,7 +187,9 @@ def _route(role: str) -> FrozenRoute:
     registry_hash = _hash("synthetic-model-registry")
     route = f"unit-test/{role}"
     identity = {
+        "id": f"unit-test.{role}",
         "provider": "openai_compatible",
+        "upstream_provider": "unit-test",
         "route": route,
         "model": route,
         "registry_version": "unit-test-v1",
@@ -204,6 +207,35 @@ def _route(role: str) -> FrozenRoute:
         registry_hash=registry_hash,
         identity=identity,
     )
+
+
+def test_standalone_judge_guard_rejects_all_identity_overlap_layers() -> None:
+    subject = _route("subject")
+    enforce_globally_distinct_judge(subject, _route("judge"))
+
+    same_id = _route("judge")
+    same_id.identity["id"] = subject.identity["id"]
+    with pytest.raises(RouteIdentityError, match="target id"):
+        enforce_globally_distinct_judge(subject, same_id)
+
+    same_route = _route("judge")
+    same_route = FrozenRoute(
+        provider=subject.provider,
+        route=subject.route,
+        registry_version=same_route.registry_version,
+        registry_hash=same_route.registry_hash,
+        identity=same_route.identity,
+    )
+    with pytest.raises(RouteIdentityError, match=r"provider\+route"):
+        enforce_globally_distinct_judge(subject, same_route)
+
+    same_upstream_model = _route("judge")
+    same_upstream_model.identity["upstream_provider"] = subject.identity[
+        "upstream_provider"
+    ]
+    same_upstream_model.identity["model"] = subject.identity["model"]
+    with pytest.raises(RouteIdentityError, match=r"upstream-provider\+model"):
+        enforce_globally_distinct_judge(subject, same_upstream_model)
 
 
 def _response(route: FrozenRoute, content: str, request_id: str, *, truncated=False) -> ProviderResponse:

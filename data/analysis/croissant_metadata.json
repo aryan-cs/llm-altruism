@@ -60,7 +60,7 @@
     "http://mlcommons.org/croissant/1.1",
     "http://mlcommons.org/croissant/RAI/1.0"
   ],
-  "name": "Prosocial Readiness Bench",
+  "name": "Prosocial Cost-Shifting Bench",
   "description": "A behavioral evaluation artifact for choices in hypothetical dilemmas and commons restraint in a controlled population microworld. The legacy Part 0 label audit is documented in the paper, but invalid model-level refusal rates and their cross-part derivatives are not distributed.",
   "version": "0.1.0",
   "cr:sdVersion": "1.0.0",

@@ -421,11 +421,10 @@ def render_individual_scatters(
         ) from error
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    handles = _model_legend_handles([f"ollama/{row['model']}" for row in model_rows])
     outputs: list[Path] = []
 
     for x_key, y_key, x_label, y_label, filename in PLOT_SPECS:
-        fig, axis = plt.subplots(figsize=(9.2, 6.8), dpi=150)
+        fig, axis = plt.subplots(figsize=(8.2, 6.2), dpi=150)
         points = _draw_scatter_points(
             axis,
             model_rows,
@@ -438,15 +437,7 @@ def render_individual_scatters(
             f"{x_label} vs. {y_label}\n{_correlation_subtitle(correlation_rows, x_key, y_key)}",
             fontsize=12,
         )
-        fig.legend(
-            handles=handles,
-            loc="upper center",
-            ncol=max(1, len(handles)),
-            frameon=False,
-            title="Model family",
-            bbox_to_anchor=(0.5, 0.985),
-        )
-        fig.tight_layout(rect=(0.03, 0.03, 0.98, 0.88))
+        fig.tight_layout(rect=(0.03, 0.03, 0.98, 0.98))
         fig.canvas.draw()
         _place_labels(fig, axis, points, fontsize=8, marker_size=INDIVIDUAL_POINT_SIZE)
         output = output_dir / filename

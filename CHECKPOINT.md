@@ -42,16 +42,31 @@ Updated: 2026-08-02 (America/Los_Angeles)
   corrected live census is captured privately: 214 routes at
   `2026-08-02T16:12:41.421354Z`, raw artifact SHA-256
   `459431076aa2106dc3966a540cb7e641b694ffc443dec82b94024bdd8462d1f1`.
-  An outcome-blind exact-suffix reconciliation selected 15 smoke-pending
-  candidates and left 15 labels unresolved; report SHA-256
-  `dbe30991a1c29b9a4c2371258c71dbdbc4d777c139c48f078c2f13045966d819`.
+  After adding a dedicated, non-evaluated judge target, a fresh outcome-blind
+  exact-suffix reconciliation selected 16 smoke-pending candidates and left 15
+  labels unresolved; raw report SHA-256
+  `b55c9d5fe1c7cd54e89a10b13d1d779b1b024594d22c67fe4ca364101a914c20`.
+  Candidate verification now recomputes that entire report from the fixed
+  catalog and registry, refuses all redirects before a bearer credential can be
+  forwarded, runs endpoint probes through a bounded 16-worker pool, serializes
+  concurrent ledger transactions with an exclusive file lock, and preserves
+  sanitized response identity/hashes for rejected calls.
   No candidate has been promoted to the registry. The key remains only in the
   user's interactive shell, not in the current execution process.
 - Four revision-pinned local Hugging Face controls were loaded from a read-only
   cache and completed real offline greedy generations on CPU: SmolLM2 135M,
-  360M, and 1.7B plus Qwen2.5 0.5B. The private evidence fingerprints 5.43 GB
-  of exact snapshot assets; raw artifact SHA-256
-  `ec84e9509b08816e2b6ebfc6366e065ce7d509849ecb766da073d0059ef376f9`.
+  360M, and 1.7B plus Qwen2.5 0.5B. A fresh immutable two-worker private artifact
+  recursively fingerprints all 74 exact snapshot assets (11,420,103,695 bytes,
+  including nested and hidden assets); raw artifact SHA-256
+  `9e0cca6a738bf5c794c33c5da2af02c6a4d6b4423cd34ae7a4ba5d527dab961e`.
+  All four returned visible text; one matched the exact `READY` format and three
+  were retained as format-noncompliant. The separate resumable 384-root local
+  Part 1 scale panel plans 1,536 real generations with two concurrent model
+  workers and batched prompts. Its manifest permanently bars confirmatory or
+  paper-result promotion because the deterministic draft bank is not
+  human-approved.
+  A deliberately interrupted attempt remains preserved separately rather than
+  being overwritten.
   This is callability evidence only, not a paper result or a substitute for a
   hosted model.
 
@@ -77,6 +92,15 @@ Updated: 2026-08-02 (America/Los_Angeles)
 - The one-stage production campaign is frozen at all 484 harmful roots plus 100
   controls in three languages, 384 self-direct Part 1 roots, and 24 independent
   Part 2 trajectories per route at N=10, horizon=30, capacity=150.
+- One dedicated `judge_only` target, NVIDIA Evals Nemotron 3 30B A3B, is outside
+  the evaluated panel and is reused across every subject route. Campaign and
+  standalone Part 0 guards reject target-ID, provider+route, or upstream-model
+  overlap. The judge remains unverified until its structured smoke succeeds.
+- Confirmatory finite-bank/run-level estimators use exactly 5,000 frozen
+  bootstrap replicates. Part 1 resamples independently within all 12
+  game-by-domain cells, Part 2 uses common paired-seed resampling, reserve
+  nondepletion uses a Wilson interval, and cross-part unit resampling is shared
+  across systems.
 - The base 30-route campaign is 333,750 successful POSTs. A full stored-response
   Part 0 rejudge allowance and 10% transport reserve fit below the immutable
   430,000-attempt and 1.5-billion-token ceilings. Every confirmatory POST makes
@@ -90,7 +114,7 @@ Updated: 2026-08-02 (America/Los_Angeles)
 ## External gates that must not be fabricated or bypassed
 
 1. A valid InferenceHub virtual key and corrected authenticated catalog census
-   have been established. Fifteen exact-suffix candidates await structured chat
+   have been established. Sixteen exact-suffix candidates await structured chat
    smokes; 15 planned labels have no exact catalog suffix and require an
    evidence-backed availability decision. All 30 current/historical registry
    routes remain unverified display labels and are rejected by the production

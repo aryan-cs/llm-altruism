@@ -239,6 +239,22 @@ def test_sentinel_analysis_requires_six_systems_and_common_seeds() -> None:
     results = analyze_sentinel_sensitivity(six, expected_sentinel_ids=frozen)
     assert len(results) == 30
     assert len({row["sentinel_id"] for row in results}) == 6
+    assert {row["holm_family_size"] for row in results} == {30}
+    assert {row["holm_family"] for row in results} == {
+        "30_prespecified_sentinel_by_factor_main_effects"
+    }
+    assert {row["max_t_family"] for row in results} == {
+        "five_main_effects_within_sentinel_diagnostic"
+    }
+    assert all(row["raw_exact_p"] <= row["holm_adjusted_p"] for row in results)
+    assert all(
+        row["within_sentinel_holm_adjusted_p"] <= row["holm_adjusted_p"]
+        for row in results
+    )
+    assert all(
+        row["within_sentinel_max_t_adjusted_p"] == row["max_t_adjusted_p"]
+        for row in results
+    )
 
     with pytest.raises(ValueError, match="exactly 6"):
         analyze_sentinel_sensitivity(

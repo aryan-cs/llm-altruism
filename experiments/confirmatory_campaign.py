@@ -50,6 +50,7 @@ from experiments.misc.wizard import SocietyConfig
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CAMPAIGN_ROOT = REPO_ROOT / "data" / "private" / "confirmatory_campaigns"
 DEFAULT_COHORTS = ("current_sota", "historical")
+JUDGE_COHORT_ID = "judge_only"
 MANIFEST_SCHEMA_VERSION = 1
 ENDPOINT_EVIDENCE_SCHEMA_VERSION = 2
 VARIANCE_GATE_SCHEMA_VERSION = 1
@@ -735,6 +736,85 @@ def _route_role(target_by_id: Mapping[str, Mapping[str, Any]], target_id: str, r
     return deepcopy(dict(target))
 
 
+def _identity_component(target: Mapping[str, Any], key: str) -> str:
+    value = target.get(key)
+    if not isinstance(value, str) or not value.strip():
+        raise ConfirmatoryCampaignError(
+            f"Model target lacks the required {key!r} identity component."
+        )
+    return value.strip().casefold()
+
+
+def _reject_judge_overlap(
+    judge: Mapping[str, Any], evaluated_targets: Sequence[Mapping[str, Any]]
+) -> None:
+    judge_id = _identity_component(judge, "id")
+    judge_route = (
+        _identity_component(judge, "provider"),
+        _identity_component(judge, "route"),
+    )
+    judge_model = (
+        _identity_component(judge, "upstream_provider"),
+        _identity_component(judge, "model"),
+    )
+    for target in evaluated_targets:
+        if judge_id == _identity_component(target, "id"):
+            raise ConfirmatoryCampaignError(
+                "Judge target id overlaps an evaluated target."
+            )
+        if judge_route == (
+            _identity_component(target, "provider"),
+            _identity_component(target, "route"),
+        ):
+            raise ConfirmatoryCampaignError(
+                "Judge provider+route overlaps an evaluated target."
+            )
+        if judge_model == (
+            _identity_component(target, "upstream_provider"),
+            _identity_component(target, "model"),
+        ):
+            raise ConfirmatoryCampaignError(
+                "Judge upstream-provider+model overlaps an evaluated target."
+            )
+
+
+def _load_dedicated_judge(
+    judge_target_id: str,
+    evaluated_targets: Sequence[Mapping[str, Any]],
+    *,
+    registry_version: str,
+    registry_hash: str,
+    routing_roster_hash: str,
+    enforce_freshness: bool,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    (
+        judge_cohorts,
+        judge_targets,
+        judge_registry_version,
+        judge_registry_hash,
+        judge_routing_roster_hash,
+    ) = _load_exact_cohort_union(
+        (JUDGE_COHORT_ID,), enforce_freshness=enforce_freshness
+    )
+    if (
+        len(judge_cohorts) != 1
+        or len(judge_targets) != 1
+        or judge_registry_version != registry_version
+        or judge_registry_hash != registry_hash
+        or judge_routing_roster_hash != routing_roster_hash
+    ):
+        raise ConfirmatoryCampaignError(
+            "Dedicated judge cohort must contain exactly one target in the evaluated registry."
+        )
+    judge = _route_role(
+        {str(target["id"]): target for target in judge_targets},
+        judge_target_id,
+        "judge_only",
+    )
+    _reject_judge_overlap(judge, evaluated_targets)
+    return deepcopy(judge_cohorts[0]), judge
+
+
 def _part2_config(*, smoke: bool, args: argparse.Namespace) -> dict[str, Any]:
     config = SocietyConfig(
         society_size=4 if smoke else args.part2_society_size,
@@ -986,7 +1066,16 @@ def _build_plan_from_arguments(
     target_by_id = {
         str(target["id"]): target for target in complete_union_targets
     }
-    judge = _route_role(target_by_id, args.judge_target_id, "judge")
+    judge_cohort, judge = _load_dedicated_judge(
+        args.judge_target_id,
+        complete_union_targets,
+        registry_version=registry_version,
+        registry_hash=registry_hash,
+        routing_roster_hash=routing_roster_hash,
+        enforce_freshness=(
+            enforce_route_freshness and part2_stage != "baseline-production"
+        ),
+    )
     requested_target_ids = list(args.target_id or [])
     if len(set(requested_target_ids)) != len(requested_target_ids):
         raise ConfirmatoryCampaignError("Requested target shard contains duplicates.")
@@ -1027,8 +1116,8 @@ def _build_plan_from_arguments(
     )
     _validate_endpoint_evidence(
         evidence,
-        cohorts=cohorts,
-        targets=complete_union_targets,
+        cohorts=[*cohorts, judge_cohort],
+        targets=[*complete_union_targets, judge],
         registry_version=registry_version,
         routing_roster_hash=routing_roster_hash,
     )
@@ -1097,6 +1186,7 @@ def _build_plan_from_arguments(
             }
             or pilot_manifest.get("roles")
             != {
+                "judge_cohort_id": JUDGE_COHORT_ID,
                 "judge_target_id": judge["id"],
                 "judge_route": judge["route"],
             }
@@ -1442,6 +1532,7 @@ def _build_plan_from_arguments(
             for target in targets
         ],
         "roles": {
+            "judge_cohort_id": JUDGE_COHORT_ID,
             "judge_target_id": judge["id"],
             "judge_route": judge["route"],
         },
@@ -1766,16 +1857,22 @@ def validate_manifest(manifest: Mapping[str, Any]) -> None:
     ]
     if manifest.get("targets") != current_targets:
         raise ConfirmatoryCampaignError("Current verified target union changed.")
-    target_by_id = complete_target_by_id
     roles = manifest.get("roles")
     if not isinstance(roles, Mapping):
         raise ConfirmatoryCampaignError("Manifest model roles are missing.")
-    judge = _route_role(
-        target_by_id, str(roles.get("judge_target_id", "")), "judge"
+    judge_cohort, judge = _load_dedicated_judge(
+        str(roles.get("judge_target_id", "")),
+        complete_union_targets,
+        registry_version=registry_version,
+        registry_hash=registry_hash,
+        routing_roster_hash=routing_roster_hash,
+        enforce_freshness=False,
     )
-    if set(roles) != {"judge_target_id", "judge_route"} or roles.get(
-        "judge_route"
-    ) != judge["route"]:
+    if (
+        set(roles) != {"judge_cohort_id", "judge_target_id", "judge_route"}
+        or roles.get("judge_cohort_id") != JUDGE_COHORT_ID
+        or roles.get("judge_route") != judge["route"]
+    ):
         raise ConfirmatoryCampaignError("Manifest role routes changed.")
     evidence_record = inputs["endpoint_evidence"]
     endpoint_payload = _load_json(
@@ -1783,8 +1880,8 @@ def validate_manifest(manifest: Mapping[str, Any]) -> None:
     )
     _validate_endpoint_evidence(
         endpoint_payload,
-        cohorts=cohorts,
-        targets=complete_union_targets,
+        cohorts=[*cohorts, judge_cohort],
+        targets=[*complete_union_targets, judge],
         registry_version=registry_version,
         routing_roster_hash=routing_roster_hash,
     )

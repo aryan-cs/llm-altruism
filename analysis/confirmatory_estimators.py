@@ -43,8 +43,8 @@ from experiments.misc.run_metadata import sha256_file, stable_json_hash
 
 
 SCHEMA_VERSION = 1
-DEFAULT_BOOTSTRAP_REPLICATES = 2_000
-MIN_BOOTSTRAP_REPLICATES = 2_000
+DEFAULT_BOOTSTRAP_REPLICATES = 5_000
+FROZEN_BOOTSTRAP_REPLICATES = 5_000
 PART0_LANGUAGES = ("english", "chinese", "russian")
 PART0_ARMS = ("harmful", "control")
 PART0_OUTCOMES = frozenset({"REFUSAL", "COMPLIANCE", "UNCLEAR", "INVALID"})
@@ -105,13 +105,16 @@ _PART0_COUNT_UNIT_FIELDS = frozenset(
 )
 _PART1_COUNT_UNIT_FIELDS = frozenset(
     {
-        "unit_id", "phase", "frame", "cooperation_count",
+        "unit_id", "phase", "frame", "game", "domain", "cooperation_count",
         "invalid_count", "total_count",
     }
 )
 _PART2_UNIT_FIELDS = frozenset(
     {
         "unit_id",
+        "paired_seed_id",
+        "environment_seed",
+        "generation_seed",
         "analysis_source",
         "structural_cell_id",
         "horizon_days",
@@ -119,7 +122,7 @@ _PART2_UNIT_FIELDS = frozenset(
         "normalized_aurc",
         "normalized_aupc",
         "restricted_time_to_depletion",
-        "survived_through_horizon",
+        "reserve_non_depletion_through_horizon",
     }
 )
 _CROSS_SYSTEM_FIELDS = frozenset(
@@ -289,9 +292,10 @@ def _sample_counts(values: Sequence[str | int], rng: random.Random) -> Counter:
 
 
 def _validate_replicates(replicates: int) -> None:
-    if replicates < MIN_BOOTSTRAP_REPLICATES:
+    if replicates != FROZEN_BOOTSTRAP_REPLICATES:
         raise ValueError(
-            f"confirmatory bootstrap requires at least {MIN_BOOTSTRAP_REPLICATES} replicates"
+            "confirmatory bootstrap requires exactly "
+            f"{FROZEN_BOOTSTRAP_REPLICATES} frozen replicates"
         )
 
 
@@ -914,7 +918,7 @@ def _part1_metrics(
     systems: Sequence[str],
     system_metadata: Mapping[str, Mapping[str, str]],
     roots: Sequence[Mapping[str, str]],
-    primary_root_weights: Mapping[str, Mapping[str, int]],
+    primary_root_weights: Mapping[tuple[str, str], Mapping[str, int]],
     primary_block_weights: Mapping[int, int],
 ) -> dict[tuple[str, ...], float]:
     root_metadata = {root["root_id"]: root for root in roots}
@@ -939,27 +943,34 @@ def _part1_metrics(
     ) -> float:
         if phase != "primary" or frame != PART1_PRIMARY_FRAME:
             raise ValueError("Part 1 confirmatory metrics accept only self_direct primary rows")
-        eligible_roots = [
-            root["root_id"] for root in roots if root["domain"] == domain
-        ]
-        root_weights = primary_root_weights[domain]
         block_weights = primary_block_weights
-        numerator = 0.0
-        denominator = 0
-        for root_id in eligible_roots:
-            root_weight = int(root_weights.get(root_id, 0))
-            for block, block_weight_value in block_weights.items():
-                weight = root_weight * int(block_weight_value)
-                if not weight:
-                    continue
-                outcome = observations[(system, root_id, phase, frame, block)]
-                numerator += weight * int(
-                    outcome == ("INVALID" if invalid else "COOPERATE")
+        cell_rates: list[float] = []
+        for game in PART1_GAMES:
+            eligible_roots = [
+                root["root_id"]
+                for root in roots
+                if root["game"] == game and root["domain"] == domain
+            ]
+            root_weights = primary_root_weights[(game, domain)]
+            numerator = 0.0
+            denominator = 0
+            for root_id in eligible_roots:
+                root_weight = int(root_weights.get(root_id, 0))
+                for block, block_weight_value in block_weights.items():
+                    weight = root_weight * int(block_weight_value)
+                    if not weight:
+                        continue
+                    outcome = observations[(system, root_id, phase, frame, block)]
+                    numerator += weight * int(
+                        outcome == ("INVALID" if invalid else "COOPERATE")
+                    )
+                    denominator += weight
+            if not denominator:
+                raise ValueError(
+                    "Part 1 clustered bootstrap produced an empty game/domain cell"
                 )
-                denominator += weight
-        if not denominator:
-            raise ValueError("Part 1 clustered bootstrap produced an empty domain cell")
-        return numerator / denominator
+            cell_rates.append(numerator / denominator)
+        return math.fsum(cell_rates) / len(cell_rates)
 
     metrics: dict[tuple[str, ...], float] = {}
     primary_rates: dict[tuple[str, str], float] = {}
@@ -1109,13 +1120,18 @@ def estimate_part1(
         secondary_ids,
         rows,
     ) = _parse_part1(document)
-    primary_roots_by_domain = {
-        domain: sorted(root["root_id"] for root in roots if root["domain"] == domain)
+    primary_roots_by_cell = {
+        (game, domain): sorted(
+            root["root_id"]
+            for root in roots
+            if root["game"] == game and root["domain"] == domain
+        )
+        for game in PART1_GAMES
         for domain in PART1_DOMAINS
     }
     unit_primary_roots = {
-        domain: {root_id: 1 for root_id in primary_roots_by_domain[domain]}
-        for domain in PART1_DOMAINS
+        cell: {root_id: 1 for root_id in primary_roots_by_cell[cell]}
+        for cell in primary_roots_by_cell
     }
     unit_primary_blocks = {block: 1 for block in PART1_PRIMARY_BLOCKS}
     estimates = _part1_metrics(
@@ -1130,8 +1146,8 @@ def estimate_part1(
     rng = random.Random(seed)
     for _replicate in range(replicates):
         primary_root_weights = {
-            domain: _sample_counts(primary_roots_by_domain[domain], rng)
-            for domain in PART1_DOMAINS
+            cell: _sample_counts(primary_roots_by_cell[cell], rng)
+            for cell in primary_roots_by_cell
         }
         primary_block_weights = _sample_counts(PART1_PRIMARY_BLOCKS, rng)
         replicate_metrics = _part1_metrics(
@@ -1178,7 +1194,7 @@ def estimate_part1(
         "campaign_manifest_sha256": manifest,
         "source_artifact_sha256": source_artifact,
         "primary_bootstrap_method": (
-            "root_cluster_bootstrap_stratified_by_domain"
+            "root_cluster_bootstrap_stratified_by_game_and_domain"
         ),
         "secondary_bootstrap_method": None,
         "bootstrap_replicates": replicates,
@@ -1229,6 +1245,8 @@ def _parse_count_units(
             raise ValueError(
                 f"{location} units must be primary/self_direct units"
             )
+        elif unit["game"] not in PART1_GAMES or unit["domain"] not in PART1_DOMAINS:
+            raise ValueError(f"{location} units must retain a frozen game/domain cell")
         unit_id = unit["unit_id"]
         if not isinstance(unit_id, str) or not unit_id or unit_id != unit_id.strip():
             raise ValueError(f"{location} unit_id must be nonempty and trimmed")
@@ -1241,14 +1259,16 @@ def _parse_count_units(
         successes, invalids, total = counts
         if total <= 0 or successes < 0 or invalids < 0 or successes + invalids > total:
             raise ValueError(f"{location} contains impossible retained counts")
-        units.append(
-            {
-                "unit_id": unit_id,
-                "success_count": successes,
-                "invalid_count": invalids,
-                "total_count": total,
-            }
-        )
+        parsed_unit = {
+            "unit_id": unit_id,
+            "success_count": successes,
+            "invalid_count": invalids,
+            "total_count": total,
+        }
+        if success_field == "cooperation_count":
+            parsed_unit["game"] = str(unit["game"])
+            parsed_unit["domain"] = str(unit["domain"])
+        units.append(parsed_unit)
     return units
 
 
@@ -1271,6 +1291,9 @@ def _parse_part2_units(
             raise ValueError(f"{location} trajectory {index} must be an object")
         _require_exact_keys(unit, _PART2_UNIT_FIELDS, f"{location} trajectory")
         unit_id = unit["unit_id"]
+        paired_seed_id = unit["paired_seed_id"]
+        environment_seed = unit["environment_seed"]
+        generation_seed = unit["generation_seed"]
         if unit["analysis_source"] not in {"final_baseline", "fixed_production"}:
             raise ValueError(
                 f"{location} trajectories must come from final_baseline or fixed_production"
@@ -1284,6 +1307,18 @@ def _parse_part2_units(
             raise ValueError(f"{location} structural_cell_id must be nonempty and trimmed")
         if not isinstance(unit_id, str) or not unit_id or unit_id != unit_id.strip():
             raise ValueError(f"{location} unit_id must be nonempty and trimmed")
+        if (
+            isinstance(environment_seed, bool)
+            or not isinstance(environment_seed, int)
+            or isinstance(generation_seed, bool)
+            or not isinstance(generation_seed, int)
+        ):
+            raise ValueError(f"{location} paired seeds must be integers")
+        expected_pairing = f"env={environment_seed}|gen={generation_seed}"
+        if paired_seed_id != expected_pairing:
+            raise ValueError(
+                f"{location} paired_seed_id does not match environment/generation seeds"
+            )
         if unit_id in seen:
             raise ValueError(f"{location} contains a duplicate unit_id")
         seen.add(unit_id)
@@ -1296,7 +1331,7 @@ def _parse_part2_units(
             "normalized_aurc",
             "normalized_aupc",
             "restricted_time_to_depletion",
-            "survived_through_horizon",
+            "reserve_non_depletion_through_horizon",
         ):
             raw = unit[field]
             if isinstance(raw, bool) or not isinstance(raw, (int, float)):
@@ -1309,13 +1344,13 @@ def _parse_part2_units(
             "restraint_rate",
             "normalized_aurc",
             "normalized_aupc",
-            "survived_through_horizon",
+            "reserve_non_depletion_through_horizon",
         ):
             if not 0.0 <= numeric_metrics[field] <= 1.0:
                 raise ValueError(f"{location} {field} must be in [0, 1]")
-        if numeric_metrics["survived_through_horizon"] not in {0.0, 1.0}:
+        if numeric_metrics["reserve_non_depletion_through_horizon"] not in {0.0, 1.0}:
             raise ValueError(
-                f"{location} survived_through_horizon must equal zero or one"
+                f"{location} reserve_non_depletion_through_horizon must equal zero or one"
             )
         if not 0.0 < numeric_metrics["restricted_time_to_depletion"] <= horizon:
             raise ValueError(
@@ -1324,6 +1359,9 @@ def _parse_part2_units(
         units.append(
             {
                 "unit_id": unit_id,
+                "paired_seed_id": paired_seed_id,
+                "environment_seed": environment_seed,
+                "generation_seed": generation_seed,
                 "analysis_source": unit["analysis_source"],
                 "structural_cell_id": structural_cell_id,
                 "horizon_days": horizon,
@@ -1396,6 +1434,7 @@ def _parse_part2(
     parsed: list[dict[str, object]] = []
     seen_systems: set[str] = set()
     seen_trajectories: set[str] = set()
+    expected_pairing_ids: set[str] | None = None
     for index, system in enumerate(raw_systems):
         if not isinstance(system, dict):
             raise ValueError(f"Part 2 system {index} must be an object")
@@ -1415,6 +1454,15 @@ def _parse_part2(
             f"Part 2 system {system_id}",
             expected_count=selected_n,
         )
+        pairing_ids = {str(unit["paired_seed_id"]) for unit in units}
+        if len(pairing_ids) != selected_n:
+            raise ValueError("Part 2 has duplicate paired seed IDs within a system")
+        if expected_pairing_ids is None:
+            expected_pairing_ids = pairing_ids
+        elif pairing_ids != expected_pairing_ids:
+            raise ValueError(
+                "Part 2 systems do not share one exact paired seed panel"
+            )
         for unit in units:
             if unit["unit_id"] in seen_trajectories:
                 raise ValueError("Part 2 contains a duplicate trajectory_id across systems")
@@ -1457,8 +1505,8 @@ _PART2_METRICS = (
         None,
     ),
     (
-        "survived_through_horizon",
-        "survival_through_horizon",
+        "reserve_non_depletion_through_horizon",
+        "reserve_non_depletion_rate",
         "secondary",
         0.0,
         1.0,
@@ -1491,6 +1539,24 @@ def _part2_run_level_interval(
         "bca_ci_low": max(lower, bca_low),
         "bca_ci_high": min(upper, bca_high),
     }
+
+
+def _wilson_interval(successes: int, total: int) -> tuple[float, float]:
+    if total <= 0 or not 0 <= successes <= total:
+        raise ValueError("Wilson interval requires 0 <= successes <= total")
+    z = 1.959963984540054
+    proportion = successes / total
+    denominator = 1.0 + z * z / total
+    center = (proportion + z * z / (2.0 * total)) / denominator
+    half_width = (
+        z
+        * math.sqrt(
+            proportion * (1.0 - proportion) / total
+            + z * z / (4.0 * total * total)
+        )
+        / denominator
+    )
+    return max(0.0, center - half_width), min(1.0, center + half_width)
 
 
 def _part2_panel_mean(
@@ -1557,13 +1623,36 @@ def estimate_part2(
                 ).digest()[:8],
                 "big",
             )
-            interval = _part2_run_level_interval(
-                values,
-                lower=lower,
-                upper=upper,
-                replicates=replicates,
-                seed=metric_seed,
+            is_binary_non_depletion = (
+                source_field == "reserve_non_depletion_through_horizon"
             )
+            if is_binary_non_depletion:
+                estimate = math.fsum(values) / len(values)
+                wilson_low, wilson_high = _wilson_interval(
+                    sum(value == 1.0 for value in values),
+                    len(values),
+                )
+                interval = {
+                    "estimate": estimate,
+                    "t_ci_low": None,
+                    "t_ci_high": None,
+                    "bca_ci_low": None,
+                    "bca_ci_high": None,
+                    "binomial_ci_low": wilson_low,
+                    "binomial_ci_high": wilson_high,
+                }
+            else:
+                interval = {
+                    **_part2_run_level_interval(
+                        values,
+                        lower=lower,
+                        upper=upper,
+                        replicates=replicates,
+                        seed=metric_seed,
+                    ),
+                    "binomial_ci_low": None,
+                    "binomial_ci_high": None,
+                }
             system_means[system_id][source_field] = interval["estimate"]
             results.append(
                 {
@@ -1577,6 +1666,13 @@ def estimate_part2(
                     "t_ci_high": interval["t_ci_high"],
                     "bca_ci_low": interval["bca_ci_low"],
                     "bca_ci_high": interval["bca_ci_high"],
+                    "binomial_ci_low": interval["binomial_ci_low"],
+                    "binomial_ci_high": interval["binomial_ci_high"],
+                    "interval_method": (
+                        "wilson_score_binomial_95"
+                        if is_binary_non_depletion
+                        else "student_t_95_and_bca_bootstrap_95"
+                    ),
                     "interval_unit": interval_unit,
                     "run_count": selected_n,
                 }
@@ -1605,12 +1701,23 @@ def estimate_part2(
                 )
                 panel_distributions[key] = []
 
+    paired_seed_ids = sorted(
+        str(unit["paired_seed_id"])
+        for unit in by_id[frozen[0]]["part2_units"]
+    )
+    units_by_pair = {
+        system_id: {
+            str(unit["paired_seed_id"]): unit
+            for unit in by_id[system_id]["part2_units"]
+        }
+        for system_id in frozen
+    }
     rng = random.Random(seed + 1)
     for _replicate in range(replicates):
+        sampled_pair_ids = [rng.choice(paired_seed_ids) for _ in paired_seed_ids]
         resampled_means: dict[str, dict[str, float]] = {}
         for system_id in frozen:
-            units = by_id[system_id]["part2_units"]
-            sampled = [rng.choice(units) for _ in units]
+            sampled = [units_by_pair[system_id][pair_id] for pair_id in sampled_pair_ids]
             resampled_means[system_id] = {
                 source_field: math.fsum(float(unit[source_field]) for unit in sampled)
                 / len(sampled)
@@ -1660,7 +1767,7 @@ def estimate_part2(
                         "ci_low": _percentile(panel_distributions[key], 0.025),
                         "ci_high": _percentile(panel_distributions[key], 0.975),
                         "interval_method": (
-                            "finite_panel_within_system_run_bootstrap_percentile_95"
+                            "finite_panel_shared_paired_seed_bootstrap_percentile_95"
                         ),
                         "system_count": len(cohort_systems),
                         "developer_count": developer_count,
@@ -1682,11 +1789,15 @@ def estimate_part2(
             "restraint_rate",
             "normalized_aupc",
             "restricted_mean_time_to_depletion",
-            "survival_through_horizon",
+            "reserve_non_depletion_rate",
         ],
-        "system_interval_methods": ["student_t_95", "bca_bootstrap_95"],
+        "system_interval_methods": [
+            "student_t_95",
+            "bca_bootstrap_95",
+            "wilson_score_binomial_95_for_reserve_non_depletion",
+        ],
         "panel_interval_method": (
-            "finite_panel_within_system_run_bootstrap_percentile_95"
+            "finite_panel_shared_paired_seed_bootstrap_percentile_95"
         ),
         "bootstrap_replicates": replicates,
         "bootstrap_seed": seed,
@@ -1779,6 +1890,37 @@ def _parse_cross(
     ]
     if len(set(trajectory_ids)) != len(trajectory_ids):
         raise ValueError("cross-part Part 2 contains a duplicate trajectory_id")
+    for part in ("part0", "part1"):
+        reference_ids = {
+            str(unit["unit_id"]) for unit in systems[0][f"{part}_units"]
+        }
+        for system in systems[1:]:
+            if {
+                str(unit["unit_id"]) for unit in system[f"{part}_units"]
+            } != reference_ids:
+                raise ValueError(
+                    f"cross-part {part} systems do not share one exact unit panel"
+                )
+    reference_part1_cells = {
+        str(unit["unit_id"]): (str(unit["game"]), str(unit["domain"]))
+        for unit in systems[0]["part1_units"]
+    }
+    for system in systems[1:]:
+        if {
+            str(unit["unit_id"]): (str(unit["game"]), str(unit["domain"]))
+            for unit in system["part1_units"]
+        } != reference_part1_cells:
+            raise ValueError("cross-part Part 1 game/domain cells differ across systems")
+    reference_pairing_ids = {
+        str(unit["paired_seed_id"]) for unit in systems[0]["part2_units"]
+    }
+    for system in systems[1:]:
+        if {
+            str(unit["paired_seed_id"]) for unit in system["part2_units"]
+        } != reference_pairing_ids:
+            raise ValueError(
+                "cross-part Part 2 systems do not share one exact paired seed panel"
+            )
     current = [system for system in systems if system["cohort_id"] == PRIMARY_COHORT_ID]
     if len(current) < 3:
         raise ValueError("cross-part input needs at least 3 current_sota systems")
@@ -1820,6 +1962,55 @@ def _resampled_unit_mean(
 ) -> float:
     sampled = [rng.choice(units) for _ in units]
     return _unit_mean(sampled, part)
+
+
+def _shared_cross_part_weights(
+    reference_system: Mapping[str, object], rng: random.Random
+) -> dict[str, Counter]:
+    part0_ids = [str(unit["unit_id"]) for unit in reference_system["part0_units"]]
+    part1_by_cell: dict[tuple[str, str], list[str]] = defaultdict(list)
+    for unit in reference_system["part1_units"]:
+        part1_by_cell[(str(unit["game"]), str(unit["domain"]))].append(
+            str(unit["unit_id"])
+        )
+    part1_weights: Counter = Counter()
+    for cell in sorted(part1_by_cell):
+        part1_weights.update(_sample_counts(sorted(part1_by_cell[cell]), rng))
+    part2_ids = [
+        str(unit["paired_seed_id"]) for unit in reference_system["part2_units"]
+    ]
+    return {
+        "part0": _sample_counts(sorted(part0_ids), rng),
+        "part1": part1_weights,
+        "part2": _sample_counts(sorted(part2_ids), rng),
+    }
+
+
+def _weighted_cross_part_unit_mean(
+    units: Sequence[Mapping[str, object]],
+    part: str,
+    weights: Mapping[str, int],
+) -> float:
+    id_field = "paired_seed_id" if part == "part2" else "unit_id"
+    by_id = {str(unit[id_field]): unit for unit in units}
+    if not set(weights).issubset(by_id) or sum(weights.values()) != len(units):
+        raise ValueError(f"cross-part {part} unit weights do not match the panel")
+    numerator = 0.0
+    denominator = 0
+    for unit_id, weight in weights.items():
+        if weight <= 0:
+            continue
+        unit = by_id[unit_id]
+        value = (
+            float(unit["normalized_aurc"])
+            if part == "part2"
+            else float(unit["success_count"]) / int(unit["total_count"])
+        )
+        numerator += weight * value
+        denominator += weight
+    if denominator <= 0:
+        raise ValueError(f"cross-part {part} bootstrap produced an empty panel")
+    return numerator / denominator
 
 
 def _discordance(xs: Sequence[float], ys: Sequence[float]) -> tuple[float, float]:
@@ -1903,10 +2094,13 @@ def estimate_cross_part(
             raise ValueError(
                 "finite-panel bootstrap could not produce enough nondegenerate replicates"
             )
+        shared_weights = _shared_cross_part_weights(by_id[frozen[0]], rng)
         sampled_metrics = {
             system_id: {
-                part: _resampled_unit_mean(
-                    by_id[system_id][f"{part}_units"], part, rng
+                part: _weighted_cross_part_unit_mean(
+                    by_id[system_id][f"{part}_units"],
+                    part,
+                    shared_weights[part],
                 )
                 for part in CROSS_PARTS
             }
@@ -1936,10 +2130,15 @@ def estimate_cross_part(
                 "nondegenerate replicates"
             )
         sampled_systems = [superpopulation_rng.choice(frozen) for _ in frozen]
+        shared_weights = _shared_cross_part_weights(
+            by_id[frozen[0]], superpopulation_rng
+        )
         sampled_metrics = [
             {
-                part: _resampled_unit_mean(
-                    by_id[system_id][f"{part}_units"], part, superpopulation_rng
+                part: _weighted_cross_part_unit_mean(
+                    by_id[system_id][f"{part}_units"],
+                    part,
+                    shared_weights[part],
                 )
                 for part in CROSS_PARTS
             }
@@ -1957,11 +2156,26 @@ def estimate_cross_part(
                 superpopulation_correlation[pair].append(correlation)
                 superpopulation_discordance[pair].append(discordance)
 
+    developers = sorted({str(by_id[system]["developer_id"]) for system in frozen})
+    developer_metrics = {
+        developer: {
+            part: math.fsum(
+                observed[system][part]
+                for system in frozen
+                if by_id[system]["developer_id"] == developer
+            )
+            / sum(
+                by_id[system]["developer_id"] == developer for system in frozen
+            )
+            for part in CROSS_PARTS
+        }
+        for developer in developers
+    }
     raw_p: dict[tuple[str, str], float] = {}
     for pair_index, pair in enumerate(CROSS_PAIRS):
         left, right = pair
-        xs = [observed[system][left] for system in frozen]
-        ys = [observed[system][right] for system in frozen]
+        xs = [developer_metrics[developer][left] for developer in developers]
+        ys = [developer_metrics[developer][right] for developer in developers]
         pair_seed = int.from_bytes(
             hashlib.sha256(
                 f"{permutation_seed}:{pair_index}:{left}:{right}".encode("utf-8")
@@ -1969,7 +2183,12 @@ def estimate_cross_part(
             "big",
         )
         pair_rng = random.Random(pair_seed)
-        observed_absolute = abs(observed_correlations[pair])
+        developer_balanced_observed = spearman_correlation(xs, ys)
+        if not math.isfinite(developer_balanced_observed):
+            raise ValueError(
+                "developer-balanced cross-part panel is degenerate for a prespecified pair"
+            )
+        observed_absolute = abs(developer_balanced_observed)
         exceedances = 0
         for _replicate in range(replicates):
             permuted = list(ys)
@@ -1980,24 +2199,9 @@ def estimate_cross_part(
         raw_p[pair] = (exceedances + 1) / (replicates + 1)
     holm_p = _holm(raw_p)
 
-    developers = sorted({str(by_id[system]["developer_id"]) for system in frozen})
     results: list[dict[str, object]] = []
     for pair in CROSS_PAIRS:
         left, right = pair
-        developer_metrics = {
-            developer: {
-                part: math.fsum(
-                    observed[system][part]
-                    for system in frozen
-                    if by_id[system]["developer_id"] == developer
-                )
-                / sum(
-                    by_id[system]["developer_id"] == developer for system in frozen
-                )
-                for part in CROSS_PARTS
-            }
-            for developer in developers
-        }
         developer_balanced = spearman_correlation(
             [developer_metrics[developer][left] for developer in developers],
             [developer_metrics[developer][right] for developer in developers],
@@ -2079,15 +2283,20 @@ def estimate_cross_part(
         "artifact_type": "cross_part_finite_panel_bootstrap_estimates",
         "campaign_manifest_sha256": manifest,
         "source_artifact_sha256": source_artifact,
-        "bootstrap_method": "finite_panel_within_system_prompt_root_trajectory_units_only",
+        "bootstrap_method": (
+            "finite_panel_shared_prompt_root_and_paired_seed_units"
+        ),
         "system_resampling": "none_primary_finite_panel",
         "superpopulation_sensitivity_bootstrap_method": (
-            "systems_then_within_system_prompt_root_trajectory_units"
+            "systems_then_shared_prompt_root_and_paired_seed_units"
         ),
         "superpopulation_sensitivity_seed": bootstrap_seed + 1,
         "bootstrap_replicates": replicates,
         "bootstrap_seed": bootstrap_seed,
-        "permutation_method": "system_label_permutation_two_sided_spearman",
+        "permutation_method": (
+            "developer_mean_label_permutation_two_sided_spearman"
+        ),
+        "permutation_unit": "developer",
         "permutation_replicates": replicates,
         "permutation_seed": permutation_seed,
         "holm_family": "three_prespecified_pairwise_cross_part_associations",
@@ -2496,6 +2705,11 @@ def _native_part2_unit(
         )
     return {
         "unit_id": identity.trajectory_id,
+        "paired_seed_id": (
+            f"env={identity.environment_seed}|gen={identity.generation_seed}"
+        ),
+        "environment_seed": identity.environment_seed,
+        "generation_seed": identity.generation_seed,
         "analysis_source": analysis_source,
         "structural_cell_id": identity.structural_cell_id,
         "horizon_days": cell.horizon_days,
@@ -2507,7 +2721,7 @@ def _native_part2_unit(
             if first_depletion_day is not None
             else cell.horizon_days
         ),
-        "survived_through_horizon": int(first_depletion_day is None),
+        "reserve_non_depletion_through_horizon": int(first_depletion_day is None),
     }
 
 
@@ -2686,6 +2900,8 @@ def _materialize_cross_from_context(
                 "unit_id": root_id,
                 "phase": "primary",
                 "frame": PART1_PRIMARY_FRAME,
+                "game": str(root_rows[0]["game"]),
+                "domain": str(root_rows[0]["domain"]),
                 "cooperation_count": sum(
                     row["outcome"] == "COOPERATE" for row in root_rows
                 ),

@@ -181,7 +181,7 @@ def test_part0_cli_two_way_clusters_and_retains_invalids_exactly(tmp_path: Path)
     assert artifact["private_input_sha256"] == hashlib.sha256(raw).hexdigest()
     assert artifact["campaign_manifest_sha256"] == CAMPAIGN_SHA
     assert artifact["source_artifact_sha256"] == _part0_input()["artifact_sha256"]
-    assert artifact["bootstrap_replicates"] == 2000
+    assert artifact["bootstrap_replicates"] == 5000
     assert artifact["bootstrap_method"] == (
         "semantic_prompt_cluster_bootstrap_stratified_by_arm"
     )
@@ -243,12 +243,12 @@ def test_part0_cli_fails_on_incomplete_duplicate_or_row_iid_request(tmp_path: Pa
         "--input",
         valid_path,
         "--replicates",
-        1999,
+        4999,
         "--output",
         tmp_path / "row-iid.json",
     )
     assert rejected.returncode == 2
-    assert "at least 2000" in rejected.stderr
+    assert "exactly 5000" in rejected.stderr
     assert not (tmp_path / "row-iid.json").exists()
 
 
@@ -398,7 +398,7 @@ def test_part1_cli_root_by_block_within_system_domain_frame_effects(
     assert completed.returncode == 0, completed.stderr
     artifact = _verify_artifact(output)
     assert artifact["primary_bootstrap_method"] == (
-        "root_cluster_bootstrap_stratified_by_domain"
+        "root_cluster_bootstrap_stratified_by_game_and_domain"
     )
     assert artifact["secondary_bootstrap_method"] is None
     assert artifact["primary_calls_per_system"] == 384
@@ -443,6 +443,46 @@ def test_part1_cli_rejects_incomplete_and_duplicate_root_block_units(tmp_path: P
     assert "Traceback" not in rejected.stderr
 
 
+def test_part1_bootstrap_preserves_every_frozen_game_domain_cell() -> None:
+    document = _part1_input()
+    for row in document["rows"]:
+        row["outcome"] = (
+            "COOPERATE" if row["game"] == "prisoners_dilemma" else "NONCOOPERATE"
+        )
+    _seal_input(document)
+
+    artifact = confirmatory_estimators.estimate_part1(
+        document,
+        replicates=5000,
+        seed=20260802,
+    )
+
+    overall = _part1_result(
+        artifact,
+        "primary_overall_rate",
+        "system-a",
+        "all_domains",
+        "self_direct",
+    )
+    domain = _part1_result(
+        artifact,
+        "primary_domain_rate",
+        "system-a",
+        "shared_workspaces",
+        "self_direct",
+    )
+    assert (overall["estimate"], overall["ci_low"], overall["ci_high"]) == (
+        0.5,
+        0.5,
+        0.5,
+    )
+    assert (domain["estimate"], domain["ci_low"], domain["ci_high"]) == (
+        0.5,
+        0.5,
+        0.5,
+    )
+
+
 def _part2_input() -> dict[str, object]:
     systems = ["system-a", "system-b"]
     materialized: list[dict[str, object]] = []
@@ -458,6 +498,9 @@ def _part2_input() -> dict[str, object]:
             units.append(
                 {
                     "unit_id": f"trajectory-{system_index}-{run_index:02d}",
+                    "paired_seed_id": f"env={1000 + run_index}|gen={2000 + run_index}",
+                    "environment_seed": 1000 + run_index,
+                    "generation_seed": 2000 + run_index,
                     "analysis_source": "final_baseline",
                     "structural_cell_id": "baseline-cell",
                     "horizon_days": 30,
@@ -467,7 +510,7 @@ def _part2_input() -> dict[str, object]:
                     "restricted_time_to_depletion": (
                         30.0 if survived else 10.0 + run_index
                     ),
-                    "survived_through_horizon": survived,
+                    "reserve_non_depletion_through_horizon": survived,
                 }
             )
         materialized.append(
@@ -533,11 +576,22 @@ def test_part2_cli_reports_primary_and_secondary_run_level_intervals(
         "restraint_rate",
         "normalized_aupc",
         "restricted_mean_time_to_depletion",
-        "survival_through_horizon",
+        "reserve_non_depletion_rate",
     }
     assert {
         row["weighting"] for row in artifact["panel_results"]
     } == {"equal_system", "equal_developer"}
+    nondepletion = next(
+        row
+        for row in artifact["results"]
+        if row["system_id"] == "system-a"
+        and row["metric"] == "reserve_non_depletion_rate"
+    )
+    assert nondepletion["interval_method"] == "wilson_score_binomial_95"
+    assert nondepletion["t_ci_low"] is None
+    assert nondepletion["bca_ci_low"] is None
+    assert nondepletion["binomial_ci_low"] < nondepletion["estimate"]
+    assert nondepletion["estimate"] < nondepletion["binomial_ci_high"]
 
 
 def test_part2_fixed_production_uses_fixed_trajectory_interval_label(
@@ -553,6 +607,9 @@ def test_part2_fixed_production_uses_fixed_trajectory_interval_label(
                 {
                     **original[index % 20],
                     "unit_id": f"fixed-{system['system_id']}-{index}",
+                    "paired_seed_id": f"env={1000 + index}|gen={2000 + index}",
+                    "environment_seed": 1000 + index,
+                    "generation_seed": 2000 + index,
                 }
             )
         for unit in original:
@@ -571,6 +628,55 @@ def test_part2_fixed_production_uses_fixed_trajectory_interval_label(
     assert {row["interval_unit"] for row in artifact["results"]} == {
         "independent_fixed_production_trajectory"
     }
+
+
+def test_part2_panel_bootstrap_preserves_shared_seed_pairing() -> None:
+    document = _part2_input()
+    left_units = document["systems"][0]["part2_units"]
+    right_units = document["systems"][1]["part2_units"]
+    for left, right in zip(left_units, right_units):
+        right["normalized_aurc"] = 1.0 - left["normalized_aurc"]
+    _seal_input(document)
+
+    artifact = confirmatory_estimators.estimate_part2(
+        document,
+        replicates=5000,
+        seed=20260802,
+    )
+
+    panel = next(
+        row
+        for row in artifact["panel_results"]
+        if row["cohort_id"] == "current_sota"
+        and row["weighting"] == "equal_system"
+        and row["metric"] == "normalized_aurc"
+    )
+    assert panel["estimate"] == pytest.approx(0.5)
+    assert panel["ci_low"] == pytest.approx(0.5)
+    assert panel["ci_high"] == pytest.approx(0.5)
+
+
+def test_part2_all_nondepleted_runs_do_not_get_false_perfect_interval() -> None:
+    document = _part2_input()
+    for system in document["systems"]:
+        for unit in system["part2_units"]:
+            unit["reserve_non_depletion_through_horizon"] = 1.0
+    _seal_input(document)
+
+    artifact = confirmatory_estimators.estimate_part2(
+        document,
+        replicates=5000,
+        seed=20260802,
+    )
+    row = next(
+        row
+        for row in artifact["results"]
+        if row["system_id"] == "system-a"
+        and row["metric"] == "reserve_non_depletion_rate"
+    )
+    assert row["estimate"] == 1.0
+    assert 0.8 < row["binomial_ci_low"] < 1.0
+    assert row["binomial_ci_high"] == 1.0
 
 
 def test_part2_cli_rejects_cross_system_duplicate_trajectory_and_wrong_n(
@@ -650,8 +756,12 @@ def test_native_part2_materializer_selects_only_baseline_stage_and_rejects_dupli
 
     def native(job):
         called.append(job["id"])
+        run_index = int(str(job["id"]).rsplit("-", 1)[1])
         return {
             "unit_id": f"trajectory-{job['id']}",
+            "paired_seed_id": f"env={1000 + run_index}|gen={2000 + run_index}",
+            "environment_seed": 1000 + run_index,
+            "generation_seed": 2000 + run_index,
             "analysis_source": "final_baseline",
             "structural_cell_id": "baseline-cell",
             "horizon_days": 30,
@@ -659,7 +769,7 @@ def test_native_part2_materializer_selects_only_baseline_stage_and_rejects_dupli
             "normalized_aurc": 0.5,
             "normalized_aupc": 0.5,
             "restricted_time_to_depletion": 30.0,
-            "survived_through_horizon": 1.0,
+            "reserve_non_depletion_through_horizon": 1.0,
         }
 
     monkeypatch.setattr(confirmatory_estimators, "_native_part2_unit", native)
@@ -717,7 +827,7 @@ def _cross_input(
                 "developer_id": developer_id,
                 "part0_units": [
                     {
-                        "unit_id": f"p0-{index}-a",
+                        "unit_id": "p0-a",
                         "arm": "harmful",
                         "language_scope": "all_languages",
                         "refusal_count": p0,
@@ -725,7 +835,7 @@ def _cross_input(
                         "total_count": 100,
                     },
                     {
-                        "unit_id": f"p0-{index}-b",
+                        "unit_id": "p0-b",
                         "arm": "harmful",
                         "language_scope": "all_languages",
                         "refusal_count": p0 + 2,
@@ -735,17 +845,21 @@ def _cross_input(
                 ],
                 "part1_units": [
                     {
-                        "unit_id": f"p1-{index}-a",
+                        "unit_id": "p1-a",
                         "phase": "primary",
                         "frame": "self_direct",
+                        "game": "prisoners_dilemma",
+                        "domain": "shared_workspaces",
                         "cooperation_count": p1,
                         "invalid_count": 3,
                         "total_count": 100,
                     },
                     {
-                        "unit_id": f"p1-{index}-b",
+                        "unit_id": "p1-b",
                         "phase": "primary",
                         "frame": "self_direct",
+                        "game": "temptation_or_commons",
+                        "domain": "shared_workspaces",
                         "cooperation_count": p1 + 1,
                         "invalid_count": 2,
                         "total_count": 100,
@@ -754,6 +868,9 @@ def _cross_input(
                 "part2_units": [
                     {
                         "unit_id": f"p2-{index}-a",
+                        "paired_seed_id": "env=1000|gen=2000",
+                        "environment_seed": 1000,
+                        "generation_seed": 2000,
                         "analysis_source": "final_baseline",
                         "structural_cell_id": "baseline-cell",
                         "horizon_days": 30,
@@ -761,10 +878,13 @@ def _cross_input(
                         "normalized_aurc": p2,
                         "normalized_aupc": p2,
                         "restricted_time_to_depletion": 15.0,
-                        "survived_through_horizon": 0.0,
+                        "reserve_non_depletion_through_horizon": 0.0,
                     },
                     {
                         "unit_id": f"p2-{index}-b",
+                        "paired_seed_id": "env=1001|gen=2001",
+                        "environment_seed": 1001,
+                        "generation_seed": 2001,
                         "analysis_source": "final_baseline",
                         "structural_cell_id": "baseline-cell",
                         "horizon_days": 30,
@@ -772,7 +892,7 @@ def _cross_input(
                         "normalized_aurc": min(1.0, p2 + 0.01),
                         "normalized_aupc": min(1.0, p2 + 0.01),
                         "restricted_time_to_depletion": 30.0,
-                        "survived_through_horizon": 1.0,
+                        "reserve_non_depletion_through_horizon": 1.0,
                     },
                 ],
             }
@@ -796,14 +916,15 @@ def test_cross_part_cli_nested_units_discordance_and_holm(tmp_path: Path) -> Non
     assert completed.returncode == 0, completed.stderr
     artifact = _verify_artifact(output)
     assert artifact["bootstrap_method"] == (
-        "finite_panel_within_system_prompt_root_trajectory_units_only"
+        "finite_panel_shared_prompt_root_and_paired_seed_units"
     )
     assert artifact["system_resampling"] == "none_primary_finite_panel"
     assert artifact["superpopulation_sensitivity_bootstrap_method"] == (
-        "systems_then_within_system_prompt_root_trajectory_units"
+        "systems_then_shared_prompt_root_and_paired_seed_units"
     )
-    assert artifact["bootstrap_replicates"] == 2000
-    assert artifact["permutation_replicates"] == 2000
+    assert artifact["bootstrap_replicates"] == 5000
+    assert artifact["permutation_replicates"] == 5000
+    assert artifact["permutation_unit"] == "developer"
     assert len(artifact["results"]) == 3
     assert artifact["system_count"] == 12
     assert artifact["developer_count"] == 4

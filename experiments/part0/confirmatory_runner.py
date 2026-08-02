@@ -171,6 +171,48 @@ class FrozenRoute:
         return asdict(self)
 
 
+def _normalized_route_identity(route: FrozenRoute, key: str) -> str:
+    value = route.identity.get(key)
+    if not isinstance(value, str) or not value.strip():
+        raise RouteIdentityError(
+            f"Frozen route lacks the required {key!r} identity component."
+        )
+    return value.strip().casefold()
+
+
+def enforce_globally_distinct_judge(
+    subject_route: FrozenRoute, judge_route: FrozenRoute
+) -> None:
+    """Reject a judge that aliases the evaluated subject at any identity layer."""
+
+    if _normalized_route_identity(subject_route, "id") == _normalized_route_identity(
+        judge_route, "id"
+    ):
+        raise RouteIdentityError("Judge target id overlaps the evaluated subject.")
+    subject_provider_route = (
+        subject_route.provider.strip().casefold(),
+        subject_route.route.strip().casefold(),
+    )
+    judge_provider_route = (
+        judge_route.provider.strip().casefold(),
+        judge_route.route.strip().casefold(),
+    )
+    if subject_provider_route == judge_provider_route:
+        raise RouteIdentityError("Judge provider+route overlaps the evaluated subject.")
+    subject_upstream_model = (
+        _normalized_route_identity(subject_route, "upstream_provider"),
+        _normalized_route_identity(subject_route, "model"),
+    )
+    judge_upstream_model = (
+        _normalized_route_identity(judge_route, "upstream_provider"),
+        _normalized_route_identity(judge_route, "model"),
+    )
+    if subject_upstream_model == judge_upstream_model:
+        raise RouteIdentityError(
+            "Judge upstream-provider+model overlaps the evaluated subject."
+        )
+
+
 DetailedCall = Callable[..., ProviderResponse]
 
 
@@ -737,6 +779,7 @@ def _freeze_execution_plan(
         raise ConfirmatoryPart0Error(f"Unsupported Part 0 execution mode: {execution_mode}.")
     for route in (subject_route, judge_route):
         validate_frozen_route(route)
+    enforce_globally_distinct_judge(subject_route, judge_route)
     clean_commit = _require_clean_git_state()
     production_schedule = build_confirmatory_schedule(
         loaded_registry,
@@ -833,6 +876,7 @@ def freeze_execution_plan(
 ) -> dict[str, Any]:
     """Freeze the complete, analysis-eligible confirmatory production plan."""
 
+    enforce_globally_distinct_judge(subject_route, judge_route)
     if require_fresh_evidence:
         for route in (subject_route, judge_route):
             try:
@@ -871,6 +915,7 @@ def freeze_sacrificial_smoke_plan(
 ) -> dict[str, Any]:
     """Freeze a small full-path plan that can never qualify as production data."""
 
+    enforce_globally_distinct_judge(subject_route, judge_route)
     if require_fresh_evidence:
         for route in (subject_route, judge_route):
             try:
@@ -906,6 +951,7 @@ def _reconstruct_execution_plan_for_resume(
     campaigns remain resumable after the new-freeze freshness window expires.
     """
 
+    enforce_globally_distinct_judge(subject_route, judge_route)
     completed_smoke_gate: Mapping[str, Any] | None = None
     if execution_mode == "production":
         if completed_smoke_directory is None:
@@ -1031,6 +1077,7 @@ def validate_execution_plan(
     }
     for route in routes.values():
         validate_frozen_route(route)
+    enforce_globally_distinct_judge(routes["subject_route"], routes["judge_route"])
     if execution_mode == "production":
         gate = plan.get("completed_smoke_gate")
         if not isinstance(gate, Mapping):

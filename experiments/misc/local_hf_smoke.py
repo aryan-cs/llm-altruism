@@ -14,12 +14,13 @@ import json
 import os
 import platform
 import tempfile
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
 
-EVIDENCE_SCHEMA_VERSION = 1
+EVIDENCE_SCHEMA_VERSION = 2
 SMOKE_MESSAGES = (
     {"role": "system", "content": "Follow the user's response format exactly."},
     {"role": "user", "content": "Reply with exactly READY and nothing else."},
@@ -155,18 +156,25 @@ def fingerprint_snapshot(
 ) -> dict[str, Any]:
     root = cache_root.resolve(strict=True)
     records: list[dict[str, Any]] = []
-    for asset in sorted(snapshot.iterdir(), key=lambda path: path.name):
-        if asset.name.startswith(".") or asset.is_dir():
-            continue
+    for asset in sorted(snapshot.rglob("*"), key=lambda path: path.as_posix()):
         try:
             resolved = asset.resolve(strict=True)
         except (OSError, RuntimeError) as error:
-            raise LocalHFSmokeError(f"Snapshot asset {asset.name} cannot be resolved.") from error
-        if not resolved.is_file() or not resolved.is_relative_to(root):
-            raise LocalHFSmokeError(f"Snapshot asset {asset.name} escapes the cache root.")
+            raise LocalHFSmokeError(
+                f"Snapshot asset {asset.relative_to(snapshot)} cannot be resolved."
+            ) from error
+        relative_name = asset.relative_to(snapshot).as_posix()
+        if not resolved.is_relative_to(root):
+            raise LocalHFSmokeError(
+                f"Snapshot asset {relative_name} escapes the cache root."
+            )
+        if resolved.is_dir():
+            continue
+        if not resolved.is_file():
+            raise LocalHFSmokeError(f"Snapshot asset {relative_name} is not a file.")
         records.append(
             {
-                "name": asset.name,
+                "name": relative_name,
                 "size_bytes": resolved.stat().st_size,
                 "sha256": _sha256_file(resolved),
             }
@@ -266,8 +274,15 @@ def run_smokes(
     selected_ids: list[str] | None = None,
     device: str = "cpu",
     seed: int = 20260802,
+    max_workers: int = 2,
     generator: Callable[..., tuple[str, dict[str, str]]] = _generate_with_transformers,
 ) -> dict[str, Any]:
+    if isinstance(max_workers, bool) or not isinstance(max_workers, int) or max_workers < 1:
+        raise LocalHFSmokeError("max_workers must be a positive integer.")
+    if output_path.exists():
+        raise LocalHFSmokeError(
+            "Local HF smoke output already exists; choose a new path to preserve evidence."
+        )
     registry, models = _read_registry(registry_path)
     by_id = {model["id"]: model for model in models}
     requested = selected_ids or list(by_id)
@@ -293,14 +308,25 @@ def run_smokes(
             "prompt_sha256": prompt_sha,
             "local_files_only": True,
             "trust_remote_code": False,
+            "parallelization": "bounded_model_level_thread_pool",
+            "max_workers": min(max_workers, len(requested)),
         },
         "selected_model_ids": requested,
-        "attempts": [],
+        "attempts": [
+            {
+                "model_id": model_id,
+                "upstream_model_id": by_id[model_id]["model_id"],
+                "revision": by_id[model_id]["revision"],
+                "parameter_scale": by_id[model_id]["parameter_scale"],
+                "status": "reserved_before_dispatch",
+            }
+            for model_id in requested
+        ],
         "complete": False,
     }
     _atomic_write_json(output_path, payload)
-    any_failure = False
-    for model_id in requested:
+
+    def execute(model_id: str) -> dict[str, Any]:
         model = by_id[model_id]
         started = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         attempt: dict[str, Any] = {
@@ -330,7 +356,6 @@ def run_smokes(
                 }
             )
         except Exception as error:  # retained evidence, then continue the panel
-            any_failure = True
             message = str(error).replace(str(cache_root), "<cache-root>")
             attempt["error"] = {
                 "type": type(error).__name__,
@@ -339,13 +364,47 @@ def run_smokes(
         attempt["finished_at_utc"] = datetime.now(timezone.utc).isoformat().replace(
             "+00:00", "Z"
         )
-        payload["attempts"].append(attempt)
-        payload["complete"] = (
-            len(payload["attempts"]) == len(requested) and not any_failure
-        )
-        payload.pop("evidence_sha256", None)
-        payload["evidence_sha256"] = _artifact_digest(payload)
-        _atomic_write_json(output_path, payload)
+        return attempt
+
+    attempt_index = {model_id: index for index, model_id in enumerate(requested)}
+    with ThreadPoolExecutor(
+        max_workers=min(max_workers, len(requested)),
+        thread_name_prefix="local-hf-smoke",
+    ) as executor:
+        futures = {executor.submit(execute, model_id): model_id for model_id in requested}
+        for future in as_completed(futures):
+            model_id = futures[future]
+            try:
+                attempt = future.result()
+            except BaseException as error:
+                attempt = dict(payload["attempts"][attempt_index[model_id]])
+                attempt.update(
+                    {
+                        "status": "interrupted",
+                        "finished_at_utc": datetime.now(timezone.utc)
+                        .isoformat()
+                        .replace("+00:00", "Z"),
+                        "error": {
+                            "type": type(error).__name__,
+                            "message": str(error).replace(str(cache_root), "<cache-root>"),
+                        },
+                    }
+                )
+                payload["attempts"][attempt_index[model_id]] = attempt
+                payload.pop("evidence_sha256", None)
+                payload["evidence_sha256"] = _artifact_digest(payload)
+                _atomic_write_json(output_path, payload)
+                raise
+            payload["attempts"][attempt_index[model_id]] = attempt
+            all_terminal = all(
+                row["status"] in {"passed", "failed", "interrupted"}
+                for row in payload["attempts"]
+            )
+            any_failure = any(row["status"] != "passed" for row in payload["attempts"])
+            payload["complete"] = all_terminal and not any_failure
+            payload.pop("evidence_sha256", None)
+            payload["evidence_sha256"] = _artifact_digest(payload)
+            _atomic_write_json(output_path, payload)
     return payload
 
 
@@ -363,6 +422,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--model", action="append", dest="models")
     parser.add_argument("--device", choices=("cpu", "mps", "cuda"), default="cpu")
     parser.add_argument("--seed", type=int, default=20260802)
+    parser.add_argument("--max-workers", type=int, default=2)
     return parser
 
 
@@ -383,6 +443,7 @@ def main(argv: list[str] | None = None) -> int:
         selected_ids=args.models,
         device=args.device,
         seed=args.seed,
+        max_workers=args.max_workers,
     )
     passed = sum(attempt["status"] == "passed" for attempt in evidence["attempts"])
     print(f"Passed {passed}/{len(evidence['attempts'])} local HF generation smokes.")

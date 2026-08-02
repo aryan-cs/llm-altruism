@@ -280,7 +280,7 @@ def build_metadata(
         "@context": CROISSANT_CONTEXT,
         "@type": "sc:Dataset",
         "conformsTo": [CORE_SPEC, RAI_SPEC],
-        "name": "Prosocial Readiness Bench",
+        "name": "Prosocial Cost-Shifting Bench",
         "description": (
             "A behavioral evaluation artifact for choices in hypothetical dilemmas "
             "and commons restraint in a controlled population microworld. The legacy "

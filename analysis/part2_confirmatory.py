@@ -502,7 +502,14 @@ def analyze_sentinel_sensitivity(
     *,
     expected_sentinel_ids: Sequence[str],
 ) -> list[dict[str, object]]:
-    """Run the complete main-effect analysis for exactly six frozen sentinels."""
+    """Analyze six sentinels with one global 30-hypothesis Holm family.
+
+    The five-factor Holm and max-T values produced for an individual sentinel
+    remain useful diagnostics, but they do not control selection across all six
+    sentinels.  This wrapper therefore makes the global Holm value the published
+    ``holm_adjusted_p`` and retains the narrower adjustments under explicitly
+    scoped field names.
+    """
 
     expected = [str(sentinel).strip() for sentinel in expected_sentinel_ids]
     if len(expected) != SENSITIVITY_SENTINEL_COUNT or any(
@@ -528,6 +535,22 @@ def analyze_sentinel_sensitivity(
             output.append({"sentinel_id": sentinel_id, **row})
     if len(sentinel_seed_sets) != 1:
         raise ValueError("all six sentinels must use the same common environment seeds")
+
+    raw_global = {
+        f"{row['sentinel_id']}|{row['factor']}": float(row["raw_exact_p"])
+        for row in output
+    }
+    if len(raw_global) != SENSITIVITY_SENTINEL_COUNT * len(SENSITIVITY_FACTORS):
+        raise ValueError("sensitivity analysis does not contain exactly 30 hypotheses")
+    global_holm = _holm_adjust(raw_global)
+    for row in output:
+        key = f"{row['sentinel_id']}|{row['factor']}"
+        row["within_sentinel_holm_adjusted_p"] = row["holm_adjusted_p"]
+        row["within_sentinel_max_t_adjusted_p"] = row["max_t_adjusted_p"]
+        row["holm_adjusted_p"] = global_holm[key]
+        row["holm_family"] = "30_prespecified_sentinel_by_factor_main_effects"
+        row["holm_family_size"] = len(raw_global)
+        row["max_t_family"] = "five_main_effects_within_sentinel_diagnostic"
     return output
 
 

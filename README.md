@@ -1,6 +1,9 @@
-# Prosocial Readiness Bench
+# Prosocial Cost-Shifting Bench
 
-Prosocial Readiness Bench is a behavioral evaluation suite for asking whether large language model agents that refuse harmful requests also cooperate in social dilemmas and preserve shared resources over repeated interaction.
+Prosocial Cost-Shifting Bench is a traceable evaluation suite for measuring
+separate response profiles in harmful-request refusal, focal social-dilemma
+choices, and repeated shared-resource use. It does not assume that performance
+transfers across those domains or combine them into a readiness score.
 
 The project started under the working name `llm-altruism`, but the benchmark does not claim to measure intrinsic altruism or moral character. It measures observable behaviors under explicit task contracts:
 
@@ -218,8 +221,10 @@ current-plus-historical panel in one fail-closed batch:
 uv run python -m experiments.misc.inference_hub_discovery verify-cohorts \
   --cohort current_sota \
   --cohort historical \
+  --cohort judge_only \
   --catalog-output data/private/inference_hub/catalog.json \
   --attempt-ledger data/private/inference_hub/discovery-attempt-ledger.json \
+  --max-workers 16 \
   --output data/private/inference_hub/cohort-evidence.json
 ```
 
@@ -244,14 +249,17 @@ Attempt every selected exact-suffix candidate in one durable, fail-closed batch:
 ```bash
 uv run python -m experiments.misc.inference_hub_discovery verify-candidates \
   --catalog-input data/private/inference_hub/catalog.json \
+  --registry-input agents/agent_config.registry.json \
   --reconciliation data/private/inference_hub/route-reconciliation.json \
   --attempt-ledger data/private/inference_hub/candidate-attempt-ledger.json \
+  --max-workers 16 \
   --output data/private/inference_hub/candidate-evidence.json
 ```
 
 The batch reserves each request before dispatch, continues after individual
 failures, retains a complete pass/fail inventory, and never mutates the checked-in
-registry. It refuses catalog drift, reconciliation tampering, duplicate routes,
+registry. It recomputes the entire reconciliation from the supplied catalog and
+registry, and refuses catalog drift, reconciliation tampering, duplicate routes,
 or an unsafe automatic-promotion policy before the first request.
 
 For the exhaustive authorized-route census, minimally probe every catalog entry
@@ -261,6 +269,7 @@ without asserting optional generation controls:
 uv run python -m experiments.misc.inference_hub_discovery probe-catalog \
   --catalog-input data/private/inference_hub/catalog.json \
   --attempt-ledger data/private/inference_hub/catalog-probe-ledger.json \
+  --max-workers 16 \
   --output data/private/inference_hub/catalog-probe-evidence.json
 ```
 

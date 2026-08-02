@@ -32,7 +32,9 @@ identities, or approval timestamps.
 Subject and judge routes are separately frozen with
 `freeze_verified_route()`. Each must be a verified, evidence-bearing exact
 callable route in the model registry. Display-only or unverified routes remain
-blocked. `freeze_execution_plan()` binds the full route identities, protocol
+blocked. A standalone guard rejects target-ID, provider+route, and
+upstream-provider+model overlap between the subject and judge, including route
+aliases. `freeze_execution_plan()` binds the full route identities, protocol
 hashes, registry hash, seeds, and all 1,752 scheduled root-language cells in one
 plan hash.
 Freezing also requires a clean worktree and binds the exact 40-character Git

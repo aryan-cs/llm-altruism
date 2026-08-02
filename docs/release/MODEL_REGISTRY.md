@@ -71,6 +71,16 @@ plus validated structured output. Standalone production runners additionally
 reject evidence older than the frozen 168-hour policy. Rerun the full cohort
 smoke gate after any route change or when that window expires.
 
+The authenticated census captured 214 routes on 2026-08-02. The frozen
+outcome-blind reconciliation selected 15 exact-suffix smoke candidates and left
+15 planned labels unresolved; it did not mutate this registry. Use
+`analysis.reconcile_inference_hub_routes` to reproduce that mapping,
+`inference_hub_discovery probe-catalog` to minimally test every authorized
+route, and `inference_hub_discovery verify-candidates` to apply the seeded,
+structured identity gate to the exact candidates. Minimal chat callability is
+not confirmatory compatibility, and neither artifact authorizes registry
+promotion by itself.
+
 ### Current-SOTA cohort
 
 | Upstream family | Unverified catalog label |
@@ -135,3 +145,14 @@ and blocks every confirmatory estimator. The route is never removed
 individually after outcomes exist; a replacement panel requires a new
 outcome-blind campaign freeze. The campaign manifest records failures rather
 than replacing a route or silently changing a model version.
+
+## Local scale controls
+
+`agents/local_control.registry.json` separately pins SmolLM2 135M, 360M, and
+1.7B plus Qwen2.5 0.5B to exact Hugging Face commit revisions. All four loaded
+from a read-only offline cache and completed real greedy-generation smokes; the
+private evidence hashes every snapshot asset. These models are exploratory
+scale controls only. They cannot satisfy an unavailable hosted route, enter the
+frontier cohort under a different name, or become paper results without the
+same approved prompt banks, full native artifacts, estimators, and release
+review required for the main panel.

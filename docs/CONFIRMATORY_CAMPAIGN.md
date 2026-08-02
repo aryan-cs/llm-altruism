@@ -9,8 +9,8 @@ from `experiments/campaign.py`. The scientific contract is frozen in
 
 Planning is side-effect free and fail-closed. It requires:
 
-1. the exact ordered `current_sota` and `historical` cohorts from an
-   authenticated InferenceHub census;
+1. the exact ordered `current_sota` and `historical` evaluated cohorts plus the
+   one-target `judge_only` cohort from an authenticated InferenceHub census;
 2. `verification_status=verified` evidence for every exact route and the Part 0
    judge, including matching catalog responses and a structured smoke result;
 3. a hash-pinned all-target evidence bundle from
@@ -24,6 +24,13 @@ Display labels in `agents/agent_config.registry.json` are candidates only. They
 cannot be executed or reported until authenticated evidence replaces them.
 Duplicate IDs/routes, missing families, stale evidence, silent substitutions,
 or identity mismatch are fatal planning errors.
+
+The judge is resolved only from `judge_only`; it is never added to the
+evaluated target union. Planning and resume hard-fail if its target ID,
+provider+route, or upstream-provider+model matches any evaluated target. The
+endpoint-evidence bundle must cover the evaluated cohorts followed by
+`judge_only`, so the distinct judge route receives the same verification and
+discovery-ledger attestation as the evaluated routes.
 
 The required discovery command supplies both `--catalog-output` and
 `--attempt-ledger`. The resulting schema-v2 bundle must contain an explicit
@@ -140,7 +147,7 @@ campaign directory or making a provider request.
 ```bash
 python -m experiments.confirmatory_campaign \
   --campaign-id confirmatory-budgeted-v1 \
-  --judge-target-id <verified-judge-target> \
+  --judge-target-id judge.nvidia-evals-nemotron-3-30b-a3b \
   --part0-registry /absolute/private/part0-registry.json \
   --part0-registry-sha256 <sha256> \
   --part1-bank /absolute/private/part1-bank.json \

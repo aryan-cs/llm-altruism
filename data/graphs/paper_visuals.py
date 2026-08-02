@@ -350,37 +350,46 @@ def render_agent_day_raster() -> Path:
 def render_part2_line_chart(metric: str, ylabel: str, title: str, filename: str) -> Path:
     plt, _cmap = _setup_matplotlib()
     models, trajectories, _raster = _part2_trajectories()
-    fig, ax = plt.subplots(figsize=(8.2, 5.4))
+    family_models: dict[str, list[str]] = defaultdict(list)
     for model in models:
-        rows = trajectories[model]
-        if not rows:
-            continue
-        style_label = _model_label_for_style(model)
-        ax.plot(
-            [row["day"] for row in rows],
-            [row[metric] for row in rows],
-            label=_short_model_label(model),
-            color=_model_bar_color(style_label),
-            linestyle=_model_line_style(style_label),
-            linewidth=1.9,
-            alpha=0.95,
-        )
-    ax.set_title(title)
-    ax.set_xlabel("Simulation day")
-    ax.set_ylabel(ylabel)
-    ax.grid(axis="y", alpha=0.3)
-    ax.set_xlim(1, COMMONS_HORIZON_DAYS)
-    ax.set_xticks([1, 25, 50, 75, 100])
-    if metric in {"restraint_rate", "resource_percent"}:
-        ax.set_ylim(0, 105)
-        ax.set_yticks(range(0, 101, 10))
-    elif metric == "population":
-        ax.set_ylim(0, COMMONS_SOCIETY_SIZE + 2)
-        ax.set_yticks(range(0, COMMONS_SOCIETY_SIZE + 1, 10))
-    elif metric == "resource_units_remaining":
-        ax.set_ylim(0, 2600)
-    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.16), ncol=4, frameon=False)
-    fig.tight_layout()
+        family_models[_model_family_name(_model_label_for_style(model))].append(model)
+    families = list(family_models)
+    fig, axes = plt.subplots(2, 2, figsize=(9.2, 7.0), sharex=True, sharey=True)
+    axes_flat = list(axes.flat)
+    for ax, family in zip(axes_flat, families):
+        for model in family_models[family]:
+            rows = trajectories[model]
+            if not rows:
+                continue
+            style_label = _model_label_for_style(model)
+            ax.plot(
+                [row["day"] for row in rows],
+                [row[metric] for row in rows],
+                label=_short_model_label(model),
+                color=_model_bar_color(style_label),
+                linestyle=_model_line_style(style_label),
+                linewidth=1.9,
+                alpha=0.95,
+            )
+        ax.set_title(family, fontsize=11)
+        ax.grid(axis="y", alpha=0.3)
+        ax.set_xlim(1, COMMONS_HORIZON_DAYS)
+        ax.set_xticks([1, 25, 50, 75, 100])
+        if metric in {"restraint_rate", "resource_percent"}:
+            ax.set_ylim(0, 105)
+            ax.set_yticks(range(0, 101, 20))
+        elif metric == "population":
+            ax.set_ylim(0, COMMONS_SOCIETY_SIZE + 2)
+            ax.set_yticks(range(0, COMMONS_SOCIETY_SIZE + 1, 10))
+        elif metric == "resource_units_remaining":
+            ax.set_ylim(0, 2600)
+        ax.legend(loc="best", fontsize=7, frameon=False, ncol=2)
+    for ax in axes_flat[len(families) :]:
+        ax.set_visible(False)
+    fig.suptitle(title, fontsize=14)
+    fig.supxlabel("Simulation day", fontsize=12)
+    fig.supylabel(ylabel, fontsize=12)
+    fig.tight_layout(rect=(0.02, 0.02, 1.0, 0.96))
     output = OUTPUT_DIR / filename
     output.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(output, bbox_inches="tight")
