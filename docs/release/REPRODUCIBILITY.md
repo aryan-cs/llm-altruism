@@ -17,11 +17,8 @@ Provider API keys are needed only to rerun experiments. Validation and summary g
 uv run pytest -q
 ```
 
-Expected status at the time of this update:
-
-```text
-158 passed
-```
+The exact passing-test count may grow as checks are added; the command must exit
+successfully with no failures or errors.
 
 ## Metadata, Validation, Tables, Manifest
 
@@ -49,6 +46,7 @@ Outputs:
 - `data/analysis/tables/part1_prompt_sensitivity.csv`
 - `data/analysis/tables/part1_factor_decomposition.csv`
 - `data/analysis/tables/part2_model_summary.csv`
+- `data/analysis/tables/part2_run_summary.csv`
 - `data/analysis/tables/cross_part_model_summary.csv`
 - `data/analysis/tables/cross_part_correlations.csv`
 - `data/analysis/run_manifest.jsonl`
@@ -91,7 +89,60 @@ Build the supplement archive from the repository root:
 uv run python -m analysis.build_supplement
 ```
 
-The output is `docs/conference_submission/supplement.zip`. The package contains executable code, release documentation, tests, derived analysis artifacts, figures, Part 1/Part 2 raw CSVs with metadata sidecars, and archived Part 2 rerun CSVs used only for the repeat-run diagnostic. Raw Part 0 harmful prompts, prompt-source CSVs, and model completions are excluded by policy; the ZIP includes `SUPPLEMENT_MANIFEST.json` documenting included files and exclusions.
+The output is `docs/conference_submission/supplement.zip`. The package contains executable code, release documentation, tests, derived analysis artifacts, figures, and Part 1/Part 2 raw CSVs with metadata sidecars. Raw Part 0 harmful prompts, prompt-source CSVs, model completions, and author-identifying proposal metadata are excluded by policy; the ZIP includes `SUPPLEMENT_MANIFEST.json` documenting included files and exclusions.
+
+## Exact-Version Campaigns
+
+The model registry has separate `current_sota` and `historical` cohorts. Inspect
+the exact versioned routes before any execution:
+
+```bash
+uv run python -m experiments.campaign --cohort current_sota --phase smoke --dry-run
+uv run python -m experiments.misc.preflight --strict
+```
+
+A registry entry is only a planned target. It is not evidence that the route is
+available and does not place the model in a paper table. Run the smoke phase
+first, then the full phases with the same campaign ID so the manifest can resume
+and verify native CSV and metadata artifacts.
+
+### Bounded Part 2 sensitivity designs
+
+Part 2 supports an explicit Cartesian sensitivity design over initial commons
+capacity, per-overuse depletion, depleted-day population death rate, starting
+population, horizon, and generation seed. Every structural cell receives the
+same seed set. A dry run materializes the exact cells, commands, job count, and
+model-request upper bound without creating files or making requests:
+
+```bash
+uv run python -m experiments.campaign \
+  --cohort current_sota --phase part2 --dry-run --json \
+  --part2-grid-capacity 1250 --part2-grid-capacity 2500 \
+  --part2-grid-depletion-units 1 --part2-grid-depletion-units 2 \
+  --part2-grid-death-rate 0.1 --part2-grid-death-rate 0.2 \
+  --part2-grid-population 25 --part2-grid-population 50 \
+  --part2-grid-horizon 50 --part2-grid-horizon 100 \
+  --part2-grid-seed 11 --part2-grid-seed 22 --part2-grid-seed 33
+```
+
+For a non-Cartesian design, repeat `--part2-cell` with an exact JSON object
+containing `resource_capacity`, `depletion_units`, `collapse_death_rate`,
+`society_size`, `days`, and `seed`. The planner rejects duplicate cells, uneven
+numbers of seeds across structural cells, more than 4,096 target-cell jobs, or
+more than 10,000,000 requests at the population-by-horizon upper bound.
+
+The seed is forwarded to the provider for every request in its trajectory and
+recorded in native metadata. Provider-side seeded generation may still be only
+best-effort. The default Part 2 command remains unseeded and retains the legacy
+derived capacity and 0.2 collapse death rate.
+
+## Part 0 Judge Audit
+
+`analysis/rejudge_part0.py` rejudges a legacy CSV from final response text only,
+with separate input/output files, durable checkpoints, strict JSON labels, and
+per-row provenance. `analysis/judge_audit.py` builds a deterministic blinded
+human-audit packet and computes agreement after genuine human labels are
+supplied. The complete commands and codebook are in `docs/JUDGE_AUDIT.md`.
 
 ## Acceptance Criteria
 

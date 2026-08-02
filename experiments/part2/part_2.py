@@ -13,13 +13,29 @@ from pathlib import Path
 from typing import Any
 
 from agents.agent_2 import Agent2
+from experiments.misc.attempt_log import (
+    DurableAttemptLogger,
+    attempt_log_path_for_csv,
+)
+from experiments.misc.final_answer import (
+    DEFAULT_EXTRACTOR_MAX_TOKENS,
+    DEFAULT_EXTRACTOR_MODEL,
+    DEFAULT_EXTRACTOR_PROVIDER,
+    DEFAULT_OUTPUT_TOKEN_CAP,
+    ExtractionConfig,
+    extraction_record_from_error,
+)
 from experiments.misc.preflight import run_experiment_preflight
 from experiments.misc.prompt_loader import load_prompt_config
 from experiments.misc.result_writer import IncrementalCsvWriter
 from experiments.misc.run_metadata import (
     base_run_metadata,
     mark_metadata_complete,
+    mark_metadata_failed,
     metadata_is_complete,
+    read_metadata,
+    safe_error_message,
+    write_metadata,
 )
 from experiments.misc.wizard import (
     SocietyConfig,
@@ -29,7 +45,10 @@ from experiments.misc.wizard import (
 )
 from providers.api_call import (
     OllamaConnectionError,
+    ResponseParseError,
     delete_other_ollama_models,
+    failure_provenance,
+    is_retryable_api_failure,
     unload_all_ollama_models,
     unload_ollama_model,
 )
@@ -70,10 +89,13 @@ PROMPT_CONFIG_HASH = hashlib.sha256(
 ).hexdigest()
 RESOURCE_RESERVE_MULTIPLIER = 10
 COLLAPSE_ATTRITION_DIVISOR = 5
+DEFAULT_COLLAPSE_DEATH_RATE = 1 / COLLAPSE_ATTRITION_DIVISOR
 MAX_REASONING_SAMPLES_PER_DAY = 3
 MODEL_BATCH_KEEP_ALIVE = "30m"
 INITIAL_RETRY_DELAY_SECONDS = 1.0
 MAX_RETRY_DELAY_SECONDS = 30.0
+MAX_AGENT_ATTEMPTS = 3
+MAX_RUN_ATTEMPTS = 3
 PART_2_RESULTS_DIR = Path("data") / "raw" / "part_2"
 PART_2_TIMESTAMP_FORMAT = "%Y%m%d_%H%M%S"
 RESULT_HEADERS = [
@@ -142,6 +164,9 @@ def _build_result_filename(
     model: str,
     config: SocietyConfig,
     timestamp: str,
+    resource_capacity: int | None = None,
+    collapse_death_rate: float = DEFAULT_COLLAPSE_DEATH_RATE,
+    seed: int | None = None,
 ) -> str:
     day_label = "open" if config.days == 0 else f"d{config.days}"
     segments = [
@@ -151,8 +176,15 @@ def _build_result_filename(
         f"n{config.society_size}",
         day_label,
         _slugify(config.resource),
-        timestamp,
     ]
+    if resource_capacity is not None:
+        segments.append(f"c{resource_capacity}")
+        segments.append(f"du{config.depletion_units}")
+    if collapse_death_rate != DEFAULT_COLLAPSE_DEATH_RATE:
+        segments.append(f"dr{repr(collapse_death_rate).replace('.', 'p')}")
+    if seed is not None:
+        segments.append(f"s{seed}")
+    segments.append(timestamp)
     return "__".join(segments) + ".csv"
 
 
@@ -195,10 +227,19 @@ def _write_part_2_metadata(
     model: str,
     config: SocietyConfig,
     resource_capacity: int,
+    collapse_death_rate: float,
+    seed: int | None,
+    attempt_logger: DurableAttemptLogger,
+    extraction_config: ExtractionConfig | None,
 ) -> None:
     parameters = {
         "society_config": _config_to_metadata(config),
         "resource_capacity": resource_capacity,
+        "collapse_death_rate": collapse_death_rate,
+        "generation_seed": seed,
+        "grading_protocol": (
+            extraction_config.to_metadata() if extraction_config is not None else None
+        ),
     }
     metadata = base_run_metadata(
         experiment="part_2",
@@ -210,12 +251,67 @@ def _write_part_2_metadata(
         prompt_config_hash=PROMPT_CONFIG_HASH,
     )
     metadata.update(parameters)
-    Path(path).parent.mkdir(parents=True, exist_ok=True)
-    Path(path).write_text(json.dumps(metadata, indent=2), encoding="utf-8")
+    attempt_log = attempt_logger.summary().to_metadata()
+    attempt_log["coverage"] = "full_run"
+    metadata["attempt_log"] = attempt_log
+    write_metadata(path, metadata)
 
 
 def _load_part_2_metadata(path: str | Path) -> dict[str, Any]:
-    return json.loads(Path(path).read_text(encoding="utf-8"))
+    return read_metadata(path)
+
+
+def _fresh_extraction_config(
+    *,
+    output_token_cap: int | None,
+    extractor_provider: str | None,
+    extractor_model: str | None,
+    extractor_max_tokens: int | None,
+) -> ExtractionConfig:
+    return ExtractionConfig(
+        subject_output_token_cap=(output_token_cap or DEFAULT_OUTPUT_TOKEN_CAP),
+        provider=(extractor_provider or DEFAULT_EXTRACTOR_PROVIDER),
+        model=(extractor_model or DEFAULT_EXTRACTOR_MODEL),
+        extractor_max_tokens=(extractor_max_tokens or DEFAULT_EXTRACTOR_MAX_TOKENS),
+    )
+
+
+def _resume_extraction_config(metadata: dict[str, Any]) -> ExtractionConfig | None:
+    value = metadata.get("grading_protocol")
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise ValueError("Resume metadata contains an invalid grading_protocol.")
+    return ExtractionConfig.from_metadata(value)
+
+
+def _attempt_log_metadata(
+    logger: DurableAttemptLogger,
+    *,
+    coverage: str,
+) -> dict[str, Any]:
+    attempt_log = logger.summary().to_metadata()
+    attempt_log["coverage"] = coverage
+    return {
+        "attempt_log": attempt_log,
+        "invalid_attempts": attempt_log["invalid_response_attempts"],
+        "retry_attempts": attempt_log["retry_attempts"],
+        "provider_error_attempts": attempt_log["provider_error_attempts"],
+    }
+
+
+def _sync_part_2_attempt_metadata(
+    metadata_path: str | Path,
+    logger: DurableAttemptLogger,
+    *,
+    coverage: str,
+) -> None:
+    path = Path(metadata_path)
+    if not path.exists():
+        return
+    metadata = read_metadata(path)
+    metadata.update(_attempt_log_metadata(logger, coverage=coverage))
+    write_metadata(path, metadata)
 
 
 def _metadata_uses_current_part_2_prompt(metadata: dict[str, Any]) -> bool:
@@ -254,6 +350,9 @@ def _matching_part_2_metadata_path(
     provider: str,
     model: str,
     config: SocietyConfig,
+    resource_capacity: int | None = None,
+    collapse_death_rate: float = DEFAULT_COLLAPSE_DEATH_RATE,
+    seed: int | None = None,
 ) -> Path | None:
     if not PART_2_RESULTS_DIR.exists():
         return None
@@ -270,6 +369,19 @@ def _matching_part_2_metadata_path(
             if str(metadata.get("model", "")) != model:
                 continue
             if metadata.get("society_config") != expected_config:
+                continue
+            expected_capacity = (
+                _initial_resource_units(config)
+                if resource_capacity is None
+                else resource_capacity
+            )
+            if metadata.get("resource_capacity") != expected_capacity:
+                continue
+            if float(
+                metadata.get("collapse_death_rate", DEFAULT_COLLAPSE_DEATH_RATE)
+            ) != collapse_death_rate:
+                continue
+            if metadata.get("generation_seed") != seed:
                 continue
             if not _metadata_uses_current_part_2_prompt(metadata):
                 continue
@@ -373,6 +485,7 @@ def _build_agents(
     model: str,
     count: int,
     *,
+    seed: int | None = None,
     keep_alive: float | str | None = None,
 ) -> list[Agent2]:
     return [
@@ -380,6 +493,7 @@ def _build_agents(
             id_=f"society_{idx + 1}",
             provider_=provider,
             model_=model,
+            seed_=seed,
             keep_alive_=keep_alive,
         )
         for idx in range(count)
@@ -399,16 +513,20 @@ def _normalize_action(raw_action: str) -> str:
     action = PROMPT_ACTION_ALIASES.get(action, action)
     if action not in ACTION_COLORS:
         supported = ", ".join(sorted(PROMPT_ACTION_ALIASES))
-        raise ValueError(
+        raise ResponseParseError(
             f"Unsupported society action '{raw_action}'. Expected one of: {supported}."
         )
     return action
 
 
-def _collapse_deaths(population: int, resource_units: int) -> int:
+def _collapse_deaths(
+    population: int,
+    resource_units: int,
+    death_rate: float = DEFAULT_COLLAPSE_DEATH_RATE,
+) -> int:
     if population <= 0 or resource_units > 0:
         return 0
-    return min(population, max(1, ceil(population / COLLAPSE_ATTRITION_DIVISOR)))
+    return min(population, max(1, ceil(population * death_rate)))
 
 
 def _should_show_reasoning_samples(
@@ -558,35 +676,102 @@ def _recover_agent_after_error(agent: Agent2, error: Exception) -> None:
 
 
 def _parse_agent_response(raw_response: str) -> tuple[str, str]:
-    data = json.loads(raw_response)
+    try:
+        data = json.loads(raw_response)
+    except json.JSONDecodeError as error:
+        raise ResponseParseError("Invalid JSON in part 2 response.") from error
     action = _normalize_action(str(data.get("action", "")))
     reasoning = str(data.get("reasoning", "")).strip()
     if not reasoning:
-        raise ValueError("Missing reasoning in part 2 response.")
+        raise ResponseParseError("Missing reasoning in part 2 response.")
     return action, reasoning
 
 
-def _query_agent_until_valid(agent: Agent2, prompt: str) -> tuple[str, str]:
+def _query_agent_until_valid(
+    agent: Agent2,
+    prompt: str,
+    *,
+    attempt_logger: DurableAttemptLogger | None = None,
+    unit: dict[str, Any] | None = None,
+    extraction_config: ExtractionConfig | None = None,
+) -> tuple[str, str]:
     had_retry_status = False
     attempt = 0
+    resolved_unit = dict(unit or {"agent": agent.id})
+    unit_id = "__".join(
+        str(resolved_unit.get(key, ""))
+        for key in ("day", "agent")
+    ).strip("_") or agent.id
 
-    while True:
+    while attempt < MAX_AGENT_ATTEMPTS:
         attempt += 1
         try:
-            raw = agent.query(prompt, json_mode=True)
-            action, reasoning = _parse_agent_response(raw)
-            if had_retry_status:
-                _emit_retry_status_line("")
-            return action, reasoning
-        except KeyboardInterrupt:
-            if had_retry_status:
-                _emit_retry_status_line("", finalize=True)
-            raise
-        except OllamaConnectionError:
+            generation_record = None
+            if extraction_config is None:
+                raw = agent.query(prompt, json_mode=True)
+            else:
+                raw, generated = agent.query_for_grading(
+                    prompt,
+                    extraction_config=extraction_config,
+                    extraction_kind="part_2_commons_decision",
+                )
+                generation_record = generated.to_dict()
+        except KeyboardInterrupt as error:
+            if attempt_logger is not None:
+                attempt_logger.append(
+                    provider=agent.provider,
+                    model=agent.model,
+                    unit_id=unit_id,
+                    unit=resolved_unit,
+                    attempt=attempt,
+                    max_attempts=MAX_AGENT_ATTEMPTS,
+                    prompt_text=prompt,
+                    outcome="interrupted",
+                    error={
+                        "exception_type": type(error).__name__,
+                        "message": safe_error_message(error),
+                        "provenance": None,
+                    },
+                )
             if had_retry_status:
                 _emit_retry_status_line("", finalize=True)
             raise
         except Exception as error:
+            retryable = (
+                is_retryable_api_failure(error)
+                or _is_ollama_resource_error(error)
+            ) and not isinstance(error, OllamaConnectionError)
+            will_retry = retryable and attempt < MAX_AGENT_ATTEMPTS
+            if attempt_logger is not None:
+                attempt_logger.append(
+                    provider=agent.provider,
+                    model=agent.model,
+                    unit_id=unit_id,
+                    unit=resolved_unit,
+                    attempt=attempt,
+                    max_attempts=MAX_AGENT_ATTEMPTS,
+                    prompt_text=prompt,
+                    outcome="provider_error",
+                    error={
+                        "exception_type": type(error).__name__,
+                        "message": safe_error_message(error),
+                        "provenance": failure_provenance(
+                            error,
+                            provider=agent.provider,
+                            model=agent.model,
+                        ),
+                    },
+                    generation_record=extraction_record_from_error(error),
+                    will_retry=will_retry,
+                )
+            if isinstance(error, OllamaConnectionError):
+                if had_retry_status:
+                    _emit_retry_status_line("", finalize=True)
+                raise
+            if not retryable or not will_retry:
+                if had_retry_status:
+                    _emit_retry_status_line("", finalize=True)
+                raise
             had_retry_status = True
             delay_seconds = _retry_delay_seconds(attempt)
             _emit_retry_status_line(
@@ -595,6 +780,66 @@ def _query_agent_until_valid(agent: Agent2, prompt: str) -> tuple[str, str]:
             )
             _recover_agent_after_error(agent, error)
             time.sleep(delay_seconds)
+            continue
+
+        try:
+            action, reasoning = _parse_agent_response(raw)
+        except Exception as error:
+            retryable = is_retryable_api_failure(error)
+            will_retry = retryable and attempt < MAX_AGENT_ATTEMPTS
+            if attempt_logger is not None:
+                attempt_logger.append(
+                    provider=agent.provider,
+                    model=agent.model,
+                    unit_id=unit_id,
+                    unit=resolved_unit,
+                    attempt=attempt,
+                    max_attempts=MAX_AGENT_ATTEMPTS,
+                    prompt_text=prompt,
+                    outcome="invalid_response",
+                    raw_response=raw,
+                    generation_record=generation_record,
+                    error={
+                        "exception_type": type(error).__name__,
+                        "message": safe_error_message(error),
+                        "provenance": failure_provenance(
+                            error,
+                            provider=agent.provider,
+                            model=agent.model,
+                        ),
+                    },
+                    will_retry=will_retry,
+                )
+            if not retryable or not will_retry:
+                if had_retry_status:
+                    _emit_retry_status_line("", finalize=True)
+                raise
+            had_retry_status = True
+            delay_seconds = _retry_delay_seconds(attempt)
+            _emit_retry_status_line(
+                f"  [yellow][WARN] Agent {agent.id} attempt {attempt} raised "
+                f"{type(error).__name__}: {error}. Retrying in {delay_seconds:.0f}s...[/yellow]"
+            )
+            time.sleep(delay_seconds)
+            continue
+
+        if attempt_logger is not None:
+            attempt_logger.append(
+                provider=agent.provider,
+                model=agent.model,
+                unit_id=unit_id,
+                unit=resolved_unit,
+                attempt=attempt,
+                max_attempts=MAX_AGENT_ATTEMPTS,
+                prompt_text=prompt,
+                outcome="success",
+                raw_response=raw,
+                parsed_response={"action": action, "reasoning": reasoning},
+                generation_record=generation_record,
+            )
+        if had_retry_status:
+            _emit_retry_status_line("")
+        return action, reasoning
 
 
 def _render_day_summary(summary: DaySummary) -> None:
@@ -715,6 +960,13 @@ def run_part_2(
     selfish_gain: int | None = None,
     depletion_units: int | None = None,
     community_benefit: int | None = None,
+    resource_capacity: int | None = None,
+    collapse_death_rate: float | None = None,
+    seed: int | None = None,
+    output_token_cap: int | None = None,
+    extractor_provider: str | None = None,
+    extractor_model: str | None = None,
+    extractor_max_tokens: int | None = None,
     *,
     resume: bool = False,
     resume_metadata_path: str | Path | None = None,
@@ -723,6 +975,10 @@ def run_part_2(
 ) -> str:
     completed_rows: list[dict[str, str]] = []
     is_resuming = resume or resume_metadata_path is not None
+    attempt_log_coverage = "full_run"
+    requested_resource_capacity = resource_capacity
+    requested_death_rate = collapse_death_rate
+    requested_seed = seed
 
     if is_resuming:
         metadata_path = (
@@ -731,6 +987,36 @@ def run_part_2(
             else _latest_interrupted_part_2_metadata_path()
         )
         metadata = _load_part_2_metadata(metadata_path)
+        extraction_config = _resume_extraction_config(metadata)
+        if extraction_config is None:
+            if any(
+                value is not None
+                for value in (
+                    output_token_cap,
+                    extractor_provider,
+                    extractor_model,
+                    extractor_max_tokens,
+                )
+            ):
+                raise ValueError(
+                    "Cannot add final-answer extraction while resuming a legacy Part 2 run."
+                )
+        else:
+            requested_extraction = ExtractionConfig(
+                subject_output_token_cap=(
+                    output_token_cap or extraction_config.subject_output_token_cap
+                ),
+                provider=extractor_provider or extraction_config.provider,
+                model=extractor_model or extraction_config.model,
+                extractor_max_tokens=(
+                    extractor_max_tokens or extraction_config.extractor_max_tokens
+                ),
+                timeout_seconds=extraction_config.timeout_seconds,
+            )
+            if requested_extraction != extraction_config:
+                raise ValueError(
+                    "Resume final-answer extraction configuration does not match metadata."
+                )
         if not _metadata_uses_current_part_2_prompt(metadata):
             raise ValueError(
                 "Cannot resume this part 2 run because its metadata was created "
@@ -743,6 +1029,10 @@ def run_part_2(
         timestamp = str(metadata["timestamp"])
         csv_path = Path(str(metadata["csv_path"]))
         resource_capacity = int(metadata["resource_capacity"])
+        resumed_death_rate = float(
+            metadata.get("collapse_death_rate", DEFAULT_COLLAPSE_DEATH_RATE)
+        )
+        resumed_seed = metadata.get("generation_seed")
 
         if provider is not None and provider != resumed_provider:
             raise ValueError(
@@ -752,12 +1042,37 @@ def run_part_2(
             raise ValueError(
                 f"Resume model mismatch: expected {resumed_model}, received {model}."
             )
+        if (
+            requested_resource_capacity is not None
+            and requested_resource_capacity != int(metadata["resource_capacity"])
+        ):
+            raise ValueError(
+                "Resume resource capacity mismatch: expected "
+                f"{metadata['resource_capacity']}, received {requested_resource_capacity}."
+            )
+        if requested_death_rate is not None and requested_death_rate != resumed_death_rate:
+            raise ValueError(
+                "Resume collapse death rate mismatch: expected "
+                f"{resumed_death_rate}, received {requested_death_rate}."
+            )
+        if requested_seed is not None and requested_seed != resumed_seed:
+            raise ValueError(
+                f"Resume generation seed mismatch: expected {resumed_seed}, received {requested_seed}."
+            )
 
         provider = resumed_provider
         model = resumed_model
         society_config = resumed_config
+        collapse_death_rate = resumed_death_rate
+        seed = resumed_seed
         completed_rows = _load_part_2_rows(csv_path)
     else:
+        extraction_config = _fresh_extraction_config(
+            output_token_cap=output_token_cap,
+            extractor_provider=extractor_provider,
+            extractor_model=extractor_model,
+            extractor_max_tokens=extractor_max_tokens,
+        )
         if provider is None or model is None:
             provider, model = choose_provider_and_model(
                 EXPERIMENT_NAME,
@@ -792,19 +1107,58 @@ def run_part_2(
             depletion_units=depletion_units,
             community_benefit=community_benefit,
         )
+        if resource_capacity is not None and resource_capacity <= 0:
+            raise ValueError("resource_capacity must be greater than 0.")
+        if collapse_death_rate is None:
+            collapse_death_rate = DEFAULT_COLLAPSE_DEATH_RATE
+        if not 0 < collapse_death_rate <= 1:
+            raise ValueError("collapse_death_rate must be greater than 0 and at most 1.")
+        if seed is not None and (not isinstance(seed, int) or isinstance(seed, bool)):
+            raise TypeError("seed must be an integer.")
         timestamp = datetime.now().strftime(PART_2_TIMESTAMP_FORMAT)
         csv_path = PART_2_RESULTS_DIR / _build_result_filename(
             provider=provider,
             model=model,
             config=society_config,
             timestamp=timestamp,
+            resource_capacity=resource_capacity,
+            collapse_death_rate=collapse_death_rate,
+            seed=seed,
         )
         metadata_path = _metadata_path_for_csv(csv_path)
-        resource_capacity = _initial_resource_units(society_config)
+        resource_capacity = (
+            _initial_resource_units(society_config)
+            if resource_capacity is None
+            else resource_capacity
+        )
+
+    assert collapse_death_rate is not None
+
+    attempt_log_metadata = metadata.get("attempt_log") if is_resuming else None
+    configured_attempt_path = (
+        attempt_log_metadata.get("path")
+        if isinstance(attempt_log_metadata, dict)
+        else None
+    )
+    attempt_path = (
+        Path(str(configured_attempt_path))
+        if configured_attempt_path
+        else attempt_log_path_for_csv(csv_path)
+    )
+    if is_resuming and not configured_attempt_path:
+        attempt_log_coverage = "resume_segment_only"
+    attempt_logger = DurableAttemptLogger(attempt_path, experiment="part_2")
 
     run_experiment_preflight(
         EXPERIMENT_NAME,
-        [(provider, model)],
+        [
+            (provider, model),
+            *(
+                [(extraction_config.provider, extraction_config.model)]
+                if extraction_config is not None
+                else []
+            ),
+        ],
         resume=is_resuming,
         test_paths=PREFLIGHT_TEST_PATHS,
     )
@@ -820,6 +1174,10 @@ def run_part_2(
             model=model,
             config=society_config,
             resource_capacity=resource_capacity,
+            collapse_death_rate=collapse_death_rate,
+            seed=seed,
+            attempt_logger=attempt_logger,
+            extraction_config=extraction_config,
         )
 
     resume_state = _resume_state_from_rows(
@@ -838,6 +1196,7 @@ def run_part_2(
         provider,
         model,
         resume_state.population,
+        seed=seed,
         keep_alive=keep_alive,
     )
     stop_reason = ""
@@ -868,7 +1227,13 @@ def run_part_2(
             mark_metadata_complete(
                 metadata_path,
                 completed_rows=len(completed_rows),
-                extra={"completed_days": completed_days},
+                extra={
+                    "completed_days": completed_days,
+                    **_attempt_log_metadata(
+                        attempt_logger,
+                        coverage=attempt_log_coverage,
+                    ),
+                },
             )
         console.print(
             Panel(
@@ -934,7 +1299,18 @@ def run_part_2(
                         resource_capacity=resource_capacity,
                         previous_overuse_count=previous_overuse_count,
                     )
-                    action, reasoning = _query_agent_until_valid(agent, prompt)
+                    action, reasoning = _query_agent_until_valid(
+                        agent,
+                        prompt,
+                        attempt_logger=attempt_logger,
+                        unit={
+                            "day": day,
+                            "agent": agent.id,
+                            "agent_index": agent_index,
+                            "population_start": population_start,
+                        },
+                        extraction_config=extraction_config,
+                    )
                     if not headless:
                         _emit_retry_status_line("")
                     daily_decisions.append(
@@ -959,7 +1335,11 @@ def run_part_2(
                     if not headless:
                         _render_collapse_warning(day, society_config.resource)
 
-                deaths = _collapse_deaths(population_start, resource_units)
+                deaths = _collapse_deaths(
+                    population_start,
+                    resource_units,
+                    collapse_death_rate,
+                )
                 if deaths:
                     agents = agents[: population_start - deaths]
 
@@ -1028,6 +1408,21 @@ def run_part_2(
             f"Simulation interrupted by user after {completed_days} completed day(s)."
         )
     except Exception as error:
+        if metadata_path.exists():
+            mark_metadata_failed(
+                metadata_path,
+                error=error,
+                provider=provider,
+                model=model,
+                extra={
+                    "completed_rows": len(_load_part_2_rows(csv_path)),
+                    "completed_days": completed_days,
+                    **_attempt_log_metadata(
+                        attempt_logger,
+                        coverage=attempt_log_coverage,
+                    ),
+                },
+            )
         if isinstance(error, OllamaConnectionError) or _is_ollama_resource_error(error):
             paused_error = error
         else:
@@ -1042,6 +1437,11 @@ def run_part_2(
                 )
 
     if interrupted:
+        _sync_part_2_attempt_metadata(
+            metadata_path,
+            attempt_logger,
+            coverage=attempt_log_coverage,
+        )
         if not suppress_keyboard_interrupt:
             raise KeyboardInterrupt()
         console.print(
@@ -1087,6 +1487,10 @@ def run_part_2(
                 "final_population": len(agents),
                 "final_resource_units": resource_units,
                 "stop_reason": stop_reason,
+                **_attempt_log_metadata(
+                    attempt_logger,
+                    coverage=attempt_log_coverage,
+                ),
             },
         )
 
@@ -1116,6 +1520,13 @@ def run_part_2_until_complete(
     selfish_gain: int | None = None,
     depletion_units: int | None = None,
     community_benefit: int | None = None,
+    resource_capacity: int | None = None,
+    collapse_death_rate: float | None = None,
+    seed: int | None = None,
+    output_token_cap: int | None = None,
+    extractor_provider: str | None = None,
+    extractor_model: str | None = None,
+    extractor_max_tokens: int | None = None,
     *,
     resume: bool = False,
     headless: bool = False,
@@ -1166,10 +1577,21 @@ def run_part_2_until_complete(
                 provider=provider,
                 model=model,
                 config=candidate_config,
+                resource_capacity=resource_capacity,
+                collapse_death_rate=(
+                    DEFAULT_COLLAPSE_DEATH_RATE
+                    if collapse_death_rate is None
+                    else collapse_death_rate
+                ),
+                seed=seed,
+                output_token_cap=output_token_cap,
+                extractor_provider=extractor_provider,
+                extractor_model=extractor_model,
+                extractor_max_tokens=extractor_max_tokens,
             )
 
     attempt = 0
-    while True:
+    while attempt < MAX_RUN_ATTEMPTS:
         attempt += 1
         console.print(
             f"[cyan]Part 2 run attempt {attempt} for {provider}/{model}[/cyan]"
@@ -1184,6 +1606,9 @@ def run_part_2_until_complete(
                 selfish_gain=selfish_gain,
                 depletion_units=depletion_units,
                 community_benefit=community_benefit,
+                resource_capacity=resource_capacity,
+                collapse_death_rate=collapse_death_rate,
+                seed=seed,
                 resume=resume or resume_metadata_path is not None,
                 resume_metadata_path=resume_metadata_path,
                 headless=headless,
@@ -1209,6 +1634,11 @@ def run_part_2_until_complete(
             f"[yellow][WARN] {provider}/{model} is still incomplete. Retrying via resume.[/yellow]"
         )
 
+    raise RuntimeError(
+        f"Part 2 did not complete after {MAX_RUN_ATTEMPTS} run attempts for "
+        f"{provider}/{model}."
+    )
+
 
 if __name__ == "__main__":
     cli_args = parse_society_args()
@@ -1221,6 +1651,13 @@ if __name__ == "__main__":
         selfish_gain=cli_args.selfish_gain,
         depletion_units=cli_args.depletion_units,
         community_benefit=cli_args.community_benefit,
+        resource_capacity=cli_args.resource_capacity,
+        collapse_death_rate=cli_args.collapse_death_rate,
+        seed=cli_args.seed,
+        output_token_cap=cli_args.output_token_cap,
+        extractor_provider=cli_args.extractor_provider,
+        extractor_model=cli_args.extractor_model,
+        extractor_max_tokens=cli_args.extractor_max_tokens,
         resume=cli_args.resume,
         headless=cli_args.headless,
     )

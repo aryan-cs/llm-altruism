@@ -99,6 +99,30 @@ def _build_base_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(add_help=True)
     parser.add_argument("--provider", type=str, default=None)
     parser.add_argument("--model", type=str, default=None)
+    parser.add_argument(
+        "--output-token-cap",
+        type=int,
+        default=None,
+        help="Total subject-model output cap; fresh runs default to 8192 tokens.",
+    )
+    parser.add_argument(
+        "--extractor-provider",
+        type=str,
+        default=None,
+        help="Independent final-answer extractor provider.",
+    )
+    parser.add_argument(
+        "--extractor-model",
+        type=str,
+        default=None,
+        help="Independent final-answer extractor model route.",
+    )
+    parser.add_argument(
+        "--extractor-max-tokens",
+        type=int,
+        default=None,
+        help="Output cap for the extractor JSON; fresh runs default to 4096.",
+    )
     return parser
 
 
@@ -277,6 +301,30 @@ def parse_game_theory_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--presentation", action="append", default=None)
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument(
+        "--order-seed",
+        type=int,
+        default=None,
+        help=(
+            "Seed for the reproducible Part 1 prompt permutation; a pinned project "
+            "default is used for fresh runs when omitted."
+        ),
+    )
+    parser.add_argument(
+        "--order-strategy",
+        choices=("seeded_shuffle", "counterbalanced"),
+        default=None,
+        help=(
+            "Use one seeded shuffle or cyclically rotate that shuffle for "
+            "counterbalanced model/run assignments."
+        ),
+    )
+    parser.add_argument(
+        "--counterbalance-index",
+        type=int,
+        default=None,
+        help="Zero-based cyclic rotation index for the counterbalanced order.",
+    )
+    parser.add_argument(
         "--headless",
         action="store_true",
         default=False,
@@ -300,6 +348,24 @@ def parse_society_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--selfish-gain", type=int, default=None)
     parser.add_argument("--depletion-units", type=int, default=None)
     parser.add_argument("--community-benefit", type=int, default=None)
+    parser.add_argument(
+        "--resource-capacity",
+        type=int,
+        default=None,
+        help="Explicit initial commons capacity; defaults to the legacy derived capacity.",
+    )
+    parser.add_argument(
+        "--collapse-death-rate",
+        type=float,
+        default=None,
+        help="Population fraction removed on a depleted day; defaults to the legacy rate of 0.2.",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Generation seed forwarded to every model request in this trajectory.",
+    )
     parser.add_argument(
         "--headless",
         action="store_true",
@@ -329,6 +395,16 @@ def _validate_provider(
     provider_model_options: dict[str, list[str]],
 ) -> str:
     normalized = _require_non_empty("provider", provider).lower()
+    normalized = {
+        "inference-hub": "inference_hub",
+        "inferencehub": "inference_hub",
+        "openai-compatible": "openai_compatible",
+        "openaicompatible": "openai_compatible",
+    }.get(normalized, normalized)
+    if normalized == "openai_compatible":
+        # This profile deliberately has no finite model menu. It is available
+        # only when the caller supplies an explicit real model id.
+        return normalized
     if normalized not in provider_model_options:
         supported = ", ".join(provider_model_options)
         raise ValueError(
@@ -672,6 +748,10 @@ def _resolve_provider_and_model(
         provider = _validate_provider(provider, provider_model_options)
 
     if model is None:
+        if provider == "openai_compatible":
+            raise ValueError(
+                "openai_compatible requires an explicitly supplied non-empty model id."
+            )
         model = _prompt_for_model(provider, provider_model_options)
 
     return provider, _validate_model(provider, model)

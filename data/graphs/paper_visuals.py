@@ -29,8 +29,8 @@ OUTPUT_DIR = Path("data") / "graphs" / "paper_visuals"
 MODEL_DECISIONS_PER_FULL_COMMONS_RUN = 5000
 COMMONS_HORIZON_DAYS = 100
 COMMONS_SOCIETY_SIZE = 50
-LOW_SCORE_COLOR = "#f04357"
-HIGH_SCORE_COLOR = "#0c9430"
+LOW_SCORE_COLOR = "#d55e00"
+HIGH_SCORE_COLOR = "#0072b2"
 MISSING_SCORE_COLOR = "#e5e7eb"
 NEUTRAL_SCORE_COLOR = "#f6f7fb"
 DISPLAY_BLEND_AMOUNT = 0.38
@@ -111,10 +111,11 @@ def _family_legend_handles(models: Iterable[str]) -> list[object]:
 
 def _setup_matplotlib():
     import matplotlib.pyplot as plt
-    from matplotlib.colors import LinearSegmentedColormap
 
     plt.rcParams.update(
         {
+            "font.family": "serif",
+            "font.serif": ["Times New Roman", "Times", "DejaVu Serif"],
             "font.size": 9,
             "axes.titlesize": 12,
             "axes.labelsize": 10,
@@ -126,11 +127,7 @@ def _setup_matplotlib():
             "axes.spines.right": False,
         }
     )
-    cmap = LinearSegmentedColormap.from_list(
-        "pastel_red_green",
-        [LOW_SCORE_DISPLAY_COLOR, NEUTRAL_SCORE_COLOR, HIGH_SCORE_DISPLAY_COLOR],
-        N=256,
-    )
+    cmap = plt.colormaps["cividis"]
     return plt, cmap
 
 
@@ -163,7 +160,9 @@ def _part0_language_rates() -> dict[tuple[str, str], float]:
     for row in _read_rows(RAW_PART0_PATH):
         model = row["model"]
         language = row["language"]
-        complied = row.get("complied?", "").strip().lower()
+        complied = row.get(
+            "new_complied" if "new_complied" in row else "complied?", ""
+        ).strip().lower()
         if complied not in {"true", "false"}:
             continue
         counts[(model, language)][1] += 1
@@ -204,7 +203,7 @@ def _fingerprint_matrix() -> tuple[list[str], list[str], np.ndarray]:
     models = _model_order(cross)
     columns = [
         "Safety refusal",
-        "Cooperation",
+        "All-frame response",
         "Self-direct",
         "Advice",
         "Observer eval.",
@@ -228,7 +227,7 @@ def _fingerprint_matrix() -> tuple[list[str], list[str], np.ndarray]:
         final_reserve = float(part2[model]["final_resource_units"]) / resource_capacity * 100.0
         row = [
             float(cross[model]["safety_refusal_rate"]) * 100.0,
-            float(cross[model]["cooperation_rate"]) * 100.0,
+            float(cross[model]["all_frames_cooperation_rate"]) * 100.0,
             frame_rates.get((model, "self_direct"), 0.0),
             frame_rates.get((model, "advice"), 0.0),
             frame_rates.get((model, "observer_evaluation"), 0.0),
@@ -304,7 +303,7 @@ def render_frame_sensitivity_heatmap() -> Path:
     ax.set_xticklabels([FRAME_LABELS[frame] for frame in FRAME_ORDER], rotation=30, ha="right")
     ax.set_yticks(range(len(models)))
     ax.set_yticklabels([_short_model_label(model) for model in models])
-    ax.set_title("Frame sensitivity in dyadic cooperation")
+    ax.set_title("Role-conditioned cooperative responses")
     ax.set_xlabel("Prompt frame")
     ax.set_ylabel("Model")
     ax.set_xticks(np.arange(-0.5, len(FRAME_ORDER), 1), minor=True)
@@ -402,7 +401,7 @@ def render_part1_game_heatmap() -> Path:
     ax.set_xticklabels([GAME_LABELS[game] for game in GAME_ORDER], rotation=25, ha="right")
     ax.set_yticks(range(len(models)))
     ax.set_yticklabels([_short_model_label(model) for model in models])
-    ax.set_title("Dyadic cooperation by game family")
+    ax.set_title("Direct focal choices by game family")
     ax.set_xlabel("Game family")
     ax.set_ylabel("Model")
     ax.set_xticks(np.arange(-0.5, len(GAME_ORDER), 1), minor=True)
@@ -693,36 +692,25 @@ def render_part2_restraint_bar() -> Path:
     rows = _part2_rows()
     models = _model_order(rows)
     values = [float(rows[model]["restraint_rate"]) * 100.0 for model in models]
-    lows = [float(rows[model]["wilson_low"]) * 100.0 for model in models]
-    highs = [float(rows[model]["wilson_high"]) * 100.0 for model in models]
-    yerr = np.asarray(
-        [
-            [value - low for value, low in zip(values, lows)],
-            [high - value for value, high in zip(values, highs)],
-        ]
-    )
     x_positions = np.arange(len(models))
 
     fig, ax = plt.subplots(figsize=(13.8, 5.4))
     ax.bar(
         x_positions,
         values,
-        yerr=yerr,
-        capsize=3,
-        error_kw={"ecolor": "#111827", "elinewidth": 1.0, "capthick": 1.0},
         color=[_model_bar_color(_model_label_for_style(model)) for model in models],
         edgecolor="none",
         width=0.74,
     )
-    for x_pos, value, high in zip(x_positions, values, highs):
-        label_y = min(104.5, max(value, high) + 1.4)
+    for x_pos, value in zip(x_positions, values):
+        label_y = min(104.5, value + 1.4)
         ax.text(x_pos, label_y, f"{value:.1f}", ha="center", va="bottom", fontsize=7, rotation=90)
     ax.set_xticks(x_positions)
     ax.set_xticklabels([_short_model_label(model) for model in models], rotation=45, ha="right")
     ax.set_ylim(0, 112)
     ax.set_yticks(range(0, 101, 10))
     ax.set_ylabel("Restraint choice rate (%)")
-    ax.set_title("Commons restraint rate by model")
+    ax.set_title("Commons restraint in one trajectory per model")
     ax.grid(axis="y", alpha=0.3)
     ax.legend(
         handles=_family_legend_handles(models),

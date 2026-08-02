@@ -44,6 +44,22 @@
       "mistral",
       "dolphin-mistral"
     ],
+    "inference_hub": [
+      "gpt-5.6-sol",
+      "claude-fable-5",
+      "claude-opus-5",
+      "claude-sonnet-5",
+      "claude-haiku-4-5-20251001",
+      "gemini-3.1-pro-preview",
+      "gemini-3.6-flash",
+      "google/gemma-4-31b-it",
+      "nvidia/nemotron-3-ultra-550b-a55b",
+      "deepseek-ai/deepseek-v4-pro",
+      "qwen/qwen3-next-80b-a3b-thinking",
+      "moonshotai/kimi-k2-thinking",
+      "z-ai/glm-5.2",
+      "mistralai/mistral-nemotron"
+    ],
     "openrouter": [
       "openai/gpt-4.1-mini",
       "anthropic/claude-sonnet-4.5",
@@ -76,6 +92,22 @@
       "sorc/qwen3.5-instruct",
       "aratan/qwen3.5-uncensored:9b",
       "sorc/qwen3.5-instruct-uncensored",
+    ],
+    "inference_hub": [
+      "gpt-5.6-sol",
+      "claude-fable-5",
+      "claude-opus-5",
+      "claude-sonnet-5",
+      "claude-haiku-4-5-20251001",
+      "gemini-3.1-pro-preview",
+      "gemini-3.6-flash",
+      "google/gemma-4-31b-it",
+      "nvidia/nemotron-3-ultra-550b-a55b",
+      "deepseek-ai/deepseek-v4-pro",
+      "qwen/qwen3-next-80b-a3b-thinking",
+      "moonshotai/kimi-k2-thinking",
+      "z-ai/glm-5.2",
+      "mistralai/mistral-nemotron"
     ]
   },
 
@@ -120,6 +152,22 @@
       "milanjeremic2/deepseek-r1-32b-uncensored",
       "mistral",
       "dolphin-mistral"
+    ],
+    "inference_hub": [
+      "gpt-5.6-sol",
+      "claude-fable-5",
+      "claude-opus-5",
+      "claude-sonnet-5",
+      "claude-haiku-4-5-20251001",
+      "gemini-3.1-pro-preview",
+      "gemini-3.6-flash",
+      "google/gemma-4-31b-it",
+      "nvidia/nemotron-3-ultra-550b-a55b",
+      "deepseek-ai/deepseek-v4-pro",
+      "qwen/qwen3-next-80b-a3b-thinking",
+      "moonshotai/kimi-k2-thinking",
+      "z-ai/glm-5.2",
+      "mistralai/mistral-nemotron"
     ],
     "openrouter": [
       "openai/gpt-4.1-mini",

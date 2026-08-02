@@ -299,6 +299,248 @@ def test_api_call_uses_openai_compatible_base_url_for_nvidia(
     )
 
 
+def test_api_call_inference_hub_forwards_route_credentials_and_controls(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _install_openai_module(monkeypatch)
+    monkeypatch.setenv("NVIDIA_API_KEY", "hub-test-key")
+    monkeypatch.setenv("INFERENCE_HUB_BASE_URL", "https://hub.example.test/v1/")
+
+    api_call_module.api_call(
+        "inference-hub",
+        "qwen/qwen3-next-80b-a3b-thinking",
+        "sys",
+        "query",
+        temperature=0.1,
+        top_p=0.9,
+        max_tokens=512,
+        seed=42,
+        reasoning_effort="low",
+        timeout=30,
+    )
+
+    assert calls == [
+        {
+            "client": {
+                "api_key": "hub-test-key",
+                "base_url": "https://hub.example.test/v1",
+                "timeout": 30,
+            },
+            "request": {
+                "model": "qwen/qwen3-next-80b-a3b-thinking",
+                "messages": [
+                    {"role": "system", "content": "sys"},
+                    {"role": "user", "content": "query"},
+                ],
+                "temperature": 0.1,
+                "top_p": 0.9,
+                "max_tokens": 512,
+                "seed": 42,
+                "reasoning_effort": "low",
+            },
+        }
+    ]
+
+
+def test_api_call_generic_openai_compatible_accepts_explicit_endpoint_and_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _install_openai_module(monkeypatch)
+
+    api_call_module.api_call(
+        "openai-compatible",
+        "local-model",
+        "",
+        "query",
+        base_url="http://127.0.0.1:8000/v1",
+        api_key="explicit-key",
+    )
+
+    assert calls[0]["client"] == {
+        "api_key": "explicit-key",
+        "base_url": "http://127.0.0.1:8000/v1",
+    }
+
+
+def test_api_call_rejects_invalid_generation_controls_before_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _install_openai_module(monkeypatch)
+
+    with pytest.raises(ValueError, match="top_p"):
+        api_call_module.api_call(
+            "openai-compatible",
+            "model",
+            "",
+            "query",
+            top_p=1.1,
+            base_url="http://127.0.0.1:8000/v1",
+            api_key="key",
+        )
+
+    assert calls == []
+
+
+@pytest.mark.parametrize("provider", ["anthropic", "xai"])
+def test_api_call_rejects_controls_not_supported_by_native_adapter(
+    provider: str,
+) -> None:
+    with pytest.raises(api_call_module.UnsupportedControlError, match="seed"):
+        api_call_module.api_call(
+            provider,
+            "model",
+            "",
+            "query",
+            seed=3,
+        )
+
+
+@pytest.mark.parametrize(
+    ("provider", "error", "expected_category"),
+    [
+        (
+            "inference_hub",
+            type("GatewayError", (Exception,), {"status_code": 503})("unavailable"),
+            api_call_module.FAILURE_GATEWAY,
+        ),
+        (
+            "inference_hub",
+            type("AuthenticationError", (Exception,), {"status_code": 401})("bad key"),
+            api_call_module.FAILURE_PROVIDER,
+        ),
+        (
+            "inference_hub",
+            type("APITimeoutError", (Exception,), {})("timed out"),
+            api_call_module.FAILURE_TRANSPORT,
+        ),
+        (
+            "inference_hub",
+            api_call_module.ResponseParseError("invalid JSON"),
+            api_call_module.FAILURE_PARSER,
+        ),
+    ],
+)
+def test_classify_api_failure_preserves_route_provenance(
+    provider: str,
+    error: Exception,
+    expected_category: str,
+) -> None:
+    provenance = api_call_module.classify_api_failure(
+        error,
+        provider=provider,
+        model="gpt-5.6-sol",
+    ).to_dict()
+
+    assert provenance["category"] == expected_category
+    assert provenance["provider"] == "inference_hub"
+    assert provenance["upstream_provider"] == "openai"
+    assert provenance["route"] == "gpt-5.6-sol"
+
+
+def test_api_call_reraises_same_sdk_error_with_failure_provenance(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class GatewayError(Exception):
+        status_code = 503
+
+    expected_error = GatewayError("gateway unavailable")
+
+    class FailingOpenAIClient:
+        def __init__(self, **kwargs):
+            del kwargs
+            self.chat = SimpleNamespace(
+                completions=SimpleNamespace(create=self._create)
+            )
+
+        def _create(self, **kwargs):
+            del kwargs
+            raise expected_error
+
+    module = ModuleType("openai")
+    module.OpenAI = FailingOpenAIClient
+    monkeypatch.setitem(sys.modules, "openai", module)
+    monkeypatch.setenv("NVIDIA_API_KEY", "test-key")
+
+    with pytest.raises(GatewayError) as caught:
+        api_call_module.api_call(
+            "inference_hub",
+            "gpt-5.6-sol",
+            "sys",
+            "query",
+        )
+
+    assert caught.value is expected_error
+    assert api_call_module.failure_provenance(caught.value) == {
+        "category": "gateway",
+        "provider": "inference_hub",
+        "model": "gpt-5.6-sol",
+        "upstream_provider": "openai",
+        "route": "gpt-5.6-sol",
+        "status_code": 503,
+    }
+
+
+def test_api_call_malformed_json_is_tagged_as_parser_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class InvalidJSONClient:
+        def __init__(self, **kwargs):
+            del kwargs
+            self.chat = SimpleNamespace(
+                completions=SimpleNamespace(
+                    create=lambda **_: SimpleNamespace(
+                        choices=[
+                            SimpleNamespace(
+                                message=SimpleNamespace(content="not valid JSON")
+                            )
+                        ]
+                    )
+                )
+            )
+
+    module = ModuleType("openai")
+    module.OpenAI = InvalidJSONClient
+    monkeypatch.setitem(sys.modules, "openai", module)
+    monkeypatch.setenv("NVIDIA_API_KEY", "test-key")
+
+    with pytest.raises(api_call_module.ResponseParseError) as caught:
+        api_call_module.api_call(
+            "inference_hub",
+            "claude-opus-5",
+            "sys",
+            "query",
+            json_mode=True,
+            json_schema=EchoSchema,
+        )
+
+    assert api_call_module.failure_provenance(caught.value) == {
+        "category": "parser",
+        "provider": "inference_hub",
+        "model": "claude-opus-5",
+        "upstream_provider": "anthropic",
+        "route": "claude-opus-5",
+    }
+
+
+def test_retryability_uses_failure_provenance() -> None:
+    gateway_error = type(
+        "GatewayError", (Exception,), {"status_code": 503}
+    )("unavailable")
+    api_call_module._annotate_failure(
+        gateway_error,
+        provider="inference_hub",
+        model="gpt-5.6-sol",
+    )
+
+    assert api_call_module.is_retryable_api_failure(gateway_error) is True
+    assert api_call_module.is_retryable_api_failure(
+        api_call_module.ResponseParseError("bad JSON")
+    ) is True
+    assert api_call_module.is_retryable_api_failure(
+        api_call_module.UnsupportedControlError("unsupported")
+    ) is False
+
+
 def test_api_call_raises_for_unknown_provider() -> None:
     with pytest.raises(ValueError, match="Unsupported provider"):
         api_call_module.api_call("unknown", "model", "sys", "query")
@@ -352,8 +594,14 @@ def test_base_agent_forwards_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
         system_prompt_="sys",
         json_schema_=EchoSchema,
         temperature_=0.2,
+        top_p_=0.8,
+        max_tokens_=321,
+        seed_=7,
+        reasoning_effort_="medium",
         timeout_=15,
         keep_alive_="30m",
+        base_url_="https://example.test/v1",
+        api_key_="explicit-key",
     )
 
     result = agent.query("query", json_mode=True)
@@ -366,8 +614,14 @@ def test_base_agent_forwards_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
     assert captured["kwargs"]["json_mode"] is True
     assert captured["kwargs"]["json_schema"] is EchoSchema
     assert captured["kwargs"]["temperature"] == 0.2
+    assert captured["kwargs"]["top_p"] == 0.8
+    assert captured["kwargs"]["max_tokens"] == 321
+    assert captured["kwargs"]["seed"] == 7
+    assert captured["kwargs"]["reasoning_effort"] == "medium"
     assert captured["kwargs"]["timeout"] == 15
     assert captured["kwargs"]["keep_alive"] == "30m"
+    assert captured["kwargs"]["base_url"] == "https://example.test/v1"
+    assert captured["kwargs"]["api_key"] == "explicit-key"
 
 
 def test_ensure_ollama_model_available_pulls_missing_model(

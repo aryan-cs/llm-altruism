@@ -3,7 +3,9 @@
 import json
 import os
 import re
+from dataclasses import asdict, dataclass
 from typing import Any, Callable
+from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 from pydantic import BaseModel
@@ -11,6 +13,7 @@ from pydantic import BaseModel
 load_dotenv()
 
 NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1"
+INFERENCE_HUB_BASE_URL = NVIDIA_BASE_URL
 OPENROUTER_SITE_URL = "https://openrouter.ai"
 OPENROUTER_APP_NAME = "llm-altruism"
 OLLAMA_BASE_URL = "http://127.0.0.1:11434"
@@ -22,6 +25,78 @@ OLLAMA_MODEL_ALIASES = {
 
 class OllamaConnectionError(RuntimeError):
     pass
+
+
+FAILURE_GATEWAY = "gateway"
+FAILURE_PROVIDER = "provider"
+FAILURE_PARSER = "parser"
+FAILURE_TRANSPORT = "transport"
+FAILURE_PROVENANCE_ATTRIBUTE = "llm_altruism_failure_provenance"
+
+
+class ResponseParseError(ValueError):
+    """The provider returned a response that the benchmark could not parse."""
+
+
+class UnsupportedControlError(ValueError):
+    """A requested generation control is not supported by the provider adapter."""
+
+
+TRUNCATION_FINISH_REASONS = {
+    "length",
+    "max_tokens",
+    "max_output_tokens",
+    "model_length",
+    "token_limit",
+}
+
+
+@dataclass(frozen=True)
+class ProviderResponse:
+    """Lossless-enough provider response used by auditable benchmark runs.
+
+    ``api_call`` intentionally keeps returning a plain string for compatibility.
+    New experiment code uses ``api_call_detailed`` to retain the provider body,
+    visible assistant content, separately exposed reasoning, finish reason, and
+    usage before any answer extraction or grading takes place.
+    """
+
+    provider: str
+    model: str
+    content: str
+    reasoning: str
+    raw_response: Any
+    finish_reason: str | None
+    truncated: bool | None
+    usage: dict[str, Any] | None
+    request_id: str | None
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+class ProviderText(str):
+    """String-compatible response carrying detailed provider provenance."""
+
+    details: ProviderResponse
+
+    def __new__(cls, value: str, details: ProviderResponse) -> "ProviderText":
+        instance = str.__new__(cls, value)
+        instance.details = details
+        return instance
+
+
+@dataclass(frozen=True)
+class FailureProvenance:
+    category: str
+    provider: str
+    model: str
+    upstream_provider: str | None = None
+    route: str | None = None
+    status_code: int | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {key: value for key, value in asdict(self).items() if value is not None}
 
 
 OllamaProgressCallback = Callable[[str], None]
@@ -66,14 +141,22 @@ def api_call(
     json_mode: bool = False,
     json_schema: dict[str, Any] | type[BaseModel] | None = None,
     temperature: float | None = None,
+    top_p: float | None = None,
+    max_tokens: int | None = None,
+    seed: int | None = None,
+    reasoning_effort: str | None = None,
     timeout: float | None = None,
     keep_alive: float | str | None = None,
+    base_url: str | None = None,
+    api_key: str | None = None,
 ) -> str:
     provider_key = _normalize_provider(provider)
 
     dispatch = {
         "anthropic": _query_anthropic,
         "openai": _query_openai,
+        "openai_compatible": _query_openai_compatible,
+        "inference_hub": _query_inference_hub,
         "nvidia": _query_nvidia,
         "cerebras": _query_cerebras,
         "ollama": _query_ollama,
@@ -92,6 +175,18 @@ def api_call(
         raise ValueError("Model must be a non-empty string.")
     if not query or not query.strip():
         raise ValueError("Query must be a non-empty string.")
+    _validate_generation_controls(
+        temperature=temperature,
+        top_p=top_p,
+        max_tokens=max_tokens,
+        seed=seed,
+        reasoning_effort=reasoning_effort,
+    )
+    _validate_provider_controls(
+        provider=provider_key,
+        seed=seed,
+        reasoning_effort=reasoning_effort,
+    )
 
     request_kwargs = {
         "model": model,
@@ -100,22 +195,241 @@ def api_call(
         "json_mode": json_mode,
         "json_schema": json_schema,
         "temperature": temperature,
+        "top_p": top_p,
+        "max_tokens": max_tokens,
+        "seed": seed,
+        "reasoning_effort": reasoning_effort,
         "timeout": timeout,
     }
     if provider_key == "ollama":
         request_kwargs["keep_alive"] = keep_alive
+    if provider_key in {"openai", "openai_compatible", "inference_hub"}:
+        request_kwargs["base_url"] = base_url
+        request_kwargs["api_key"] = api_key
 
-    return dispatch[provider_key](**request_kwargs)
+    try:
+        return dispatch[provider_key](**request_kwargs)
+    except Exception as error:
+        _annotate_failure(error, provider=provider_key, model=model)
+        raise
+
+
+def api_call_detailed(
+    provider: str,
+    model: str,
+    system_prompt: str,
+    query: str,
+    **kwargs: Any,
+) -> ProviderResponse:
+    """Call a provider while retaining the response fields needed for audit.
+
+    Adapters that predate detailed capture still return a safe compatibility
+    record with an unknown finish reason. Current hosted-NVIDIA/OpenAI-compatible,
+    Ollama, Anthropic, Groq, Cerebras, OpenRouter, and xAI adapters emit full
+    records. Callers must not infer ``truncated=False`` when it is ``None``.
+    """
+
+    response = api_call(provider, model, system_prompt, query, **kwargs)
+    if isinstance(response, ProviderText):
+        return response.details
+    return ProviderResponse(
+        provider=_normalize_provider(provider),
+        model=model,
+        content=str(response),
+        reasoning="",
+        raw_response=str(response),
+        finish_reason=None,
+        truncated=None,
+        usage=None,
+        request_id=None,
+    )
 
 
 def _normalize_provider(provider: str) -> str:
     provider_key = provider.strip().lower()
     aliases = {
         "cerebris": "cerebras",
+        "inference-hub": "inference_hub",
+        "inferencehub": "inference_hub",
         "olama": "ollama",
+        "openai-compatible": "openai_compatible",
+        "openaicompatible": "openai_compatible",
         "x.ai": "xai",
     }
     return aliases.get(provider_key, provider_key)
+
+
+def _validate_generation_controls(
+    *,
+    temperature: float | None,
+    top_p: float | None,
+    max_tokens: int | None,
+    seed: int | None,
+    reasoning_effort: str | None,
+) -> None:
+    if temperature is not None:
+        if not isinstance(temperature, (int, float)) or isinstance(temperature, bool):
+            raise TypeError("temperature must be numeric.")
+        if temperature < 0:
+            raise ValueError("temperature must be non-negative.")
+    if top_p is not None:
+        if not isinstance(top_p, (int, float)) or isinstance(top_p, bool):
+            raise TypeError("top_p must be numeric.")
+        if not 0 <= top_p <= 1:
+            raise ValueError("top_p must be between 0 and 1 inclusive.")
+    if max_tokens is not None:
+        if not isinstance(max_tokens, int) or isinstance(max_tokens, bool):
+            raise TypeError("max_tokens must be an integer.")
+        if max_tokens <= 0:
+            raise ValueError("max_tokens must be positive.")
+    if seed is not None and (not isinstance(seed, int) or isinstance(seed, bool)):
+        raise TypeError("seed must be an integer.")
+    if reasoning_effort is not None:
+        if not isinstance(reasoning_effort, str):
+            raise TypeError("reasoning_effort must be a string.")
+        if not reasoning_effort.strip():
+            raise ValueError("reasoning_effort must be a non-empty string.")
+
+
+def _validate_provider_controls(
+    *,
+    provider: str,
+    seed: int | None,
+    reasoning_effort: str | None,
+) -> None:
+    unsupported: list[str] = []
+    if provider in {"anthropic", "xai"}:
+        if seed is not None:
+            unsupported.append("seed")
+        if reasoning_effort is not None:
+            unsupported.append("reasoning_effort")
+    if unsupported:
+        raise UnsupportedControlError(
+            f"{provider} does not support these controls in this adapter: "
+            + ", ".join(unsupported)
+        )
+
+
+def _validated_base_url(value: str, *, label: str) -> str:
+    normalized = value.strip().rstrip("/")
+    parsed = urlparse(normalized)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ValueError(f"{label} must be an absolute HTTP(S) URL.")
+    return normalized
+
+
+def _status_code(error: Exception) -> int | None:
+    direct = getattr(error, "status_code", None)
+    if isinstance(direct, int):
+        return direct
+    response = getattr(error, "response", None)
+    response_status = getattr(response, "status_code", None)
+    return response_status if isinstance(response_status, int) else None
+
+
+def _is_transport_error(error: Exception) -> bool:
+    if isinstance(error, (ConnectionError, TimeoutError, OllamaConnectionError)):
+        return True
+    error_type = type(error)
+    label = f"{error_type.__module__}.{error_type.__name__}".lower()
+    markers = ("timeout", "connect", "connection", "network", "transport")
+    return any(marker in label for marker in markers)
+
+
+def _registry_route(provider: str, model: str) -> dict[str, Any]:
+    try:
+        from agents.agent_config import resolve_model_registry_entry
+
+        entry = resolve_model_registry_entry(provider, model)
+    except Exception:
+        entry = None
+    return entry or {}
+
+
+def classify_api_failure(
+    error: Exception,
+    *,
+    provider: str,
+    model: str,
+) -> FailureProvenance:
+    """Classify a failure without changing the exception raised to callers."""
+
+    provider_key = _normalize_provider(provider)
+    status_code = _status_code(error)
+    route_metadata = _registry_route(provider_key, model)
+    upstream_provider = route_metadata.get("upstream_provider")
+    route = route_metadata.get("route")
+
+    if isinstance(error, ResponseParseError):
+        category = FAILURE_PARSER
+    elif _is_transport_error(error):
+        category = FAILURE_TRANSPORT
+    elif status_code in {502, 503, 504} and provider_key in {
+        "inference_hub",
+        "nvidia",
+        "openai_compatible",
+        "openrouter",
+    }:
+        category = FAILURE_GATEWAY
+    else:
+        category = FAILURE_PROVIDER
+
+    return FailureProvenance(
+        category=category,
+        provider=provider_key,
+        model=model,
+        upstream_provider=(
+            str(upstream_provider) if upstream_provider is not None else None
+        ),
+        route=str(route) if route is not None else model,
+        status_code=status_code,
+    )
+
+
+def _annotate_failure(error: Exception, *, provider: str, model: str) -> None:
+    provenance = classify_api_failure(
+        error,
+        provider=provider,
+        model=model,
+    ).to_dict()
+    try:
+        setattr(error, FAILURE_PROVENANCE_ATTRIBUTE, provenance)
+    except Exception:
+        return
+
+
+def failure_provenance(
+    error: Exception,
+    *,
+    provider: str | None = None,
+    model: str | None = None,
+) -> dict[str, Any] | None:
+    """Return serializable failure origin data for logs and run metadata."""
+
+    existing = getattr(error, FAILURE_PROVENANCE_ATTRIBUTE, None)
+    if isinstance(existing, dict):
+        return dict(existing)
+    if provider is None or model is None:
+        return None
+    return classify_api_failure(error, provider=provider, model=model).to_dict()
+
+
+def is_retryable_api_failure(error: Exception) -> bool:
+    """Return whether repeating the same request can plausibly succeed."""
+
+    if isinstance(error, UnsupportedControlError):
+        return False
+    if isinstance(error, ResponseParseError):
+        return True
+    provenance = failure_provenance(error)
+    if provenance is None:
+        return False
+    if provenance.get("category") in {FAILURE_GATEWAY, FAILURE_TRANSPORT}:
+        return True
+    status_code = provenance.get("status_code")
+    return isinstance(status_code, int) and (
+        status_code in {408, 409, 425, 429} or status_code >= 500
+    )
 
 
 def _resolve_ollama_model_name(model: str) -> str:
@@ -203,6 +517,35 @@ def _ensure_env(var_name: str) -> str:
     if not value:
         raise EnvironmentError(f"Missing required environment variable: {var_name}")
     return value
+
+
+def _resolve_api_key(api_key: str | None, *, env_name: str) -> str:
+    if api_key is None:
+        return _ensure_env(env_name)
+    normalized = api_key.strip()
+    if not normalized:
+        raise ValueError("Explicit api_key must be a non-empty string.")
+    return normalized
+
+
+def _resolve_endpoint_connection(
+    profile_id: str,
+    *,
+    base_url: str | None,
+    api_key: str | None,
+) -> tuple[str | None, str]:
+    from agents.agent_config import load_endpoint_profile
+
+    profile = load_endpoint_profile(profile_id)
+    base_url_env = str(profile["base_url_env"])
+    credential_env = str(profile["credential_env"])
+    resolved_base_url = (
+        base_url
+        or os.getenv(base_url_env, "").strip()
+        or str(profile.get("default_base_url", "")).strip()
+        or None
+    )
+    return resolved_base_url, _resolve_api_key(api_key, env_name=credential_env)
 
 
 def _build_ollama_client(*, timeout: float | None = None) -> Any:
@@ -484,8 +827,143 @@ def _extract_content(value: Any) -> str:
 def _finalize_text(provider: str, model: str, text: str) -> str:
     text = text.strip()
     if not text:
-        raise ValueError(f"{provider}/{model} returned empty assistant content.")
+        raise ResponseParseError(
+            f"{provider}/{model} returned empty assistant content."
+        )
     return text
+
+
+def _jsonable_provider_value(value: Any) -> Any:
+    """Convert an SDK response body to JSON-safe data without headers/secrets."""
+
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, dict):
+        return {
+            str(key): _jsonable_provider_value(child)
+            for key, child in value.items()
+        }
+    if isinstance(value, (list, tuple)):
+        return [_jsonable_provider_value(child) for child in value]
+    model_dump = getattr(value, "model_dump", None)
+    if callable(model_dump):
+        try:
+            return _jsonable_provider_value(model_dump(mode="json"))
+        except TypeError:
+            return _jsonable_provider_value(model_dump())
+    if hasattr(value, "__dict__"):
+        return {
+            str(key): _jsonable_provider_value(child)
+            for key, child in vars(value).items()
+            if not str(key).startswith("_")
+        }
+    return str(value)
+
+
+def _string_attribute(value: Any, *names: str) -> str:
+    for name in names:
+        candidate = (
+            value.get(name)
+            if isinstance(value, dict)
+            else getattr(value, name, None)
+        )
+        text = _extract_content(candidate)
+        if text:
+            return text
+    return ""
+
+
+def _finish_reason_is_truncated(reason: str | None) -> bool | None:
+    if reason is None or not reason.strip():
+        return None
+    return reason.strip().lower() in TRUNCATION_FINISH_REASONS
+
+
+def _provider_text(
+    *,
+    provider: str,
+    model: str,
+    response: Any,
+    content: str,
+    reasoning: str = "",
+    finish_reason: str | None = None,
+    usage: Any = None,
+    request_id: Any = None,
+    json_mode: bool,
+    json_schema: dict[str, Any] | type[BaseModel] | None,
+) -> ProviderText:
+    finalized = _finalize_response_text(
+        provider=provider,
+        model=model,
+        text=content,
+        json_mode=json_mode,
+        json_schema=json_schema,
+    )
+    normalized_reason = finish_reason.strip() if isinstance(finish_reason, str) else None
+    details = ProviderResponse(
+        provider=provider,
+        model=model,
+        content=content.strip(),
+        reasoning=reasoning.strip(),
+        raw_response=_jsonable_provider_value(response),
+        finish_reason=normalized_reason,
+        truncated=_finish_reason_is_truncated(normalized_reason),
+        usage=(
+            _jsonable_provider_value(usage)
+            if usage is not None
+            else None
+        ),
+        request_id=(
+            str(request_id).strip()
+            if request_id is not None and str(request_id).strip()
+            else None
+        ),
+    )
+    return ProviderText(finalized, details)
+
+
+def _openai_style_provider_text(
+    *,
+    provider: str,
+    model: str,
+    response: Any,
+    json_mode: bool,
+    json_schema: dict[str, Any] | type[BaseModel] | None,
+) -> ProviderText:
+    choices = getattr(response, "choices", None)
+    if choices is None and isinstance(response, dict):
+        choices = response.get("choices")
+    choice = choices[0]
+    message = choice.get("message", {}) if isinstance(choice, dict) else choice.message
+    content = _extract_content(
+        message.get("content") if isinstance(message, dict) else message.content
+    )
+    reasoning = _string_attribute(
+        message,
+        "reasoning_content",
+        "reasoning",
+        "thinking",
+        "analysis",
+    )
+    finish_reason = (
+        choice.get("finish_reason")
+        if isinstance(choice, dict)
+        else getattr(choice, "finish_reason", None)
+    )
+    usage = response.get("usage") if isinstance(response, dict) else getattr(response, "usage", None)
+    request_id = response.get("id") if isinstance(response, dict) else getattr(response, "id", None)
+    return _provider_text(
+        provider=provider,
+        model=model,
+        response=response,
+        content=content,
+        reasoning=reasoning,
+        finish_reason=finish_reason,
+        usage=usage,
+        request_id=request_id,
+        json_mode=json_mode,
+        json_schema=json_schema,
+    )
 
 
 def _ollama_is_gpt_oss_model(model: str) -> bool:
@@ -518,6 +996,17 @@ def _ollama_think_value(
         # likely to return prose instead of the requested JSON object.
         return False
     return False
+
+
+def _ollama_reasoning_effort(value: str) -> bool | str:
+    normalized = value.strip().lower()
+    if normalized in {"none", "off", "disabled"}:
+        return False
+    if normalized in {"low", "medium", "high"}:
+        return normalized
+    raise ValueError(
+        "Ollama reasoning_effort must be one of: none, off, disabled, low, medium, high."
+    )
 
 
 def _strip_markdown_code_fence(text: str) -> str:
@@ -643,7 +1132,22 @@ def _normalize_json_text(
     if coerced is not None:
         return coerced
 
-    raise ValueError("Expected valid JSON output but no parseable JSON object was found.")
+    raise ResponseParseError(
+        "Expected valid JSON output but no parseable JSON object was found."
+    )
+
+
+def _finalize_response_text(
+    *,
+    provider: str,
+    model: str,
+    text: str,
+    json_mode: bool,
+    json_schema: dict[str, Any] | type[BaseModel] | None,
+) -> str:
+    if json_mode:
+        return _normalize_json_text(text, schema=_resolve_schema(json_schema))
+    return _finalize_text(provider, model, text)
 
 
 def _build_openrouter_response_format(
@@ -675,11 +1179,84 @@ def _query_openai(
     json_mode: bool,
     json_schema: dict[str, Any] | type[BaseModel] | None,
     temperature: float | None,
+    top_p: float | None,
+    max_tokens: int | None,
+    seed: int | None,
+    reasoning_effort: str | None,
     timeout: float | None,
+    base_url: str | None,
+    api_key: str | None,
+) -> str:
+    resolved_base_url, resolved_api_key = _resolve_endpoint_connection(
+        "openai",
+        base_url=base_url,
+        api_key=api_key,
+    )
+    return _query_openai_compatible_endpoint(
+        provider_label="openai",
+        model=model,
+        system_prompt=system_prompt,
+        query=query,
+        json_mode=json_mode,
+        json_schema=json_schema,
+        temperature=temperature,
+        top_p=top_p,
+        max_tokens=max_tokens,
+        seed=seed,
+        reasoning_effort=reasoning_effort,
+        timeout=timeout,
+        base_url=resolved_base_url,
+        api_key=resolved_api_key,
+    )
+
+
+def _apply_openai_generation_controls(
+    payload: dict[str, Any],
+    *,
+    temperature: float | None,
+    top_p: float | None,
+    max_tokens: int | None,
+    seed: int | None,
+    reasoning_effort: str | None,
+) -> None:
+    if temperature is not None:
+        payload["temperature"] = temperature
+    if top_p is not None:
+        payload["top_p"] = top_p
+    if max_tokens is not None:
+        payload["max_tokens"] = max_tokens
+    if seed is not None:
+        payload["seed"] = seed
+    if reasoning_effort is not None:
+        payload["reasoning_effort"] = reasoning_effort
+
+
+def _query_openai_compatible_endpoint(
+    *,
+    provider_label: str,
+    model: str,
+    system_prompt: str,
+    query: str,
+    json_mode: bool,
+    json_schema: dict[str, Any] | type[BaseModel] | None,
+    temperature: float | None,
+    top_p: float | None,
+    max_tokens: int | None,
+    seed: int | None,
+    reasoning_effort: str | None,
+    timeout: float | None,
+    base_url: str | None,
+    api_key: str,
 ) -> str:
     from openai import OpenAI
 
-    client = OpenAI(api_key=_ensure_env("OPENAI_API_KEY"))
+    client_kwargs: dict[str, Any] = {"api_key": api_key}
+    if base_url is not None:
+        client_kwargs["base_url"] = _validated_base_url(
+            base_url,
+            label=f"{provider_label} base URL",
+        )
+    client = OpenAI(**client_kwargs)
     if timeout is not None:
         client = client.with_options(timeout=timeout)
 
@@ -687,16 +1264,108 @@ def _query_openai(
         "model": model,
         "messages": _build_messages(system_prompt, query),
     }
-    if temperature is not None:
-        payload["temperature"] = temperature
-
+    _apply_openai_generation_controls(
+        payload,
+        temperature=temperature,
+        top_p=top_p,
+        max_tokens=max_tokens,
+        seed=seed,
+        reasoning_effort=reasoning_effort,
+    )
     response_format = _build_openai_response_format(json_mode, json_schema)
     if response_format is not None:
         payload["response_format"] = response_format
 
     response = client.chat.completions.create(**payload)
-    text = _extract_content(response.choices[0].message.content)
-    return _finalize_text("openai", model, text)
+    return _openai_style_provider_text(
+        provider=provider_label,
+        model=model,
+        response=response,
+        json_mode=json_mode,
+        json_schema=json_schema,
+    )
+
+
+def _query_openai_compatible(
+    *,
+    model: str,
+    system_prompt: str,
+    query: str,
+    json_mode: bool,
+    json_schema: dict[str, Any] | type[BaseModel] | None,
+    temperature: float | None,
+    top_p: float | None,
+    max_tokens: int | None,
+    seed: int | None,
+    reasoning_effort: str | None,
+    timeout: float | None,
+    base_url: str | None,
+    api_key: str | None,
+) -> str:
+    resolved_base_url, resolved_api_key = _resolve_endpoint_connection(
+        "openai_compatible",
+        base_url=base_url,
+        api_key=api_key,
+    )
+    if not resolved_base_url:
+        raise EnvironmentError(
+            "Missing required environment variable: OPENAI_COMPATIBLE_BASE_URL"
+        )
+    return _query_openai_compatible_endpoint(
+        provider_label="openai_compatible",
+        model=model,
+        system_prompt=system_prompt,
+        query=query,
+        json_mode=json_mode,
+        json_schema=json_schema,
+        temperature=temperature,
+        top_p=top_p,
+        max_tokens=max_tokens,
+        seed=seed,
+        reasoning_effort=reasoning_effort,
+        timeout=timeout,
+        base_url=resolved_base_url,
+        api_key=resolved_api_key,
+    )
+
+
+def _query_inference_hub(
+    *,
+    model: str,
+    system_prompt: str,
+    query: str,
+    json_mode: bool,
+    json_schema: dict[str, Any] | type[BaseModel] | None,
+    temperature: float | None,
+    top_p: float | None,
+    max_tokens: int | None,
+    seed: int | None,
+    reasoning_effort: str | None,
+    timeout: float | None,
+    base_url: str | None,
+    api_key: str | None,
+) -> str:
+    resolved_base_url, resolved_api_key = _resolve_endpoint_connection(
+        "inference_hub",
+        base_url=base_url,
+        api_key=api_key,
+    )
+    return _query_openai_compatible_endpoint(
+        provider_label="inference_hub",
+        model=model,
+        system_prompt=system_prompt,
+        query=query,
+        json_mode=json_mode,
+        json_schema=json_schema,
+        temperature=temperature,
+        top_p=top_p,
+        max_tokens=max_tokens,
+        seed=seed,
+        reasoning_effort=reasoning_effort,
+        timeout=timeout,
+        base_url=resolved_base_url,
+        api_key=resolved_api_key,
+    )
 
 
 def _query_nvidia(
@@ -707,6 +1376,10 @@ def _query_nvidia(
     json_mode: bool,
     json_schema: dict[str, Any] | type[BaseModel] | None,
     temperature: float | None,
+    top_p: float | None,
+    max_tokens: int | None,
+    seed: int | None,
+    reasoning_effort: str | None,
     timeout: float | None,
 ) -> str:
     from openai import OpenAI
@@ -722,16 +1395,27 @@ def _query_nvidia(
         "model": model,
         "messages": _build_messages(system_prompt, query),
     }
-    if temperature is not None:
-        payload["temperature"] = temperature
+    _apply_openai_generation_controls(
+        payload,
+        temperature=temperature,
+        top_p=top_p,
+        max_tokens=max_tokens,
+        seed=seed,
+        reasoning_effort=reasoning_effort,
+    )
 
     response_format = _build_openai_response_format(json_mode, json_schema)
     if response_format is not None:
         payload["response_format"] = response_format
 
     response = client.chat.completions.create(**payload)
-    text = _extract_content(response.choices[0].message.content)
-    return _finalize_text("nvidia", model, text)
+    return _openai_style_provider_text(
+        provider="nvidia",
+        model=model,
+        response=response,
+        json_mode=json_mode,
+        json_schema=json_schema,
+    )
 
 
 def _query_groq(
@@ -742,6 +1426,10 @@ def _query_groq(
     json_mode: bool,
     json_schema: dict[str, Any] | type[BaseModel] | None,
     temperature: float | None,
+    top_p: float | None,
+    max_tokens: int | None,
+    seed: int | None,
+    reasoning_effort: str | None,
     timeout: float | None,
 ) -> str:
     from groq import Groq
@@ -754,16 +1442,27 @@ def _query_groq(
         "model": model,
         "messages": _build_messages(system_prompt, query),
     }
-    if temperature is not None:
-        payload["temperature"] = temperature
+    _apply_openai_generation_controls(
+        payload,
+        temperature=temperature,
+        top_p=top_p,
+        max_tokens=max_tokens,
+        seed=seed,
+        reasoning_effort=reasoning_effort,
+    )
 
     response_format = _build_openai_response_format(json_mode, json_schema)
     if response_format is not None:
         payload["response_format"] = response_format
 
     response = client.chat.completions.create(**payload)
-    text = _extract_content(response.choices[0].message.content)
-    return _finalize_text("groq", model, text)
+    return _openai_style_provider_text(
+        provider="groq",
+        model=model,
+        response=response,
+        json_mode=json_mode,
+        json_schema=json_schema,
+    )
 
 
 def _query_cerebras(
@@ -774,6 +1473,10 @@ def _query_cerebras(
     json_mode: bool,
     json_schema: dict[str, Any] | type[BaseModel] | None,
     temperature: float | None,
+    top_p: float | None,
+    max_tokens: int | None,
+    seed: int | None,
+    reasoning_effort: str | None,
     timeout: float | None,
 ) -> str:
     from cerebras.cloud.sdk import Cerebras
@@ -784,8 +1487,14 @@ def _query_cerebras(
         "model": model,
         "messages": _build_messages(system_prompt, query),
     }
-    if temperature is not None:
-        payload["temperature"] = temperature
+    _apply_openai_generation_controls(
+        payload,
+        temperature=temperature,
+        top_p=top_p,
+        max_tokens=max_tokens,
+        seed=seed,
+        reasoning_effort=reasoning_effort,
+    )
     if timeout is not None:
         payload["timeout"] = timeout
 
@@ -794,8 +1503,13 @@ def _query_cerebras(
         payload["response_format"] = response_format
 
     response = client.chat.completions.create(**payload)
-    text = _extract_content(response.choices[0].message.content)
-    return _finalize_text("cerebras", model, text)
+    return _openai_style_provider_text(
+        provider="cerebras",
+        model=model,
+        response=response,
+        json_mode=json_mode,
+        json_schema=json_schema,
+    )
 
 
 def _query_openrouter(
@@ -806,6 +1520,10 @@ def _query_openrouter(
     json_mode: bool,
     json_schema: dict[str, Any] | type[BaseModel] | None,
     temperature: float | None,
+    top_p: float | None,
+    max_tokens: int | None,
+    seed: int | None,
+    reasoning_effort: str | None,
     timeout: float | None,
 ) -> str:
     from openrouter import OpenRouter
@@ -819,6 +1537,14 @@ def _query_openrouter(
     }
     if temperature is not None:
         payload["temperature"] = temperature
+    if top_p is not None:
+        payload["top_p"] = top_p
+    if max_tokens is not None:
+        payload["max_tokens"] = max_tokens
+    if seed is not None:
+        payload["seed"] = seed
+    if reasoning_effort is not None:
+        payload["reasoning"] = {"effort": reasoning_effort}
     if timeout is not None:
         payload["timeout_ms"] = int(timeout * 1000)
 
@@ -834,8 +1560,13 @@ def _query_openrouter(
         payload["http_referer"] = http_referer
 
     response = client.chat.send(**payload)
-    text = _extract_content(response.choices[0].message.content)
-    return _finalize_text("openrouter", model, text)
+    return _openai_style_provider_text(
+        provider="openrouter",
+        model=model,
+        response=response,
+        json_mode=json_mode,
+        json_schema=json_schema,
+    )
 
 
 def _query_ollama(
@@ -846,6 +1577,10 @@ def _query_ollama(
     json_mode: bool,
     json_schema: dict[str, Any] | type[BaseModel] | None,
     temperature: float | None,
+    top_p: float | None,
+    max_tokens: int | None,
+    seed: int | None,
+    reasoning_effort: str | None,
     timeout: float | None,
     keep_alive: float | str | None,
 ) -> str:
@@ -874,7 +1609,11 @@ def _query_ollama(
         # Ollama supports keep_alive=0 to unload immediately after the response.
         "keep_alive": 0 if keep_alive is None else keep_alive,
     }
-    think_value = _ollama_think_value(model=resolved_model, json_mode=json_mode)
+    think_value = (
+        _ollama_reasoning_effort(reasoning_effort)
+        if reasoning_effort is not None
+        else _ollama_think_value(model=resolved_model, json_mode=json_mode)
+    )
     if think_value is not None:
         payload["think"] = think_value
 
@@ -884,9 +1623,15 @@ def _query_ollama(
     elif json_mode:
         payload["format"] = "json"
 
-    options: dict[str, Any] = {"num_predict": OLLAMA_NUM_PREDICT}
+    options: dict[str, Any] = {
+        "num_predict": max_tokens if max_tokens is not None else OLLAMA_NUM_PREDICT
+    }
     if temperature is not None:
         options["temperature"] = temperature
+    if top_p is not None:
+        options["top_p"] = top_p
+    if seed is not None:
+        options["seed"] = seed
     payload["options"] = options
 
     try:
@@ -908,15 +1653,12 @@ def _query_ollama(
                     raise
             retry_client = _build_ollama_client(timeout=generation_timeout)
             response = retry_client.chat(**payload)
-            message = response.get("message", {})
-            text = _extract_content(message.get("content"))
-            if json_mode:
-                if text:
-                    return _normalize_json_text(text, schema=schema)
-                thinking_text = _extract_content(message.get("thinking"))
-                if thinking_text:
-                    return _normalize_json_text(thinking_text, schema=schema)
-            return _finalize_text("ollama", resolved_model, text)
+            return _ollama_provider_text(
+                response=response,
+                model=resolved_model,
+                json_mode=json_mode,
+                json_schema=json_schema,
+            )
         if not _is_ollama_not_found_error(error):
             raise
         try:
@@ -926,15 +1668,51 @@ def _query_ollama(
                 _raise_ollama_connection_error(pull_error)
             raise
         response = client.chat(**payload)
+    return _ollama_provider_text(
+        response=response,
+        model=resolved_model,
+        json_mode=json_mode,
+        json_schema=json_schema,
+    )
+
+
+def _ollama_provider_text(
+    *,
+    response: Any,
+    model: str,
+    json_mode: bool,
+    json_schema: dict[str, Any] | type[BaseModel] | None,
+) -> ProviderText:
     message = response.get("message", {})
-    text = _extract_content(message.get("content"))
-    if json_mode:
-        if text:
-            return _normalize_json_text(text, schema=schema)
-        thinking_text = _extract_content(message.get("thinking"))
-        if thinking_text:
-            return _normalize_json_text(thinking_text, schema=schema)
-    return _finalize_text("ollama", resolved_model, text)
+    content = _extract_content(message.get("content"))
+    reasoning = _extract_content(message.get("thinking"))
+    # A few Ollama thinking models place structured output in `thinking` while
+    # leaving content empty. Preserve both fields and only use that fallback for
+    # the legacy structured-call path.
+    text_for_call = content or (reasoning if json_mode else "")
+    finish_reason = response.get("done_reason")
+    usage = {
+        key: response[key]
+        for key in (
+            "prompt_eval_count",
+            "eval_count",
+            "prompt_eval_duration",
+            "eval_duration",
+        )
+        if response.get(key) is not None
+    }
+    return _provider_text(
+        provider="ollama",
+        model=model,
+        response=response,
+        content=text_for_call,
+        reasoning=reasoning,
+        finish_reason=finish_reason,
+        usage=usage or None,
+        request_id=None,
+        json_mode=json_mode,
+        json_schema=json_schema,
+    )
 
 
 def _query_anthropic(
@@ -945,6 +1723,10 @@ def _query_anthropic(
     json_mode: bool,
     json_schema: dict[str, Any] | type[BaseModel] | None,
     temperature: float | None,
+    top_p: float | None,
+    max_tokens: int | None,
+    seed: int | None,
+    reasoning_effort: str | None,
     timeout: float | None,
 ) -> str:
     import anthropic
@@ -955,10 +1737,14 @@ def _query_anthropic(
         "model": model,
         "system": system_prompt,
         "messages": [{"role": "user", "content": query}],
-        "max_tokens": 2048,
+        "max_tokens": max_tokens if max_tokens is not None else 2048,
     }
     if temperature is not None:
         payload["temperature"] = temperature
+    if top_p is not None:
+        payload["top_p"] = top_p
+    # Rejected centrally by _validate_provider_controls before dispatch.
+    del seed, reasoning_effort
     if timeout is not None:
         payload["timeout"] = timeout
 
@@ -977,8 +1763,29 @@ def _query_anthropic(
 
     response = client.messages.create(**payload)
 
-    text = _extract_content(response.content)
-    return _finalize_text("anthropic", model, text)
+    visible_parts: list[str] = []
+    reasoning_parts: list[str] = []
+    for block in getattr(response, "content", []) or []:
+        block_type = getattr(block, "type", None)
+        if block_type in {"thinking", "reasoning"}:
+            reasoning_parts.append(
+                _string_attribute(block, "thinking", "reasoning", "text")
+            )
+        else:
+            visible_parts.append(_extract_content(block))
+    text = "\n".join(part for part in visible_parts if part).strip()
+    return _provider_text(
+        provider="anthropic",
+        model=model,
+        response=response,
+        content=text,
+        reasoning="\n".join(part for part in reasoning_parts if part),
+        finish_reason=getattr(response, "stop_reason", None),
+        usage=getattr(response, "usage", None),
+        request_id=getattr(response, "id", None),
+        json_mode=json_mode,
+        json_schema=json_schema,
+    )
 
 
 def _query_xai(
@@ -989,6 +1796,10 @@ def _query_xai(
     json_mode: bool,
     json_schema: dict[str, Any] | type[BaseModel] | None,
     temperature: float | None,
+    top_p: float | None,
+    max_tokens: int | None,
+    seed: int | None,
+    reasoning_effort: str | None,
     timeout: float | None,
 ) -> str:
     from xai_sdk import Client
@@ -1013,6 +1824,12 @@ def _query_xai(
 
     if temperature is not None:
         chat.temperature = temperature
+    if top_p is not None:
+        chat.top_p = top_p
+    if max_tokens is not None:
+        chat.max_tokens = max_tokens
+    # Rejected centrally by _validate_provider_controls before dispatch.
+    del seed, reasoning_effort
     if timeout is not None:
         chat.timeout = timeout
 
@@ -1025,9 +1842,20 @@ def _query_xai(
         try:
             json.loads(text)
         except json.JSONDecodeError as exc:
-            raise ValueError(
+            raise ResponseParseError(
                 "xAI json_mode expected valid JSON output. "
                 "Pass a Pydantic schema class for native parsing."
             ) from exc
 
-    return _finalize_text("xai", model, text)
+    return _provider_text(
+        provider="xai",
+        model=model,
+        response=completion,
+        content=text,
+        reasoning=_string_attribute(completion, "reasoning_content", "reasoning"),
+        finish_reason=getattr(completion, "finish_reason", None),
+        usage=getattr(completion, "usage", None),
+        request_id=getattr(completion, "id", None),
+        json_mode=json_mode,
+        json_schema=json_schema,
+    )

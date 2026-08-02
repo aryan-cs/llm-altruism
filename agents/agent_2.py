@@ -26,6 +26,7 @@ class Agent2(BaseAgent):
         provider_: str,
         model_: str,
         *,
+        seed_: int | None = None,
         keep_alive_: float | str | None = None,
     ) -> None:
         super().__init__(
@@ -37,6 +38,7 @@ class Agent2(BaseAgent):
                 agent_id=id_,
             ),
             json_schema_=SocietyDecision,
+            seed_=seed_,
             keep_alive_=keep_alive_,
         )
 

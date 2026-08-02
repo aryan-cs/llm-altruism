@@ -53,6 +53,22 @@ def test_choose_provider_and_model_rejects_unknown_provider() -> None:
         )
 
 
+def test_choose_provider_and_model_accepts_explicit_openai_compatible_target() -> None:
+    assert choose_provider_and_model(
+        "Test Experiment",
+        experiment_key="part_1",
+        provider="openai-compatible",
+        model="real/custom-model-id",
+    ) == ("openai_compatible", "real/custom-model-id")
+
+    with pytest.raises(ValueError, match="explicitly supplied"):
+        choose_provider_and_model(
+            "Test Experiment",
+            experiment_key="part_1",
+            provider="openai_compatible",
+        )
+
+
 def test_choose_benchmark_models_accepts_multiple_providers() -> None:
     models = choose_benchmark_models(
         "Part 0",
@@ -207,6 +223,12 @@ def test_parse_game_theory_args_supports_repeatable_matrix_filters() -> None:
             "structured",
             "--limit",
             "4",
+            "--order-seed",
+            "91",
+            "--order-strategy",
+            "counterbalanced",
+            "--counterbalance-index",
+            "3",
             "--headless",
             "--resume",
         ]
@@ -217,6 +239,9 @@ def test_parse_game_theory_args_supports_repeatable_matrix_filters() -> None:
     assert cli_args.domain == ["sports"]
     assert cli_args.presentation == ["structured"]
     assert cli_args.limit == 4
+    assert cli_args.order_seed == 91
+    assert cli_args.order_strategy == "counterbalanced"
+    assert cli_args.counterbalance_index == 3
     assert cli_args.headless is True
     assert cli_args.resume is True
 

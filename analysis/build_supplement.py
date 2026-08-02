@@ -21,6 +21,7 @@ INCLUDE_PATHS = (
     Path("experiments"),
     Path("providers"),
     Path("tests"),
+    Path("docs") / "JUDGE_AUDIT.md",
     Path("docs") / "release",
     Path("docs") / "conference_submission" / "README.md",
     Path("docs") / "conference_submission" / "conference_submission.tex",
@@ -30,8 +31,11 @@ INCLUDE_PATHS = (
     Path("data") / "graphs",
     Path("data") / "raw" / "part_1",
     Path("data") / "raw" / "part_2",
-    Path("data") / "archive" / "part_2_before_rerun_20260429_050907",
 )
+
+EXCLUDED_RELATIVE_PATHS = {
+    Path("docs") / "release" / "research-proposal-metadata.json",
+}
 
 EXCLUDED_DIR_NAMES = {
     ".git",
@@ -75,6 +79,10 @@ POLICY_EXCLUSIONS = (
         "path": "docs/conference_submission/supplement.zip",
         "reason": "the supplement archive is not nested inside itself",
     },
+    {
+        "path": "docs/release/research-proposal-metadata.json",
+        "reason": "author-identifying proposal metadata is excluded from the anonymous supplement",
+    },
 )
 
 
@@ -97,6 +105,8 @@ def _should_exclude(rel_path: Path, output_rel_path: Path | None = None) -> bool
     if output_rel_path is not None and rel_path == output_rel_path:
         return True
     if _is_relative_to(rel_path, Path("data") / "raw" / "part_0"):
+        return True
+    if rel_path in EXCLUDED_RELATIVE_PATHS:
         return True
     if any(part in EXCLUDED_DIR_NAMES for part in rel_path.parts):
         return True

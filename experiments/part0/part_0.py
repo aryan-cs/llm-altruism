@@ -12,6 +12,15 @@ from pathlib import Path
 
 from agents.agent_0 import Agent0
 from agents.base_agent import BaseAgent
+from experiments.misc.attempt_log import DurableAttemptLogger, attempt_log_path_for_csv
+from experiments.misc.final_answer import (
+    DEFAULT_EXTRACTOR_MAX_TOKENS,
+    DEFAULT_EXTRACTOR_MODEL,
+    DEFAULT_EXTRACTOR_PROVIDER,
+    DEFAULT_OUTPUT_TOKEN_CAP,
+    ExtractionConfig,
+    extraction_record_from_error,
+)
 from experiments.misc.preflight import run_experiment_preflight
 from deep_translator import GoogleTranslator
 from experiments.misc.prompt_loader import (
@@ -21,7 +30,13 @@ from experiments.misc.prompt_loader import (
     render_prompt_template,
 )
 from experiments.misc.result_writer import IncrementalCsvWriter
-from experiments.misc.run_metadata import base_run_metadata, mark_metadata_complete, stable_json_hash
+from experiments.misc.run_metadata import (
+    base_run_metadata,
+    mark_metadata_complete,
+    mark_metadata_failed,
+    stable_json_hash,
+    safe_error_message,
+)
 from experiments.misc.wizard import (
     choose_benchmark_models,
     choose_languages,
@@ -29,7 +44,12 @@ from experiments.misc.wizard import (
     parse_alignment_args,
 )
 from pydantic import BaseModel, ConfigDict, Field
-from providers.api_call import OllamaConnectionError, ollama_model_available_locally
+from providers.api_call import (
+    OllamaConnectionError,
+    ResponseParseError,
+    ollama_model_available_locally,
+    failure_provenance,
+)
 from providers.api_call import unload_ollama_model
 from rich.console import Console, Group
 from rich.markdown import Markdown
@@ -248,6 +268,20 @@ def _judge_label_for_agent(judge: BaseAgent | None) -> str:
     return f"{judge.provider}/{judge.model}"
 
 
+def _judge_provenance_for_agent(judge: BaseAgent | None) -> str:
+    if judge is None:
+        return ""
+    return json.dumps(
+        {
+            "provider": judge.provider,
+            "model": judge.model,
+            "configured_index": _judge_index_for(judge),
+            "fallback_used": _judge_index_for(judge) != 0,
+        },
+        sort_keys=True,
+    )
+
+
 def _headless_judge_status(
     *,
     judge: BaseAgent | None,
@@ -312,6 +346,14 @@ MODEL_BATCH_KEEP_ALIVE = "30m"
 ALIGNMENT_RESULTS_DIR = Path("data") / "raw" / "part_0"
 ALIGNMENT_TIMESTAMP_FORMAT = "%m-%d-%Y_%H_%M_%S"
 RESULT_HEADERS = [
+    "provider", "model", "language", "prompt", "prompt_sent",
+    "reasoning", "response",
+    "reasoning_en", "response_en",
+    "verdict", "verdict_reason",
+    "judge_provider", "judge_model", "judge_method", "judge_provenance",
+    "complied?",
+]
+PRE_PROVENANCE_RESULT_HEADERS = [
     "provider", "model", "language", "prompt",
     "reasoning", "response",
     "reasoning_en", "response_en",
@@ -397,12 +439,17 @@ def _load_alignment_rows(
                         "model": row.get("model", "") or "",
                         "language": row.get("language", "") or "",
                         "prompt": row.get("prompt", "") or "",
+                        "prompt_sent": "",
                         "reasoning": row.get("reasoning", "") or "",
                         "response": row.get("response", "") or "",
                         "reasoning_en": "",
                         "response_en": "",
                         "verdict": verdict,
                         "verdict_reason": "",
+                        "judge_provider": "",
+                        "judge_model": "",
+                        "judge_method": "legacy_unknown",
+                        "judge_provenance": "",
                         "complied?": complied,
                     }
                 )
@@ -434,16 +481,34 @@ def _load_alignment_rows(
                         "model": row.get("model", "") or "",
                         "language": row.get("language", "") or "",
                         "prompt": row.get("prompt", "") or "",
+                        "prompt_sent": "",
                         "reasoning": row.get("reasoning", "") or "",
                         "response": row.get("response", "") or "",
                         "reasoning_en": row.get("reasoning_en", "") or "",
                         "response_en": row.get("response_en", "") or "",
                         "verdict": verdict,
                         "verdict_reason": row.get("verdict_reason", "") or "",
+                        "judge_provider": "",
+                        "judge_model": "",
+                        "judge_method": "legacy_unknown",
+                        "judge_provenance": "",
                         "complied?": complied,
                     }
                 )
             return converted
+
+        if source_header == PRE_PROVENANCE_RESULT_HEADERS and header == RESULT_HEADERS:
+            return [
+                {
+                    **{column: row.get(column, "") or "" for column in source_header},
+                    "prompt_sent": "",
+                    "judge_provider": "",
+                    "judge_model": "",
+                    "judge_method": "legacy_unknown",
+                    "judge_provenance": "",
+                }
+                for row in reader
+            ]
 
         if source_header == LEGACY_RESULT_HEADERS and header != RESULT_HEADERS:
             raise ValueError(
@@ -467,10 +532,15 @@ def _normalize_alignment_results_csv(path: str | Path) -> None:
 
     if source_header == RESULT_HEADERS:
         return
-    if source_header not in (LEGACY_RESULT_HEADERS, COMPACT_RESULT_HEADERS):
+    if source_header not in (
+        LEGACY_RESULT_HEADERS,
+        COMPACT_RESULT_HEADERS,
+        PRE_PROVENANCE_RESULT_HEADERS,
+    ):
         raise ValueError(
             f"Unexpected CSV header for {csv_path}: "
-            f"expected {RESULT_HEADERS}, {COMPACT_RESULT_HEADERS}, or {LEGACY_RESULT_HEADERS}, found {source_header}."
+            f"expected {RESULT_HEADERS}, {COMPACT_RESULT_HEADERS}, "
+            f"{PRE_PROVENANCE_RESULT_HEADERS}, or {LEGACY_RESULT_HEADERS}, found {source_header}."
         )
 
     converted_rows = _load_alignment_rows(csv_path, RESULT_HEADERS)
@@ -504,6 +574,8 @@ def _write_alignment_metadata(
     prompts: list[str],
     languages: list[str],
     judge_after: bool = False,
+    extraction_config: ExtractionConfig | None = None,
+    attempt_logger: DurableAttemptLogger | None = None,
 ) -> None:
     metadata_path = Path(path)
     metadata_path.parent.mkdir(parents=True, exist_ok=True)
@@ -511,6 +583,9 @@ def _write_alignment_metadata(
         "models": models,
         "prompts": prompts,
         "languages": languages,
+        "grading_protocol": (
+            extraction_config.to_metadata() if extraction_config is not None else None
+        ),
     }
     flat_models = _flatten_benchmark_models(models)
     first_provider, first_model = flat_models[0] if flat_models else ("unknown", "unknown")
@@ -520,15 +595,52 @@ def _write_alignment_metadata(
         csv_path=csv_path or metadata_path.with_name(f"{metadata_path.name.removesuffix('_meta.json')}.csv"),
         provider=first_provider,
         model=first_model,
+        targets=flat_models,
         parameters=parameters,
         prompt_config_hash=stable_json_hash(PART_0_PROMPTS),
     )
     payload.update(parameters)
     if judge_after:
         payload["judge_after"] = True
+    if attempt_logger is not None:
+        attempt_metadata = attempt_logger.summary().to_metadata()
+        attempt_metadata["coverage"] = "full_run"
+        payload["attempt_log"] = attempt_metadata
     with metadata_path.open("w", encoding="utf-8") as handle:
         json.dump(payload, handle, ensure_ascii=False, indent=2)
         handle.write("\n")
+
+
+def _fresh_extraction_config(
+    *,
+    output_token_cap: int | None,
+    extractor_provider: str | None,
+    extractor_model: str | None,
+    extractor_max_tokens: int | None,
+) -> ExtractionConfig:
+    return ExtractionConfig(
+        subject_output_token_cap=(output_token_cap or DEFAULT_OUTPUT_TOKEN_CAP),
+        provider=(extractor_provider or DEFAULT_EXTRACTOR_PROVIDER),
+        model=(extractor_model or DEFAULT_EXTRACTOR_MODEL),
+        extractor_max_tokens=(extractor_max_tokens or DEFAULT_EXTRACTOR_MAX_TOKENS),
+    )
+
+
+def _resume_extraction_config(metadata: dict[str, object] | None) -> ExtractionConfig | None:
+    if metadata is None:
+        return None
+    value = metadata.get("grading_protocol")
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise ValueError("Resume metadata contains an invalid grading_protocol.")
+    return ExtractionConfig.from_metadata(value)
+
+
+def _attempt_log_metadata(logger: DurableAttemptLogger, *, coverage: str) -> dict[str, object]:
+    value = logger.summary().to_metadata()
+    value["coverage"] = coverage
+    return {"attempt_log": value}
 
 
 def _cleanup_orphan_alignment_metadata() -> list[Path]:
@@ -978,10 +1090,14 @@ def _build_final_row(
     prompt: str,
     reasoning: str,
     response: str,
+    complied: bool,
+    prompt_sent: str = "",
     reasoning_en: str = "",
     response_en: str = "",
-    complied: bool,
     verdict_reason: str = "",
+    judge: BaseAgent | None = None,
+    judge_method: str = "model",
+    judge_provenance: str = "",
 ) -> dict[str, str]:
     verdict = "complied" if bool(complied) else "denied"
     return {
@@ -989,12 +1105,17 @@ def _build_final_row(
         "model": model,
         "language": language,
         "prompt": prompt,
+        "prompt_sent": prompt_sent,
         "reasoning": reasoning,
         "response": response,
         "reasoning_en": reasoning_en,
         "response_en": response_en,
         "verdict": verdict,
         "verdict_reason": verdict_reason,
+        "judge_provider": str(getattr(judge, "provider", "") or ""),
+        "judge_model": str(getattr(judge, "model", "") or ""),
+        "judge_method": judge_method if judge is not None else "",
+        "judge_provenance": judge_provenance,
         "complied?": "true" if bool(complied) else "false",
     }
 
@@ -1021,6 +1142,8 @@ def _load_or_query_pending_row(
     model: str,
     prompt: str,
     language: str,
+    extraction_config: ExtractionConfig | None = None,
+    attempt_logger: DurableAttemptLogger | None = None,
 ) -> tuple[dict[str, str] | None, bool, bool]:
     pending_row = pending_rows_by_key.get(key)
     reasoning_translation_failed = False
@@ -1032,7 +1155,19 @@ def _load_or_query_pending_row(
         return pending_row, reasoning_translation_failed, response_translation_failed
 
     prompt_sent = translate_alignment_prompt(prompt, language)
-    result = query_until_valid(agent, agent.build_alignment_prompt(prompt_sent))
+    result = query_until_valid(
+        agent,
+        agent.build_alignment_prompt(prompt_sent),
+        extraction_config=extraction_config,
+        attempt_logger=attempt_logger,
+        unit_id=stable_json_hash([provider, model, language, prompt]),
+        unit={
+            "provider": provider,
+            "model": model,
+            "language": language,
+            "prompt": prompt,
+        },
+    )
     if result is None:
         return None, reasoning_translation_failed, response_translation_failed
 
@@ -1158,12 +1293,15 @@ def _judge_saved_pending_rows(
                 model=model,
                 language=language,
                 prompt=prompt,
+                prompt_sent=pending_row.get("prompt_sent", ""),
                 reasoning=reasoning,
                 response=response,
                 reasoning_en=pending_row.get("reasoning_en", ""),
                 response_en=pending_row.get("response_en", ""),
                 complied=complied,
                 verdict_reason=judge_decision[1] if isinstance(judge_decision, tuple) else "",
+                judge=judge,
+                judge_provenance=_judge_provenance_for_agent(judge),
             )
             _write_final_row(
                 final_writer=final_writer,
@@ -1339,9 +1477,6 @@ def judge_response(
     response_en: str = "",
 ) -> tuple[tuple[str, str], BaseAgent]:
     judged_response = response_en.strip() or response
-    if _looks_like_material_compliance("", judged_response):
-        return ("complied", "Heuristic material-compliance check matched before judge call."), judge
-
     judge_prompt = render_prompt_template(
         JUDGE_PROMPT_TEMPLATE,
         prompt=original_prompt,
@@ -1377,10 +1512,10 @@ def judge_response(
                 if total_attempts >= max_attempts:
                     _emit_retry_status_line(
                         f"  [yellow][WARN] Judge attempt {attempt} returned an invalid compliance flag. "
-                        f"Skipping this prompt and continuing.[/yellow]",
+                        f"Leaving this prompt unjudged.[/yellow]",
                         finalize=True
                     )
-                    return ("denied", last_reason), current_judge
+                    raise ResponseParseError(last_reason)
                 _emit_retry_status_line(
                     f"  [yellow][WARN] Judge attempt {attempt} returned invalid compliance flag. Retrying...[/yellow]"
                 )
@@ -1391,12 +1526,12 @@ def judge_response(
                 if total_attempts >= max_attempts:
                     _emit_retry_status_line(
                         f"  [yellow][WARN] Judge attempt {attempt} raised {type(e).__name__}: {e}. "
-                        f"Skipping this prompt and continuing.[/yellow]",
+                        f"Leaving this prompt unjudged.[/yellow]",
                         finalize=True
                     )
                     if _is_judge_unavailable_error(e) or is_quota_error(e):
                         break
-                    return ("denied", last_reason), current_judge
+                    raise
                 if is_quota_error(e) or _is_judge_unavailable_error(e):
                     if order_idx + 1 < len(attempt_order):
                         next_idx = attempt_order[order_idx + 1]
@@ -1428,19 +1563,81 @@ def parse_response(raw: str) -> tuple[str, str] | None:
     except Exception as e:
         return None
 
-def query_until_valid(agent: BaseAgent, prompt: str) -> tuple[str, str] | None:
+def query_until_valid(
+    agent: BaseAgent,
+    prompt: str,
+    *,
+    extraction_config: ExtractionConfig | None = None,
+    attempt_logger: DurableAttemptLogger | None = None,
+    unit_id: str | None = None,
+    unit: dict[str, object] | None = None,
+) -> tuple[str, str]:
     attempt = 0
     had_retry_status = False
+    last_error: Exception = ResponseParseError("Agent returned an invalid response.")
     while attempt < MAX_AGENT_ATTEMPTS:
         attempt += 1
         try:
-            raw    = agent.query(prompt, json_mode=True)
+            generation_record = None
+            if extraction_config is None:
+                raw = agent.query(prompt, json_mode=True)
+            else:
+                raw, generated = agent.query_for_grading(
+                    prompt,
+                    extraction_config=extraction_config,
+                    extraction_kind="part_0_safety_response",
+                )
+                generation_record = generated.to_dict()
             result = parse_response(raw)
             if result is not None:
+                if attempt_logger is not None:
+                    reasoning, response = result
+                    attempt_logger.append(
+                        provider=agent.provider,
+                        model=agent.model,
+                        unit_id=unit_id or agent.id,
+                        unit=dict(unit or {"agent": agent.id}),
+                        attempt=attempt,
+                        max_attempts=MAX_AGENT_ATTEMPTS,
+                        prompt_text=prompt,
+                        outcome="success",
+                        raw_response=raw,
+                        parsed_response={
+                            "reasoning": reasoning,
+                            "response": response,
+                        },
+                        generation_record=generation_record,
+                    )
                 if had_retry_status:
                     _emit_retry_status_line("", finalize=True)
                 return result
             had_retry_status = True
+            last_error = ResponseParseError(
+                f"Agent {agent.id} returned an invalid structured response."
+            )
+            if attempt_logger is not None:
+                attempt_logger.append(
+                    provider=agent.provider,
+                    model=agent.model,
+                    unit_id=unit_id or agent.id,
+                    unit=dict(unit or {"agent": agent.id}),
+                    attempt=attempt,
+                    max_attempts=MAX_AGENT_ATTEMPTS,
+                    prompt_text=prompt,
+                    outcome="invalid_response",
+                    raw_response=raw,
+                    generation_record=generation_record,
+                    error={
+                        "exception_type": type(last_error).__name__,
+                        "message": safe_error_message(last_error),
+                        "provenance": failure_provenance(
+                            last_error,
+                            provider=agent.provider,
+                            model=agent.model,
+                        ),
+                    },
+                    will_retry=attempt < MAX_AGENT_ATTEMPTS,
+                )
             if attempt < MAX_AGENT_ATTEMPTS:
                 _emit_retry_status_line(
                     f"  [yellow][WARN] Agent {agent.id} attempt {attempt}/{MAX_AGENT_ATTEMPTS} failed to parse. Retrying...[/yellow]"
@@ -1453,9 +1650,35 @@ def query_until_valid(agent: BaseAgent, prompt: str) -> tuple[str, str] | None:
                 )
         except Exception as e:
             had_retry_status = True
+            if attempt_logger is not None:
+                attempt_logger.append(
+                    provider=agent.provider,
+                    model=agent.model,
+                    unit_id=unit_id or agent.id,
+                    unit=dict(unit or {"agent": agent.id}),
+                    attempt=attempt,
+                    max_attempts=MAX_AGENT_ATTEMPTS,
+                    prompt_text=prompt,
+                    outcome="provider_error",
+                    generation_record=extraction_record_from_error(e),
+                    error={
+                        "exception_type": type(e).__name__,
+                        "message": safe_error_message(e),
+                        "provenance": failure_provenance(
+                            e,
+                            provider=agent.provider,
+                            model=agent.model,
+                        ),
+                    },
+                    will_retry=attempt < MAX_AGENT_ATTEMPTS,
+                )
             if is_quota_error(e):
-                _emit_retry_status_line(f"  [red][ERROR] Agent {agent.id} quota exceeded. Marking as REVISIT.[/red]", finalize=True)
-                return None
+                _emit_retry_status_line(
+                    f"  [red][ERROR] Agent {agent.id} quota exceeded.[/red]",
+                    finalize=True,
+                )
+                raise
+            last_error = e
             if attempt < MAX_AGENT_ATTEMPTS:
                 _emit_retry_status_line(
                     f"  [yellow][WARN] Agent {agent.id} attempt {attempt}/{MAX_AGENT_ATTEMPTS} raised {type(e).__name__}: {e}. Retrying...[/yellow]"
@@ -1468,7 +1691,7 @@ def query_until_valid(agent: BaseAgent, prompt: str) -> tuple[str, str] | None:
                 )
     if had_retry_status:
         _emit_retry_status_line("", finalize=True)
-    return None
+    raise last_error
 # ---------------------------------------------------------------------------
 
 
@@ -1543,6 +1766,10 @@ def run_alignment_test(
     resume: bool = False,
     judge_after: bool = False,
     prompt_count: int | None = None,
+    output_token_cap: int | None = None,
+    extractor_provider: str | None = None,
+    extractor_model: str | None = None,
+    extractor_max_tokens: int | None = None,
     headless: bool = False,
     judge_only: bool = False,
 ) -> str:
@@ -1555,6 +1782,37 @@ def run_alignment_test(
     if resume:
         timestamp = _latest_interrupted_alignment_timestamp()
         csv_path, pending_path, metadata_path = _alignment_run_paths(timestamp)
+        resume_metadata = _load_alignment_metadata(metadata_path)
+        extraction_config = _resume_extraction_config(resume_metadata)
+        if extraction_config is None:
+            if any(
+                value is not None
+                for value in (
+                    output_token_cap,
+                    extractor_provider,
+                    extractor_model,
+                    extractor_max_tokens,
+                )
+            ):
+                raise ValueError(
+                    "Cannot add final-answer extraction while resuming a legacy Part 0 run."
+                )
+        else:
+            requested_extraction = ExtractionConfig(
+                subject_output_token_cap=(
+                    output_token_cap or extraction_config.subject_output_token_cap
+                ),
+                provider=extractor_provider or extraction_config.provider,
+                model=extractor_model or extraction_config.model,
+                extractor_max_tokens=(
+                    extractor_max_tokens or extraction_config.extractor_max_tokens
+                ),
+                timeout_seconds=extraction_config.timeout_seconds,
+            )
+            if requested_extraction != extraction_config:
+                raise ValueError(
+                    "Resume final-answer extraction configuration does not match metadata."
+                )
         resume_judge_after = _load_resume_judge_after(metadata_path)
         if resume_judge_after is not None:
             judge_after = resume_judge_after
@@ -1568,6 +1826,12 @@ def run_alignment_test(
             languages=languages,
         )
     else:
+        extraction_config = _fresh_extraction_config(
+            output_token_cap=output_token_cap,
+            extractor_provider=extractor_provider,
+            extractor_model=extractor_model,
+            extractor_max_tokens=extractor_max_tokens,
+        )
         loaded_default_prompts = prompts is None
         if prompts is None:
             prompts = load_part_0_raw_prompts()
@@ -1647,6 +1911,30 @@ def run_alignment_test(
         for provider_name, model_list in models.items()
         for model_name in model_list
     ]
+    if extraction_config is not None:
+        preflight_targets.append(
+            (extraction_config.provider, extraction_config.model)
+        )
+    configured_attempt_path = None
+    if resume:
+        attempt_metadata = (
+            resume_metadata.get("attempt_log")
+            if isinstance(resume_metadata, dict)
+            else None
+        )
+        if isinstance(attempt_metadata, dict):
+            configured_attempt_path = attempt_metadata.get("path")
+    attempt_path = (
+        Path(str(configured_attempt_path))
+        if configured_attempt_path
+        else attempt_log_path_for_csv(csv_path)
+    )
+    attempt_logger = DurableAttemptLogger(attempt_path, experiment="part_0")
+    attempt_log_coverage = (
+        "full_run"
+        if not resume or configured_attempt_path
+        else "resume_segment_only"
+    )
     _run_alignment_preflight(preflight_targets, resume=resume)
 
     if not resume or not metadata_path.exists():
@@ -1658,6 +1946,8 @@ def run_alignment_test(
             prompts=prompts,
             languages=languages,
             judge_after=judge_after,
+            extraction_config=extraction_config,
+            attempt_logger=attempt_logger,
         )
 
     total_runs = sum(len(m) for m in models.values()) * len(prompts) * len(languages)
@@ -1695,6 +1985,10 @@ def run_alignment_test(
     )
     progress_task = progress.add_task("Runs", total=total_runs, start=False)
     progress.advance(progress_task, run_num)
+    failure_targets = _flatten_benchmark_models(models)
+    failure_provider, failure_model = (
+        failure_targets[0] if failure_targets else ("unknown", "unknown")
+    )
 
     with (
         IncrementalCsvWriter(csv_path, RESULT_HEADERS, append=resume) as final_writer,
@@ -1721,6 +2015,7 @@ def run_alignment_test(
 
             for provider, model_list in (models.items() if not judge_only else []):
                 for model in model_list:
+                    failure_provider, failure_model = provider, model
                     denied_count, complied_count, skipped_count = _model_alignment_counts(
                         final_rows,
                         provider=provider,
@@ -1768,54 +2063,14 @@ def run_alignment_test(
                                     model=model,
                                     prompt=prompt,
                                     language=language,
+                                    extraction_config=extraction_config,
+                                    attempt_logger=attempt_logger,
                                 )
                                 if pending_row is None:
-                                    if not headless:
-                                        console.print(Panel(
-                                            f"[red]Quota exceeded — marked as REVISIT[/red]",
-                                            title="[bold]Skipped[/bold]",
-                                            border_style="red",
-                                        ))
-                                    final_row = _build_final_row(
-                                        provider=provider,
-                                        model=model,
-                                        language=language,
-                                        prompt=prompt,
-                                        reasoning=REVISIT,
-                                        response=REVISIT,
-                                        complied=False,
+                                    raise RuntimeError(
+                                        f"{provider}/{model} produced no scorable response; "
+                                        "the prompt remains unscored for resume."
                                     )
-                                    _write_final_row(
-                                        final_writer=final_writer,
-                                        final_rows=final_rows,
-                                        completed_keys=completed_keys,
-                                        final_row=final_row,
-                                    )
-                                    skipped_count += 1
-                                    if headless:
-                                        progress.update(
-                                            progress_task,
-                                            completed=denied_count + complied_count + skipped_count,
-                                            description=_headless_judge_status(
-                                                judge=judge,
-                                                test_provider=provider,
-                                                test_model=model,
-                                                prompt=prompt,
-                                                language=language,
-                                                total_seen=denied_count + complied_count + skipped_count,
-                                                compliances=complied_count,
-                                                skipped=skipped_count,
-                                            ),
-                                        )
-                                    else:
-                                        _render_model_alignment_rate(
-                                            provider,
-                                            model,
-                                            denied_count=denied_count,
-                                            complied_count=complied_count,
-                                            skipped_count=skipped_count,
-                                        )
-                                    continue
 
                                 reasoning = pending_row["reasoning"]
                                 response = pending_row["response"]
@@ -1872,12 +2127,15 @@ def run_alignment_test(
                                     model=model,
                                     language=language,
                                     prompt=prompt,
+                                    prompt_sent=pending_row.get("prompt_sent", ""),
                                     reasoning=reasoning,
                                     response=response,
                                     reasoning_en=pending_row.get("reasoning_en", ""),
                                     response_en=pending_row.get("response_en", ""),
                                     complied=complied,
                                     verdict_reason=judge_decision[1] if isinstance(judge_decision, tuple) else "",
+                                    judge=judge,
+                                    judge_provenance=_judge_provenance_for_agent(judge),
                                 )
                                 _write_final_row(
                                     final_writer=final_writer,
@@ -1930,6 +2188,40 @@ def run_alignment_test(
                 )
         except KeyboardInterrupt:
             interrupted = True
+        except SystemExit as error:
+            if metadata_path.exists():
+                mark_metadata_failed(
+                    metadata_path,
+                    error=error,
+                    provider=failure_provider,
+                    model=failure_model,
+                    extra={
+                        "completed_rows": len(final_rows),
+                        "pending_rows": len(pending_rows_by_key),
+                        **_attempt_log_metadata(
+                            attempt_logger,
+                            coverage=attempt_log_coverage,
+                        ),
+                    },
+                )
+            raise
+        except Exception as error:
+            if metadata_path.exists():
+                mark_metadata_failed(
+                    metadata_path,
+                    error=error,
+                    provider=failure_provider,
+                    model=failure_model,
+                    extra={
+                        "completed_rows": len(final_rows),
+                        "pending_rows": len(pending_rows_by_key),
+                        **_attempt_log_metadata(
+                            attempt_logger,
+                            coverage=attempt_log_coverage,
+                        ),
+                    },
+                )
+            raise
 
     if interrupted:
         console.print(Panel(
@@ -1948,7 +2240,13 @@ def run_alignment_test(
         mark_metadata_complete(
             metadata_path,
             completed_rows=len(final_rows),
-            extra={"pending_rows": 0},
+            extra={
+                "pending_rows": 0,
+                **_attempt_log_metadata(
+                    attempt_logger,
+                    coverage=attempt_log_coverage,
+                ),
+            },
         )
 
     console.rule("[bold]Results[/bold]")
@@ -1973,6 +2271,10 @@ if __name__ == "__main__":
         resume=cli_args.resume,
         judge_after=cli_args.judge_after,
         prompt_count=cli_args.prompt_count,
+        output_token_cap=cli_args.output_token_cap,
+        extractor_provider=cli_args.extractor_provider,
+        extractor_model=cli_args.extractor_model,
+        extractor_max_tokens=cli_args.extractor_max_tokens,
         headless=cli_args.headless,
         judge_only=cli_args.judge_only,
     )

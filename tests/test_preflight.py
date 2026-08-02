@@ -165,3 +165,62 @@ def test_run_test_command_stops_subprocess_on_keyboard_interrupt(monkeypatch) ->
     ]
     assert killpg_calls == [(4321, signal.SIGINT)]
     assert process.wait_calls == [None, 5]
+
+
+def test_validate_provider_targets_resolves_inference_hub_registry_route(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("INFERENCE_HUB_BASE_URL", "https://hub.example.test/v1")
+    metadata = preflight.validate_provider_targets(
+        [("inference-hub", "claude-opus-5")]
+    )
+
+    assert metadata["registry_version"] == "2026-08-01.1"
+    assert metadata["targets"][0]["provider"] == "inference_hub"
+    assert metadata["targets"][0]["upstream_provider"] == "anthropic"
+    assert metadata["targets"][0]["route"] == "claude-opus-5"
+
+
+def test_validate_provider_targets_rejects_invalid_compatible_url(monkeypatch) -> None:
+    monkeypatch.setenv("OPENAI_COMPATIBLE_BASE_URL", "not-a-url")
+    with pytest.raises(ValueError, match="absolute HTTP"):
+        preflight.validate_provider_targets(
+            [("openai-compatible", "local-model")]
+        )
+
+
+def test_validate_provider_targets_strict_mode_checks_credentials(monkeypatch) -> None:
+    monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
+    with pytest.raises(EnvironmentError, match="NVIDIA_API_KEY"):
+        preflight.validate_provider_targets(
+            [("inference_hub", "gpt-5.6-sol")],
+            require_credentials=True,
+        )
+
+
+def test_validate_provider_targets_rejects_unpinned_inference_hub_route() -> None:
+    with pytest.raises(ValueError, match="must be pinned"):
+        preflight.validate_provider_targets(
+            [("inference_hub", "typo-model")]
+        )
+
+
+def test_validate_provider_targets_accepts_explicit_compatible_connection(
+    monkeypatch,
+) -> None:
+    monkeypatch.delenv("OPENAI_COMPATIBLE_BASE_URL", raising=False)
+    monkeypatch.delenv("OPENAI_COMPATIBLE_API_KEY", raising=False)
+
+    metadata = preflight.validate_provider_targets(
+        [("openai-compatible", "custom-model")],
+        require_credentials=True,
+        connection_overrides={
+            "openai_compatible": {
+                "base_url": "http://127.0.0.1:8000/v1",
+                "api_key": "explicit-key",
+            }
+        },
+    )
+
+    assert metadata["targets"][0]["registered"] is False
+    assert metadata["targets"][0]["route"] == "custom-model"

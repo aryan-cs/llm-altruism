@@ -16,11 +16,11 @@
   "@type": "sc:Dataset",
   "conformsTo": "http://mlcommons.org/croissant/1.0",
   "name": "Prosocial Readiness Bench",
-  "description": "A three-part evaluation artifact for measuring observable safety refusal, dyadic cooperation, and commons restraint in LLM agents. The current pilot release includes graph-independent summary tables, validation output, and a run manifest for 13 local/open-weight model variants.",
+  "description": "A three-part behavioral evaluation artifact for measuring observable safety refusal, focal choices and role-conditioned responses in hypothetical dilemmas, and commons restraint in a controlled population microworld. The current pilot release includes graph-independent summary tables, validation output, and a run manifest for 13 local/open-weight model variants.",
   "url": "./",
-  "version": "2026-04-30-pilot",
+  "version": "2026-08-01-pilot",
   "dateCreated": "2026-04-30",
-  "dateModified": "2026-05-01",
+  "dateModified": "2026-08-01",
   "creator": [
     {
       "@type": "sc:Organization",
@@ -33,7 +33,7 @@
   },
   "license": "https://opensource.org/license/mit",
   "sdLicense": "https://opensource.org/license/mit",
-  "citeAs": "Anonymous Authors. Prosocial Readiness Bench: Evaluating Whether LLM Agents Favor Collective Welfare Over Self-Interest. NeurIPS 2026 Evaluations and Datasets submission.",
+  "citeAs": "Anonymous Authors. Safety Beyond Refusal. NeurIPS 2026 Evaluations and Datasets submission.",
   "keywords": [
     "large language models",
     "evaluation",
@@ -45,15 +45,15 @@
   ],
   "isAccessibleForFree": true,
   "conditionsOfAccess": "The paper-facing release exposes derived tables, validation reports, manifests, metadata, code, figures, and Part 1/Part 2 raw evaluation outputs. Raw Part 0 harmful prompts, prompt-source CSVs, metadata sidecars, and completions are excluded from the default anonymous supplement and should only be distributed after separate safety review and explicit access controls.",
-  "rai:dataLimitations": "The current release is a descriptive pilot over 13 local/open-weight model variants. Part 0 uses a fixed 99-prompt multilingual prompt set rather than an estimate over the full source datasets. Part 1 uses fixed one-shot dilemma prompts. Part 2 uses homogeneous same-model societies, simplified reserve dynamics, and one main simulation seed per model with a small repeat-run diagnostic. The artifact should not be interpreted as measuring moral agency, general human prosociality, or deployment safety outside the stated protocols.",
+  "rai:dataLimitations": "The current release is a descriptive pilot over 13 local/open-weight model variants. Part 0 uses a fixed 99-prompt multilingual prompt set rather than an estimate over the full source datasets. The April legacy labels could score rationale or final response; final-response refusal claims require the documented response-only rejudgment and separate human audit. Part 1 uses fixed one-shot focal and role-conditioned prompts. Part 2 uses homogeneous same-model societies, simplified reserve dynamics, stateless calls, and one trajectory per model. The artifact should not be interpreted as measuring moral agency, general human prosociality, or deployment safety outside the stated protocols.",
   "rai:dataBiases": "Selection bias may arise from the fixed harmful-prompt sample, English/Chinese/Russian language coverage, benchmark-derived prompt sources, and locally runnable model cohort. Label bias may arise from the automated Part 0 judge and deterministic mappings from constrained action tokens. The commons simulation intentionally abstracts away real social, institutional, and cultural factors, so results may underrepresent culturally specific harms, multilingual nuance, heterogeneous-agent effects, and deployment context.",
   "rai:dataUseCases": "Intended uses include behavioral auditing of LLM agents, comparison of refusal, cooperation, and commons-restraint metrics under fixed protocols, validation of analysis pipelines, and reproduction of the paper's aggregate claims. Unsupported uses include training models to comply with harmful requests, ranking models as globally prosocial, making claims about human populations or cultures, or treating the pilot results as a production safety certification.",
   "rai:dataSocialImpact": "The artifact can improve transparency around multi-axis LLM behavior by making refusal, cooperation, and commons-restraint claims traceable to stored outputs, schemas, validation reports, and metadata. Risks include misuse of harmful-request prompts or completions, overclaiming from simplified games, and unfair conclusions from limited multilingual coverage. The default anonymous supplement mitigates these risks by excluding raw Part 0 harmful prompts and completions, documenting limitations, and providing aggregate tables and validation artifacts instead.",
   "rai:hasSyntheticData": true,
-  "rai:dataCollection": "Rows are generated by executable experiments in experiments/part0, experiments/part1, and experiments/part2. Part 0 uses harmful-request prompts and automated compliance judgments. Part 1 uses a fixed dyadic dilemma prompt matrix. Part 2 uses repeated same-model common-resource simulations.",
+  "rai:dataCollection": "Rows are generated by executable experiments in experiments/part0, experiments/part1, and experiments/part2. Part 0 uses harmful-request prompts and automated response-only compliance judgments; the historical labels remain identifiable for disagreement auditing. Part 1 uses a fixed matrix of focal choices and role-conditioned responses to hypothetical dilemmas. Part 2 uses repeated stateless same-model calls in a common-resource simulation.",
   "rai:dataCollectionType": "Experiments; software collection; benchmark execution.",
-  "rai:dataAnnotationProtocol": "Part 0 compliance labels are produced by an automated judge. Part 1 cooperation labels are deterministic mappings from action tokens. Part 2 restraint labels and survival/resource outcomes are deterministic outputs of the simulation log and analysis pipeline.",
-  "rai:dataPreprocessingProtocol": "Analysis scripts normalize action labels, compute Wilson intervals, aggregate model-level summaries, compute multilingual robustness, Part 1 frame effects and prompt-sensitivity diagnostics, Part 2 AURC/AUPC trajectory summaries, build cross-part correlations, and run schema and consistency validation. Raw Part 0 harmful prompts and completions are not required for paper claims.",
+  "rai:dataAnnotationProtocol": "Part 0 final-response labels are produced by a response-only automated judge with strict structured output, row-level provenance, durable checkpoints, and explicit unjudged failures. The legacy rationale-or-response label is retained only for disagreement auditing. A deterministic blinded human-audit packet and scoring workflow are supplied, but human labels are never imputed or fabricated. Part 1 cooperation labels are deterministic mappings from action tokens. Part 2 restraint labels and survival/resource outcomes are deterministic outputs of the simulation log and analysis pipeline.",
+  "rai:dataPreprocessingProtocol": "Analysis scripts use response-only Part 0 labels when that schema is present, normalize action labels, aggregate Part 1 self-direct choices as the primary cooperation measure, retain role-conditioned frames as separate diagnostics, aggregate Part 2 trajectories with equal run weighting, compute multilingual robustness and prompt-sensitivity summaries, and report Pearson, Spearman, and Kendall cross-part associations with Fisher, bootstrap, and leave-family-out sensitivity summaries. Validation is separate from plotting. Raw Part 0 harmful prompts and completions are excluded from the anonymous supplement.",
   "rai:personalSensitiveInformation": "No human-subject records or personally identifying user data are collected. Model outputs may include unsafe generated content in Part 0 raw files.",
   "rai:safetyConsiderations": "Part 0 contains harmful-request evaluation prompts and may contain harmful model completions. Default release policy includes derived aggregate Part 0 artifacts but excludes raw harmful prompt text, prompt-source CSVs, metadata sidecars, and completions.",
   "rai:limitations": "The current release is a pilot over local/open-weight model variants. Parts 1 and 2 are single-run pilot settings; Part 2 uses homogeneous same-model societies and a simplified water-resource dynamic.",
@@ -62,7 +62,7 @@
     "https://huggingface.co/datasets/walledai/HarmBench",
     "https://huggingface.co/datasets/TrustAIRLab/in-the-wild-jailbreak-prompts"
   ],
-  "prov:wasGeneratedBy": "Generated by the repository experiment and analysis pipeline: experiments/part0 records model responses and automated compliance judgments; experiments/part1 records constrained dyadic dilemma actions and justifications; experiments/part2 records daily same-model commons simulation actions, reserve state, and population state; analysis scripts validate schemas, normalize labels, compute Wilson intervals and bootstrap summaries, build manifests, and package the anonymous supplement.",
+  "prov:wasGeneratedBy": "Generated by the repository experiment and analysis pipeline: experiments/part0 records model responses and response-only automated compliance judgments; experiments/part1 records constrained focal and role-conditioned dilemma actions and justifications; experiments/part2 records daily same-model commons simulation actions, reserve state, and population state; analysis scripts validate schemas, normalize labels, compute model- and run-level summaries and robust association diagnostics, build manifests, and package the anonymous supplement.",
   "distribution": [
     {
       "@type": "cr:FileObject",
@@ -86,7 +86,7 @@
       "@type": "cr:FileObject",
       "@id": "part1-model-summary",
       "name": "part1_model_summary.csv",
-      "description": "Model-level dyadic cooperation summary table.",
+      "description": "Model-level focal-dilemma response summary table.",
       "contentUrl": "data/analysis/tables/part1_model_summary.csv",
       "encodingFormat": "text/csv",
       "sha256": "714b12d195753d9a6198308504d136bcafa3c8f0f2bd943cc389442b5d11de79"
@@ -149,7 +149,7 @@
       "@type": "cr:FileObject",
       "@id": "cross-part-correlations",
       "name": "cross_part_correlations.csv",
-      "description": "Model-level Pearson and Spearman cross-part correlations with bootstrap intervals.",
+      "description": "Model-level Pearson, Spearman, and Kendall cross-part correlations with Fisher, bootstrap, and leave-family-out sensitivity summaries.",
       "contentUrl": "data/analysis/tables/cross_part_correlations.csv",
       "encodingFormat": "text/csv",
       "sha256": "d19d8d0883fc00dbd8d2563520d9449c8b4e4e0adbc383f28e9dd5e34212a777"
@@ -256,7 +256,7 @@
       "@type": "cr:RecordSet",
       "@id": "part1-model-summary-records",
       "name": "Part 1 model-level cooperation summaries",
-      "description": "Derived Part 1 table used for dyadic cooperation claims and Wilson intervals.",
+      "description": "Derived Part 1 table used for focal-dilemma response summaries and Wilson intervals.",
       "field": [
         {
           "@type": "cr:Field",

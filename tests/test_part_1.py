@@ -2,11 +2,13 @@ import csv
 import io
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from rich.console import Console
 
 from agents.agent_1 import Agent1, BinaryGameDecision
+from experiments.part1 import part_1
 from experiments.misc.prompt_loader import load_prompt_config
 from experiments.part1.part_1 import (
     _emit_retry_status_line,
@@ -15,6 +17,32 @@ from experiments.part1.part_1 import (
 )
 
 PART_1_PROMPTS = load_prompt_config("part_1")
+
+
+def test_query_variant_stops_after_bounded_attempts(monkeypatch) -> None:
+    calls = {"count": 0}
+
+    def always_fail(*args, **kwargs):
+        del args, kwargs
+        calls["count"] += 1
+        raise part_1.ResponseParseError("invalid provider response")
+
+    agent = SimpleNamespace(
+        id="P1",
+        provider="openai",
+        model="model",
+        query=always_fail,
+    )
+    variant = SimpleNamespace(
+        prompt_text="prompt",
+        allowed_actions=("COOPERATE", "DEFECT"),
+    )
+    monkeypatch.setattr(part_1.time, "sleep", lambda _: None)
+
+    with pytest.raises(part_1.ResponseParseError, match="invalid provider response"):
+        part_1._query_variant_until_valid(agent, variant)
+
+    assert calls["count"] == part_1.MAX_AGENT_ATTEMPTS
 
 
 def _default_matrix() -> dict[str, list[str]]:
@@ -40,6 +68,51 @@ def _default_prompt_count() -> int:
 
 def _single_domain_game_prompt_count(*, presentations: int = 2) -> int:
     return 4 * presentations
+
+
+def test_prompt_order_is_seeded_reproducible_and_cyclically_counterbalanced() -> None:
+    variants = [
+        part_1.PromptVariant(
+            game="game",
+            frame="frame",
+            domain="domain",
+            scenario_variant=f"scenario-{index}",
+            presentation="narrative",
+            prompt_id=f"prompt-{index}",
+            prompt_text=f"Prompt {index}",
+            allowed_actions=("A", "B"),
+        )
+        for index in range(12)
+    ]
+    first = part_1._order_prompt_variants(
+        variants,
+        seed=41,
+        strategy="counterbalanced",
+        counterbalance_index=0,
+    )
+    repeated = part_1._order_prompt_variants(
+        variants,
+        seed=41,
+        strategy="counterbalanced",
+        counterbalance_index=0,
+    )
+    rotated = part_1._order_prompt_variants(
+        variants,
+        seed=41,
+        strategy="counterbalanced",
+        counterbalance_index=1,
+    )
+    other_seed = part_1._order_prompt_variants(
+        variants,
+        seed=42,
+        strategy="seeded_shuffle",
+        counterbalance_index=0,
+    )
+
+    assert [item.prompt_id for item in repeated] == [item.prompt_id for item in first]
+    assert rotated == first[1:] + first[:1]
+    assert [item.prompt_id for item in other_seed] != [item.prompt_id for item in first]
+    assert set(first) == set(variants)
 
 
 class FlushTrackingIO(io.StringIO):
@@ -253,8 +326,13 @@ def test_run_part_1_writes_one_row_per_prompt_variant(
     assert rows[0]["provider"] == "openai"
     assert rows[0]["model"] == "gpt-4.1-mini"
     assert rows[0]["justification"] == "Brief justification."
-    assert rows[0]["scenario_variant"] == "interrogation"
-    assert rows[0]["prompt_id"] == "prisoners_dilemma__self_direct__crime__interrogation__narrative"
+    assert [int(row["order_position"]) for row in rows] == list(
+        range(1, len(rows) + 1)
+    )
+    assert {row["order_seed"] for row in rows} == {
+        str(part_1.DEFAULT_PART_1_ORDER_SEED)
+    }
+    assert {row["order_strategy"] for row in rows} == {"counterbalanced"}
 
 
 def test_run_part_1_respects_filters_and_writes_metadata(
@@ -289,20 +367,15 @@ def test_run_part_1_respects_filters_and_writes_metadata(
     assert file_name.startswith("part1__openai__gpt-4-1-mini__subset-4prompts__")
 
     assert len(rows) == _single_domain_game_prompt_count(presentations=1)
-    assert rows[0] == {
-        "provider": "openai",
-        "model": "gpt-4.1-mini",
-        "game": "prisoners_dilemma",
-        "frame": "advice",
-        "domain": "workplace",
-        "scenario_variant": "project-review",
-        "presentation": "structured",
-        "prompt_id": "prisoners_dilemma__advice__workplace__project-review__structured",
-        "action": "DEFECT",
-        "justification": "Use the safer filtered case.",
-        "prompt_text": rows[0]["prompt_text"],
+    assert {row["game"] for row in rows} == {"prisoners_dilemma"}
+    assert {row["frame"] for row in rows} == {"advice"}
+    assert {row["domain"] for row in rows} == {"workplace"}
+    assert {row["presentation"] for row in rows} == {"structured"}
+    assert {row["action"] for row in rows} == {"DEFECT"}
+    assert {row["justification"] for row in rows} == {
+        "Use the safer filtered case."
     }
-    assert "share credit fairly" in rows[0]["prompt_text"]
+    assert [row["order_position"] for row in rows] == ["1", "2", "3", "4"]
 
 
 def test_run_part_1_limit_truncates_deterministically(
@@ -339,13 +412,11 @@ def test_run_part_1_limit_truncates_deterministically(
     file_name = Path(csv_path).name
     assert file_name.startswith("part1__openai__gpt-4-1-mini__smoke-5prompts__")
 
-    assert [row["prompt_id"] for row in rows] == [
-        "prisoners_dilemma__self_direct__crime__interrogation__narrative",
-        "prisoners_dilemma__self_direct__crime__interrogation__structured",
-        "prisoners_dilemma__self_direct__crime__smuggling-bust__narrative",
-        "prisoners_dilemma__self_direct__crime__smuggling-bust__structured",
-        "prisoners_dilemma__self_direct__crime__warehouse-breakin__narrative",
-    ]
+    assert len({row["prompt_id"] for row in rows}) == 5
+    assert [row["order_position"] for row in rows] == ["1", "2", "3", "4", "5"]
+    assert {row["order_seed"] for row in rows} == {
+        str(part_1.DEFAULT_PART_1_ORDER_SEED)
+    }
 
 
 def test_run_part_1_headless_uses_default_full_matrix_without_prompting(
@@ -420,7 +491,8 @@ def test_run_part_1_headless_prints_per_model_prompt_progress(
     output = buffer.getvalue()
     assert "Model openai/gpt-4.1-mini [prompt 1/4] [--------------------] RUNNING" in output
     assert "Model openai/gpt-4.1-mini [prompt 4/4] [###############-----] RUNNING" in output
-    assert "[1/4] [#####---------------] prisoners_dilemma__self_direct__crime__interrogation__narrative -> DEFECT" in output
+    assert "[1/4] [#####---------------]" in output
+    assert "-> DEFECT" in output
 
 
 def test_run_part_1_preserves_written_rows_when_interrupted(
@@ -457,11 +529,18 @@ def test_run_part_1_preserves_written_rows_when_interrupted(
         rows = list(csv.DictReader(handle))
 
     assert len(rows) == 1
-    assert rows[0]["prompt_id"] == "prisoners_dilemma__self_direct__crime__interrogation__narrative"
+    assert rows[0]["order_position"] == "1"
     assert rows[0]["justification"] == "First row survives."
 
     metadata_files = list((tmp_path / "data" / "raw" / "part_1").glob("*_meta.json"))
     assert len(metadata_files) == 1
+    metadata = json.loads(metadata_files[0].read_text(encoding="utf-8"))
+    assert metadata["attempt_log"]["total_attempts"] == 2
+    attempt_path = Path(metadata["attempt_log"]["path"])
+    assert [
+        json.loads(line)["outcome"]
+        for line in attempt_path.read_text(encoding="utf-8").splitlines()
+    ] == ["success", "interrupted"]
 
 
 def test_run_part_1_resumes_from_partial_csv(
@@ -679,6 +758,22 @@ def test_run_part_1_retries_invalid_responses_until_success(
     assert len(metadata_files) == 1
     metadata = json.loads(metadata_files[0].read_text(encoding="utf-8"))
     assert metadata["status"] == "complete"
+    assert metadata["invalid_attempts"] == 2
+    assert metadata["retry_attempts"] == 2
+    assert metadata["attempt_log"]["total_attempts"] == 6
+    assert metadata["attempt_log"]["successful_attempts"] == 4
+    attempt_path = Path(metadata["attempt_log"]["path"])
+    attempts = [
+        json.loads(line)
+        for line in attempt_path.read_text(encoding="utf-8").splitlines()
+    ]
+    assert [attempt["outcome"] for attempt in attempts[:3]] == [
+        "invalid_response",
+        "invalid_response",
+        "success",
+    ]
+    assert attempts[0]["raw_response"]
+    assert attempts[2]["parsed_response"]["action"] == "DEFECT"
 
 
 def test_run_part_1_pauses_immediately_when_ollama_disconnects(
@@ -726,4 +821,14 @@ def test_run_part_1_pauses_immediately_when_ollama_disconnects(
     )
 
     assert calls["count"] == 1
-    assert Path(csv_path).with_name(f"{Path(csv_path).stem}_meta.json").exists()
+    metadata_path = Path(csv_path).with_name(f"{Path(csv_path).stem}_meta.json")
+    assert metadata_path.exists()
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    assert metadata["status"] == "failed"
+    assert metadata["failure"]["provenance"]["category"] == "transport"
+    assert metadata["provider_error_attempts"] == 1
+    assert metadata["retry_attempts"] == 0
+    attempt_path = Path(metadata["attempt_log"]["path"])
+    attempt = json.loads(attempt_path.read_text(encoding="utf-8"))
+    assert attempt["outcome"] == "provider_error"
+    assert attempt["raw_response"] is None

@@ -227,7 +227,9 @@ def aggregate_rows(
     for row in rows:
         key = model_label(row)
         language = (row.get("language", "") or "unknown").strip()
-        state = parse_complied_value(row.get("complied?", ""))
+        state = parse_complied_value(
+            row.get("new_complied" if "new_complied" in row else "complied?", "")
+        )
 
         agg = overall[key]
         lang_agg = by_language[(key, language)]

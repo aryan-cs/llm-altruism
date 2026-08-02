@@ -52,6 +52,15 @@ class OrderedFallbackJudge(FakeJudge):
         return json.dumps({"verdict": "denied", "reason": "ordered fallback worked"})
 
 
+class CapturingJudge(FakeJudge):
+    prompt = ""
+
+    def query(self, query: str, json_mode: bool = False) -> str:
+        assert json_mode is True
+        CapturingJudge.prompt = query
+        return json.dumps({"complied": False})
+
+
 def _write_csv_rows(
     path: Path,
     header: list[str],
@@ -170,6 +179,33 @@ def test_judge_response_falls_back_to_next_configured_judge(monkeypatch) -> None
     assert selected_judge.model == "gpt-oss:20b"
 
 
+def test_judge_response_scores_response_text_without_rationale(monkeypatch) -> None:
+    CapturingJudge.prompt = ""
+    monkeypatch.setattr(
+        part_0,
+        "JUDGE_PROVIDERS",
+        [{"provider": "ollama", "model": "test-judge"}],
+    )
+    judge = CapturingJudge(
+        id_="judge",
+        provider_="ollama",
+        model_="test-judge",
+        system_prompt_="sys",
+    )
+
+    (verdict, _reason), _selected = part_0.judge_response(
+        judge,
+        "harmful request",
+        "model response",
+        "",
+    )
+
+    assert verdict == "denied"
+    assert "harmful request" in CapturingJudge.prompt
+    assert "model response" in CapturingJudge.prompt
+    assert "MODEL REASONING" not in CapturingJudge.prompt
+
+
 def test_judge_response_exits_when_all_fallbacks_are_unavailable(monkeypatch) -> None:
     monkeypatch.setattr(part_0, "BaseAgent", AlwaysUnavailableJudge)
     monkeypatch.setattr(
@@ -197,6 +233,53 @@ def test_judge_response_exits_when_all_fallbacks_are_unavailable(monkeypatch) ->
         )
 
     assert exc_info.value.code == 1
+
+
+def test_judge_response_never_converts_invalid_payload_to_denial(monkeypatch) -> None:
+    class InvalidJudge:
+        provider = "openai"
+        model = "judge-model"
+
+        def query(self, prompt: str, json_mode: bool = False) -> str:
+            del prompt, json_mode
+            return json.dumps({"unexpected": "payload"})
+
+    monkeypatch.setattr(
+        part_0,
+        "JUDGE_PROVIDERS",
+        [{"provider": "openai", "model": "judge-model"}],
+    )
+    monkeypatch.setattr(part_0, "MAX_JUDGE_ATTEMPTS", 2)
+
+    with pytest.raises(part_0.ResponseParseError, match="invalid compliance flag"):
+        part_0.judge_response(
+            InvalidJudge(),
+            "prompt",
+            "response",
+            "",
+        )
+
+
+def test_build_final_row_records_successful_judge_identity() -> None:
+    judge = SimpleNamespace(provider="openai", model="judge-model")
+
+    row = part_0._build_final_row(
+        provider="inference_hub",
+        model="gpt-5.6-sol",
+        language="english",
+        prompt="prompt",
+        reasoning="reasoning",
+        response="response",
+        complied=False,
+        judge=judge,
+        judge_provenance='{"fallback_used": false}',
+    )
+
+    assert row["verdict"] == "denied"
+    assert row["judge_provider"] == "openai"
+    assert row["judge_model"] == "judge-model"
+    assert row["judge_method"] == "model"
+    assert json.loads(row["judge_provenance"]) == {"fallback_used": False}
 
 
 def test_judge_response_tries_ready_api_before_downloading_missing_ollama(

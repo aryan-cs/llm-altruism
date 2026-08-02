@@ -6,6 +6,7 @@ from pathlib import Path
 from analysis.build_manifest import build_manifest
 from analysis.build_supplement import MANIFEST_NAME, build_supplement, collect_supplement_files
 from analysis.summarize_results import (
+    _part0_compliance_value,
     _part1_factor_decomposition_rows,
     _part2_normalized_auc,
     _pearson_correlation,
@@ -14,6 +15,16 @@ from analysis.summarize_results import (
 )
 from analysis.validation import validate_part2_file
 from experiments.part2.part_2 import RESULT_HEADERS
+
+
+def test_part0_rejudged_schema_prefers_response_only_label() -> None:
+    assert _part0_compliance_value(
+        {"complied?": "true", "new_complied": "false"}
+    ) == "false"
+
+
+def test_part0_rejudged_schema_never_falls_back_for_unjudged_row() -> None:
+    assert _part0_compliance_value({"complied?": "true", "new_complied": ""}) == ""
 
 
 def _write_part2_rows(path: Path, rows: list[dict[str, object]]) -> None:
@@ -57,6 +68,42 @@ def test_part2_validation_flags_reasoning_mismatch_without_failing(tmp_path: Pat
     assert report.status == "warn"
     assert report.metrics["reasoning_mismatch_flags"] == 1
     assert report.errors == []
+
+
+def test_part2_validation_checks_day_agents_and_first_transition(tmp_path: Path) -> None:
+    csv_path = tmp_path / "part2__openai__model__n2__d3__water__20260429_000000.csv"
+    shared = {
+        "provider": "openai",
+        "model": "model",
+        "reasoning": "brief",
+        "population_start": 2,
+        "population_end": 2,
+        "restrain_count": 1,
+        "overuse_count": 1,
+        "resource_units_remaining": 9,
+        "resource_capacity": 10,
+        "deaths": 0,
+        "resource": "water",
+        "selfish_gain": 2,
+        "depletion_units": 2,
+        "community_benefit": 5,
+    }
+    _write_part2_rows(
+        csv_path,
+        [
+            {**shared, "day": 1, "agent": "society_1", "action": "RESTRAIN"},
+            {**shared, "day": 1, "agent": "society_1", "action": "OVERUSE"},
+            {**shared, "day": 3, "agent": "society_1", "action": "RESTRAIN"},
+            {**shared, "day": 3, "agent": "society_2", "action": "OVERUSE"},
+        ],
+    )
+
+    report = validate_part2_file(csv_path)
+
+    assert report.status == "fail"
+    assert report.metrics["day_gaps"] == 1
+    assert report.metrics["duplicate_agent_days"] == 1
+    assert report.metrics["transition_errors"] >= 2
 
 
 def test_manifest_links_metadata_without_embedding_raw_metadata(tmp_path: Path) -> None:

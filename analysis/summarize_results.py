@@ -12,6 +12,15 @@ from pathlib import Path
 from experiments.part0 import part_0
 from experiments.part1 import part_1
 from experiments.part2 import part_2
+from analysis.model_metadata import ModelMetadata, resolve_model_metadata
+from analysis.statistics import (
+    fisher_z_interval,
+    kendall_correlation,
+    leave_group_out_range,
+    pearson_correlation,
+    rank_values,
+    spearman_correlation,
+)
 from analysis.validation import _csv_paths, _flag_reasoning_misunderstanding
 
 RAW_DIR = Path("data") / "raw"
@@ -30,6 +39,14 @@ def _read_rows(path: Path) -> list[dict[str, str]]:
 
 def _model_key(row: dict[str, str]) -> tuple[str, str]:
     return row.get("provider", "unknown"), row.get("model", "unknown")
+
+
+def _part0_compliance_value(row: dict[str, str]) -> str:
+    """Prefer a response-only rejudgment over the retained legacy label."""
+
+    if "new_complied" in row:
+        return row.get("new_complied", "")
+    return row.get("complied?", "")
 
 
 def _wilson_interval(successes: int, total: int, z: float = 1.959963984540054) -> tuple[float, float]:
@@ -51,35 +68,23 @@ def _write_csv(path: Path, fieldnames: list[str], rows: list[dict[str, object]])
 
 
 def _pearson_correlation(xs: list[float], ys: list[float]) -> float:
-    if len(xs) != len(ys) or len(xs) < 2:
-        return float("nan")
-    x_mean = sum(xs) / len(xs)
-    y_mean = sum(ys) / len(ys)
-    numerator = sum((x - x_mean) * (y - y_mean) for x, y in zip(xs, ys))
-    x_var = sum((x - x_mean) ** 2 for x in xs)
-    y_var = sum((y - y_mean) ** 2 for y in ys)
-    if x_var == 0 or y_var == 0:
-        return float("nan")
-    return numerator / math.sqrt(x_var * y_var)
+    return pearson_correlation(xs, ys)
 
 
 def _rank_values(values: list[float]) -> list[float]:
-    indexed = sorted((value, index) for index, value in enumerate(values))
-    ranks = [0.0] * len(values)
-    start = 0
-    while start < len(indexed):
-        end = start + 1
-        while end < len(indexed) and indexed[end][0] == indexed[start][0]:
-            end += 1
-        average_rank = (start + end - 1) / 2 + 1
-        for _, index in indexed[start:end]:
-            ranks[index] = average_rank
-        start = end
-    return ranks
+    return rank_values(values)
 
 
 def _spearman_correlation(xs: list[float], ys: list[float]) -> float:
-    return _pearson_correlation(_rank_values(xs), _rank_values(ys))
+    return spearman_correlation(xs, ys)
+
+
+def _kendall_correlation(xs: list[float], ys: list[float]) -> float:
+    return kendall_correlation(xs, ys)
+
+
+def _fisher_z_interval(correlation: float, n: int) -> tuple[float, float]:
+    return fisher_z_interval(correlation, n)
 
 
 def _bootstrap_ci(
@@ -147,12 +152,15 @@ def _part0_language_robustness_rows(
 def summarize_part0(raw_dir: Path, output_dir: Path) -> tuple[Path, Path]:
     counts: dict[tuple[str, str], Counter[str]] = defaultdict(Counter)
     language_counts: dict[tuple[str, str, str], Counter[str]] = defaultdict(Counter)
+    model_metadata: dict[tuple[str, str], ModelMetadata] = {}
     for path in _csv_paths(raw_dir / "part_0"):
+        sidecar = _metadata_for_csv(path)
         for row in _read_rows(path):
-            verdict = part_0._verdict_from_complied_value(row.get("complied?", ""))
-            if not verdict and row.get("verdict"):
+            verdict = part_0._verdict_from_complied_value(_part0_compliance_value(row))
+            if "new_complied" not in row and not verdict and row.get("verdict"):
                 verdict = row["verdict"].strip().lower()
             key = _model_key(row)
+            model_metadata[key] = resolve_model_metadata(key[0], key[1], sidecar)
             counts[key][verdict or "skipped"] += 1
             language = row.get("language", "").strip().lower()
             if language and verdict in {"denied", "complied"}:
@@ -165,10 +173,14 @@ def summarize_part0(raw_dir: Path, output_dir: Path) -> tuple[Path, Path]:
         skipped = counter["skipped"]
         total = denied + complied
         low, high = _wilson_interval(denied, total)
+        grouping = model_metadata[(provider, model)]
         rows.append(
             {
                 "provider": provider,
                 "model": model,
+                "family_id": grouping.family_id,
+                "developer_id": grouping.developer_id,
+                "cohort": grouping.cohort,
                 "judged": total,
                 "denied": denied,
                 "complied": complied,
@@ -186,6 +198,9 @@ def summarize_part0(raw_dir: Path, output_dir: Path) -> tuple[Path, Path]:
         [
             "provider",
             "model",
+            "family_id",
+            "developer_id",
+            "cohort",
             "judged",
             "denied",
             "complied",
@@ -391,17 +406,27 @@ def _part1_factor_decomposition_rows(observations: list[dict[str, object]]) -> l
 
 def summarize_part1(raw_dir: Path, output_dir: Path) -> tuple[Path, Path, Path, Path, Path]:
     model_counts: dict[tuple[str, str], Counter[str]] = defaultdict(Counter)
+    all_frame_model_counts: dict[tuple[str, str], Counter[str]] = defaultdict(Counter)
     dimension_counts: dict[tuple[str, str, str], Counter[str]] = defaultdict(Counter)
     model_providers: dict[str, str] = {}
+    model_metadata: dict[tuple[str, str], ModelMetadata] = {}
     observations: list[dict[str, object]] = []
     for path in _csv_paths(raw_dir / "part_1"):
+        sidecar = _metadata_for_csv(path)
         for row in _read_rows(path):
             key = _model_key(row)
             outcome = "cooperate" if _part1_is_cooperative(row) else "defect_or_overuse"
             model_providers[key[1]] = key[0]
-            model_counts[key][outcome] += 1
+            model_metadata[key] = resolve_model_metadata(key[0], key[1], sidecar)
+            all_frame_model_counts[key][outcome] += 1
+            is_primary = row.get("frame", "") == "self_direct"
+            if is_primary:
+                model_counts[key][outcome] += 1
             for dimension in ("game", "frame", "domain", "presentation"):
-                dimension_counts[(key[1], dimension, row.get(dimension, ""))][outcome] += 1
+                # Frame effects necessarily use all frames.  Other breakdowns
+                # inherit the self-directed primary estimand.
+                if dimension == "frame" or is_primary:
+                    dimension_counts[(key[1], dimension, row.get(dimension, ""))][outcome] += 1
             observations.append(
                 {
                     "model": key[1],
@@ -417,17 +442,28 @@ def summarize_part1(raw_dir: Path, output_dir: Path) -> tuple[Path, Path, Path, 
     for (provider, model), counter in sorted(model_counts.items()):
         cooperate = counter["cooperate"]
         total = cooperate + counter["defect_or_overuse"]
+        all_counter = all_frame_model_counts[(provider, model)]
+        all_cooperate = all_counter["cooperate"]
+        all_total = all_cooperate + all_counter["defect_or_overuse"]
         low, high = _wilson_interval(cooperate, total)
+        grouping = model_metadata[(provider, model)]
         model_rows.append(
             {
                 "provider": provider,
                 "model": model,
+                "family_id": grouping.family_id,
+                "developer_id": grouping.developer_id,
+                "cohort": grouping.cohort,
+                "primary_frame": "self_direct",
                 "total": total,
                 "cooperative": cooperate,
                 "non_cooperative": counter["defect_or_overuse"],
                 "cooperation_rate": cooperate / total if total else "",
                 "wilson_low": low if total else "",
                 "wilson_high": high if total else "",
+                "all_frames_total": all_total,
+                "all_frames_cooperative": all_cooperate,
+                "all_frames_cooperation_rate": all_cooperate / all_total if all_total else "",
             }
         )
 
@@ -441,6 +477,7 @@ def summarize_part1(raw_dir: Path, output_dir: Path) -> tuple[Path, Path, Path, 
                 "model": model,
                 "dimension": dimension,
                 "value": value,
+                "analysis_scope": "all_frames" if dimension == "frame" else "self_direct",
                 "total": total,
                 "cooperative": cooperate,
                 "cooperation_rate": cooperate / total if total else "",
@@ -459,12 +496,19 @@ def summarize_part1(raw_dir: Path, output_dir: Path) -> tuple[Path, Path, Path, 
         [
             "provider",
             "model",
+            "family_id",
+            "developer_id",
+            "cohort",
+            "primary_frame",
             "total",
             "cooperative",
             "non_cooperative",
             "cooperation_rate",
             "wilson_low",
             "wilson_high",
+            "all_frames_total",
+            "all_frames_cooperative",
+            "all_frames_cooperation_rate",
         ],
         model_rows,
     )
@@ -474,6 +518,7 @@ def summarize_part1(raw_dir: Path, output_dir: Path) -> tuple[Path, Path, Path, 
             "model",
             "dimension",
             "value",
+            "analysis_scope",
             "total",
             "cooperative",
             "cooperation_rate",
@@ -519,7 +564,7 @@ def summarize_part1(raw_dir: Path, output_dir: Path) -> tuple[Path, Path, Path, 
     return model_path, dimension_path, frame_effect_path, prompt_sensitivity_path, decomposition_path
 
 
-def _part2_metadata(path: Path) -> dict[str, object]:
+def _metadata_for_csv(path: Path) -> dict[str, object]:
     metadata_path = path.with_name(f"{path.stem}_meta.json")
     if not metadata_path.exists():
         return {}
@@ -528,7 +573,7 @@ def _part2_metadata(path: Path) -> dict[str, object]:
 
 
 def _part2_expected_config(path: Path, rows: list[dict[str, str]]) -> tuple[int, int, int]:
-    metadata = _part2_metadata(path)
+    metadata = _metadata_for_csv(path)
     parameters = metadata.get("parameters", {}) if isinstance(metadata, dict) else {}
     society_config = parameters.get("society_config", {}) if isinstance(parameters, dict) else {}
     if isinstance(metadata, dict) and not society_config:
@@ -584,112 +629,301 @@ def _part2_normalized_auc(
     return reserve_area / horizon, population_area / horizon
 
 
-def summarize_part2(raw_dir: Path, output_dir: Path) -> Path:
-    rows_out: list[dict[str, object]] = []
-    for path in _csv_paths(raw_dir / "part_2"):
-        rows = _read_rows(path)
-        if not rows:
+PART2_RUN_FIELDS = [
+    "provider",
+    "model",
+    "family_id",
+    "developer_id",
+    "cohort",
+    "run_id",
+    "csv_path",
+    "rows",
+    "days_completed",
+    "restraints",
+    "overuses",
+    "restraint_rate",
+    "wilson_low",
+    "wilson_high",
+    "first_depletion_day",
+    "final_population",
+    "final_resource_units",
+    "resource_capacity",
+    "normalized_aurc",
+    "normalized_aupc",
+    "total_deaths",
+    "reasoning_mismatch_flags",
+]
+
+
+def _part2_run_summary(path: Path, rows: list[dict[str, str]]) -> dict[str, object]:
+    provider, model = _model_key(rows[0])
+    grouping = resolve_model_metadata(provider, model, _metadata_for_csv(path))
+    actions = Counter(row.get("action", "") for row in rows)
+    day_rows: dict[int, list[dict[str, str]]] = defaultdict(list)
+    for row in rows:
+        try:
+            day_rows[int(row.get("day", ""))].append(row)
+        except ValueError:
             continue
-        provider, model = _model_key(rows[0])
-        actions = Counter(row.get("action", "") for row in rows)
-        day_rows: dict[int, list[dict[str, str]]] = defaultdict(list)
-        for row in rows:
-            try:
-                day_rows[int(row.get("day", ""))].append(row)
-            except ValueError:
-                continue
-        final_day = max(day_rows) if day_rows else 0
-        final_row = day_rows[final_day][-1] if final_day else rows[-1]
+    final_day = max(day_rows) if day_rows else 0
+    final_row = day_rows[final_day][-1] if final_day else rows[-1]
+    depletion_days = [
+        day
+        for day, grouped in day_rows.items()
+        if grouped and int(grouped[-1].get("resource_units_remaining", "0") or 0) == 0
+    ]
+    total = actions["RESTRAIN"] + actions["OVERUSE"]
+    low, high = _wilson_interval(actions["RESTRAIN"], total)
+    horizon, society_size, resource_capacity = _part2_expected_config(path, rows)
+    normalized_aurc, normalized_aupc = _part2_normalized_auc(
+        day_rows,
+        horizon=horizon,
+        society_size=society_size,
+        resource_capacity=resource_capacity,
+    )
+    return {
+        "provider": provider,
+        "model": model,
+        "family_id": grouping.family_id,
+        "developer_id": grouping.developer_id,
+        "cohort": grouping.cohort,
+        "run_id": path.stem,
+        "csv_path": str(path),
+        "rows": len(rows),
+        "days_completed": final_day,
+        "restraints": actions["RESTRAIN"],
+        "overuses": actions["OVERUSE"],
+        "restraint_rate": actions["RESTRAIN"] / total if total else float("nan"),
+        "wilson_low": low if total else float("nan"),
+        "wilson_high": high if total else float("nan"),
+        "first_depletion_day": min(depletion_days) if depletion_days else "",
+        "final_population": int(final_row.get("population_end", "") or 0),
+        "final_resource_units": int(final_row.get("resource_units_remaining", "") or 0),
+        "resource_capacity": resource_capacity or int(final_row.get("resource_capacity", "") or 0),
+        "normalized_aurc": normalized_aurc,
+        "normalized_aupc": normalized_aupc,
+        "total_deaths": sum(
+            int(grouped[-1].get("deaths", "0") or 0)
+            for grouped in day_rows.values()
+            if grouped
+        ),
+        "reasoning_mismatch_flags": sum(
+            1 for row in rows if _flag_reasoning_misunderstanding(row)
+        ),
+    }
+
+
+_T_975 = {
+    1: 12.706,
+    2: 4.303,
+    3: 3.182,
+    4: 2.776,
+    5: 2.571,
+    6: 2.447,
+    7: 2.365,
+    8: 2.306,
+    9: 2.262,
+    10: 2.228,
+    11: 2.201,
+    12: 2.179,
+    13: 2.160,
+    14: 2.145,
+    15: 2.131,
+    16: 2.120,
+    17: 2.110,
+    18: 2.101,
+    19: 2.093,
+    20: 2.086,
+    25: 2.060,
+    30: 2.042,
+}
+
+
+def _run_mean_interval(values: list[float]) -> tuple[float, float]:
+    """95% t interval for an equally weighted mean of independent runs."""
+
+    if not values:
+        return float("nan"), float("nan")
+    mean = sum(values) / len(values)
+    if len(values) == 1:
+        return float("nan"), float("nan")
+    variance = sum((value - mean) ** 2 for value in values) / (len(values) - 1)
+    df = len(values) - 1
+    if df in _T_975:
+        critical = _T_975[df]
+    elif df < 25:
+        critical = _T_975[20]
+    elif df < 30:
+        critical = _T_975[25]
+    else:
+        critical = 1.959963984540054
+    margin = critical * math.sqrt(variance / len(values))
+    return mean - margin, mean + margin
+
+
+def _mean(values: list[object]) -> float:
+    numeric = [float(value) for value in values if value != "" and not math.isnan(float(value))]
+    return sum(numeric) / len(numeric) if numeric else float("nan")
+
+
+def _aggregate_part2_runs(run_rows: list[dict[str, object]]) -> list[dict[str, object]]:
+    grouped: dict[tuple[str, str], list[dict[str, object]]] = defaultdict(list)
+    for row in run_rows:
+        grouped[(str(row["provider"]), str(row["model"]))].append(row)
+
+    output: list[dict[str, object]] = []
+    for (provider, model), runs in sorted(grouped.items()):
+        for field in ("family_id", "developer_id", "cohort"):
+            values = {str(run[field]) for run in runs}
+            if len(values) != 1:
+                raise ValueError(f"Conflicting {field} values for replicated runs of {provider}/{model}")
+        rates = [float(run["restraint_rate"]) for run in runs]
+        restraint_rate = sum(rates) / len(rates)
+        if len(runs) == 1:
+            interval_low = float(runs[0]["wilson_low"])
+            interval_high = float(runs[0]["wilson_high"])
+            interval_method = "within_run_wilson"
+        else:
+            interval_low, interval_high = _run_mean_interval(rates)
+            interval_low = max(0.0, interval_low)
+            interval_high = min(1.0, interval_high)
+            interval_method = "between_run_t"
         depletion_days = [
-            day
-            for day, grouped in day_rows.items()
-            if grouped and int(grouped[-1].get("resource_units_remaining", "0") or 0) == 0
+            float(run["first_depletion_day"])
+            for run in runs
+            if run["first_depletion_day"] != ""
         ]
-        total = actions["RESTRAIN"] + actions["OVERUSE"]
-        low, high = _wilson_interval(actions["RESTRAIN"], total)
-        horizon, society_size, resource_capacity = _part2_expected_config(path, rows)
-        normalized_aurc, normalized_aupc = _part2_normalized_auc(
-            day_rows,
-            horizon=horizon,
-            society_size=society_size,
-            resource_capacity=resource_capacity,
-        )
-        rows_out.append(
+        source_paths = [str(run["csv_path"]) for run in runs]
+        output.append(
             {
                 "provider": provider,
                 "model": model,
-                "csv_path": str(path),
-                "rows": len(rows),
-                "days_completed": final_day,
-                "restraints": actions["RESTRAIN"],
-                "overuses": actions["OVERUSE"],
-                "restraint_rate": actions["RESTRAIN"] / total if total else "",
-                "wilson_low": low if total else "",
-                "wilson_high": high if total else "",
-                "first_depletion_day": min(depletion_days) if depletion_days else "",
-                "final_population": final_row.get("population_end", ""),
-                "final_resource_units": final_row.get("resource_units_remaining", ""),
-                "resource_capacity": resource_capacity or final_row.get("resource_capacity", ""),
-                "normalized_aurc": normalized_aurc,
-                "normalized_aupc": normalized_aupc,
-                "total_deaths": sum(
-                    int(grouped[-1].get("deaths", "0") or 0)
-                    for grouped in day_rows.values()
-                    if grouped
+                "family_id": runs[0]["family_id"],
+                "developer_id": runs[0]["developer_id"],
+                "cohort": runs[0]["cohort"],
+                "aggregation_unit": "run",
+                "run_count": len(runs),
+                "csv_path": source_paths[0],
+                "source_csv_paths": json.dumps(source_paths, separators=(",", ":")),
+                "rows": sum(int(run["rows"]) for run in runs),
+                "days_completed": _mean([run["days_completed"] for run in runs]),
+                "restraints": sum(int(run["restraints"]) for run in runs),
+                "overuses": sum(int(run["overuses"]) for run in runs),
+                "restraint_rate": restraint_rate,
+                "restraint_rate_min": min(rates),
+                "restraint_rate_max": max(rates),
+                "restraint_ci_low": interval_low,
+                "restraint_ci_high": interval_high,
+                "interval_method": interval_method,
+                # Compatibility aliases for existing plot readers.  The
+                # interval_method column disambiguates replicated-run t CIs.
+                "wilson_low": interval_low,
+                "wilson_high": interval_high,
+                "runs_depleted": len(depletion_days),
+                "first_depletion_day": _mean(depletion_days) if depletion_days else "",
+                "final_population": _mean([run["final_population"] for run in runs]),
+                "final_resource_units": _mean([run["final_resource_units"] for run in runs]),
+                "resource_capacity": _mean([run["resource_capacity"] for run in runs]),
+                "normalized_aurc": _mean([run["normalized_aurc"] for run in runs]),
+                "normalized_aupc": _mean([run["normalized_aupc"] for run in runs]),
+                "total_deaths": _mean([run["total_deaths"] for run in runs]),
+                "reasoning_mismatch_flags": sum(
+                    int(run["reasoning_mismatch_flags"]) for run in runs
                 ),
-                "reasoning_mismatch_flags": sum(1 for row in rows if _flag_reasoning_misunderstanding(row)),
             }
         )
+    return output
 
-    path = output_dir / "part2_model_summary.csv"
-    _write_csv(
-        path,
-        [
-            "provider",
-            "model",
-            "csv_path",
-            "rows",
-            "days_completed",
-            "restraints",
-            "overuses",
-            "restraint_rate",
-            "wilson_low",
-            "wilson_high",
-            "first_depletion_day",
-            "final_population",
-            "final_resource_units",
-            "resource_capacity",
-            "normalized_aurc",
-            "normalized_aupc",
-            "total_deaths",
-            "reasoning_mismatch_flags",
-        ],
-        rows_out,
-    )
-    return path
+
+def summarize_part2(raw_dir: Path, output_dir: Path) -> Path:
+    run_rows: list[dict[str, object]] = []
+    for path in _csv_paths(raw_dir / "part_2"):
+        rows = _read_rows(path)
+        if rows:
+            run_rows.append(_part2_run_summary(path, rows))
+
+    run_path = output_dir / "part2_run_summary.csv"
+    _write_csv(run_path, PART2_RUN_FIELDS, run_rows)
+
+    model_path = output_dir / "part2_model_summary.csv"
+    model_fields = [
+        "provider",
+        "model",
+        "family_id",
+        "developer_id",
+        "cohort",
+        "aggregation_unit",
+        "run_count",
+        "csv_path",
+        "source_csv_paths",
+        "rows",
+        "days_completed",
+        "restraints",
+        "overuses",
+        "restraint_rate",
+        "restraint_rate_min",
+        "restraint_rate_max",
+        "restraint_ci_low",
+        "restraint_ci_high",
+        "interval_method",
+        "wilson_low",
+        "wilson_high",
+        "runs_depleted",
+        "first_depletion_day",
+        "final_population",
+        "final_resource_units",
+        "resource_capacity",
+        "normalized_aurc",
+        "normalized_aupc",
+        "total_deaths",
+        "reasoning_mismatch_flags",
+    ]
+    _write_csv(model_path, model_fields, _aggregate_part2_runs(run_rows))
+    return model_path
 
 
 def summarize_cross_part(output_dir: Path) -> tuple[Path, Path]:
-    part0 = {row["model"]: row for row in _read_rows(output_dir / "part0_model_summary.csv")}
-    part1 = {row["model"]: row for row in _read_rows(output_dir / "part1_model_summary.csv")}
-    part2 = {row["model"]: row for row in _read_rows(output_dir / "part2_model_summary.csv")}
-    models = sorted(set(part0) & set(part1) & set(part2))
+    def keyed(path: Path) -> dict[tuple[str, str], dict[str, str]]:
+        return {
+            (row.get("provider", "unknown"), row["model"]): row
+            for row in _read_rows(path)
+        }
+
+    part0 = keyed(output_dir / "part0_model_summary.csv")
+    part1 = keyed(output_dir / "part1_model_summary.csv")
+    part2 = keyed(output_dir / "part2_model_summary.csv")
+    model_keys = sorted(set(part0) & set(part1) & set(part2))
 
     model_rows: list[dict[str, object]] = []
-    for model in models:
-        first_depletion = part2[model].get("first_depletion_day", "")
+    for provider, model in model_keys:
+        key = (provider, model)
+        first_depletion = part2[key].get("first_depletion_day", "")
+        grouping = resolve_model_metadata(provider, model)
         model_rows.append(
             {
+                "provider": provider,
                 "model": model,
-                "safety_refusal_rate": float(part0[model]["safety_refusal_rate"]),
-                "cooperation_rate": float(part1[model]["cooperation_rate"]),
-                "restraint_rate": float(part2[model]["restraint_rate"]),
-                "final_population": int(part2[model]["final_population"] or 0),
-                "final_resource_units": int(part2[model]["final_resource_units"] or 0),
-                "normalized_aurc": float(part2[model]["normalized_aurc"]),
-                "normalized_aupc": float(part2[model]["normalized_aupc"]),
-                "first_depletion_day": int(first_depletion) if first_depletion else "",
-                "reasoning_mismatch_flags": int(part2[model]["reasoning_mismatch_flags"] or 0),
+                "family_id": part1[key].get("family_id") or grouping.family_id,
+                "developer_id": part1[key].get("developer_id") or grouping.developer_id,
+                "cohort": part1[key].get("cohort") or grouping.cohort,
+                "cooperation_measure": "self_direct",
+                "part2_aggregation_unit": part2[key].get("aggregation_unit", "run"),
+                "part2_run_count": int(float(part2[key].get("run_count", "1") or 1)),
+                "safety_refusal_rate": float(part0[key]["safety_refusal_rate"]),
+                "cooperation_rate": float(part1[key]["cooperation_rate"]),
+                "all_frames_cooperation_rate": float(
+                    part1[key].get("all_frames_cooperation_rate")
+                    or part1[key]["cooperation_rate"]
+                ),
+                "restraint_rate": float(part2[key]["restraint_rate"]),
+                "final_population": float(part2[key]["final_population"] or 0),
+                "final_resource_units": float(part2[key]["final_resource_units"] or 0),
+                "normalized_aurc": float(part2[key]["normalized_aurc"]),
+                "normalized_aupc": float(part2[key]["normalized_aupc"]),
+                "first_depletion_day": float(first_depletion) if first_depletion else "",
+                "reasoning_mismatch_flags": int(
+                    float(part2[key]["reasoning_mismatch_flags"] or 0)
+                ),
             }
         )
 
@@ -697,9 +931,17 @@ def summarize_cross_part(output_dir: Path) -> tuple[Path, Path]:
     _write_csv(
         model_path,
         [
+            "provider",
             "model",
+            "family_id",
+            "developer_id",
+            "cohort",
+            "cooperation_measure",
+            "part2_aggregation_unit",
+            "part2_run_count",
             "safety_refusal_rate",
             "cooperation_rate",
+            "all_frames_cooperation_rate",
             "restraint_rate",
             "final_population",
             "final_resource_units",
@@ -726,24 +968,47 @@ def summarize_cross_part(output_dir: Path) -> tuple[Path, Path]:
         ("restraint_rate", "final_population"),
     ]
     correlation_rows: list[dict[str, object]] = []
+    model_groups = [f"{row['provider']}/{row['model']}" for row in model_rows]
+    family_groups = [str(row["family_id"]) for row in model_rows]
+    methods = {
+        "pearson": _pearson_correlation,
+        "spearman": _spearman_correlation,
+        "kendall": _kendall_correlation,
+    }
     for left_metric, right_metric in pairs:
         xs = metric_values[left_metric]
         ys = metric_values[right_metric]
-        pearson_low, pearson_high = _bootstrap_ci(xs, ys, _pearson_correlation)
-        spearman_low, spearman_high = _bootstrap_ci(xs, ys, _spearman_correlation)
-        correlation_rows.append(
-            {
-                "metric_x": left_metric,
-                "metric_y": right_metric,
-                "n_models": len(model_rows),
-                "pearson_r": _pearson_correlation(xs, ys),
-                "pearson_bootstrap_low": pearson_low,
-                "pearson_bootstrap_high": pearson_high,
-                "spearman_r": _spearman_correlation(xs, ys),
-                "spearman_bootstrap_low": spearman_low,
-                "spearman_bootstrap_high": spearman_high,
-            }
-        )
+        row: dict[str, object] = {
+            "metric_x": left_metric,
+            "metric_y": right_metric,
+            "n_models": len(model_rows),
+            "n_families": len(set(family_groups)),
+            "cooperation_measure": "self_direct",
+            "fisher_z_ci_note": "pearson_standard;rank_coefficients_approximate",
+        }
+        for method, statistic in methods.items():
+            estimate = statistic(xs, ys)
+            fisher_low, fisher_high = _fisher_z_interval(estimate, len(model_rows))
+            bootstrap_low, bootstrap_high = _bootstrap_ci(xs, ys, statistic)
+            lomo_low, lomo_high, lomo_count = leave_group_out_range(
+                xs, ys, model_groups, statistic
+            )
+            lofo_low, lofo_high, lofo_count = leave_group_out_range(
+                xs, ys, family_groups, statistic
+            )
+            coefficient_name = "tau_b" if method == "kendall" else "r"
+            row[f"{method}_{coefficient_name}"] = estimate
+            row[f"{method}_fisher_z_low"] = fisher_low
+            row[f"{method}_fisher_z_high"] = fisher_high
+            row[f"{method}_bootstrap_low"] = bootstrap_low
+            row[f"{method}_bootstrap_high"] = bootstrap_high
+            row[f"{method}_leave_one_model_out_min"] = lomo_low
+            row[f"{method}_leave_one_model_out_max"] = lomo_high
+            row[f"{method}_leave_one_model_out_estimates"] = lomo_count
+            row[f"{method}_leave_one_family_out_min"] = lofo_low
+            row[f"{method}_leave_one_family_out_max"] = lofo_high
+            row[f"{method}_leave_one_family_out_estimates"] = lofo_count
+        correlation_rows.append(row)
 
     correlation_path = output_dir / "cross_part_correlations.csv"
     _write_csv(
@@ -752,12 +1017,30 @@ def summarize_cross_part(output_dir: Path) -> tuple[Path, Path]:
             "metric_x",
             "metric_y",
             "n_models",
-            "pearson_r",
-            "pearson_bootstrap_low",
-            "pearson_bootstrap_high",
-            "spearman_r",
-            "spearman_bootstrap_low",
-            "spearman_bootstrap_high",
+            "n_families",
+            "cooperation_measure",
+            "fisher_z_ci_note",
+            *[
+                field
+                for method, coefficient in (
+                    ("pearson", "r"),
+                    ("spearman", "r"),
+                    ("kendall", "tau_b"),
+                )
+                for field in (
+                    f"{method}_{coefficient}",
+                    f"{method}_fisher_z_low",
+                    f"{method}_fisher_z_high",
+                    f"{method}_bootstrap_low",
+                    f"{method}_bootstrap_high",
+                    f"{method}_leave_one_model_out_min",
+                    f"{method}_leave_one_model_out_max",
+                    f"{method}_leave_one_model_out_estimates",
+                    f"{method}_leave_one_family_out_min",
+                    f"{method}_leave_one_family_out_max",
+                    f"{method}_leave_one_family_out_estimates",
+                )
+            ],
         ],
         correlation_rows,
     )
@@ -769,6 +1052,7 @@ def summarize_all(raw_dir: Path = RAW_DIR, output_dir: Path = TABLES_DIR) -> lis
     outputs = list(summarize_part0(raw_dir, output_dir))
     outputs.extend(summarize_part1(raw_dir, output_dir))
     outputs.append(summarize_part2(raw_dir, output_dir))
+    outputs.append(output_dir / "part2_run_summary.csv")
     outputs.extend(summarize_cross_part(output_dir))
     return outputs
 

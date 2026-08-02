@@ -1,6 +1,7 @@
 # print("[PART 1] Hello, World!")
 
 import json
+import random
 import re
 import time
 from collections import Counter, defaultdict
@@ -11,13 +12,29 @@ from typing import Any
 
 from agents.agent_1 import Agent1
 from experiments.part1.scenario_variants import list_scenario_variants
+from experiments.misc.attempt_log import (
+    DurableAttemptLogger,
+    attempt_log_path_for_csv,
+)
+from experiments.misc.final_answer import (
+    DEFAULT_EXTRACTOR_MAX_TOKENS,
+    DEFAULT_EXTRACTOR_MODEL,
+    DEFAULT_EXTRACTOR_PROVIDER,
+    DEFAULT_OUTPUT_TOKEN_CAP,
+    ExtractionConfig,
+    extraction_record_from_error,
+)
 from experiments.misc.preflight import run_experiment_preflight
 from experiments.misc.prompt_loader import load_prompt_config
 from experiments.misc.result_writer import IncrementalCsvWriter
 from experiments.misc.run_metadata import (
     base_run_metadata,
     mark_metadata_complete,
+    mark_metadata_failed,
     metadata_is_complete,
+    read_metadata,
+    safe_error_message,
+    write_metadata,
 )
 from experiments.misc.wizard import (
     choose_part_1_matrix,
@@ -26,7 +43,10 @@ from experiments.misc.wizard import (
 )
 from providers.api_call import (
     OllamaConnectionError,
+    ResponseParseError,
     delete_other_ollama_models,
+    failure_provenance,
+    is_retryable_api_failure,
     unload_all_ollama_models,
     unload_ollama_model,
 )
@@ -52,6 +72,10 @@ RESULT_HEADERS = [
     "scenario_variant",
     "presentation",
     "prompt_id",
+    "order_position",
+    "order_seed",
+    "order_strategy",
+    "counterbalance_index",
     "action",
     "justification",
     "prompt_text",
@@ -61,6 +85,11 @@ PART_1_TIMESTAMP_FORMAT = "%Y%m%d_%H%M%S"
 MODEL_BATCH_KEEP_ALIVE = "30m"
 INITIAL_RETRY_DELAY_SECONDS = 1.0
 MAX_RETRY_DELAY_SECONDS = 30.0
+MAX_AGENT_ATTEMPTS = 3
+MAX_RUN_ATTEMPTS = 3
+DEFAULT_PART_1_ORDER_SEED = 20260801
+DEFAULT_PART_1_ORDER_STRATEGY = "counterbalanced"
+PART_1_ORDER_STRATEGIES = ("seeded_shuffle", "counterbalanced")
 
 
 @dataclass(frozen=True)
@@ -210,9 +239,37 @@ def _build_prompt_variants(
                                 allowed_actions=action_labels,
                             )
                         )
-    if limit is not None:
-        return variants[:limit]
     return variants
+
+
+def _order_prompt_variants(
+    variants: list[PromptVariant],
+    *,
+    seed: int | None,
+    strategy: str,
+    counterbalance_index: int,
+    limit: int | None = None,
+) -> list[PromptVariant]:
+    """Return a reproducible randomized order with optional cyclic counterbalance."""
+
+    if strategy == "legacy_canonical":
+        ordered = list(variants)
+    else:
+        if strategy not in PART_1_ORDER_STRATEGIES:
+            supported = ", ".join(PART_1_ORDER_STRATEGIES)
+            raise ValueError(f"order_strategy must be one of: {supported}.")
+        if seed is None or isinstance(seed, bool) or not isinstance(seed, int):
+            raise TypeError("order_seed must be an integer.")
+        if counterbalance_index < 0:
+            raise ValueError("counterbalance_index must be >= 0.")
+        ordered = list(variants)
+        random.Random(seed).shuffle(ordered)
+        if strategy == "counterbalanced" and ordered:
+            offset = counterbalance_index % len(ordered)
+            ordered = ordered[offset:] + ordered[:offset]
+    if limit is not None:
+        return ordered[:limit]
+    return ordered
 
 
 def _resolve_headless_matrix_defaults(
@@ -236,15 +293,18 @@ def _parse_agent_response(
     *,
     allowed_actions: tuple[str, ...],
 ) -> tuple[str, str]:
-    data = json.loads(raw_response)
+    try:
+        data = json.loads(raw_response)
+    except json.JSONDecodeError as error:
+        raise ResponseParseError("Invalid JSON in part 1 response.") from error
     action = str(data.get("action", "")).strip()
     justification = str(data.get("justification", "")).strip()
     if action not in allowed_actions:
-        raise ValueError(
+        raise ResponseParseError(
             f"Invalid action '{action}'. Expected one of: {', '.join(allowed_actions)}."
         )
     if not justification:
-        raise ValueError("Missing justification in part 1 response.")
+        raise ResponseParseError("Missing justification in part 1 response.")
     return action, justification
 
 
@@ -449,30 +509,83 @@ def _recover_agent_after_error(agent: Agent1, error: Exception) -> None:
 def _query_variant_until_valid(
     agent: Agent1,
     variant: PromptVariant,
+    *,
+    attempt_logger: DurableAttemptLogger | None = None,
+    order_position: int | None = None,
+    extraction_config: ExtractionConfig | None = None,
 ) -> tuple[str, str]:
     had_retry_status = False
     attempt = 0
 
-    while True:
+    while attempt < MAX_AGENT_ATTEMPTS:
         attempt += 1
         try:
-            raw_response = agent.query(variant.prompt_text, json_mode=True)
-            action, justification = _parse_agent_response(
-                raw_response,
-                allowed_actions=variant.allowed_actions,
-            )
-            if had_retry_status:
-                _emit_retry_status_line("", finalize=True)
-            return action, justification
-        except KeyboardInterrupt:
-            if had_retry_status:
-                _emit_retry_status_line("", finalize=True)
-            raise
-        except OllamaConnectionError:
+            generation_record = None
+            if extraction_config is None:
+                raw_response = agent.query(variant.prompt_text, json_mode=True)
+            else:
+                raw_response, generated = agent.query_for_grading(
+                    variant.prompt_text,
+                    extraction_config=extraction_config,
+                    extraction_kind="part_1_binary_game_decision",
+                )
+                generation_record = generated.to_dict()
+        except KeyboardInterrupt as error:
+            if attempt_logger is not None:
+                attempt_logger.append(
+                    provider=agent.provider,
+                    model=agent.model,
+                    unit_id=variant.prompt_id,
+                    unit={"prompt_id": variant.prompt_id, "order_position": order_position},
+                    attempt=attempt,
+                    max_attempts=MAX_AGENT_ATTEMPTS,
+                    prompt_text=variant.prompt_text,
+                    outcome="interrupted",
+                    error={
+                        "exception_type": type(error).__name__,
+                        "message": safe_error_message(error),
+                        "provenance": None,
+                    },
+                )
             if had_retry_status:
                 _emit_retry_status_line("", finalize=True)
             raise
         except Exception as error:
+            retryable = (
+                is_retryable_api_failure(error)
+                or _is_ollama_resource_error(error)
+            ) and not isinstance(error, OllamaConnectionError)
+            will_retry = retryable and attempt < MAX_AGENT_ATTEMPTS
+            if attempt_logger is not None:
+                attempt_logger.append(
+                    provider=agent.provider,
+                    model=agent.model,
+                    unit_id=variant.prompt_id,
+                    unit={"prompt_id": variant.prompt_id, "order_position": order_position},
+                    attempt=attempt,
+                    max_attempts=MAX_AGENT_ATTEMPTS,
+                    prompt_text=variant.prompt_text,
+                    outcome="provider_error",
+                    error={
+                        "exception_type": type(error).__name__,
+                        "message": safe_error_message(error),
+                        "provenance": failure_provenance(
+                            error,
+                            provider=agent.provider,
+                            model=agent.model,
+                        ),
+                    },
+                    generation_record=extraction_record_from_error(error),
+                    will_retry=will_retry,
+                )
+            if isinstance(error, OllamaConnectionError):
+                if had_retry_status:
+                    _emit_retry_status_line("", finalize=True)
+                raise
+            if not retryable or not will_retry:
+                if had_retry_status:
+                    _emit_retry_status_line("", finalize=True)
+                raise
             had_retry_status = True
             delay_seconds = _retry_delay_seconds(attempt)
             _emit_retry_status_line(
@@ -481,7 +594,84 @@ def _query_variant_until_valid(
             )
             _recover_agent_after_error(agent, error)
             time.sleep(delay_seconds)
+            continue
 
+        try:
+            action, justification = _parse_agent_response(
+                raw_response,
+                allowed_actions=variant.allowed_actions,
+            )
+        except Exception as error:
+            retryable = is_retryable_api_failure(error)
+            will_retry = retryable and attempt < MAX_AGENT_ATTEMPTS
+            if attempt_logger is not None:
+                attempt_logger.append(
+                    provider=agent.provider,
+                    model=agent.model,
+                    unit_id=variant.prompt_id,
+                    unit={"prompt_id": variant.prompt_id, "order_position": order_position},
+                    attempt=attempt,
+                    max_attempts=MAX_AGENT_ATTEMPTS,
+                    prompt_text=variant.prompt_text,
+                    outcome="invalid_response",
+                    raw_response=raw_response,
+                    generation_record=generation_record,
+                    error={
+                        "exception_type": type(error).__name__,
+                        "message": safe_error_message(error),
+                        "provenance": failure_provenance(
+                            error,
+                            provider=agent.provider,
+                            model=agent.model,
+                        ),
+                    },
+                    will_retry=will_retry,
+                )
+            if not retryable or not will_retry:
+                if had_retry_status:
+                    _emit_retry_status_line("", finalize=True)
+                raise
+            had_retry_status = True
+            delay_seconds = _retry_delay_seconds(attempt)
+            _emit_retry_status_line(
+                f"  [yellow][WARN] Agent {agent.id} attempt {attempt} raised "
+                f"{type(error).__name__}: {error}. Retrying in {delay_seconds:.0f}s...[/yellow]"
+            )
+            time.sleep(delay_seconds)
+            continue
+
+        if attempt_logger is not None:
+            attempt_logger.append(
+                provider=agent.provider,
+                model=agent.model,
+                unit_id=variant.prompt_id,
+                unit={"prompt_id": variant.prompt_id, "order_position": order_position},
+                attempt=attempt,
+                max_attempts=MAX_AGENT_ATTEMPTS,
+                prompt_text=variant.prompt_text,
+                outcome="success",
+                raw_response=raw_response,
+                parsed_response={"action": action, "justification": justification},
+                generation_record=generation_record,
+            )
+        if had_retry_status:
+            _emit_retry_status_line("", finalize=True)
+        return action, justification
+
+
+PRE_ORDERING_RESULT_HEADERS = [
+    "provider",
+    "model",
+    "game",
+    "frame",
+    "domain",
+    "scenario_variant",
+    "presentation",
+    "prompt_id",
+    "action",
+    "justification",
+    "prompt_text",
+]
 
 LEGACY_RESULT_HEADERS = [
     "provider",
@@ -509,7 +699,11 @@ def _load_part_1_rows(path: str | Path) -> list[dict[str, str]]:
         if reader.fieldnames is None:
             return []
         source_header = list(reader.fieldnames)
-        valid_headers = {tuple(RESULT_HEADERS), tuple(LEGACY_RESULT_HEADERS)}
+        valid_headers = {
+            tuple(RESULT_HEADERS),
+            tuple(PRE_ORDERING_RESULT_HEADERS),
+            tuple(LEGACY_RESULT_HEADERS),
+        }
         if tuple(source_header) not in valid_headers:
             raise ValueError(
                 f"Unexpected CSV header for {csv_path}: expected {RESULT_HEADERS}, found {source_header}."
@@ -518,6 +712,24 @@ def _load_part_1_rows(path: str | Path) -> list[dict[str, str]]:
             {column: row.get(column, "") or "" for column in RESULT_HEADERS}
             for row in reader
         ]
+
+
+def _part_1_output_headers(path: str | Path, *, resume: bool) -> list[str]:
+    csv_path = Path(path)
+    if not resume or not csv_path.exists() or csv_path.stat().st_size == 0:
+        return list(RESULT_HEADERS)
+    import csv
+
+    with csv_path.open("r", newline="", encoding="utf-8") as handle:
+        existing = next(csv.reader(handle), [])
+    valid_headers = {
+        tuple(RESULT_HEADERS),
+        tuple(PRE_ORDERING_RESULT_HEADERS),
+        tuple(LEGACY_RESULT_HEADERS),
+    }
+    if tuple(existing) not in valid_headers:
+        raise ValueError(f"Unexpected CSV header for {csv_path}: {existing}")
+    return existing
 
 
 def _write_part_1_metadata(
@@ -533,7 +745,18 @@ def _write_part_1_metadata(
     presentations: list[str],
     limit: int | None,
     total_prompts: int,
+    order_seed: int,
+    order_strategy: str,
+    counterbalance_index: int,
+    attempt_logger: DurableAttemptLogger,
+    extraction_config: ExtractionConfig | None,
 ) -> None:
+    ordering = {
+        "seed": order_seed,
+        "strategy": order_strategy,
+        "counterbalance_index": counterbalance_index,
+        "algorithm": "python_random_mt19937_shuffle_then_cyclic_rotation_v1",
+    }
     parameters = {
         "games": games,
         "frames": frames,
@@ -541,6 +764,10 @@ def _write_part_1_metadata(
         "presentations": presentations,
         "limit": limit,
         "total_prompts": total_prompts,
+        "ordering": ordering,
+        "grading_protocol": (
+            extraction_config.to_metadata() if extraction_config is not None else None
+        ),
     }
     metadata = base_run_metadata(
         experiment="part_1",
@@ -551,12 +778,69 @@ def _write_part_1_metadata(
         parameters=parameters,
     )
     metadata.update(parameters)
-    Path(path).parent.mkdir(parents=True, exist_ok=True)
-    Path(path).write_text(json.dumps(metadata, indent=2), encoding="utf-8")
+    attempt_log = attempt_logger.summary().to_metadata()
+    attempt_log["coverage"] = "full_run"
+    metadata["attempt_log"] = attempt_log
+    write_metadata(path, metadata)
 
 
 def _load_part_1_metadata(path: str | Path) -> dict[str, Any]:
-    return json.loads(Path(path).read_text(encoding="utf-8"))
+    return read_metadata(path)
+
+
+def _fresh_extraction_config(
+    *,
+    output_token_cap: int | None,
+    extractor_provider: str | None,
+    extractor_model: str | None,
+    extractor_max_tokens: int | None,
+) -> ExtractionConfig:
+    return ExtractionConfig(
+        subject_output_token_cap=(output_token_cap or DEFAULT_OUTPUT_TOKEN_CAP),
+        provider=(extractor_provider or DEFAULT_EXTRACTOR_PROVIDER),
+        model=(extractor_model or DEFAULT_EXTRACTOR_MODEL),
+        extractor_max_tokens=(extractor_max_tokens or DEFAULT_EXTRACTOR_MAX_TOKENS),
+    )
+
+
+def _resume_extraction_config(metadata: dict[str, Any]) -> ExtractionConfig | None:
+    value = metadata.get("grading_protocol")
+    # Legacy runs did not use independent extraction. Continue those runs under
+    # their original protocol rather than silently mixing row semantics.
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise ValueError("Resume metadata contains an invalid grading_protocol.")
+    return ExtractionConfig.from_metadata(value)
+
+
+def _attempt_log_metadata(
+    logger: DurableAttemptLogger,
+    *,
+    coverage: str,
+) -> dict[str, Any]:
+    attempt_log = logger.summary().to_metadata()
+    attempt_log["coverage"] = coverage
+    return {
+        "attempt_log": attempt_log,
+        "invalid_attempts": attempt_log["invalid_response_attempts"],
+        "retry_attempts": attempt_log["retry_attempts"],
+        "provider_error_attempts": attempt_log["provider_error_attempts"],
+    }
+
+
+def _sync_part_1_attempt_metadata(
+    metadata_path: str | Path,
+    logger: DurableAttemptLogger,
+    *,
+    coverage: str,
+) -> None:
+    path = Path(metadata_path)
+    if not path.exists():
+        return
+    metadata = read_metadata(path)
+    metadata.update(_attempt_log_metadata(logger, coverage=coverage))
+    write_metadata(path, metadata)
 
 
 def _latest_interrupted_part_1_metadata_path() -> Path:
@@ -638,6 +922,13 @@ def run_part_1(
     domains: list[str] | None = None,
     presentations: list[str] | None = None,
     limit: int | None = None,
+    order_seed: int | None = None,
+    order_strategy: str | None = None,
+    counterbalance_index: int | None = None,
+    output_token_cap: int | None = None,
+    extractor_provider: str | None = None,
+    extractor_model: str | None = None,
+    extractor_max_tokens: int | None = None,
     *,
     resume: bool = False,
     resume_metadata_path: str | Path | None = None,
@@ -645,14 +936,49 @@ def run_part_1(
     suppress_keyboard_interrupt: bool = True,
 ) -> str:
     completed_rows: list[dict[str, str]] = []
+    is_resuming = resume or resume_metadata_path is not None
+    requested_order_seed = order_seed
+    requested_order_strategy = order_strategy
+    requested_counterbalance_index = counterbalance_index
+    attempt_log_coverage = "full_run"
 
-    if resume or resume_metadata_path is not None:
+    if is_resuming:
         metadata_path = (
             Path(resume_metadata_path)
             if resume_metadata_path is not None
             else _latest_interrupted_part_1_metadata_path()
         )
         metadata = _load_part_1_metadata(metadata_path)
+        extraction_config = _resume_extraction_config(metadata)
+        if extraction_config is None:
+            if any(
+                value is not None
+                for value in (
+                    output_token_cap,
+                    extractor_provider,
+                    extractor_model,
+                    extractor_max_tokens,
+                )
+            ):
+                raise ValueError(
+                    "Cannot add final-answer extraction while resuming a legacy Part 1 run."
+                )
+        else:
+            requested_extraction = ExtractionConfig(
+                subject_output_token_cap=(
+                    output_token_cap or extraction_config.subject_output_token_cap
+                ),
+                provider=extractor_provider or extraction_config.provider,
+                model=extractor_model or extraction_config.model,
+                extractor_max_tokens=(
+                    extractor_max_tokens or extraction_config.extractor_max_tokens
+                ),
+                timeout_seconds=extraction_config.timeout_seconds,
+            )
+            if requested_extraction != extraction_config:
+                raise ValueError(
+                    "Resume final-answer extraction configuration does not match metadata."
+                )
         resumed_provider = str(metadata["provider"])
         resumed_model = str(metadata["model"])
         resumed_games = [str(value) for value in metadata["games"]]
@@ -663,6 +989,16 @@ def run_part_1(
         total_prompts = int(metadata["total_prompts"])
         timestamp = str(metadata["timestamp"])
         csv_path = Path(str(metadata["csv_path"]))
+        ordering = metadata.get("ordering")
+        if isinstance(ordering, dict):
+            resumed_order_seed = int(ordering["seed"])
+            resumed_order_strategy = str(ordering["strategy"])
+            resumed_counterbalance_index = int(ordering["counterbalance_index"])
+        else:
+            resumed_order_seed = None
+            resumed_order_strategy = "legacy_canonical"
+            resumed_counterbalance_index = 0
+            attempt_log_coverage = "resume_segment_only"
 
         if provider is not None and provider != resumed_provider:
             raise ValueError(
@@ -672,6 +1008,30 @@ def run_part_1(
             raise ValueError(
                 f"Resume model mismatch: expected {resumed_model}, received {model}."
             )
+        if (
+            requested_order_seed is not None
+            and requested_order_seed != resumed_order_seed
+        ):
+            raise ValueError(
+                f"Resume order seed mismatch: expected {resumed_order_seed}, "
+                f"received {requested_order_seed}."
+            )
+        if (
+            requested_order_strategy is not None
+            and requested_order_strategy != resumed_order_strategy
+        ):
+            raise ValueError(
+                f"Resume order strategy mismatch: expected {resumed_order_strategy}, "
+                f"received {requested_order_strategy}."
+            )
+        if (
+            requested_counterbalance_index is not None
+            and requested_counterbalance_index != resumed_counterbalance_index
+        ):
+            raise ValueError(
+                "Resume counterbalance index mismatch: expected "
+                f"{resumed_counterbalance_index}, received {requested_counterbalance_index}."
+            )
 
         provider = resumed_provider
         model = resumed_model
@@ -680,6 +1040,9 @@ def run_part_1(
         domains = resumed_domains
         presentations = resumed_presentations
         limit = resumed_limit if isinstance(resumed_limit, int) else None
+        order_seed = resumed_order_seed
+        order_strategy = resumed_order_strategy
+        counterbalance_index = resumed_counterbalance_index
 
         completed_rows = _load_part_1_rows(csv_path)
         _render_resume_panel(
@@ -689,6 +1052,12 @@ def run_part_1(
             completed_count=len(completed_rows),
         )
     else:
+        extraction_config = _fresh_extraction_config(
+            output_token_cap=output_token_cap,
+            extractor_provider=extractor_provider,
+            extractor_model=extractor_model,
+            extractor_max_tokens=extractor_max_tokens,
+        )
         if provider is None or model is None:
             provider, model = choose_provider_and_model(
                 EXPERIMENT_NAME,
@@ -742,11 +1111,55 @@ def run_part_1(
             timestamp=timestamp,
         )
         metadata_path = csv_path.with_name(f"{csv_path.stem}_meta.json")
+        order_seed = DEFAULT_PART_1_ORDER_SEED if order_seed is None else order_seed
+        order_strategy = (
+            DEFAULT_PART_1_ORDER_STRATEGY
+            if order_strategy is None
+            else order_strategy
+        )
+        counterbalance_index = (
+            0 if counterbalance_index is None else counterbalance_index
+        )
+
+    if order_strategy != "legacy_canonical":
+        if (
+            order_seed is None
+            or isinstance(order_seed, bool)
+            or not isinstance(order_seed, int)
+        ):
+            raise TypeError("order_seed must be an integer.")
+        if order_strategy not in PART_1_ORDER_STRATEGIES:
+            supported = ", ".join(PART_1_ORDER_STRATEGIES)
+            raise ValueError(f"order_strategy must be one of: {supported}.")
+    if counterbalance_index is None or counterbalance_index < 0:
+        raise ValueError("counterbalance_index must be >= 0.")
+
+    attempt_log_metadata = metadata.get("attempt_log") if is_resuming else None
+    configured_attempt_path = (
+        attempt_log_metadata.get("path")
+        if isinstance(attempt_log_metadata, dict)
+        else None
+    )
+    attempt_path = (
+        Path(str(configured_attempt_path))
+        if configured_attempt_path
+        else attempt_log_path_for_csv(csv_path)
+    )
+    if is_resuming and not configured_attempt_path:
+        attempt_log_coverage = "resume_segment_only"
+    attempt_logger = DurableAttemptLogger(attempt_path, experiment="part_1")
 
     run_experiment_preflight(
         EXPERIMENT_NAME,
-        [(provider, model)],
-        resume=resume,
+        [
+            (provider, model),
+            *(
+                [(extraction_config.provider, extraction_config.model)]
+                if extraction_config is not None
+                else []
+            ),
+        ],
+        resume=is_resuming,
         test_paths=PREFLIGHT_TEST_PATHS,
     )
 
@@ -759,17 +1172,23 @@ def run_part_1(
         model_=model,
         keep_alive_=keep_alive,
     )
-    prompt_variants = _build_prompt_variants(
-        agent=agent,
-        games=games,
-        frames=frames,
-        domains=domains,
-        presentations=presentations,
+    prompt_variants = _order_prompt_variants(
+        _build_prompt_variants(
+            agent=agent,
+            games=games,
+            frames=frames,
+            domains=domains,
+            presentations=presentations,
+            limit=None,
+        ),
+        seed=order_seed,
+        strategy=order_strategy,
+        counterbalance_index=counterbalance_index,
         limit=limit,
     )
     total_prompts = len(prompt_variants)
 
-    if not resume:
+    if not is_resuming:
         _write_part_1_metadata(
             metadata_path,
             timestamp=timestamp,
@@ -782,6 +1201,11 @@ def run_part_1(
             presentations=presentations,
             limit=limit,
             total_prompts=total_prompts,
+            order_seed=order_seed,
+            order_strategy=order_strategy,
+            counterbalance_index=counterbalance_index,
+            attempt_logger=attempt_logger,
+            extraction_config=extraction_config,
         )
 
     completed_prompt_ids = {
@@ -799,7 +1223,13 @@ def run_part_1(
             mark_metadata_complete(
                 metadata_path,
                 completed_rows=len(completed_rows),
-                extra={"total_prompts": total_prompts},
+                extra={
+                    "total_prompts": total_prompts,
+                    **_attempt_log_metadata(
+                        attempt_logger,
+                        coverage=attempt_log_coverage,
+                    ),
+                },
             )
         console.print(
             Panel(
@@ -828,7 +1258,19 @@ def run_part_1(
     interrupted = False
 
     try:
-        with IncrementalCsvWriter(csv_path, RESULT_HEADERS, append=resume) as writer:
+        output_headers = _part_1_output_headers(
+            csv_path,
+            resume=is_resuming,
+        )
+        prompt_positions = {
+            variant.prompt_id: index
+            for index, variant in enumerate(prompt_variants, start=1)
+        }
+        with IncrementalCsvWriter(
+            csv_path,
+            output_headers,
+            append=is_resuming,
+        ) as writer:
             processed_count = len(completed_rows)
             for variant in remaining_prompt_variants:
                 next_index = processed_count + 1
@@ -840,7 +1282,14 @@ def run_part_1(
                         total_prompts=total_prompts,
                         variant=variant,
                     )
-                action, justification = _query_variant_until_valid(agent, variant)
+                order_position = prompt_positions[variant.prompt_id]
+                action, justification = _query_variant_until_valid(
+                    agent,
+                    variant,
+                    attempt_logger=attempt_logger,
+                    order_position=order_position,
+                    extraction_config=extraction_config,
+                )
                 processed_count = next_index
                 row = {
                     "provider": provider,
@@ -851,11 +1300,15 @@ def run_part_1(
                     "scenario_variant": variant.scenario_variant,
                     "presentation": variant.presentation,
                     "prompt_id": variant.prompt_id,
+                    "order_position": order_position,
+                    "order_seed": "" if order_seed is None else order_seed,
+                    "order_strategy": order_strategy,
+                    "counterbalance_index": counterbalance_index,
                     "action": action,
                     "justification": justification,
                     "prompt_text": variant.prompt_text,
                 }
-                writer.write_row([row[column] for column in RESULT_HEADERS])
+                writer.write_row([row[column] for column in output_headers])
                 all_rows.append(row)
                 if headless:
                     _render_headless_progress(
@@ -875,6 +1328,20 @@ def run_part_1(
     except KeyboardInterrupt:
         interrupted = True
     except Exception as error:
+        if metadata_path.exists():
+            mark_metadata_failed(
+                metadata_path,
+                error=error,
+                provider=provider,
+                model=model,
+                extra={
+                    "completed_rows": len(all_rows),
+                    **_attempt_log_metadata(
+                        attempt_logger,
+                        coverage=attempt_log_coverage,
+                    ),
+                },
+            )
         if isinstance(error, OllamaConnectionError) or _is_ollama_resource_error(error):
             paused_error = error
         else:
@@ -883,6 +1350,11 @@ def run_part_1(
         _unload_agent_if_needed(agent)
 
     if interrupted:
+        _sync_part_1_attempt_metadata(
+            metadata_path,
+            attempt_logger,
+            coverage=attempt_log_coverage,
+        )
         if not suppress_keyboard_interrupt:
             raise KeyboardInterrupt()
         console.print(
@@ -905,7 +1377,13 @@ def run_part_1(
         mark_metadata_complete(
             metadata_path,
             completed_rows=len(all_rows),
-            extra={"total_prompts": total_prompts},
+            extra={
+                "total_prompts": total_prompts,
+                **_attempt_log_metadata(
+                    attempt_logger,
+                    coverage=attempt_log_coverage,
+                ),
+            },
         )
 
     _render_summary(all_rows)
@@ -929,6 +1407,13 @@ def run_part_1_until_complete(
     domains: list[str] | None = None,
     presentations: list[str] | None = None,
     limit: int | None = None,
+    order_seed: int | None = None,
+    order_strategy: str | None = None,
+    counterbalance_index: int | None = None,
+    output_token_cap: int | None = None,
+    extractor_provider: str | None = None,
+    extractor_model: str | None = None,
+    extractor_max_tokens: int | None = None,
     *,
     resume: bool = False,
     headless: bool = False,
@@ -936,7 +1421,7 @@ def run_part_1_until_complete(
     resume_metadata_path: Path | None = None
     attempt = 0
 
-    while True:
+    while attempt < MAX_RUN_ATTEMPTS:
         attempt += 1
         console.print(
             f"[cyan]Part 1 run attempt {attempt} for {provider}/{model}[/cyan]"
@@ -950,6 +1435,13 @@ def run_part_1_until_complete(
                 domains=domains,
                 presentations=presentations,
                 limit=limit,
+                order_seed=order_seed,
+                order_strategy=order_strategy,
+                counterbalance_index=counterbalance_index,
+                output_token_cap=output_token_cap,
+                extractor_provider=extractor_provider,
+                extractor_model=extractor_model,
+                extractor_max_tokens=extractor_max_tokens,
                 resume=resume or resume_metadata_path is not None,
                 resume_metadata_path=resume_metadata_path,
                 headless=headless,
@@ -982,6 +1474,11 @@ def run_part_1_until_complete(
                 f"[yellow][WARN] {provider}/{model} is still incomplete. Retrying via resume.[/yellow]"
             )
 
+    raise RuntimeError(
+        f"Part 1 did not complete after {MAX_RUN_ATTEMPTS} run attempts for "
+        f"{provider}/{model}."
+    )
+
 
 if __name__ == "__main__":
     cli_args = parse_game_theory_args()
@@ -993,6 +1490,13 @@ if __name__ == "__main__":
         domains=cli_args.domain,
         presentations=cli_args.presentation,
         limit=cli_args.limit,
+        order_seed=cli_args.order_seed,
+        order_strategy=cli_args.order_strategy,
+        counterbalance_index=cli_args.counterbalance_index,
+        output_token_cap=cli_args.output_token_cap,
+        extractor_provider=cli_args.extractor_provider,
+        extractor_model=cli_args.extractor_model,
+        extractor_max_tokens=cli_args.extractor_max_tokens,
         resume=cli_args.resume,
         headless=cli_args.headless,
     )

@@ -15,7 +15,10 @@
       "warnings": [],
       "metrics": {
         "duplicates": 0,
-        "invalid_compliance_values": 0
+        "invalid_compliance_values": 0,
+        "response_only_schema": false,
+        "invalid_response_only_verdicts": 0,
+        "unjudged_response_only_rows": 0
       }
     },
     {
@@ -211,8 +214,12 @@
       ],
       "metrics": {
         "days": 49,
+        "day_gaps": 0,
         "invalid_actions": 0,
         "incomplete_days": 0,
+        "duplicate_agent_days": 0,
+        "inconsistent_day_summaries": 0,
+        "nonconstant_configuration_fields": 0,
         "transition_errors": 0,
         "reasoning_mismatch_flags": 114
       }
@@ -228,8 +235,12 @@
       ],
       "metrics": {
         "days": 80,
+        "day_gaps": 0,
         "invalid_actions": 0,
         "incomplete_days": 0,
+        "duplicate_agent_days": 0,
+        "inconsistent_day_summaries": 0,
+        "nonconstant_configuration_fields": 0,
         "transition_errors": 0,
         "reasoning_mismatch_flags": 83
       }
@@ -245,8 +256,12 @@
       ],
       "metrics": {
         "days": 100,
+        "day_gaps": 0,
         "invalid_actions": 0,
         "incomplete_days": 0,
+        "duplicate_agent_days": 0,
+        "inconsistent_day_summaries": 0,
+        "nonconstant_configuration_fields": 0,
         "transition_errors": 0,
         "reasoning_mismatch_flags": 49
       }
@@ -262,8 +277,12 @@
       ],
       "metrics": {
         "days": 52,
+        "day_gaps": 0,
         "invalid_actions": 0,
         "incomplete_days": 0,
+        "duplicate_agent_days": 0,
+        "inconsistent_day_summaries": 0,
+        "nonconstant_configuration_fields": 0,
         "transition_errors": 0,
         "reasoning_mismatch_flags": 164
       }
@@ -279,8 +298,12 @@
       ],
       "metrics": {
         "days": 44,
+        "day_gaps": 0,
         "invalid_actions": 0,
         "incomplete_days": 0,
+        "duplicate_agent_days": 0,
+        "inconsistent_day_summaries": 0,
+        "nonconstant_configuration_fields": 0,
         "transition_errors": 0,
         "reasoning_mismatch_flags": 15
       }
@@ -296,8 +319,12 @@
       ],
       "metrics": {
         "days": 43,
+        "day_gaps": 0,
         "invalid_actions": 0,
         "incomplete_days": 0,
+        "duplicate_agent_days": 0,
+        "inconsistent_day_summaries": 0,
+        "nonconstant_configuration_fields": 0,
         "transition_errors": 0,
         "reasoning_mismatch_flags": 6
       }
@@ -313,8 +340,12 @@
       ],
       "metrics": {
         "days": 100,
+        "day_gaps": 0,
         "invalid_actions": 0,
         "incomplete_days": 0,
+        "duplicate_agent_days": 0,
+        "inconsistent_day_summaries": 0,
+        "nonconstant_configuration_fields": 0,
         "transition_errors": 0,
         "reasoning_mismatch_flags": 42
       }
@@ -330,8 +361,12 @@
       ],
       "metrics": {
         "days": 100,
+        "day_gaps": 0,
         "invalid_actions": 0,
         "incomplete_days": 0,
+        "duplicate_agent_days": 0,
+        "inconsistent_day_summaries": 0,
+        "nonconstant_configuration_fields": 0,
         "transition_errors": 0,
         "reasoning_mismatch_flags": 18
       }
@@ -347,8 +382,12 @@
       ],
       "metrics": {
         "days": 100,
+        "day_gaps": 0,
         "invalid_actions": 0,
         "incomplete_days": 0,
+        "duplicate_agent_days": 0,
+        "inconsistent_day_summaries": 0,
+        "nonconstant_configuration_fields": 0,
         "transition_errors": 0,
         "reasoning_mismatch_flags": 15
       }
@@ -364,8 +403,12 @@
       ],
       "metrics": {
         "days": 100,
+        "day_gaps": 0,
         "invalid_actions": 0,
         "incomplete_days": 0,
+        "duplicate_agent_days": 0,
+        "inconsistent_day_summaries": 0,
+        "nonconstant_configuration_fields": 0,
         "transition_errors": 0,
         "reasoning_mismatch_flags": 26
       }
@@ -381,8 +424,12 @@
       ],
       "metrics": {
         "days": 100,
+        "day_gaps": 0,
         "invalid_actions": 0,
         "incomplete_days": 0,
+        "duplicate_agent_days": 0,
+        "inconsistent_day_summaries": 0,
+        "nonconstant_configuration_fields": 0,
         "transition_errors": 0,
         "reasoning_mismatch_flags": 58
       }
@@ -398,8 +445,12 @@
       ],
       "metrics": {
         "days": 47,
+        "day_gaps": 0,
         "invalid_actions": 0,
         "incomplete_days": 0,
+        "duplicate_agent_days": 0,
+        "inconsistent_day_summaries": 0,
+        "nonconstant_configuration_fields": 0,
         "transition_errors": 0,
         "reasoning_mismatch_flags": 91
       }
@@ -415,8 +466,12 @@
       ],
       "metrics": {
         "days": 100,
+        "day_gaps": 0,
         "invalid_actions": 0,
         "incomplete_days": 0,
+        "duplicate_agent_days": 0,
+        "inconsistent_day_summaries": 0,
+        "nonconstant_configuration_fields": 0,
         "transition_errors": 0,
         "reasoning_mismatch_flags": 142
       }

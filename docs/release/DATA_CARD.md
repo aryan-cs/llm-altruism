@@ -5,7 +5,7 @@
 The repository stores experiment outputs under `data/raw/`:
 
 - `part_0`: safety/refusal benchmark outputs.
-- `part_1`: dyadic game decisions and justifications.
+- `part_1`: focal choices and role-conditioned responses to hypothetical social dilemmas, with justifications.
 - `part_2`: commons-simulation decisions, reasoning, day summaries, and survival/resource state.
 
 Derived, graph-independent artifacts are stored under `data/analysis/`:
@@ -43,7 +43,7 @@ The validator checks headers, duplicate rows, action validity, Part 1 matrix cov
 
 Part 0 includes harmful-request evaluation prompts and may contain harmful model completions. For paper release, prefer aggregate tables and selected, filtered qualitative examples. Do not publish raw harmful completions unless the release has been reviewed for safety and upstream benchmark license compatibility.
 
-The anonymous supplement is built with `uv run python -m analysis.build_supplement`. It includes derived Part 0 aggregate artifacts, Part 1/Part 2 raw CSVs and metadata sidecars, archived Part 2 rerun CSVs used for the repeat-run diagnostic, code, tests, figures, validation outputs, and release documentation. It excludes raw Part 0 CSVs, raw Part 0 metadata sidecars, and raw Part 0 prompt-source CSVs by default.
+The anonymous supplement is built with `uv run python -m analysis.build_supplement`. It includes derived Part 0 aggregate artifacts, Part 1/Part 2 raw CSVs and metadata sidecars, code, tests, figures, validation outputs, and release documentation. It excludes raw Part 0 CSVs, raw Part 0 metadata sidecars, raw Part 0 prompt-source CSVs, and author-identifying proposal metadata by default.
 
 The paper-facing Croissant metadata is stored at `data/analysis/croissant_metadata.json`. It documents the derived tables, validation report, manifest, access conditions, and responsible-use constraints used for the current anonymous submission package.
 
@@ -51,5 +51,6 @@ The paper-facing Croissant metadata is stored at `data/analysis/croissant_metada
 
 - Current results are a validated pilot snapshot for the paper-facing submission package, not final leaderboard estimates.
 - Some metadata for legacy runs is reconstructed from filenames and row counts.
+- The April Part 0 export's legacy automated labels could inspect stored rationale as well as final responses. Response-only rejudgment provenance and a blinded human-audit workflow are therefore required for any claim labeled as final-response refusal.
 - Model versions can drift for API providers and local tags unless exact provider revisions or Ollama digests are recorded.
 - Reasoning text is model-generated and should be treated as an explanation artifact, not proof of internal causal mechanism.

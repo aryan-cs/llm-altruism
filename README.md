@@ -5,10 +5,10 @@ Prosocial Readiness Bench is a behavioral evaluation suite for asking whether la
 The project started under the working name `llm-altruism`, but the benchmark does not claim to measure intrinsic altruism or moral character. It measures observable behaviors under explicit task contracts:
 
 - **Part 0: Safety refusal.** Models answer multilingual harmful-request prompts; outputs are scored as refusal or compliance.
-- **Part 1: Dyadic cooperation.** Models choose actions in one-shot social dilemmas across games, frames, domains, presentations, and scenario variants.
-- **Part 2: Commons restraint.** Same-model societies repeatedly choose whether to restrain or overuse a shared resource, producing resource and population trajectories.
+- **Part 1: Focal dilemma choices.** Models produce self-directed choices, advice, observer judgments, and predictions in hypothetical one-shot dilemmas.
+- **Part 2: Commons restraint.** Homogeneous same-model populations repeatedly choose whether to restrain or overuse a shared resource, producing resource and population trajectories in a controlled microworld.
 
-The paper-facing claim is that these axes can dissociate. A model can refuse harmful prompts while still defecting in game settings or overusing a shared resource. The codebase is organized to make that claim auditable from raw traces, metadata sidecars, validation reports, summary tables, figures, and a packaged supplement.
+The paper-facing claim is that the profile is non-redundant but partially coupled. Refusal and commons restraint are positively associated in the pilot, while role-conditioned responses and model-level discordances show that refusal alone cannot substitute for the other probes. The codebase makes these claims auditable from raw traces, metadata sidecars, validation reports, summary tables, figures, and a packaged supplement.
 
 ## What Is In This Repository
 
@@ -42,6 +42,9 @@ cp .env.example .env
 ```
 
 Fill in only the provider credentials you plan to use. Local Ollama runs do not require cloud API keys, but they do require Ollama to be installed and the requested model tag to be available locally.
+The configured NVIDIA-hosted Inference Hub uses `NVIDIA_API_KEY`; its base URL
+defaults to `https://integrate.api.nvidia.com/v1` and can be overridden with
+`INFERENCE_HUB_BASE_URL`.
 
 Run the test suite:
 
@@ -65,7 +68,7 @@ uv run python -m experiments.part0.part_0 \
   --language english
 ```
 
-Part 1 runs the dyadic social dilemma prompt matrix:
+Part 1 runs the focal-choice and role-conditioned social-dilemma prompt matrix:
 
 ```bash
 uv run python -m experiments.part1.part_1 \
@@ -124,8 +127,39 @@ Important table outputs include:
 - `part1_prompt_sensitivity.csv`
 - `part1_factor_decomposition.csv`
 - `part2_model_summary.csv`
+- `part2_run_summary.csv`
 - `cross_part_model_summary.csv`
 - `cross_part_correlations.csv`
+
+To run an exact-version registry cohort through smoke tests and the three
+benchmark parts, use the resumable campaign runner. A dry run prints and records
+the planned request counts without contacting any provider:
+
+```bash
+uv run python -m experiments.campaign \
+  --cohort current_sota \
+  --phase smoke --phase part0 --phase part1 --phase part2 \
+  --dry-run
+```
+
+The `current_sota` and `historical` cohorts are defined in
+`agents/agent_config.registry.json`. Registry membership is a run plan, not a
+claim that a provider route is available or that its results appear in the
+paper. A model enters the result set only after successful endpoint smoke tests,
+completed native artifacts, and validation.
+
+Legacy Part 0 exports can be rejudged without exposing stored rationale text to
+the judge:
+
+```bash
+uv run python -m analysis.rejudge_part0 \
+  --input path/to/legacy.csv \
+  --output path/to/response_only.csv \
+  --summary-json path/to/response_only_summary.json
+```
+
+See `docs/JUDGE_AUDIT.md` for the separate blinded human-audit workflow. The
+repository never substitutes synthetic annotations for missing human labels.
 
 Regenerate the figures used by the paper and sync them into the LaTeX figure directory:
 

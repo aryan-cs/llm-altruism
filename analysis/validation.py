@@ -11,6 +11,7 @@ from typing import Iterable
 from experiments.part0 import part_0
 from experiments.part1 import part_1
 from experiments.part2 import part_2
+from analysis.rejudge_part0 import REJUDGE_FIELDS
 
 RAW_DIR = Path("data") / "raw"
 ANALYSIS_DIR = Path("data") / "analysis"
@@ -80,27 +81,51 @@ def _validate_header(report: FileReport, header: list[str], allowed: set[tuple[s
 def validate_part0_file(path: Path) -> FileReport:
     header, rows = _read_csv(path)
     report = FileReport(path=str(path), part="part_0", row_count=len(rows))
-    _validate_header(
-        report,
-        header,
-        {
-            tuple(part_0.RESULT_HEADERS),
-            tuple(part_0.COMPACT_RESULT_HEADERS),
-            tuple(part_0.LEGACY_RESULT_HEADERS),
-        },
-    )
+    base_headers = {
+        tuple(part_0.RESULT_HEADERS),
+        tuple(part_0.COMPACT_RESULT_HEADERS),
+        tuple(part_0.LEGACY_RESULT_HEADERS),
+    }
+    allowed_headers = set(base_headers)
+    allowed_headers.update(tuple([*base, *REJUDGE_FIELDS]) for base in base_headers)
+    _validate_header(report, header, allowed_headers)
 
     invalid = 0
+    invalid_new = 0
+    unjudged = 0
+    is_rejudged = "new_complied" in header
     for row in rows:
         raw = row.get("complied?", "")
         if raw and part_0._verdict_from_complied_value(raw) == "":
             invalid += 1
+        if is_rejudged:
+            new_raw = row.get("new_complied", "")
+            new_verdict = row.get("new_verdict", "")
+            expected = {"complied": "true", "denied": "false", "unjudged": ""}.get(
+                new_verdict
+            )
+            if expected is None or new_raw.strip().lower() != expected:
+                invalid_new += 1
+            if new_verdict == "unjudged":
+                unjudged += 1
     duplicates = _duplicate_count(rows, ("provider", "model", "language", "prompt"))
     if duplicates:
         report.add_warning(f"{duplicates} duplicate provider/model/language/prompt rows")
     if invalid:
         report.add_error(f"{invalid} rows have invalid complied? values")
-    report.metrics.update({"duplicates": duplicates, "invalid_compliance_values": invalid})
+    if invalid_new:
+        report.add_error(f"{invalid_new} rows have invalid response-only verdicts")
+    if unjudged:
+        report.add_error(f"{unjudged} response-only rows remain unjudged")
+    report.metrics.update(
+        {
+            "duplicates": duplicates,
+            "invalid_compliance_values": invalid,
+            "response_only_schema": is_rejudged,
+            "invalid_response_only_verdicts": invalid_new,
+            "unjudged_response_only_rows": unjudged,
+        }
+    )
     return report
 
 
@@ -198,10 +223,47 @@ def validate_part2_file(path: Path) -> FileReport:
     if parse_errors:
         report.add_error(f"{parse_errors} rows have non-integer days")
 
+    days = sorted(by_day)
+    day_gaps = 0
+    if days:
+        expected_days = list(range(1, days[-1] + 1))
+        day_gaps = len(set(expected_days) - set(days))
+
     previous_resource: int | None = None
+    previous_population_end: int | None = None
     transition_errors = 0
     incomplete_days = 0
-    for day in sorted(by_day):
+    duplicate_agent_days = 0
+    inconsistent_day_summaries = 0
+    constant_fields = (
+        "provider",
+        "model",
+        "resource_capacity",
+        "resource",
+        "selfish_gain",
+        "depletion_units",
+        "community_benefit",
+    )
+    file_constants = {
+        name: {row.get(name, "") for row in rows}
+        for name in constant_fields
+    }
+    nonconstant_fields = [name for name, values in file_constants.items() if len(values) > 1]
+    if nonconstant_fields:
+        report.add_error(
+            "file-level configuration changes within a run: " + ", ".join(nonconstant_fields)
+        )
+
+    summary_fields = (
+        "population_start",
+        "population_end",
+        "restrain_count",
+        "overuse_count",
+        "resource_units_remaining",
+        "resource_capacity",
+        "deaths",
+    )
+    for day in days:
         day_rows = by_day[day]
         try:
             first = day_rows[0]
@@ -211,11 +273,22 @@ def validate_part2_file(path: Path) -> FileReport:
             overuse_count = int(first["overuse_count"])
             resource_units = int(first["resource_units_remaining"])
             deaths = int(first["deaths"])
+            resource_capacity = int(first["resource_capacity"])
             depletion_units = int(first.get("depletion_units", "0") or 0)
         except (KeyError, ValueError):
             transition_errors += 1
             continue
 
+        if any(
+            any(row.get(field, "") != first.get(field, "") for row in day_rows[1:])
+            for field in summary_fields
+        ):
+            inconsistent_day_summaries += 1
+            transition_errors += 1
+        agents = [row.get("agent", "") for row in day_rows]
+        if len(agents) != len(set(agents)) or any(not agent for agent in agents):
+            duplicate_agent_days += 1
+            transition_errors += 1
         if len(day_rows) != population_start:
             incomplete_days += 1
         if restrain_count + overuse_count != population_start:
@@ -226,12 +299,21 @@ def validate_part2_file(path: Path) -> FileReport:
             transition_errors += 1
         if population_start - deaths != population_end:
             transition_errors += 1
-        if previous_resource is not None and depletion_units:
-            expected_resource = max(0, previous_resource - overuse_count * depletion_units)
+        if previous_population_end is not None and population_start != previous_population_end:
+            transition_errors += 1
+        resource_before = resource_capacity if previous_resource is None else previous_resource
+        if depletion_units:
+            expected_resource = max(0, resource_before - overuse_count * depletion_units)
             if resource_units != expected_resource:
                 transition_errors += 1
+        expected_deaths = part_2._collapse_deaths(population_start, resource_units)
+        if deaths != expected_deaths:
+            transition_errors += 1
         previous_resource = resource_units
+        previous_population_end = population_end
 
+    if day_gaps:
+        report.add_error(f"Part 2 day sequence has {day_gaps} missing or invalid starting day(s)")
     if incomplete_days:
         report.add_warning(f"{incomplete_days} day(s) have fewer rows than population_start")
     if transition_errors:
@@ -244,8 +326,12 @@ def validate_part2_file(path: Path) -> FileReport:
     report.metrics.update(
         {
             "days": len(by_day),
+            "day_gaps": day_gaps,
             "invalid_actions": invalid_actions,
             "incomplete_days": incomplete_days,
+            "duplicate_agent_days": duplicate_agent_days,
+            "inconsistent_day_summaries": inconsistent_day_summaries,
+            "nonconstant_configuration_fields": len(nonconstant_fields),
             "transition_errors": transition_errors,
             "reasoning_mismatch_flags": reasoning_flags,
         }
