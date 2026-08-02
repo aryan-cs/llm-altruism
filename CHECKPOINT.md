@@ -34,35 +34,37 @@ Updated: 2026-08-02 (America/Los_Angeles)
   are excluded. A stable anonymous reviewer-accessible landing URL and official
   Croissant validation are still required before submission; public access is
   required by camera ready.
-- A live `llm_api_routes` virtual key authenticated successfully to InferenceHub
-  on 2026-08-02. Its expected 403 on the portal-only `/model/info` route exposed
-  an incorrect discovery assumption. Discovery now uses the key-authorized
-  `/models` census and proves chat capability, controls, usage, request ID, and
-  exact response identity through a bounded `/chat/completions` smoke. The
-  corrected live census is captured privately: 214 routes at
-  `2026-08-02T16:12:41.421354Z`, raw artifact SHA-256
-  `459431076aa2106dc3966a540cb7e641b694ffc443dec82b94024bdd8462d1f1`.
-  After adding a dedicated, non-evaluated judge target and reviewing every
-  frozen model's catalog and portal card, a fresh outcome-blind exact-suffix
-  reconciliation selected all 31 smoke-pending routes (30 evaluated plus the
-  judge) and left none unresolved. The private v5 report has raw SHA-256
-  `b4f3d1a7ddd98f1b3b177fd6c834652558da1f2e4b1297b27ef5c865bd19d3d2`
-  and self-hash `2703c603a6594874e537c3f6975ffc331e841f495b41dd7aea6e0e1641014ab0`.
-  The registry's raw SHA-256 is
-  `415e4b92c670c64662f187871b791bc361e4cdfa91d962f52a4458aeba86c05e`,
-  its canonical content hash is
-  `bdd9a6b73dec4ea7e9d0138b221bb5b07a00fa924fe512b7eb7fef68a7093d72`,
-  and its verification-independent routing-roster hash is
-  `7217c3eea1429a7a5070701d5b89158db36e344c6652f2c08414f836948cf9a2`.
-  All 31 corresponding public portal pages returned HTTP 200, which is
-  card-reachability evidence rather than chat-callability evidence.
-  Candidate verification now recomputes that entire report from the fixed
-  catalog and registry, refuses all redirects before a bearer credential can be
-  forwarded, runs endpoint probes through a bounded 16-worker pool, serializes
-  concurrent ledger transactions with an exclusive file lock, and preserves
-  sanitized response identity/hashes for rejected calls.
-  No candidate has been promoted to the registry. The key remains only in the
-  user's interactive shell, not in the current execution process.
+- A repository-local ignored `.env` now supplies the live `llm_api_routes`
+  virtual key to authenticated jobs without exposing it in Git or logs. The
+  corrected `/models` census captures all 214 authorized routes; the live v3
+  catalog has raw SHA-256
+  `e7fd014302bc5f1caf06f1d5b59ace8fcd76e34fd37f00e995ad09360e79b780`.
+  The exhaustive bounded minimal-chat census attempted every route, found 69
+  minimally callable routes and 145 rejected routes, and then proved a zero-call
+  request-hash resume over all 214 entries. The resume-proof artifact has raw
+  SHA-256 `bcd4c141b2bfb28128648105f9086ccf7c87adf1a48b25f58774c019162e46f4`.
+  The fixed 31-target registry compatibility sweep probed all 44 exact backend
+  candidates and selected 29 routes: 28 subjects plus the independent judge.
+  Only Mixtral-8x22B and legacy Gemma-2-9B remain unresolved. Claude routes are
+  retained through deterministic maximal-valid control profiles rather than
+  being rejected when individually supported controls cannot be combined. The
+  private schema-v2 evidence has raw SHA-256
+  `9bc458a57c69bf4582f2fbbc614e75144c5427227935b5464a45faa51560a1b9`.
+  An outcome-blind taxonomy accounts for all 214 routes, excludes 85 non-subject
+  or out-of-panel routes with explicit reasons, and defines 84 exact SOTA
+  text-chat identities across 129 backend routes. Live compatibility selected
+  81/84 identities; Mixtral-8x22B, GPT-5.4-Pro, and Sonar Deep Research were the
+  only unresolved subjects. The roster and compatibility artifacts have raw
+  SHA-256 values `d34988cd20cdf02ac04a4bc8e11185ec6e8b048bbac7de72ae0195421304f751`
+  and `e6a86e7fd8d84a8f519e51b1d2814f743094e5e0c207a89fb02801a5484dbd77`.
+  A 28-route production-schema smoke retained all 28 exact identities with 27
+  strict final actions; a route-specific long-reasoning allowance then made
+  Kimi valid. The 53 nonduplicate expansion smoke retained 53/53 exact-identity,
+  strict-format responses. Two private, resumable large-N jobs are active: 28 x
+  384 and 53 x 384 trials. Their draft-bank contract permanently bars
+  confirmatory or paper-result promotion. One intermittent DeepSeek response
+  identity mismatch is quarantined by the analyzer and will require a separate
+  exact-identity rerun; it is not silently pooled.
 - Four revision-pinned local Hugging Face controls were loaded from a read-only
   cache and completed real offline greedy generations on CPU: SmolLM2 135M,
   360M, and 1.7B plus Qwen2.5 0.5B. A fresh immutable two-worker private artifact
@@ -90,16 +92,16 @@ Updated: 2026-08-02 (America/Los_Angeles)
 
 - Strict raw validation: 27 files, 14 pass, 13 warning, 0 fail. The warnings are
   the disclosed one-sided Part 2 rationale/action lexical flags.
-- Full repository suite: 581 passed, 1 optional dependency skip on 2026-08-02.
+- Full repository suite: 643 passed, 1 optional dependency skip on 2026-08-02.
   `tests/conftest.py` selects the noninteractive Agg backend before collection.
 - Clean extracted-supplement suite: 559 passed, 2 intentional skips (withheld
   raw Part 0 and one optional dependency), without a Git object store.
 - NeurIPS format suite: 6 passed. The official style SHA-256 is
   `c3fc2894e83d2517ca18b66741d6c595986d97957dc08ec08bb2125a7ec4555a`.
-- Current local pilot PDF: 29 pages, 1.20 MiB, anonymous metadata, main content on pages 1--9,
-  references beginning on page 10, all pages visually inspected. Eight paper
+- Current local pilot PDF: 29 pages, 1.20 MiB, anonymous metadata, main content
+  ending and references beginning on page 9, all pages visually inspected. Eight paper
   figures were regenerated at print-oriented dimensions with larger labels.
-  Current PDF SHA-256: `ebcf236c23c84f102d4901bea25ded2e487d456b25e52286477ed027d84d16a2`.
+  Current PDF SHA-256: `8aac3fc6b69a14f6ebc48f9f3c911d0811adcce1bd2340666d8a7b363f46857f`.
 - Current local pilot supplement: 304 files including its manifest, 15.7 MiB; every payload has a
   manifest SHA-256. Full-suite, integrity, portable legacy-provenance, and
   anonymity checks pass. Withdrawn Part 0/cross-part plot trees are absent, and
@@ -129,16 +131,15 @@ Updated: 2026-08-02 (America/Los_Angeles)
 
 ## External gates that must not be fabricated or bypassed
 
-1. A valid InferenceHub virtual key and corrected authenticated catalog census
-   have been established. All 31 exact routes await structured chat smokes.
-   Every current/historical route and the judge remain unverified and are
-   rejected by the production adapter. The exhaustive minimal-chat probe across
-   all 214 authorized routes is implemented but has not run with the
-   interactive-shell credential.
-2. The requested SOTA campaign therefore has no real GPT-3.5/4.1/5/5.6, Claude
-   Haiku/Sonnet/Opus, Gemini, Gemma, Nemotron, DeepSeek, Qwen, Kimi, GLM,
-   Mistral, MiniMax, or GPT-OSS results. No substitute IDs or results
-   may be invented.
+1. Authenticated catalog, exhaustive minimal-chat census, fixed-registry
+   compatibility, and broad SOTA compatibility are complete. These exploratory
+   artifacts do not automatically promote the production registry or bypass
+   the frozen confirmatory approvals.
+2. Parallel large-N hosted Part 1 execution is in progress over 81 unique
+   callable subjects. Until both journals lock and strict analysis passes, no
+   model rates may be reported. Identity-mismatched or terminally failed targets
+   are quarantined whole and rerun separately; unavailable routes are never
+   substituted.
 3. The Part 0 registry and Part 1 bank still require genuine language/content
    review and approvals. The judge audit requires two independent qualified
    annotators plus adjudication.
@@ -153,16 +154,14 @@ Updated: 2026-08-02 (America/Los_Angeles)
 
 ## Exact next execution order
 
-1. Run the bounded minimal-chat census for all 214 authorized catalog routes,
-   retaining every success and failure in the atomic discovery ledger.
-2. Run structured, identity-checked smokes for all 31 exact candidates and
-   retain every attempt, including failures.
-3. Review and promote only routes backed by successful exact-identity evidence;
-   explicitly mark failures unavailable without substitution.
-4. Complete genuine Part 0/Part 1 reviews and the Part 0 two-annotator audit.
-5. Execute all successful verified routes without substitution under the frozen
-   430,000-attempt ledger, lock private native artifacts, analyze with
-   root/run-level estimators, and rebuild every
-   table, figure, manifest, Croissant file, supplement, and paper value.
-6. Repeat full tests, strict validation, the check-paper audit, full PDF visual
-   review, anonymity scan, and a fresh context-free NeurIPS review.
+1. Finish and lock both active 384-root hosted Part 1 jobs; rerun every
+   operationally quarantined target separately without substitution.
+2. Validate journals and generate only the nonpromotable aggregate artifact with
+   5,000-replicate stratified root bootstrap intervals.
+3. Complete genuine Part 0/Part 1 human reviews and the Part 0 two-annotator
+   audit before any confirmatory promotion.
+4. Execute only genuinely approved confirmatory phases under the frozen budget,
+   then rebuild every paper-facing table, figure, manifest, Croissant file, and
+   supplement.
+5. Repeat strict validation, clean extraction, the final check-paper pass, full
+   PDF visual review, anonymity scan, and fresh context-free NeurIPS reviews.

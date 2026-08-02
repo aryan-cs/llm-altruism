@@ -121,7 +121,7 @@ class ConferenceSubmissionFormatTest(unittest.TestCase):
 
         conclusion_page = page_matching(r"^\s*(?:\d+\s+)?9 Conclusion\s*$")
         conclusion_end_page = page_matching(
-            r"^\s*(?:\d+\s+)?commons dynamics\.\s*$"
+            r"sensitivity\s+analysis\s+of\s+the\s+commons\s+dynamics\."
         )
         references_page = page_matching(r"^\s*(?:\d+\s+)?References\s*$")
         self.assertLessEqual(conclusion_page, 9)
