@@ -48,6 +48,9 @@ pip-wheel-metadata/
 *.egg-info/
 *.egg
 data/archive/
+# Preserve the curated, already tracked pilot corpus, but never offer newly
+# generated raw prompts, hidden reasoning, or model responses to Git.
+data/raw/**
 # Generated harmful-text registries and human-audit work products.
 data/private/
 

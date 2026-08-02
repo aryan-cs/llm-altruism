@@ -54,10 +54,10 @@ def test_base_run_metadata_preserves_registry_route_and_generation_controls(
         "--seed=11",
     ]
     assert metadata["schema_version"] == 2
-    assert metadata["model_registry"]["registry_version"] == "2026-08-01.2"
+    assert metadata["model_registry"]["registry_version"] == "2026-08-02.1"
     assert metadata["cohort"] == {
         "id": "current_sota",
-        "version": "2026-08-01.2",
+        "version": "2026-08-02.1",
     }
     assert metadata["route"]["provider"] == "inference_hub"
     assert metadata["route"]["upstream_provider"] == "google"

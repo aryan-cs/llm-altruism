@@ -24,12 +24,13 @@ from typing import Any, Mapping
 import certifi
 from dotenv import load_dotenv
 
-from agents.agent_config import validate_endpoint_base_url
+from agents.agent_config import load_model_cohort, validate_endpoint_base_url
 
 DEFAULT_BASE_URL = "https://inference-api.nvidia.com/v1"
 ROUTE_SOURCE = "inference_hub_models_api"
 CATALOG_SCHEMA_VERSION = 1
 SMOKE_SCHEMA_VERSION = 2
+COHORT_EVIDENCE_SCHEMA_VERSION = 1
 SMOKE_SEED = 20_260_801
 SMOKE_SCHEMA = {
     "type": "object",
@@ -453,6 +454,103 @@ def smoke_verify_route(
     }
 
 
+def smoke_verify_cohorts(
+    client: InferenceHubClient,
+    *,
+    catalog: Mapping[str, Any],
+    cohort_ids: list[str],
+    max_tokens: int = 16,
+) -> dict[str, Any]:
+    """Verify every exact route in one or more frozen registry cohorts.
+
+    The returned bundle is created only after every route passes.  It contains
+    sanitized, hash-bound evidence and exact cohort membership, but never a
+    credential or generated response text.
+    """
+
+    if not cohort_ids:
+        raise InferenceHubDiscoveryError("At least one cohort is required.")
+    cohorts: list[dict[str, Any]] = []
+    targets: list[tuple[str, dict[str, Any]]] = []
+    seen_ids: set[str] = set()
+    seen_routes: set[str] = set()
+    registry_versions: set[str] = set()
+    registry_hashes: set[str] = set()
+    routing_roster_hashes: set[str] = set()
+    for cohort_id in cohort_ids:
+        cohort = load_model_cohort(cohort_id)
+        registry_versions.add(str(cohort["registry_version"]))
+        registry_hashes.add(str(cohort["registry_hash"]))
+        routing_roster_hashes.add(str(cohort["routing_roster_hash"]))
+        cohort_target_ids: list[str] = []
+        for target in cohort["targets"]:
+            target_id = str(target["id"])
+            route = str(target["route"])
+            if str(target["provider"]) != "inference_hub":
+                raise InferenceHubDiscoveryError(
+                    f"Cohort target {target_id} is not routed through InferenceHub."
+                )
+            if target_id in seen_ids:
+                raise InferenceHubDiscoveryError(
+                    f"Target {target_id} is duplicated across requested cohorts."
+                )
+            if route in seen_routes:
+                raise InferenceHubDiscoveryError(
+                    f"Route {route} is duplicated across requested cohorts."
+                )
+            seen_ids.add(target_id)
+            seen_routes.add(route)
+            cohort_target_ids.append(target_id)
+            targets.append((target_id, target))
+        cohorts.append(
+            {
+                "id": str(cohort["id"]),
+                "version": str(cohort["version"]),
+                "target_ids": cohort_target_ids,
+            }
+        )
+    if (
+        len(registry_versions) != 1
+        or len(registry_hashes) != 1
+        or len(routing_roster_hashes) != 1
+    ):
+        raise InferenceHubDiscoveryError(
+            "Requested cohorts do not share one exact registry version, hash, and "
+            "routing roster."
+        )
+
+    verified_targets: list[dict[str, Any]] = []
+    for target_id, target in targets:
+        evidence = smoke_verify_route(
+            client,
+            catalog=catalog,
+            route=str(target["route"]),
+            max_tokens=max_tokens,
+        )
+        verified_targets.append(
+            {
+                "target_id": target_id,
+                "upstream_provider": str(target["upstream_provider"]),
+                "route": str(target["route"]),
+                "evidence": evidence,
+            }
+        )
+    payload: dict[str, Any] = {
+        "schema_version": COHORT_EVIDENCE_SCHEMA_VERSION,
+        "verified_at_utc": _utc_now(),
+        "endpoint": client.base_url,
+        "registry_version": next(iter(registry_versions)),
+        "registry_hash": next(iter(registry_hashes)),
+        "routing_roster_sha256": next(iter(routing_roster_hashes)),
+        "catalog_source_payload_sha256": catalog.get("source_payload_sha256"),
+        "cohorts": cohorts,
+        "target_count": len(verified_targets),
+        "targets": verified_targets,
+    }
+    payload["bundle_sha256"] = _sha256_json(payload)
+    return payload
+
+
 def _client_from_environment(timeout_seconds: float) -> InferenceHubClient:
     load_dotenv()
     return InferenceHubClient(
@@ -477,6 +575,12 @@ def _build_parser() -> argparse.ArgumentParser:
     verify_parser.add_argument("--output", type=Path, required=True)
     verify_parser.add_argument("--catalog-output", type=Path)
     verify_parser.add_argument("--max-tokens", type=int, default=16)
+
+    cohorts_parser = subparsers.add_parser("verify-cohorts")
+    cohorts_parser.add_argument("--cohort", action="append", required=True)
+    cohorts_parser.add_argument("--output", type=Path, required=True)
+    cohorts_parser.add_argument("--catalog-output", type=Path)
+    cohorts_parser.add_argument("--max-tokens", type=int, default=16)
     return parser
 
 
@@ -492,6 +596,20 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.catalog_output is not None:
         _atomic_write_json(args.catalog_output, catalog)
+    if args.command == "verify-cohorts":
+        evidence = smoke_verify_cohorts(
+            client,
+            catalog=catalog,
+            cohort_ids=args.cohort,
+            max_tokens=args.max_tokens,
+        )
+        _atomic_write_json(args.output, evidence)
+        print(
+            f"Verified {evidence['target_count']} exact InferenceHub routes "
+            f"across {len(evidence['cohorts'])} cohort(s)."
+        )
+        print(f"Evidence bundle: {args.output}")
+        return 0
     evidence = smoke_verify_route(
         client,
         catalog=catalog,

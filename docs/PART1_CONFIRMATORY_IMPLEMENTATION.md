@@ -163,6 +163,7 @@ The CLI suitable for campaign orchestration is:
 
 ```bash
 python -m experiments.part1.confirmatory_runner \
+  --mode production \
   --bank /absolute/private/path/part1-bank.json \
   --bank-sha256 <64-lowercase-hex> \
   --subject-provider inference_hub \
@@ -178,3 +179,58 @@ unchanged. The focused runner coverage is in
 schedule plus subject/extractor execution, transport-only retries, exact
 identity, malformed terminal answers, truncation, extractor hallucination,
 private permissions, hash chains, completed resume, and tamper refusal.
+
+## Sacrificial full-path smoke
+
+Before a production campaign, use `--mode sacrificial-smoke` with the same
+approved bank, exact routes, seed bases, and private-output requirements. This
+is a separately frozen execution mode, not a production plan truncated by the
+operator. It reconstructs the full 4,224-row production schedule and then
+selects 48 trials without inspecting model output. The selection contains one
+trial for every game by domain by frame cell: two games, six domains, and the
+four `self_direct`, `advice`, `observer_evaluation`, and `prediction` frames.
+Within every game-domain cell, a Latin assignment maps those four frames onto
+all four X/Y-label and displayed-position counterbalances exactly once.
+Purpose-bound SHA-256 ranking deterministically chooses the trial within each
+eligible cell. The result is 12 primary and 36 secondary trials, with every
+frame containing three instances of each counterbalance.
+
+Every smoke trial executes the real subject request, independently routed
+visible-only extractor, and exact X/Y terminal parser. Thus a successful smoke
+requires 48 subject calls and 48 extractor calls. Trial rows are explicitly
+bound to `execution_mode=sacrificial_smoke` and
+`analysis_eligible=false`. The plan records the deterministic selection method,
+exact expected count and strata, complete call path, and a fail-closed analysis
+eligibility object. Rewriting that mode as production, removing or adding a
+row, changing a counterbalance, or changing either eligibility field fails
+exact plan reconstruction even if an attacker recomputes the outer plan hash.
+
+After all 48 results and final metadata are durably committed, the runner
+writes `part1_confirmatory_analysis_exclude.json`. This mode-`0600` marker binds
+the plan, selected schedule, approved-bank bytes, result artifact, result
+count, and metadata by SHA-256 and includes its own canonical payload hash. A
+completed smoke cannot resume if the marker is missing, stale, malformed, or
+too permissive. Conversely, a production run refuses any smoke marker in its
+output directory. These bidirectional checks prevent smoke results from being
+accepted by the production runner even if filenames are copied or plan fields
+are edited.
+
+Example:
+
+```bash
+python -m experiments.part1.confirmatory_runner \
+  --mode sacrificial-smoke \
+  --bank /absolute/private/path/part1-bank.json \
+  --bank-sha256 <64-lowercase-hex> \
+  --subject-provider inference_hub \
+  --subject-model <exact-verified-route> \
+  --extractor-provider inference_hub \
+  --extractor-model <exact-verified-route> \
+  --output-directory data/private/part1_confirmatory/<model-smoke>
+```
+
+The runner tests execute the entire 48-trial smoke lifecycle with 96 provider
+responses and verify balance, call counts, parser output, private permissions,
+marker hashes, zero-call completed resume, marker tampering, missing markers,
+plan and schedule tampering, attempted smoke-to-production relabeling, and the
+production-side marker prohibition.

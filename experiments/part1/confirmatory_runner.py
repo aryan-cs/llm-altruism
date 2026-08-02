@@ -23,7 +23,10 @@ from typing import Any, Callable, Mapping, Sequence
 
 from pydantic import BaseModel, ConfigDict, ValidationError
 
-from agents.agent_config import resolve_model_registry_entry
+from agents.agent_config import (
+    require_fresh_route_verification,
+    resolve_model_registry_entry,
+)
 from experiments.misc.attempt_log import (
     DurableAttemptLogger,
     attempt_log_path_for_csv,
@@ -47,7 +50,11 @@ from experiments.misc.run_metadata import (
     validate_metadata_integrity,
 )
 from experiments.part1.confirmatory_design import (
+    COUNTERBALANCES,
+    DOMAINS,
     EXPECTED_ROOT_COUNT,
+    GAMES,
+    ROLE_FRAME_IDS,
     ActionSpec,
     ConfirmatoryTrial,
     HumanContentApproval,
@@ -81,6 +88,13 @@ RUN_METADATA_SCHEMA_VERSION = 1
 EXPECTED_PRIMARY_TRIALS = 3_072
 EXPECTED_SECONDARY_TRIALS = 1_152
 EXPECTED_TRIALS_PER_MODEL = EXPECTED_PRIMARY_TRIALS + EXPECTED_SECONDARY_TRIALS
+EXECUTION_MODES = ("production", "sacrificial_smoke")
+SMOKE_FRAMES = ("self_direct", *ROLE_FRAME_IDS)
+SMOKE_SELECTION_METHOD = (
+    "sha256-rank-one-per-game-domain-frame-latin-counterbalance-v1"
+)
+SMOKE_EXCLUSION_REASON = "sacrificial_part1_full_path_smoke"
+EXPECTED_SMOKE_TRIALS = len(GAMES) * len(DOMAINS) * len(SMOKE_FRAMES)
 DEFAULT_PRIMARY_SEED = 20_260_801
 DEFAULT_SECONDARY_SEED = 20_260_802
 DEFAULT_EXTRACTOR_SEED = 20_260_803
@@ -399,6 +413,12 @@ def freeze_verified_route(provider: str, model: str) -> FrozenRoute:
         entry.get("verification_evidence"), Mapping
     ):
         raise RouteIdentityError(f"Route is not verified: {provider}/{model}.")
+    try:
+        require_fresh_route_verification(entry)
+    except ValueError as error:
+        raise RouteIdentityError(
+            f"Route verification is not production-current: {provider}/{model}."
+        ) from error
     route = FrozenRoute(
         provider=str(entry["provider"]),
         route=str(entry["route"]),
@@ -456,6 +476,8 @@ def _serialize_trial(
     return {
         **asdict(trial),
         "phase": phase,
+        "execution_mode": "production",
+        "analysis_eligible": True,
         "execution_index": execution_index,
         "subject_route": subject_route.to_dict(),
         "extractor_seed": _derived_seed(
@@ -517,7 +539,131 @@ def build_confirmatory_schedule(
     return schedule
 
 
-def freeze_execution_plan(
+def build_sacrificial_smoke_schedule(
+    production_schedule: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    """Select a deterministic, balanced, analysis-ineligible full-path smoke.
+
+    One trial is selected for every game/domain/frame cell.  A Latin assignment
+    maps the four frames onto all four counterbalances inside every game/domain
+    cell.  Purpose-bound SHA-256 ranking chooses among eligible frozen trials,
+    without observing any model response.  Selected rows retain every original
+    production prompt, seed, root binding, and execution index.
+    """
+
+    if len(production_schedule) != EXPECTED_TRIALS_PER_MODEL or len(
+        {str(trial.get("trial_id")) for trial in production_schedule}
+    ) != EXPECTED_TRIALS_PER_MODEL:
+        raise ConfirmatoryPart1Error(
+            "Sacrificial smoke selection requires the exact unique production schedule."
+        )
+    if {trial.get("execution_index") for trial in production_schedule} != set(
+        range(EXPECTED_TRIALS_PER_MODEL)
+    ):
+        raise ConfirmatoryPart1Error(
+            "Sacrificial smoke selection requires exact production execution indices."
+        )
+
+    frame_index = {frame: index for index, frame in enumerate(SMOKE_FRAMES)}
+    game_index = {game: index for index, game in enumerate(GAMES)}
+    domain_index = {domain: index for index, domain in enumerate(DOMAINS)}
+    counterbalance_ids = tuple(item.counterbalance_id for item in COUNTERBALANCES)
+    buckets: dict[tuple[str, str, str, str], list[Mapping[str, Any]]] = {}
+    for trial in production_schedule:
+        game = str(trial.get("game"))
+        domain = str(trial.get("domain"))
+        frame = str(trial.get("frame_id"))
+        counterbalance = str(trial.get("counterbalance_id"))
+        if (
+            game not in game_index
+            or domain not in domain_index
+            or frame not in frame_index
+            or counterbalance not in counterbalance_ids
+            or trial.get("execution_mode") != "production"
+            or trial.get("analysis_eligible") is not True
+        ):
+            raise ConfirmatoryPart1Error(
+                "Production schedule contains an invalid sacrificial-smoke cell."
+            )
+        buckets.setdefault((game, domain, frame, counterbalance), []).append(trial)
+
+    selected: list[Mapping[str, Any]] = []
+    for game in GAMES:
+        for domain in DOMAINS:
+            for frame in SMOKE_FRAMES:
+                desired_counterbalance = counterbalance_ids[
+                    (
+                        game_index[game] * len(DOMAINS)
+                        + domain_index[domain]
+                        + frame_index[frame]
+                    )
+                    % len(counterbalance_ids)
+                ]
+                candidates = buckets.get(
+                    (game, domain, frame, desired_counterbalance), []
+                )
+                if not candidates:
+                    raise ConfirmatoryPart1Error(
+                        "Sacrificial smoke schedule lacks exact balanced coverage."
+                    )
+                ranked = sorted(
+                    candidates,
+                    key=lambda trial: (
+                        _sha256_text(
+                            f"{SMOKE_EXCLUSION_REASON}|{SMOKE_SELECTION_METHOD}|"
+                            f"{trial['trial_id']}"
+                        ),
+                        str(trial["trial_id"]),
+                    ),
+                )
+                selected.append(ranked[0])
+
+    selected.sort(key=lambda trial: int(trial["execution_index"]))
+    result: list[dict[str, Any]] = []
+    for trial in selected:
+        smoke_trial = deepcopy(dict(trial))
+        smoke_trial["execution_mode"] = "sacrificial_smoke"
+        smoke_trial["analysis_eligible"] = False
+        result.append(smoke_trial)
+    if len(result) != EXPECTED_SMOKE_TRIALS or len(
+        {str(trial["trial_id"]) for trial in result}
+    ) != EXPECTED_SMOKE_TRIALS:
+        raise ConfirmatoryPart1Error(
+            "Sacrificial smoke schedule is not exact and unique."
+        )
+    frame_counterbalances: dict[tuple[str, str], int] = {}
+    cell_frames: dict[tuple[str, str, str], int] = {}
+    cell_counterbalances: dict[tuple[str, str, str], int] = {}
+    for trial in result:
+        frame_cb = (str(trial["frame_id"]), str(trial["counterbalance_id"]))
+        cell_frame = (
+            str(trial["game"]),
+            str(trial["domain"]),
+            str(trial["frame_id"]),
+        )
+        cell_cb = (
+            str(trial["game"]),
+            str(trial["domain"]),
+            str(trial["counterbalance_id"]),
+        )
+        frame_counterbalances[frame_cb] = frame_counterbalances.get(frame_cb, 0) + 1
+        cell_frames[cell_frame] = cell_frames.get(cell_frame, 0) + 1
+        cell_counterbalances[cell_cb] = cell_counterbalances.get(cell_cb, 0) + 1
+    if (
+        set(frame_counterbalances.values()) != {3}
+        or set(cell_frames.values()) != {1}
+        or set(cell_counterbalances.values()) != {1}
+        or len(frame_counterbalances) != len(SMOKE_FRAMES) * len(COUNTERBALANCES)
+        or len(cell_frames) != EXPECTED_SMOKE_TRIALS
+        or len(cell_counterbalances) != EXPECTED_SMOKE_TRIALS
+    ):
+        raise ConfirmatoryPart1Error(
+            "Sacrificial smoke frame/counterbalance strata are not exactly balanced."
+        )
+    return result
+
+
+def _freeze_execution_plan(
     loaded_bank: LoadedScenarioBank,
     *,
     subject_route: FrozenRoute,
@@ -525,22 +671,48 @@ def freeze_execution_plan(
     primary_seed: int = DEFAULT_PRIMARY_SEED,
     secondary_seed: int = DEFAULT_SECONDARY_SEED,
     extractor_seed: int = DEFAULT_EXTRACTOR_SEED,
+    execution_mode: str,
+    completed_smoke_gate: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Freeze content, complete schedules, routes, code, and dependencies."""
+    """Freeze one mode with exact content, routes, sources, and schedules."""
 
+    if execution_mode not in EXECUTION_MODES:
+        raise ConfirmatoryPart1Error(
+            f"Unsupported Part 1 execution mode: {execution_mode}."
+        )
     for route in (subject_route, extractor_route):
         validate_frozen_route(route)
     clean_commit = _require_clean_git_state()
-    schedule = build_confirmatory_schedule(
+    production_schedule = build_confirmatory_schedule(
         loaded_bank,
         subject_route=subject_route,
         primary_seed=primary_seed,
         secondary_seed=secondary_seed,
         extractor_seed=extractor_seed,
     )
+    schedule = (
+        production_schedule
+        if execution_mode == "production"
+        else build_sacrificial_smoke_schedule(production_schedule)
+    )
+    analysis_eligibility = (
+        {
+            "eligible": True,
+            "purpose": "confirmatory_part1_inference",
+            "exclusion_required": False,
+        }
+        if execution_mode == "production"
+        else {
+            "eligible": False,
+            "purpose": SMOKE_EXCLUSION_REASON,
+            "exclusion_required": True,
+        }
+    )
     payload: dict[str, Any] = {
         "schema_version": PLAN_SCHEMA_VERSION,
         "experiment": "part_1_confirmatory",
+        "execution_mode": execution_mode,
+        "analysis_eligibility": analysis_eligibility,
         "bank_file_sha256": loaded_bank.file_sha256,
         "bank_manifest_sha256": stable_json_hash(
             [asdict(root) for root in loaded_bank.roots]
@@ -548,6 +720,7 @@ def freeze_execution_plan(
         "root_count": EXPECTED_ROOT_COUNT,
         "primary_trial_count": EXPECTED_PRIMARY_TRIALS,
         "secondary_trial_count": EXPECTED_SECONDARY_TRIALS,
+        "planned_trial_count": len(schedule),
         "schedule_protocol": SCHEDULE_PROTOCOL,
         "primary_seed_base": primary_seed,
         "secondary_seed_base": secondary_seed,
@@ -583,9 +756,97 @@ def freeze_execution_plan(
         },
         "schedule": schedule,
     }
+    if execution_mode == "sacrificial_smoke":
+        payload["smoke_design"] = {
+            "selection_method": SMOKE_SELECTION_METHOD,
+            "exclusion_reason": SMOKE_EXCLUSION_REASON,
+            "expected_trials": EXPECTED_SMOKE_TRIALS,
+            "frames": list(SMOKE_FRAMES),
+            "games": list(GAMES),
+            "domains": list(DOMAINS),
+            "counterbalance_assignment": (
+                "(game_index * 6 + domain_index + frame_index) mod 4"
+            ),
+            "full_call_path": ["subject", "extractor", "exact_xy_parser"],
+        }
+    elif completed_smoke_gate is not None:
+        payload["completed_smoke_gate"] = deepcopy(dict(completed_smoke_gate))
+    else:
+        raise ConfirmatoryPart1Error(
+            "Production Part 1 requires a revalidated completed full-path smoke gate."
+        )
     payload["plan_sha256"] = stable_json_hash(payload)
     validate_execution_plan(payload, loaded_bank)
     return payload
+
+
+def freeze_execution_plan(
+    loaded_bank: LoadedScenarioBank,
+    *,
+    subject_route: FrozenRoute,
+    extractor_route: FrozenRoute,
+    primary_seed: int = DEFAULT_PRIMARY_SEED,
+    secondary_seed: int = DEFAULT_SECONDARY_SEED,
+    extractor_seed: int = DEFAULT_EXTRACTOR_SEED,
+    completed_smoke_directory: str | Path,
+) -> dict[str, Any]:
+    """Freeze the complete analysis-eligible Part 1 production plan."""
+
+    for route in (subject_route, extractor_route):
+        try:
+            require_fresh_route_verification(route.identity)
+        except ValueError as error:
+            raise RouteIdentityError(
+                "A new Part 1 production freeze requires fresh route evidence."
+            ) from error
+    smoke_gate = validate_completed_smoke_directory(
+        loaded_bank,
+        subject_route=subject_route,
+        extractor_route=extractor_route,
+        primary_seed=primary_seed,
+        secondary_seed=secondary_seed,
+        extractor_seed=extractor_seed,
+        smoke_directory=completed_smoke_directory,
+    )
+    return _freeze_execution_plan(
+        loaded_bank,
+        subject_route=subject_route,
+        extractor_route=extractor_route,
+        primary_seed=primary_seed,
+        secondary_seed=secondary_seed,
+        extractor_seed=extractor_seed,
+        execution_mode="production",
+        completed_smoke_gate=smoke_gate,
+    )
+
+
+def freeze_sacrificial_smoke_plan(
+    loaded_bank: LoadedScenarioBank,
+    *,
+    subject_route: FrozenRoute,
+    extractor_route: FrozenRoute,
+    primary_seed: int = DEFAULT_PRIMARY_SEED,
+    secondary_seed: int = DEFAULT_SECONDARY_SEED,
+    extractor_seed: int = DEFAULT_EXTRACTOR_SEED,
+) -> dict[str, Any]:
+    """Freeze a balanced full-path plan that can never be production data."""
+
+    for route in (subject_route, extractor_route):
+        try:
+            require_fresh_route_verification(route.identity)
+        except ValueError as error:
+            raise RouteIdentityError(
+                "A new Part 1 smoke freeze requires fresh route evidence."
+            ) from error
+    return _freeze_execution_plan(
+        loaded_bank,
+        subject_route=subject_route,
+        extractor_route=extractor_route,
+        primary_seed=primary_seed,
+        secondary_seed=secondary_seed,
+        extractor_seed=extractor_seed,
+        execution_mode="sacrificial_smoke",
+    )
 
 
 def validate_execution_plan(
@@ -593,6 +854,43 @@ def validate_execution_plan(
 ) -> None:
     if plan.get("schema_version") != PLAN_SCHEMA_VERSION:
         raise ConfirmatoryPart1Error("Unsupported Part 1 plan schema.")
+    execution_mode = plan.get("execution_mode")
+    if execution_mode not in EXECUTION_MODES:
+        raise ConfirmatoryPart1Error("Part 1 plan lacks an exact execution mode.")
+    expected_analysis_eligibility = (
+        {
+            "eligible": True,
+            "purpose": "confirmatory_part1_inference",
+            "exclusion_required": False,
+        }
+        if execution_mode == "production"
+        else {
+            "eligible": False,
+            "purpose": SMOKE_EXCLUSION_REASON,
+            "exclusion_required": True,
+        }
+    )
+    if plan.get("analysis_eligibility") != expected_analysis_eligibility:
+        raise ConfirmatoryPart1Error(
+            "Part 1 analysis eligibility is missing or changed."
+        )
+    expected_smoke_design = {
+        "selection_method": SMOKE_SELECTION_METHOD,
+        "exclusion_reason": SMOKE_EXCLUSION_REASON,
+        "expected_trials": EXPECTED_SMOKE_TRIALS,
+        "frames": list(SMOKE_FRAMES),
+        "games": list(GAMES),
+        "domains": list(DOMAINS),
+        "counterbalance_assignment": (
+            "(game_index * 6 + domain_index + frame_index) mod 4"
+        ),
+        "full_call_path": ["subject", "extractor", "exact_xy_parser"],
+    }
+    if execution_mode == "sacrificial_smoke":
+        if plan.get("smoke_design") != expected_smoke_design:
+            raise ConfirmatoryPart1Error("Part 1 sacrificial smoke design changed.")
+    elif "smoke_design" in plan:
+        raise ConfirmatoryPart1Error("Production Part 1 plan contains smoke metadata.")
     expected_hash = stable_json_hash(
         {key: value for key, value in plan.items() if key != "plan_sha256"}
     )
@@ -607,6 +905,11 @@ def validate_execution_plan(
         "root_count": EXPECTED_ROOT_COUNT,
         "primary_trial_count": EXPECTED_PRIMARY_TRIALS,
         "secondary_trial_count": EXPECTED_SECONDARY_TRIALS,
+        "planned_trial_count": (
+            EXPECTED_TRIALS_PER_MODEL
+            if execution_mode == "production"
+            else EXPECTED_SMOKE_TRIALS
+        ),
         "schedule_protocol": SCHEDULE_PROTOCOL,
     }
     if any(plan.get(key) != value for key, value in expected_counts.items()):
@@ -624,16 +927,43 @@ def validate_execution_plan(
         )
     subject_route = _route_from_dict(plan["subject_route"])
     extractor_route = _route_from_dict(plan["extractor_route"])
-    del extractor_route
+    if execution_mode == "production":
+        gate = plan.get("completed_smoke_gate")
+        if not isinstance(gate, Mapping):
+            raise ConfirmatoryPart1Error(
+                "Production Part 1 plan lacks its completed smoke gate."
+            )
+        current_gate = validate_completed_smoke_directory(
+            loaded_bank,
+            subject_route=subject_route,
+            extractor_route=extractor_route,
+            primary_seed=int(plan["primary_seed_base"]),
+            secondary_seed=int(plan["secondary_seed_base"]),
+            extractor_seed=int(plan["extractor_seed_base"]),
+            smoke_directory=str(gate.get("smoke_directory", "")),
+        )
+        if dict(gate) != current_gate:
+            raise ConfirmatoryPart1Error(
+                "Production Part 1 smoke gate changed or no longer validates."
+            )
+    elif "completed_smoke_gate" in plan:
+        raise ConfirmatoryPart1Error(
+            "Sacrificial Part 1 plan cannot carry a production smoke gate."
+        )
     expected_protocol = freeze_protocol()
     if plan.get("protocol") != expected_protocol:
         raise ConfirmatoryPart1Error("Part 1 frozen execution protocol changed.")
-    expected_schedule = build_confirmatory_schedule(
+    production_schedule = build_confirmatory_schedule(
         loaded_bank,
         subject_route=subject_route,
         primary_seed=int(plan["primary_seed_base"]),
         secondary_seed=int(plan["secondary_seed_base"]),
         extractor_seed=int(plan["extractor_seed_base"]),
+    )
+    expected_schedule = (
+        production_schedule
+        if execution_mode == "production"
+        else build_sacrificial_smoke_schedule(production_schedule)
     )
     if plan.get("schedule") != expected_schedule:
         raise ConfirmatoryPart1Error("Part 1 schedule does not reconstruct exactly.")
@@ -737,6 +1067,8 @@ def _attempt_unit(
         "stage": stage,
         "trial_id": trial["trial_id"],
         "phase": trial["phase"],
+        "execution_mode": trial["execution_mode"],
+        "analysis_eligible": trial["analysis_eligible"],
         "execution_index": trial["execution_index"],
         "root_id": trial["root_id"],
         "semantic_cluster_id": trial["semantic_cluster_id"],
@@ -1122,6 +1454,8 @@ def _validate_result_prefix(
             raise ConfirmatoryPart1Error("Resume results are not a schedule prefix.")
         for field in (
             "phase",
+            "execution_mode",
+            "analysis_eligible",
             "execution_index",
             "root_id",
             "semantic_cluster_id",
@@ -1209,6 +1543,8 @@ def _validate_attempt_result_reconciliation(
     attempts_by_trial: dict[str, list[dict[str, Any]]] = {}
     immutable_unit_fields = (
         "phase",
+        "execution_mode",
+        "analysis_eligible",
         "execution_index",
         "root_id",
         "semantic_cluster_id",
@@ -1320,9 +1656,11 @@ def _validate_attempt_result_reconciliation(
 
 
 def _run_contract(plan: Mapping[str, Any]) -> dict[str, Any]:
-    return {
+    contract = {
         "schema_version": 1,
         "experiment": "part_1_confirmatory",
+        "execution_mode": plan["execution_mode"],
+        "analysis_eligibility": deepcopy(plan["analysis_eligibility"]),
         "plan_sha256": plan["plan_sha256"],
         "bank_file_sha256": plan["bank_file_sha256"],
         "bank_manifest_sha256": plan["bank_manifest_sha256"],
@@ -1334,6 +1672,9 @@ def _run_contract(plan: Mapping[str, Any]) -> dict[str, Any]:
         "protocol": deepcopy(plan["protocol"]),
         "resume_policy": "exact-prefix-hash-chain-crash-boundary-v1",
     }
+    if plan["execution_mode"] == "sacrificial_smoke":
+        contract["smoke_design"] = deepcopy(plan["smoke_design"])
+    return contract
 
 
 def _write_run_metadata(
@@ -1362,6 +1703,182 @@ def _write_run_metadata(
     return payload
 
 
+def _smoke_exclusion_payload(
+    *, plan: Mapping[str, Any], results_path: Path, metadata_path: Path
+) -> dict[str, Any]:
+    if plan.get("execution_mode") != "sacrificial_smoke":
+        raise ConfirmatoryPart1Error(
+            "Smoke exclusion marker cannot bind a production plan."
+        )
+    results = summarize_results(results_path)
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    validate_metadata_integrity(metadata, required=True)
+    if metadata.get("status") != "complete":
+        raise ConfirmatoryPart1Error(
+            "Sacrificial smoke exclusion can only bind a complete run."
+        )
+    if results["total_results"] != EXPECTED_SMOKE_TRIALS:
+        raise ConfirmatoryPart1Error(
+            "Sacrificial smoke exclusion requires the complete exact schedule."
+        )
+    payload: dict[str, Any] = {
+        "schema_version": 1,
+        "scope": "canonical_analysis_and_validation",
+        "reason": SMOKE_EXCLUSION_REASON,
+        "execution_mode": "sacrificial_smoke",
+        "analysis_eligible": False,
+        "plan_sha256": plan["plan_sha256"],
+        "schedule_sha256": stable_json_hash(plan["schedule"]),
+        "bank_file_sha256": plan["bank_file_sha256"],
+        "results_sha256": results["sha256"],
+        "total_results": results["total_results"],
+        "metadata_sha256": metadata["metadata_sha256"],
+    }
+    payload["marker_payload_sha256"] = stable_json_hash(payload)
+    return payload
+
+
+def _write_or_verify_smoke_exclusion(
+    marker_path: Path,
+    *,
+    plan: Mapping[str, Any],
+    results_path: Path,
+    metadata_path: Path,
+) -> None:
+    expected = _smoke_exclusion_payload(
+        plan=plan, results_path=results_path, metadata_path=metadata_path
+    )
+    if marker_path.exists():
+        try:
+            actual = json.loads(marker_path.read_text(encoding="utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise ConfirmatoryPart1Error(
+                "Sacrificial smoke exclusion marker is invalid."
+            ) from error
+        if actual != expected:
+            raise ConfirmatoryPart1Error(
+                "Sacrificial smoke exclusion marker does not match its artifacts."
+            )
+    else:
+        _atomic_json_write(marker_path, expected)
+    _secure_file(marker_path)
+
+
+def validate_completed_smoke_directory(
+    loaded_bank: LoadedScenarioBank,
+    *,
+    subject_route: FrozenRoute,
+    extractor_route: FrozenRoute,
+    primary_seed: int,
+    secondary_seed: int,
+    extractor_seed: int,
+    smoke_directory: str | Path,
+) -> dict[str, Any]:
+    """Revalidate the exact operational smoke required by a production freeze."""
+
+    output_dir = _private_output_directory(smoke_directory, create=False)
+    plan_path = output_dir / "part1_confirmatory_plan.json"
+    results_path = output_dir / "part1_confirmatory_results.jsonl"
+    metadata_path = output_dir / "part1_confirmatory_meta.json"
+    attempts_path = attempt_log_path_for_csv(results_path)
+    exclusion_path = output_dir / "part1_confirmatory_analysis_exclude.json"
+    artifacts = (
+        plan_path,
+        results_path,
+        metadata_path,
+        attempts_path,
+        exclusion_path,
+    )
+    _require_private_permissions(output_dir, artifacts)
+    expected_plan = _freeze_execution_plan(
+        loaded_bank,
+        subject_route=subject_route,
+        extractor_route=extractor_route,
+        primary_seed=primary_seed,
+        secondary_seed=secondary_seed,
+        extractor_seed=extractor_seed,
+        execution_mode="sacrificial_smoke",
+    )
+    try:
+        persisted_plan = json.loads(plan_path.read_text(encoding="utf-8"))
+        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        exclusion = json.loads(exclusion_path.read_text(encoding="utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise ConfirmatoryPart1Error(
+            "Completed Part 1 smoke contains invalid JSON."
+        ) from error
+    if persisted_plan != expected_plan:
+        raise ConfirmatoryPart1Error(
+            "Completed Part 1 smoke does not match the exact production inputs."
+        )
+    validate_execution_plan(persisted_plan, loaded_bank)
+    validate_metadata_integrity(metadata, required=True)
+    if metadata.get("status") != "complete" or metadata.get(
+        "run_contract"
+    ) != _run_contract(expected_plan):
+        raise ConfirmatoryPart1Error(
+            "Completed Part 1 smoke metadata is incomplete or mismatched."
+        )
+    results = summarize_results(results_path)
+    records = _load_result_records(results_path)
+    if (
+        results["total_results"] != EXPECTED_SMOKE_TRIALS
+        or metadata.get("results") != results
+        or len(records) != EXPECTED_SMOKE_TRIALS
+        or any(
+            _expected_terminal_stages(record)
+            != {"subject": "success", "extractor": "success"}
+            for record in records
+        )
+    ):
+        raise ConfirmatoryPart1Error(
+            "Part 1 production requires every smoke trial to complete both call stages."
+        )
+    attempt_summary = verify_attempt_log_metadata(
+        attempts_path,
+        metadata.get("attempt_log", {}),
+        require_hash_chain=True,
+    )
+    _validate_attempt_result_reconciliation(
+        attempts_path=attempts_path,
+        results_path=results_path,
+        schedule=expected_plan["schedule"],
+        extractor_route=expected_plan["extractor_route"],
+    )
+    expected_exclusion = _smoke_exclusion_payload(
+        plan=expected_plan,
+        results_path=results_path,
+        metadata_path=metadata_path,
+    )
+    if exclusion != expected_exclusion:
+        raise ConfirmatoryPart1Error(
+            "Completed Part 1 smoke exclusion marker is stale or tampered."
+        )
+    gate: dict[str, Any] = {
+        "schema_version": 1,
+        "experiment": "part_1_confirmatory",
+        "status": "validated_complete_full_path_smoke",
+        "smoke_directory": str(output_dir),
+        "smoke_plan_sha256": expected_plan["plan_sha256"],
+        "smoke_schedule_sha256": stable_json_hash(expected_plan["schedule"]),
+        "bank_file_sha256": loaded_bank.file_sha256,
+        "bank_manifest_sha256": expected_plan["bank_manifest_sha256"],
+        "route_identity_sha256": {
+            role: stable_json_hash(expected_plan[f"{role}_route"])
+            for role in ("subject", "extractor")
+        },
+        "freeze_state": deepcopy(expected_plan["freeze_state"]),
+        "protocol_sha256": stable_json_hash(expected_plan["protocol"]),
+        "result_count": EXPECTED_SMOKE_TRIALS,
+        "results_sha256": results["sha256"],
+        "metadata_sha256": metadata["metadata_sha256"],
+        "attempt_log_sha256": attempt_summary.sha256,
+        "exclusion_marker_sha256": sha256_file(exclusion_path),
+    }
+    gate["smoke_gate_sha256"] = stable_json_hash(gate)
+    return gate
+
+
 def run_frozen_plan(
     *,
     plan: Mapping[str, Any],
@@ -1381,7 +1898,9 @@ def run_frozen_plan(
     results_path = output_dir / "part1_confirmatory_results.jsonl"
     metadata_path = output_dir / "part1_confirmatory_meta.json"
     attempts_path = attempt_log_path_for_csv(results_path)
+    exclusion_path = output_dir / "part1_confirmatory_analysis_exclude.json"
     artifacts = (plan_path, results_path, metadata_path, attempts_path)
+    persisted_metadata: Mapping[str, Any] | None = None
 
     if resume:
         if not all(path.is_file() for path in artifacts):
@@ -1390,6 +1909,7 @@ def run_frozen_plan(
         if json.loads(plan_path.read_text(encoding="utf-8")) != plan:
             raise ConfirmatoryPart1Error("Strict resume plan differs from supplied plan.")
         metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        persisted_metadata = metadata
         validate_metadata_integrity(metadata, required=True)
         if metadata.get("run_contract") != _run_contract(plan):
             raise ConfirmatoryPart1Error("Strict resume contract mismatch.")
@@ -1400,8 +1920,29 @@ def run_frozen_plan(
             metadata.get("attempt_log", {}),
             require_hash_chain=True,
         )
+        if plan["execution_mode"] == "production":
+            if exclusion_path.exists():
+                raise ConfirmatoryPart1Error(
+                    "Production Part 1 output contains a smoke exclusion marker."
+                )
+        elif metadata.get("status") == "complete":
+            if not exclusion_path.is_file():
+                raise ConfirmatoryPart1Error(
+                    "Completed sacrificial smoke is missing its exclusion marker."
+                )
+            _require_private_permissions(output_dir, (exclusion_path,))
+            _write_or_verify_smoke_exclusion(
+                exclusion_path,
+                plan=plan,
+                results_path=results_path,
+                metadata_path=metadata_path,
+            )
+        elif exclusion_path.exists():
+            raise ConfirmatoryPart1Error(
+                "Incomplete sacrificial smoke contains a premature exclusion marker."
+            )
     else:
-        existing = [path for path in artifacts if path.exists()]
+        existing = [path for path in (*artifacts, exclusion_path) if path.exists()]
         if existing:
             raise ConfirmatoryPart1Error("Fresh execution refuses to overwrite artifacts.")
         _atomic_json_write(plan_path, plan)
@@ -1420,6 +1961,13 @@ def run_frozen_plan(
         schedule=plan["schedule"],
         extractor_route=plan["extractor_route"],
     )
+    if (
+        resume
+        and start_index == len(plan["schedule"])
+        and persisted_metadata is not None
+        and persisted_metadata.get("status") == "complete"
+    ):
+        return results_path
     _write_run_metadata(
         metadata_path,
         plan=plan,
@@ -1461,12 +2009,27 @@ def run_frozen_plan(
         attempt_logger=attempt_logger,
         status="complete",
     )
+    if plan["execution_mode"] == "sacrificial_smoke":
+        _write_or_verify_smoke_exclusion(
+            exclusion_path,
+            plan=plan,
+            results_path=results_path,
+            metadata_path=metadata_path,
+        )
     return results_path
 
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Run the production Part 1 confirmatory protocol."
+        description=(
+            "Run the production Part 1 confirmatory protocol or its explicitly "
+            "analysis-ineligible sacrificial full-path smoke."
+        )
+    )
+    parser.add_argument(
+        "--mode",
+        choices=("production", "sacrificial-smoke"),
+        default="production",
     )
     parser.add_argument("--bank", required=True, help="Approved 384-root JSON bank.")
     parser.add_argument("--bank-sha256", required=True, help="Exact bank file SHA-256.")
@@ -1474,6 +2037,13 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--subject-model", required=True, help="Exact verified model route.")
     parser.add_argument("--extractor-provider", required=True)
     parser.add_argument("--extractor-model", required=True, help="Exact verified route.")
+    parser.add_argument(
+        "--completed-smoke-directory",
+        help=(
+            "Required for production: exact completed sacrificial-smoke directory "
+            "to revalidate and bind into the production freeze."
+        ),
+    )
     parser.add_argument("--output-directory", required=True)
     parser.add_argument("--primary-seed", type=int, default=DEFAULT_PRIMARY_SEED)
     parser.add_argument("--secondary-seed", type=int, default=DEFAULT_SECONDARY_SEED)
@@ -1482,19 +2052,123 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _load_strict_resume_plan(
+    *,
+    loaded_bank: LoadedScenarioBank,
+    output_directory: str | Path,
+    mode: str,
+    subject_provider: str,
+    subject_model: str,
+    extractor_provider: str,
+    extractor_model: str,
+    primary_seed: int,
+    secondary_seed: int,
+    extractor_seed: int,
+    completed_smoke_directory: str | Path | None,
+) -> dict[str, Any]:
+    """Reconstruct an immutable run without reapplying wall-clock freshness.
+
+    Freshness is a gate on creating a new freeze.  Once frozen, resume remains
+    bound to the exact registry identity embedded in the hash-checked plan and
+    still revalidates the current registry bytes, sources, bank, and smoke.
+    """
+
+    output = _private_output_directory(output_directory, create=False)
+    plan_path = output / "part1_confirmatory_plan.json"
+    if not plan_path.is_file():
+        raise ConfirmatoryPart1Error("Strict resume is missing its frozen plan.")
+    try:
+        plan = json.loads(plan_path.read_text(encoding="utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise ConfirmatoryPart1Error("Strict resume plan is not valid JSON.") from error
+    if not isinstance(plan, dict):
+        raise ConfirmatoryPart1Error("Strict resume plan root must be an object.")
+    validate_execution_plan(plan, loaded_bank)
+    expected_mode = "sacrificial_smoke" if mode == "sacrificial-smoke" else "production"
+    expected_cli = {
+        "execution_mode": expected_mode,
+        "subject_provider": subject_provider,
+        "subject_model": subject_model,
+        "extractor_provider": extractor_provider,
+        "extractor_model": extractor_model,
+        "primary_seed": primary_seed,
+        "secondary_seed": secondary_seed,
+        "extractor_seed": extractor_seed,
+    }
+    actual_cli = {
+        "execution_mode": plan.get("execution_mode"),
+        "subject_provider": plan.get("subject_route", {}).get("provider"),
+        "subject_model": plan.get("subject_route", {}).get("route"),
+        "extractor_provider": plan.get("extractor_route", {}).get("provider"),
+        "extractor_model": plan.get("extractor_route", {}).get("route"),
+        "primary_seed": plan.get("primary_seed_base"),
+        "secondary_seed": plan.get("secondary_seed_base"),
+        "extractor_seed": plan.get("extractor_seed_base"),
+    }
+    if actual_cli != expected_cli:
+        raise ConfirmatoryPart1Error(
+            "Strict resume CLI identity, mode, or seeds differ from the frozen plan."
+        )
+    if expected_mode == "production":
+        frozen_smoke = plan.get("completed_smoke_gate", {}).get("smoke_directory")
+        if (
+            completed_smoke_directory is None
+            or Path(str(frozen_smoke)).resolve()
+            != Path(completed_smoke_directory).resolve()
+        ):
+            raise ConfirmatoryPart1Error(
+                "Strict resume smoke directory differs from the frozen plan."
+            )
+    return plan
+
+
 def main(argv: Sequence[str] | None = None) -> int:
-    args = _parser().parse_args(argv)
+    parser = _parser()
+    args = parser.parse_args(argv)
+    if args.mode == "production" and not args.completed_smoke_directory:
+        parser.error("--completed-smoke-directory is required in production mode")
+    if args.mode == "sacrificial-smoke" and args.completed_smoke_directory:
+        parser.error(
+            "--completed-smoke-directory is not valid in sacrificial-smoke mode"
+        )
     loaded = load_production_bank(args.bank, expected_sha256=args.bank_sha256)
-    subject_route = freeze_verified_route(args.subject_provider, args.subject_model)
-    extractor_route = freeze_verified_route(args.extractor_provider, args.extractor_model)
-    plan = freeze_execution_plan(
-        loaded,
-        subject_route=subject_route,
-        extractor_route=extractor_route,
-        primary_seed=args.primary_seed,
-        secondary_seed=args.secondary_seed,
-        extractor_seed=args.extractor_seed,
-    )
+    if args.resume:
+        plan = _load_strict_resume_plan(
+            loaded_bank=loaded,
+            output_directory=args.output_directory,
+            mode=args.mode,
+            subject_provider=args.subject_provider,
+            subject_model=args.subject_model,
+            extractor_provider=args.extractor_provider,
+            extractor_model=args.extractor_model,
+            primary_seed=args.primary_seed,
+            secondary_seed=args.secondary_seed,
+            extractor_seed=args.extractor_seed,
+            completed_smoke_directory=args.completed_smoke_directory,
+        )
+    elif args.mode == "production":
+        subject_route = freeze_verified_route(args.subject_provider, args.subject_model)
+        extractor_route = freeze_verified_route(args.extractor_provider, args.extractor_model)
+        plan = freeze_execution_plan(
+            loaded,
+            subject_route=subject_route,
+            extractor_route=extractor_route,
+            primary_seed=args.primary_seed,
+            secondary_seed=args.secondary_seed,
+            extractor_seed=args.extractor_seed,
+            completed_smoke_directory=args.completed_smoke_directory,
+        )
+    else:
+        subject_route = freeze_verified_route(args.subject_provider, args.subject_model)
+        extractor_route = freeze_verified_route(args.extractor_provider, args.extractor_model)
+        plan = freeze_sacrificial_smoke_plan(
+            loaded,
+            subject_route=subject_route,
+            extractor_route=extractor_route,
+            primary_seed=args.primary_seed,
+            secondary_seed=args.secondary_seed,
+            extractor_seed=args.extractor_seed,
+        )
     results = run_frozen_plan(
         plan=plan,
         bank_path=args.bank,
@@ -1513,6 +2187,7 @@ __all__ = [
     "BANK_SCHEMA_VERSION",
     "EXPECTED_PRIMARY_TRIALS",
     "EXPECTED_SECONDARY_TRIALS",
+    "EXPECTED_SMOKE_TRIALS",
     "EXPECTED_TRIALS_PER_MODEL",
     "ConfirmatoryPart1Error",
     "FrozenRoute",
@@ -1520,8 +2195,10 @@ __all__ = [
     "RouteIdentityError",
     "VisibleAnswer",
     "build_confirmatory_schedule",
+    "build_sacrificial_smoke_schedule",
     "execute_trial",
     "freeze_execution_plan",
+    "freeze_sacrificial_smoke_plan",
     "freeze_verified_route",
     "load_production_bank",
     "main",

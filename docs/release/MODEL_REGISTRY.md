@@ -35,8 +35,10 @@ promotion.
 ## Exact-Version Confirmatory Registry
 
 The machine-readable registry is `agents/agent_config.registry.json`, schema 1,
-registry version `2026-08-01.2`, SHA-256
-`b73ecad3109c3a287ffc77903645bf97a1607bc2a8f65b2cbd89fec258ba569f`.
+registry version `2026-08-02.1`, SHA-256
+`357032d5b6e3f7f791280f2d9f3e41034ff9a2a912c2cf327e1d449a6bcc76c0`.
+Its verification-independent routing-roster SHA-256 is
+`ecaa392b689625ac3b3efc970a6304b376e7e453f6327ba55d6d7460899e1cfc`.
 These entries are catalog-display-only placeholders for planned confirmatory
 targets. Every entry is marked `verification_status=unverified` and
 `route_source=catalog_display_only`; preflight and campaign execution reject
@@ -58,24 +60,53 @@ evidence. Even after schema validation, the production adapter checks that the
 requested InferenceHub route is registered and verified before credential use,
 then rejects a missing or mismatched provider response-model identity.
 
+Promotion is batch-atomic. The registry must embed the complete sanitized
+`verification_bundle` produced for every one of its 30 InferenceHub targets,
+not a hand-written digest. Validation recomputes the bundle hash and routing
+roster hash, requires agreement with both authenticated catalog payloads,
+cross-checks every per-target evidence object, and requires positive token usage
+plus validated structured output. Standalone production runners additionally
+reject evidence older than the frozen 168-hour policy. Rerun the full cohort
+smoke gate after any route change or when that window expires.
+
 ### Current-SOTA cohort
 
 | Upstream family | Unverified catalog label |
 | --- | --- |
 | OpenAI | `gpt-5.6-sol` |
+| OpenAI | `gpt-5.6-terra` |
+| OpenAI | `gpt-5.6-luna` |
 | Anthropic | `claude-fable-5` |
 | Anthropic | `claude-opus-5` |
 | Anthropic | `claude-sonnet-5` |
 | Anthropic | `claude-haiku-4-5-20251001` |
 | Google | `gemini-3.1-pro-preview` |
 | Google | `gemini-3.6-flash` |
+| Google | `gemini-3.5-flash` |
+| Google | `gemini-3.5-flash-lite` |
+| Google | `gemini-3.1-flash-lite-preview` |
 | Google | `google/gemma-4-31b-it` |
 | NVIDIA | `nvidia/nemotron-3-ultra-550b-a55b` |
+| NVIDIA | `nvidia/nemotron-3-super-120b-a12b` |
 | DeepSeek | `deepseek-ai/deepseek-v4-pro` |
+| DeepSeek | `deepseek-ai/deepseek-v4-flash` |
 | Qwen | `qwen/qwen3-next-80b-a3b-thinking` |
-| Moonshot AI | `moonshotai/kimi-k2-thinking` |
+| Moonshot AI | `moonshotai/kimi-k2.6` |
 | Z.ai | `z-ai/glm-5.2` |
-| Mistral | `mistralai/mistral-nemotron` |
+| Mistral | `mistralai/mistral-medium-3.5-128b` |
+| Stepfun | `stepfun-ai/step-3.7-flash` |
+| MiniMax | `minimaxai/minimax-m3` |
+| Thinking Machines | `thinkingmachines/inkling` |
+
+This 24-system planning panel follows the current text-capable families listed
+in the [OpenAI model catalog](https://developers.openai.com/api/docs/models),
+[Anthropic model overview](https://platform.claude.com/docs/en/about-claude/models/overview),
+[Gemini model catalog](https://ai.google.dev/gemini-api/docs/models), and
+[NVIDIA model catalog](https://build.nvidia.com/models), plus planned internal
+InferenceHub families named in the study scope. Those public pages establish
+coverage intent only; they do not establish internal InferenceHub availability
+or callable route syntax. The authenticated dual-catalog discovery and exact
+response-identity smoke gate remain authoritative.
 
 ### Historical comparison cohort
 
@@ -90,7 +121,8 @@ then rejects a missing or mismatched provider response-model identity.
 
 ## Promotion Gate
 
-For every target, preserve the registry version and hash, Developer
+For every target, preserve the registry version, routing-roster hash, complete
+embedded evidence-bundle hash, Developer
 Tools-derived route source and verification status, provider
 requested and response model IDs, model-identity match status, endpoint profile,
 run time, supported decoding controls,

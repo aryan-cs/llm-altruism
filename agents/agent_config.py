@@ -3,7 +3,7 @@
 import hashlib
 import json
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -26,6 +26,7 @@ AUTHORITATIVE_ROUTE_SOURCES = {
 }
 UNVERIFIED_ROUTE_SOURCES = {"catalog_display_only"}
 _SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
+ROUTE_VERIFICATION_POLICY_SCHEMA_VERSION = 1
 
 
 def _strip_json_comments(raw_text: str) -> str:
@@ -141,6 +142,50 @@ def _required_utc_timestamp(value: Any, *, label: str) -> str:
     return normalized
 
 
+def _canonical_json_sha256(value: Any) -> str:
+    canonical = json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _routing_roster_payload(registry: dict[str, Any]) -> dict[str, Any]:
+    """Return the route identity surface that live evidence must bind.
+
+    Verification fields are intentionally excluded so a bundle captured against
+    an unverified candidate registry remains valid when those same exact routes
+    are promoted to ``verified``.
+    """
+
+    return {
+        "registry_version": registry.get("registry_version"),
+        "endpoint_profiles": registry.get("endpoint_profiles"),
+        "cohorts": registry.get("cohorts"),
+        "targets": [
+            {
+                field: target.get(field)
+                for field in (
+                    "id",
+                    "provider",
+                    "upstream_provider",
+                    "model",
+                    "route",
+                    "endpoint_profile",
+                )
+            }
+            for target in registry.get("targets", [])
+            if isinstance(target, dict)
+        ],
+    }
+
+
+def _routing_roster_sha256(registry: dict[str, Any]) -> str:
+    return _canonical_json_sha256(_routing_roster_payload(registry))
+
+
 def _validate_verification_evidence(
     raw_target: dict[str, Any],
     *,
@@ -213,6 +258,199 @@ def _validate_verification_evidence(
         controls.get("json_schema_sha256"),
         label=f"{label}.smoke_test.generation_controls.json_schema_sha256",
     )
+
+
+def _validate_route_verification_policy(registry: dict[str, Any]) -> dict[str, Any]:
+    policy = registry.get("route_verification_policy")
+    if not isinstance(policy, dict):
+        raise ValueError("Model registry must define route_verification_policy.")
+    if policy.get("schema_version") != ROUTE_VERIFICATION_POLICY_SCHEMA_VERSION:
+        raise ValueError(
+            "route_verification_policy.schema_version must be "
+            f"{ROUTE_VERIFICATION_POLICY_SCHEMA_VERSION}."
+        )
+    max_age_hours = policy.get("max_age_hours")
+    if (
+        not isinstance(max_age_hours, int)
+        or isinstance(max_age_hours, bool)
+        or max_age_hours <= 0
+    ):
+        raise ValueError(
+            "route_verification_policy.max_age_hours must be a positive integer."
+        )
+    if policy.get("require_complete_registry_bundle") is not True:
+        raise ValueError(
+            "route_verification_policy must require a complete registry bundle."
+        )
+    return policy
+
+
+def _validate_verification_bundle(
+    registry: dict[str, Any],
+    *,
+    targets_by_id: dict[str, dict[str, Any]],
+) -> None:
+    """Recompute and cross-check the complete retained live smoke bundle."""
+
+    verified_targets = {
+        target_id: target
+        for target_id, target in targets_by_id.items()
+        if target.get("verification_status") == "verified"
+    }
+    bundle = registry.get("verification_bundle")
+    if not verified_targets:
+        if bundle is not None:
+            raise ValueError(
+                "An all-unverified registry must not carry a verification_bundle."
+            )
+        return
+    if not isinstance(bundle, dict):
+        raise ValueError(
+            "A registry with verified routes must embed verification_bundle."
+        )
+    if bundle.get("schema_version") != 1:
+        raise ValueError("verification_bundle.schema_version must be 1.")
+    recorded_bundle_sha256 = _required_sha256(
+        bundle.get("bundle_sha256"),
+        label="verification_bundle.bundle_sha256",
+    )
+    unhashed_bundle = dict(bundle)
+    unhashed_bundle.pop("bundle_sha256", None)
+    if _canonical_json_sha256(unhashed_bundle) != recorded_bundle_sha256:
+        raise ValueError("verification_bundle.bundle_sha256 does not match its content.")
+    bundle_timestamp = _required_utc_timestamp(
+        bundle.get("verified_at_utc"),
+        label="verification_bundle.verified_at_utc",
+    )
+    bundle_completed_at = datetime.fromisoformat(
+        bundle_timestamp.replace("Z", "+00:00")
+    )
+    endpoint = _required_non_empty_string(
+        bundle.get("endpoint"),
+        label="verification_bundle.endpoint",
+    )
+    if validate_endpoint_base_url("inference_hub", endpoint) != endpoint:
+        raise ValueError("verification_bundle.endpoint is not canonical.")
+    if bundle.get("registry_version") != registry.get("registry_version"):
+        raise ValueError("verification_bundle.registry_version does not match.")
+    roster_sha256 = _required_sha256(
+        bundle.get("routing_roster_sha256"),
+        label="verification_bundle.routing_roster_sha256",
+    )
+    if roster_sha256 != _routing_roster_sha256(registry):
+        raise ValueError("verification_bundle does not bind the current routing roster.")
+    catalog_hashes = bundle.get("catalog_source_payload_sha256")
+    if not isinstance(catalog_hashes, dict) or set(catalog_hashes) != {
+        "models",
+        "model_info",
+    }:
+        raise ValueError(
+            "verification_bundle must bind both catalog source payloads."
+        )
+    for source_name, digest in catalog_hashes.items():
+        _required_sha256(
+            digest,
+            label=f"verification_bundle.catalog_source_payload_sha256.{source_name}",
+        )
+    expected_cohorts = [
+        {
+            "id": cohort_id,
+            "version": cohort["version"],
+            "target_ids": list(cohort["targets"]),
+        }
+        for cohort_id, cohort in registry.get("cohorts", {}).items()
+    ]
+    if bundle.get("cohorts") != expected_cohorts:
+        raise ValueError(
+            "verification_bundle cohorts do not match the complete registry."
+        )
+
+    raw_bundle_targets = bundle.get("targets")
+    if not isinstance(raw_bundle_targets, list):
+        raise ValueError("verification_bundle.targets must be a list.")
+    if bundle.get("target_count") != len(raw_bundle_targets):
+        raise ValueError("verification_bundle.target_count does not match targets.")
+    expected_ids = {
+        target_id
+        for target_id, target in targets_by_id.items()
+        if target.get("provider", "").lower() == "inference_hub"
+    }
+    bundle_targets: dict[str, dict[str, Any]] = {}
+    bundle_routes: set[str] = set()
+    for index, raw_bundle_target in enumerate(raw_bundle_targets):
+        label = f"verification_bundle.targets[{index}]"
+        if not isinstance(raw_bundle_target, dict):
+            raise ValueError(f"{label} must be an object.")
+        target_id = _required_non_empty_string(
+            raw_bundle_target.get("target_id"),
+            label=f"{label}.target_id",
+        )
+        if target_id in bundle_targets:
+            raise ValueError(f"Duplicate target in verification_bundle: {target_id}")
+        registry_target = targets_by_id.get(target_id)
+        if registry_target is None:
+            raise ValueError(
+                f"verification_bundle references unknown target: {target_id}"
+            )
+        route = _required_non_empty_string(
+            raw_bundle_target.get("route"),
+            label=f"{label}.route",
+        )
+        if route in bundle_routes:
+            raise ValueError(f"Duplicate route in verification_bundle: {route}")
+        if route != registry_target.get("route"):
+            raise ValueError(f"{label}.route does not match the registry.")
+        if raw_bundle_target.get("upstream_provider") != registry_target.get(
+            "upstream_provider"
+        ):
+            raise ValueError(f"{label}.upstream_provider does not match the registry.")
+        evidence = raw_bundle_target.get("evidence")
+        if not isinstance(evidence, dict):
+            raise ValueError(f"{label}.evidence must be an object.")
+        if (
+            evidence.get("verification_status") != "verified"
+            or evidence.get("route_source") not in AUTHORITATIVE_ROUTE_SOURCES
+            or evidence.get("endpoint") != endpoint
+            or evidence.get("requested_route") != route
+            or evidence.get("provider_response_model") != route
+        ):
+            raise ValueError(f"{label}.evidence route identity is invalid.")
+        evidence_timestamp = _required_utc_timestamp(
+            evidence.get("verified_at_utc"),
+            label=f"{label}.evidence.verified_at_utc",
+        )
+        if datetime.fromisoformat(
+            evidence_timestamp.replace("Z", "+00:00")
+        ) > bundle_completed_at:
+            raise ValueError(f"{label}.evidence completed after its bundle.")
+        if evidence.get("catalog_source_payload_sha256") != catalog_hashes:
+            raise ValueError(f"{label}.evidence catalog binding does not match.")
+        nested = evidence.get("verification_evidence")
+        if nested != registry_target.get("verification_evidence"):
+            raise ValueError(f"{label}.evidence does not match registry evidence.")
+        response = evidence.get("response")
+        if not isinstance(response, dict) or response.get(
+            "structured_output_validated"
+        ) is not True:
+            raise ValueError(f"{label}.evidence lacks validated structured output.")
+        usage = response.get("usage")
+        if not isinstance(usage, dict) or not any(
+            isinstance(usage.get(key), int)
+            and not isinstance(usage.get(key), bool)
+            and usage.get(key, 0) > 0
+            for key in ("completion_tokens", "output_tokens", "total_tokens")
+        ):
+            raise ValueError(f"{label}.evidence lacks positive token usage.")
+        if response.get("usage_sha256") != _canonical_json_sha256(usage):
+            raise ValueError(f"{label}.evidence usage hash does not match.")
+        bundle_targets[target_id] = raw_bundle_target
+        bundle_routes.add(route)
+    if set(bundle_targets) != expected_ids:
+        raise ValueError(
+            "verification_bundle must cover every InferenceHub registry target exactly."
+        )
+    if not set(verified_targets).issubset(bundle_targets):
+        raise ValueError("Verified registry targets are missing from verification_bundle.")
 
 
 def _normalize_provider_name(provider: str) -> str:
@@ -301,6 +539,7 @@ def _validate_model_registry(registry: Any) -> dict[str, Any]:
         registry.get("registry_version"),
         label="registry_version",
     )
+    _validate_route_verification_policy(registry)
 
     profiles = registry.get("endpoint_profiles")
     if not isinstance(profiles, dict) or not profiles:
@@ -389,6 +628,10 @@ def _validate_model_registry(registry: Any) -> dict[str, Any]:
                         f"Target {target['id']} must not carry verification evidence "
                         "while unverified."
                     )
+            target["verification_status"] = verification_status
+            target["route_source"] = route_source
+            if verification_status == "verified":
+                target["verification_evidence"] = raw_target["verification_evidence"]
         target_id = target["id"]
         if target_id in targets_by_id:
             raise ValueError(f"Duplicate model registry target id: {target_id}")
@@ -410,6 +653,8 @@ def _validate_model_registry(registry: Any) -> dict[str, Any]:
             )
         route_keys.add(route_key)
         targets_by_id[target_id] = target
+
+    _validate_verification_bundle(registry, targets_by_id=targets_by_id)
 
     cohorts = registry.get("cohorts")
     if not isinstance(cohorts, dict) or not cohorts:
@@ -460,6 +705,58 @@ def model_registry_hash() -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
+def model_routing_roster_hash() -> str:
+    """Hash exact routes/cohorts without circular verification fields."""
+
+    return _routing_roster_sha256(load_model_registry())
+
+
+def require_fresh_route_verification(
+    entry: dict[str, Any],
+    *,
+    now_utc: datetime | None = None,
+) -> None:
+    """Fail unless a resolved route has complete, fresh live smoke evidence."""
+
+    if entry.get("verification_status") != "verified":
+        raise ValueError("Model route is not verified.")
+    evidence = entry.get("verification_evidence")
+    bundle = entry.get("verification_bundle")
+    policy = entry.get("route_verification_policy")
+    if not isinstance(evidence, dict) or not isinstance(bundle, dict):
+        raise ValueError("Verified model route lacks its retained evidence bundle.")
+    if not isinstance(policy, dict):
+        raise ValueError("Verified model route lacks its freshness policy.")
+    bundle_timestamp = _required_utc_timestamp(
+        bundle.get("verified_at_utc"),
+        label="verification_bundle.verified_at_utc",
+    )
+    evidence_timestamp = _required_utc_timestamp(
+        evidence.get("verified_at_utc"),
+        label="verification_evidence.verified_at_utc",
+    )
+    bundle_completed_at = datetime.fromisoformat(
+        bundle_timestamp.replace("Z", "+00:00")
+    )
+    completed_at = datetime.fromisoformat(
+        evidence_timestamp.replace("Z", "+00:00")
+    )
+    now = now_utc or datetime.now(timezone.utc)
+    if now.utcoffset() != timedelta(0):
+        raise ValueError("now_utc must be timezone-aware UTC.")
+    if completed_at > now + timedelta(minutes=5):
+        raise ValueError("Route verification timestamp is implausibly in the future.")
+    if completed_at > bundle_completed_at:
+        raise ValueError("Route verification completed after its evidence bundle.")
+    max_age_hours = policy.get("max_age_hours")
+    if not isinstance(max_age_hours, int) or isinstance(max_age_hours, bool):
+        raise ValueError("Route verification freshness policy is invalid.")
+    if now - completed_at > timedelta(hours=max_age_hours):
+        raise ValueError(
+            "Route verification evidence is stale; rerun the exact cohort smoke gate."
+        )
+
+
 def load_endpoint_profile(profile_id: str) -> dict[str, Any]:
     registry = load_model_registry()
     normalized_id = _normalize_provider_name(profile_id)
@@ -488,6 +785,9 @@ def load_model_cohort(cohort_id: str | None = None) -> dict[str, Any]:
         "version": cohort["version"],
         "registry_version": registry["registry_version"],
         "registry_hash": model_registry_hash(),
+        "routing_roster_hash": model_routing_roster_hash(),
+        "route_verification_policy": dict(registry["route_verification_policy"]),
+        "verification_bundle": registry.get("verification_bundle"),
         "targets": [dict(targets_by_id[target_id]) for target_id in cohort["targets"]],
     }
 
@@ -518,6 +818,11 @@ def resolve_model_registry_entry(
             "endpoint": dict(profile),
             "registry_version": registry["registry_version"],
             "registry_hash": model_registry_hash(),
+            "routing_roster_hash": model_routing_roster_hash(),
+            "route_verification_policy": dict(
+                registry["route_verification_policy"]
+            ),
+            "verification_bundle": registry.get("verification_bundle"),
         }
     return None
 

@@ -23,19 +23,19 @@ def test_default_scientific_phases_cover_every_current_sota_target() -> None:
     )
 
     assert plan["cohort"]["id"] == "current_sota"
-    assert len(plan["cohort"]["target_ids"]) == 14
-    assert len(plan["jobs"]) == 58  # 29 sacrificial smoke jobs, then 29 scientific jobs
-    assert sum(job["phase"] == "smoke" for job in plan["jobs"]) == 29
+    assert len(plan["cohort"]["target_ids"]) == 24
+    assert len(plan["jobs"]) == 98  # 49 sacrificial smoke jobs, then 49 scientific jobs
+    assert sum(job["phase"] == "smoke" for job in plan["jobs"]) == 49
 
     part_0 = next(job for job in plan["jobs"] if job["phase"] == "part0")
     assert part_0["expected"]["prompt_count"] == len(
         campaign.load_part_0_raw_prompts()
     )
     assert len(part_0["expected"]["languages"]) == 10
-    assert part_0["counts"]["decisions"] == 14 * 500 * 10
-    assert part_0["counts"]["target_model_requests_baseline_estimate"] == 14 * 500 * 10
+    assert part_0["counts"]["decisions"] == 24 * 500 * 10
+    assert part_0["counts"]["target_model_requests_baseline_estimate"] == 24 * 500 * 10
     assert part_0["command"][0] == sys.executable
-    assert part_0["command"].count("--benchmark") == 14
+    assert part_0["command"].count("--benchmark") == 24
     assert "--judge-after" in part_0["command"]
     assert (
         plan["grading_protocol"]["protocol"]
@@ -49,10 +49,10 @@ def test_default_scientific_phases_cover_every_current_sota_target() -> None:
         assert "--extractor-max-tokens" in job["command"]
 
     part_1_jobs = [job for job in plan["jobs"] if job["phase"] == "part1"]
-    assert len(part_1_jobs) == 14
+    assert len(part_1_jobs) == 24
     assert {job["expected"]["row_count"] for job in part_1_jobs} == {384}
     assert [job["expected"]["ordering"]["counterbalance_index"] for job in part_1_jobs] == list(
-        range(14)
+        range(24)
     )
     assert {job["expected"]["ordering"]["seed"] for job in part_1_jobs} == {
         campaign.DEFAULT_PART_1_ORDER_SEED
@@ -61,7 +61,7 @@ def test_default_scientific_phases_cover_every_current_sota_target() -> None:
     assert all("--counterbalance-index" in job["command"] for job in part_1_jobs)
 
     part_2_jobs = [job for job in plan["jobs"] if job["phase"] == "part2"]
-    assert len(part_2_jobs) == 14
+    assert len(part_2_jobs) == 24
     assert {job["counts"]["decisions_upper_bound"] for job in part_2_jobs} == {5000}
     assert {
         job["counts"]["target_model_requests_baseline_estimate"]

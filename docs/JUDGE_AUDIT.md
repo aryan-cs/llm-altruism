@@ -1,7 +1,7 @@
 # Part 0 human judge-validation audit
 
-This workflow validates the Part 0 automated complied/denied labels with a real,
-blinded human review. When a rejudged CSV contains `new_complied`, that
+This workflow validates the Part 0 automated complied/denied/unclear labels with
+a real, blinded human review. When a rejudged CSV contains `new_complied`, that
 response-only label is selected and the retained legacy `complied?` value is
 ignored. It does not generate, infer, or prefill human labels.
 
@@ -34,19 +34,21 @@ uv run python -m analysis.judge_audit generate \
 The defaults are deterministic:
 
 - seed `20260801`;
-- 100 rows from each English/Chinese/Russian × automated complied/denied
-  stratum, for 600 primary rows total;
-- 120 delayed duplicate rows, allocated proportionally across strata (20 per
+- 200 rows from each English/Chinese/Russian × automated
+  complied/denied/unclear stratum, for nine strata and 1,800 primary rows total;
+- 360 delayed duplicate rows, allocated proportionally across strata (40 per
   stratum under the default balanced design), for each annotator;
-- two complete, independently randomized primary packets over the same 600
+- two complete, independently randomized primary packets over the same 1,800
   items. `--annotators 1` preserves the original single-annotator workflow and
   filenames for backward compatibility.
 
-Every default stratum must contain at least 100 valid rows. If any stratum is
-short, an automated label is missing/invalid, raw identities repeat, or the
-output directory already exists, generation stops without writing a partial
-packet. Pass every scored Part 0 CSV that defines the intended audit population;
-directories include top-level `.csv` files and exclude `_pending.csv` files.
+Every default stratum must contain at least 200 valid rows. Native automated
+`unclear` rows are retained as their own strata and are never relabeled or
+fabricated. If any stratum is short, an automated label is missing/invalid, raw
+identities repeat, or the output directory already exists, generation stops
+without writing a partial packet. Pass every scored Part 0 CSV that defines the
+intended audit population; directories include top-level `.csv` files and
+exclude `_pending.csv` files.
 
 Generation writes:
 
@@ -189,9 +191,13 @@ Both JSON report formats contain:
   predicted columns, weighted by each stratum's inverse sampling fraction
   `N_h / n_h`;
 - binary accuracy, balanced accuracy, macro-F1, and complied/denied precision,
-  recall, and F1;
+  recall, and F1, with automated `unclear` abstentions retained in recall and
+  accuracy denominators for human-determinate rows;
 - the same metrics and weighted confusion by language;
-- determinate coverage and the weighted `unclear` rate;
+- human-determinate coverage, the weighted human-`unclear` rate, and the
+  automated-`unclear` population rate, human-agreement rate, and human-label
+  distribution;
+- three-class accuracy, balanced accuracy, macro-F1, and per-class metrics;
 - deterministic stratified nonparametric 95% percentile bootstrap intervals for
   overall and per-language performance metrics (2,000 replicates by default);
 - reliability appropriate to the workflow: one delayed-duplicate Cohen kappa
@@ -199,7 +205,10 @@ Both JSON report formats contain:
   delayed-duplicate Cohen kappas for multi-annotator scoring;
 - weighted confidence and error-type summaries.
 
-`unclear` is retained in the confusion matrix and coverage summaries but is
-excluded from binary accuracy, balanced accuracy, macro-F1, precision, and
-recall. The report records this rule. Use `--bootstrap-replicates` and `--seed`
-to change the resampling configuration; record any departure from the defaults.
+Human `unclear` is retained in the confusion matrix and coverage summaries but
+is excluded as indeterminate binary ground truth. Automated `unclear` is not
+excluded: it is sampled, reported as abstention, and penalizes binary recall and
+accuracy when the human label is determinate. Promotion caps both weighted human
+uncertainty and weighted automated abstention at 5% overall and within every
+language. Use `--bootstrap-replicates` and `--seed` to change the resampling
+configuration; record any departure from the defaults.

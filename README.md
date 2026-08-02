@@ -20,9 +20,9 @@ experiments/part1/            One-shot social dilemma experiment
 experiments/part2/            Repeated common-pool resource simulation
 experiments/misc/             Shared prompt loading, result writing, metadata, preflight checks
 analysis/                     Validation, summary tables, manifests, supplement build, figure syncing
-data/raw/part_0/              Local Part 0 CSVs and metadata
-data/raw/part_1/              Raw Part 1 CSVs and metadata
-data/raw/part_2/              Raw Part 2 CSVs and metadata
+data/raw/part_0/              Curated tracked pilot corpus; new sensitive runs are ignored
+data/raw/part_1/              Curated tracked pilot corpus; new sensitive runs are ignored
+data/raw/part_2/              Curated tracked pilot corpus; new sensitive runs are ignored
 data/analysis/                Validation reports, derived tables, Croissant metadata, manifests
 data/graphs/                  Generated figures and diagnostics
 docs/conference_submission/   NeurIPS submission source and figures
@@ -138,9 +138,7 @@ Important table outputs include:
 - `cross_part_model_summary.csv`
 - `cross_part_correlations.csv`
 
-To run an exact-version registry cohort through smoke tests and the three
-benchmark parts, use the resumable campaign runner. A dry run prints and records
-the planned request counts without contacting any provider:
+The legacy campaign remains available for reproducing pilot workflows:
 
 ```bash
 uv run python -m experiments.campaign \
@@ -149,8 +147,20 @@ uv run python -m experiments.campaign \
   --dry-run
 ```
 
-The `current_sota` and `historical` cohorts are defined in
-`agents/agent_config.registry.json`. The current internal entries came from
+New paper-facing collection must use the isolated confirmatory campaign in
+`experiments.confirmatory_campaign`, not the legacy runner. It requires a
+fresh, complete route-evidence bundle, human-approved Part 0 and Part 1 inputs,
+same-target full-path smokes, exact native artifact verification, and the
+two-stage Part 2 variance/baseline chain. See
+`docs/CONFIRMATORY_CAMPAIGN.md` and `docs/CONFIRMATORY_PROTOCOL.md` for the
+complete commands and gates. A confirmatory dry run validates all inputs and
+prints the exact job matrix without writing files or calling a provider.
+
+The 24-system `current_sota` and six-system `historical` cohorts are defined in
+`agents/agent_config.registry.json`. Together they cover current GPT-5.6,
+Claude, Gemini/Gemma, Nemotron, DeepSeek, Qwen, Kimi, GLM, Mistral, Stepfun,
+MiniMax, and Inkling plans plus GPT-3.5, GPT-4.1, GPT-5, Gemini 2.5, Gemma 3,
+and GPT-OSS historical comparisons. The current internal entries came from
 catalog display names, are marked `verification_status=unverified` and
 `route_source=catalog_display_only`, and cannot be executed. Replace each route
 with its exact backend-namespaced callable ID from the authenticated InferenceHub
@@ -162,6 +172,25 @@ missing or different response-model identity. Registry membership is a run plan,
 a claim that a provider route is available or that its results appear in the
 paper. A model enters the result set only after successful endpoint smoke tests,
 completed native artifacts, and validation.
+
+After setting the exact InferenceHub base URL and credential, verify the full
+current-plus-historical panel in one fail-closed batch:
+
+```bash
+uv run python -m experiments.misc.inference_hub_discovery verify-cohorts \
+  --cohort current_sota \
+  --cohort historical \
+  --catalog-output data/private/inference_hub/catalog.json \
+  --output data/private/inference_hub/cohort-evidence.json
+```
+
+This captures both authenticated catalog APIs and runs a structured, seeded,
+identity-checked completion against every exact route. It writes the cohort
+evidence bundle only after all routes pass; the bundle contains hashes and
+request IDs, not generated content or credentials. Because the checked-in
+routes are currently display-only placeholders, review the authenticated
+catalog and replace them with exact callable IDs before expecting this gate to
+pass.
 
 Legacy Part 0 exports can be rejudged without exposing stored rationale text to
 the judge:

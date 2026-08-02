@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
 import math
 import random
-import re
 from collections import Counter, defaultdict
 from pathlib import Path
 
@@ -13,6 +13,17 @@ from experiments.part0 import part_0
 from experiments.part1 import part_1
 from experiments.part2 import part_2
 from analysis.model_metadata import ModelMetadata, resolve_model_metadata
+from analysis.part2_dynamics import (
+    STRUCTURAL_OUTPUT_FIELDS,
+    load_part2_structural_cell,
+    load_part2_run_identity,
+    normalized_part2_auc,
+)
+from analysis.part2_confirmatory import (
+    DEFAULT_BCA_REPLICATES,
+    bca_mean_interval,
+    student_t_975,
+)
 from analysis.statistics import (
     fisher_z_interval,
     kendall_correlation,
@@ -21,7 +32,11 @@ from analysis.statistics import (
     rank_values,
     spearman_correlation,
 )
-from analysis.validation import _csv_paths, _flag_reasoning_misunderstanding
+from analysis.validation import (
+    _csv_paths,
+    _flag_reasoning_misunderstanding,
+    validate_part2_file,
+)
 
 RAW_DIR = Path("data") / "raw"
 TABLES_DIR = Path("data") / "analysis" / "tables"
@@ -572,42 +587,6 @@ def _metadata_for_csv(path: Path) -> dict[str, object]:
         return json.load(handle)
 
 
-def _part2_expected_config(path: Path, rows: list[dict[str, str]]) -> tuple[int, int, int]:
-    metadata = _metadata_for_csv(path)
-    parameters = metadata.get("parameters", {}) if isinstance(metadata, dict) else {}
-    society_config = parameters.get("society_config", {}) if isinstance(parameters, dict) else {}
-    if isinstance(metadata, dict) and not society_config:
-        society_config = metadata.get("society_config", {})
-
-    horizon = int(society_config.get("days") or 0) if isinstance(society_config, dict) else 0
-    society_size = int(society_config.get("society_size") or 0) if isinstance(society_config, dict) else 0
-    resource_capacity = int(
-        parameters.get("resource_capacity") or metadata.get("resource_capacity") or 0
-    ) if isinstance(parameters, dict) and isinstance(metadata, dict) else 0
-
-    match = re.search(r"__n(?P<size>\d+)__d(?P<days>\d+)__", path.name)
-    if match:
-        horizon = horizon or int(match.group("days"))
-        society_size = society_size or int(match.group("size"))
-
-    if not society_size:
-        society_size = max(
-            int(row.get("population_start") or 0)
-            for row in rows
-        )
-    if not resource_capacity:
-        resource_capacity = max(
-            int(row.get("resource_capacity") or 0)
-            for row in rows
-        )
-    if not horizon:
-        horizon = max(
-            int(row.get("day") or 0)
-            for row in rows
-        )
-    return horizon, society_size, resource_capacity
-
-
 def _part2_normalized_auc(
     day_rows: dict[int, list[dict[str, str]]],
     *,
@@ -615,18 +594,12 @@ def _part2_normalized_auc(
     society_size: int,
     resource_capacity: int,
 ) -> tuple[float, float]:
-    if horizon <= 0 or society_size <= 0 or resource_capacity <= 0:
-        return float("nan"), float("nan")
-
-    reserve_area = 0.0
-    population_area = 0.0
-    for day in range(1, horizon + 1):
-        grouped = day_rows.get(day, [])
-        if grouped:
-            row = grouped[-1]
-            reserve_area += int(row.get("resource_units_remaining") or 0) / resource_capacity
-            population_area += int(row.get("population_end") or 0) / society_size
-    return reserve_area / horizon, population_area / horizon
+    return normalized_part2_auc(
+        day_rows,
+        horizon=horizon,
+        society_size=society_size,
+        resource_capacity=resource_capacity,
+    )
 
 
 PART2_RUN_FIELDS = [
@@ -635,19 +608,28 @@ PART2_RUN_FIELDS = [
     "family_id",
     "developer_id",
     "cohort",
+    *STRUCTURAL_OUTPUT_FIELDS,
     "run_id",
+    "trajectory_id",
+    "environment_seed",
+    "generation_seed",
+    "strict_schema",
     "csv_path",
     "rows",
     "days_completed",
     "restraints",
     "overuses",
+    "invalid_decisions",
     "restraint_rate",
-    "wilson_low",
-    "wilson_high",
+    "restraint_rate_scorable",
+    "invalid_rate",
     "first_depletion_day",
+    "depletion_observed",
+    "time_to_depletion_or_censoring",
+    "censoring_day",
+    "survived_through_horizon",
     "final_population",
     "final_resource_units",
-    "resource_capacity",
     "normalized_aurc",
     "normalized_aupc",
     "total_deaths",
@@ -656,7 +638,9 @@ PART2_RUN_FIELDS = [
 
 
 def _part2_run_summary(path: Path, rows: list[dict[str, str]]) -> dict[str, object]:
-    provider, model = _model_key(rows[0])
+    cell = load_part2_structural_cell(path, rows)
+    identity = load_part2_run_identity(path, rows)
+    provider, model = cell.provider, cell.model
     grouping = resolve_model_metadata(provider, model, _metadata_for_csv(path))
     actions = Counter(row.get("action", "") for row in rows)
     day_rows: dict[int, list[dict[str, str]]] = defaultdict(list)
@@ -672,34 +656,55 @@ def _part2_run_summary(path: Path, rows: list[dict[str, str]]) -> dict[str, obje
         for day, grouped in day_rows.items()
         if grouped and int(grouped[-1].get("resource_units_remaining", "0") or 0) == 0
     ]
-    total = actions["RESTRAIN"] + actions["OVERUSE"]
-    low, high = _wilson_interval(actions["RESTRAIN"], total)
-    horizon, society_size, resource_capacity = _part2_expected_config(path, rows)
+    scorable_total = actions["RESTRAIN"] + actions["OVERUSE"]
+    total = scorable_total + actions["INVALID"]
     normalized_aurc, normalized_aupc = _part2_normalized_auc(
         day_rows,
-        horizon=horizon,
-        society_size=society_size,
-        resource_capacity=resource_capacity,
+        horizon=cell.horizon_days,
+        society_size=cell.society_size,
+        resource_capacity=cell.resource_capacity,
     )
+    first_depletion_day = min(depletion_days) if depletion_days else None
     return {
         "provider": provider,
         "model": model,
         "family_id": grouping.family_id,
         "developer_id": grouping.developer_id,
         "cohort": grouping.cohort,
-        "run_id": path.stem,
+        **cell.output_fields(),
+        "run_id": identity.run_id,
+        "trajectory_id": identity.trajectory_id,
+        "environment_seed": (
+            identity.environment_seed if identity.environment_seed is not None else ""
+        ),
+        "generation_seed": (
+            identity.generation_seed if identity.generation_seed is not None else ""
+        ),
+        "strict_schema": int(identity.strict_schema),
         "csv_path": str(path),
         "rows": len(rows),
         "days_completed": final_day,
         "restraints": actions["RESTRAIN"],
         "overuses": actions["OVERUSE"],
+        "invalid_decisions": actions["INVALID"],
         "restraint_rate": actions["RESTRAIN"] / total if total else float("nan"),
-        "wilson_low": low if total else float("nan"),
-        "wilson_high": high if total else float("nan"),
-        "first_depletion_day": min(depletion_days) if depletion_days else "",
+        "restraint_rate_scorable": (
+            actions["RESTRAIN"] / scorable_total
+            if scorable_total
+            else float("nan")
+        ),
+        "invalid_rate": actions["INVALID"] / total if total else float("nan"),
+        "first_depletion_day": first_depletion_day if first_depletion_day is not None else "",
+        "depletion_observed": int(first_depletion_day is not None),
+        "time_to_depletion_or_censoring": first_depletion_day or final_day,
+        "censoring_day": "" if first_depletion_day is not None else final_day,
+        "survived_through_horizon": (
+            int(first_depletion_day is None)
+            if first_depletion_day is not None or final_day >= cell.horizon_days
+            else ""
+        ),
         "final_population": int(final_row.get("population_end", "") or 0),
         "final_resource_units": int(final_row.get("resource_units_remaining", "") or 0),
-        "resource_capacity": resource_capacity or int(final_row.get("resource_capacity", "") or 0),
         "normalized_aurc": normalized_aurc,
         "normalized_aupc": normalized_aupc,
         "total_deaths": sum(
@@ -713,32 +718,6 @@ def _part2_run_summary(path: Path, rows: list[dict[str, str]]) -> dict[str, obje
     }
 
 
-_T_975 = {
-    1: 12.706,
-    2: 4.303,
-    3: 3.182,
-    4: 2.776,
-    5: 2.571,
-    6: 2.447,
-    7: 2.365,
-    8: 2.306,
-    9: 2.262,
-    10: 2.228,
-    11: 2.201,
-    12: 2.179,
-    13: 2.160,
-    14: 2.145,
-    15: 2.131,
-    16: 2.120,
-    17: 2.110,
-    18: 2.101,
-    19: 2.093,
-    20: 2.086,
-    25: 2.060,
-    30: 2.042,
-}
-
-
 def _run_mean_interval(values: list[float]) -> tuple[float, float]:
     """95% t interval for an equally weighted mean of independent runs."""
 
@@ -749,14 +728,7 @@ def _run_mean_interval(values: list[float]) -> tuple[float, float]:
         return float("nan"), float("nan")
     variance = sum((value - mean) ** 2 for value in values) / (len(values) - 1)
     df = len(values) - 1
-    if df in _T_975:
-        critical = _T_975[df]
-    elif df < 25:
-        critical = _T_975[20]
-    elif df < 30:
-        critical = _T_975[25]
-    else:
-        critical = 1.959963984540054
+    critical = student_t_975(df) if df <= 39 else 1.959963984540054
     margin = critical * math.sqrt(variance / len(values))
     return mean - margin, mean + margin
 
@@ -766,33 +738,180 @@ def _mean(values: list[object]) -> float:
     return sum(numeric) / len(numeric) if numeric else float("nan")
 
 
+def _part2_interval_fields(
+    runs: list[dict[str, object]],
+    *,
+    metric: str,
+    output_metric: str | None = None,
+    lower_bound: float,
+    upper_bound: float,
+    seed_material: str,
+) -> dict[str, object]:
+    """Return t and deterministic BCa intervals over independent runs."""
+
+    values = [float(run[metric]) for run in runs if run[metric] != ""]
+    output_metric = output_metric or metric
+    fields: dict[str, object] = {
+        f"{output_metric}_t_ci_low": "",
+        f"{output_metric}_t_ci_high": "",
+        f"{output_metric}_bca_ci_low": "",
+        f"{output_metric}_bca_ci_high": "",
+    }
+    if len(values) != len(runs):
+        return fields
+    if len(values) < 2:
+        return fields
+    t_low, t_high = _run_mean_interval(values)
+    seed = int.from_bytes(
+        hashlib.sha256(f"{seed_material}:{metric}".encode("utf-8")).digest()[:8],
+        "big",
+    )
+    bca_low, bca_high = bca_mean_interval(
+        values,
+        replicates=DEFAULT_BCA_REPLICATES,
+        seed=seed,
+    )
+    fields.update(
+        {
+            f"{output_metric}_t_ci_low": max(lower_bound, t_low),
+            f"{output_metric}_t_ci_high": min(upper_bound, t_high),
+            f"{output_metric}_bca_ci_low": max(lower_bound, bca_low),
+            f"{output_metric}_bca_ci_high": min(upper_bound, bca_high),
+        }
+    )
+    return fields
+
+
+def _restricted_depletion_estimates(
+    runs: list[dict[str, object]],
+    horizon: int,
+) -> tuple[float, float]:
+    """Kaplan-Meier RMST and survival through a common finite horizon.
+
+    Event times are first depletion days; undepleted runs are right-censored at
+    their last observed day.  Event processing precedes censoring at tied times.
+    RMST is not extrapolated after all surviving trajectories have been censored.
+    """
+
+    observations = [
+        (
+            min(int(run["time_to_depletion_or_censoring"]), horizon),
+            bool(int(run["depletion_observed"])),
+        )
+        for run in runs
+    ]
+    at_risk = len(observations)
+    survival = 1.0
+    rmst = 0.0
+    previous_time = 0
+    for time in sorted({time for time, _event in observations}):
+        if time > horizon:
+            break
+        if time > previous_time:
+            if at_risk == 0 and survival > 0:
+                return float("nan"), float("nan")
+            rmst += survival * (time - previous_time)
+            previous_time = time
+        events = sum(event for observed_time, event in observations if observed_time == time)
+        censored = sum(
+            not event for observed_time, event in observations if observed_time == time
+        )
+        if events:
+            survival *= 1.0 - events / at_risk
+        at_risk -= events + censored
+
+    if previous_time < horizon:
+        if at_risk == 0 and survival > 0:
+            return float("nan"), float("nan")
+        rmst += survival * (horizon - previous_time)
+    return rmst, survival
+
+
 def _aggregate_part2_runs(run_rows: list[dict[str, object]]) -> list[dict[str, object]]:
-    grouped: dict[tuple[str, str], list[dict[str, object]]] = defaultdict(list)
+    grouped: dict[str, list[dict[str, object]]] = defaultdict(list)
     for row in run_rows:
-        grouped[(str(row["provider"]), str(row["model"]))].append(row)
+        grouped[str(row["structural_cell_key"])].append(row)
 
     output: list[dict[str, object]] = []
-    for (provider, model), runs in sorted(grouped.items()):
+    for _structural_cell_key, runs in sorted(grouped.items()):
+        runs = sorted(runs, key=lambda run: str(run["run_id"]))
+        provider, model = str(runs[0]["provider"]), str(runs[0]["model"])
+        for identity_field in ("run_id", "csv_path"):
+            identities = [str(run[identity_field]) for run in runs]
+            if len(set(identities)) != len(identities):
+                raise ValueError(
+                    f"Duplicate Part 2 {identity_field} within structural cell "
+                    f"for {provider}/{model}"
+                )
+        strict_flags = {int(run["strict_schema"]) for run in runs}
+        if len(strict_flags) != 1:
+            raise ValueError(
+                f"Cannot pool strict and legacy Part 2 runs for {provider}/{model}"
+            )
+        if strict_flags == {1}:
+            for identity_field in ("trajectory_id", "environment_seed"):
+                identities = [str(run[identity_field]) for run in runs]
+                if any(not identity for identity in identities):
+                    raise ValueError(
+                        f"Strict Part 2 run is missing {identity_field} for {provider}/{model}"
+                    )
+                if len(set(identities)) != len(identities):
+                    raise ValueError(
+                        f"Duplicate Part 2 {identity_field} within structural cell "
+                        f"for {provider}/{model}; trajectories are not independent replicates"
+                    )
         for field in ("family_id", "developer_id", "cohort"):
             values = {str(run[field]) for run in runs}
             if len(values) != 1:
                 raise ValueError(f"Conflicting {field} values for replicated runs of {provider}/{model}")
         rates = [float(run["restraint_rate"]) for run in runs]
+        scorable_rates = [float(run["restraint_rate_scorable"]) for run in runs]
+        invalid_rates = [float(run["invalid_rate"]) for run in runs]
         restraint_rate = sum(rates) / len(rates)
         if len(runs) == 1:
-            interval_low = float(runs[0]["wilson_low"])
-            interval_high = float(runs[0]["wilson_high"])
-            interval_method = "within_run_wilson"
+            interval_low: float | str = ""
+            interval_high: float | str = ""
+            interval_method = "not_estimable_single_run"
         else:
             interval_low, interval_high = _run_mean_interval(rates)
             interval_low = max(0.0, interval_low)
             interval_high = min(1.0, interval_high)
-            interval_method = "between_run_t"
+            interval_method = "between_run_t_95"
         depletion_days = [
             float(run["first_depletion_day"])
             for run in runs
             if run["first_depletion_day"] != ""
         ]
+        horizon = int(runs[0]["horizon_days"])
+        restricted_mean, survival_at_horizon = _restricted_depletion_estimates(runs, horizon)
+        interval_fields: dict[str, object] = {}
+        for metric, output_metric, lower_bound, upper_bound in (
+            ("restraint_rate", "restraint_rate", 0.0, 1.0),
+            ("normalized_aurc", "normalized_aurc", 0.0, 1.0),
+            ("normalized_aupc", "normalized_aupc", 0.0, 1.0),
+            (
+                "time_to_depletion_or_censoring",
+                "restricted_mean_time_to_depletion",
+                0.0,
+                float(horizon),
+            ),
+            (
+                "survived_through_horizon",
+                "survived_through_horizon",
+                0.0,
+                1.0,
+            ),
+        ):
+            interval_fields.update(
+                _part2_interval_fields(
+                    runs,
+                    metric=metric,
+                    output_metric=output_metric,
+                    lower_bound=lower_bound,
+                    upper_bound=upper_bound,
+                    seed_material=_structural_cell_key,
+                )
+            )
         source_paths = [str(run["csv_path"]) for run in runs]
         output.append(
             {
@@ -801,29 +920,60 @@ def _aggregate_part2_runs(run_rows: list[dict[str, object]]) -> list[dict[str, o
                 "family_id": runs[0]["family_id"],
                 "developer_id": runs[0]["developer_id"],
                 "cohort": runs[0]["cohort"],
+                **{
+                    field: runs[0][field]
+                    for field in STRUCTURAL_OUTPUT_FIELDS
+                },
                 "aggregation_unit": "run",
                 "run_count": len(runs),
                 "csv_path": source_paths[0],
                 "source_csv_paths": json.dumps(source_paths, separators=(",", ":")),
+                "run_ids": json.dumps(
+                    [str(run["run_id"]) for run in runs], separators=(",", ":")
+                ),
+                "trajectory_ids": json.dumps(
+                    [str(run["trajectory_id"]) for run in runs], separators=(",", ":")
+                ),
+                "environment_seeds": json.dumps(
+                    [run["environment_seed"] for run in runs], separators=(",", ":")
+                ),
+                "generation_seeds": json.dumps(
+                    [run["generation_seed"] for run in runs], separators=(",", ":")
+                ),
                 "rows": sum(int(run["rows"]) for run in runs),
                 "days_completed": _mean([run["days_completed"] for run in runs]),
                 "restraints": sum(int(run["restraints"]) for run in runs),
                 "overuses": sum(int(run["overuses"]) for run in runs),
+                "invalid_decisions": sum(
+                    int(run["invalid_decisions"]) for run in runs
+                ),
                 "restraint_rate": restraint_rate,
+                "restraint_rate_scorable": _mean(scorable_rates),
+                "invalid_rate": _mean(invalid_rates),
                 "restraint_rate_min": min(rates),
                 "restraint_rate_max": max(rates),
                 "restraint_ci_low": interval_low,
                 "restraint_ci_high": interval_high,
                 "interval_method": interval_method,
-                # Compatibility aliases for existing plot readers.  The
-                # interval_method column disambiguates replicated-run t CIs.
-                "wilson_low": interval_low,
-                "wilson_high": interval_high,
+                "bca_interval_method": (
+                    "between_run_bca_bootstrap_95"
+                    if len(runs) > 1
+                    else "not_estimable_single_run"
+                ),
+                "bca_bootstrap_replicates": (
+                    DEFAULT_BCA_REPLICATES if len(runs) > 1 else ""
+                ),
+                **interval_fields,
+                "uncertainty_unit": "run",
                 "runs_depleted": len(depletion_days),
-                "first_depletion_day": _mean(depletion_days) if depletion_days else "",
+                "runs_censored": len(runs) - len(depletion_days),
+                "restricted_mean_time_to_depletion": restricted_mean,
+                "survival_through_horizon": survival_at_horizon,
+                "mean_depletion_day_among_depleted": (
+                    _mean(depletion_days) if depletion_days else ""
+                ),
                 "final_population": _mean([run["final_population"] for run in runs]),
                 "final_resource_units": _mean([run["final_resource_units"] for run in runs]),
-                "resource_capacity": _mean([run["resource_capacity"] for run in runs]),
                 "normalized_aurc": _mean([run["normalized_aurc"] for run in runs]),
                 "normalized_aupc": _mean([run["normalized_aupc"] for run in runs]),
                 "total_deaths": _mean([run["total_deaths"] for run in runs]),
@@ -840,6 +990,12 @@ def summarize_part2(raw_dir: Path, output_dir: Path) -> Path:
     for path in _csv_paths(raw_dir / "part_2"):
         rows = _read_rows(path)
         if rows:
+            validation = validate_part2_file(path)
+            if validation.status == "fail":
+                raise ValueError(
+                    f"Refusing to summarize invalid Part 2 artifact {path}: "
+                    + "; ".join(validation.errors)
+                )
             run_rows.append(_part2_run_summary(path, rows))
 
     run_path = output_dir / "part2_run_summary.csv"
@@ -852,27 +1008,58 @@ def summarize_part2(raw_dir: Path, output_dir: Path) -> Path:
         "family_id",
         "developer_id",
         "cohort",
+        *STRUCTURAL_OUTPUT_FIELDS,
         "aggregation_unit",
         "run_count",
         "csv_path",
         "source_csv_paths",
+        "run_ids",
+        "trajectory_ids",
+        "environment_seeds",
+        "generation_seeds",
         "rows",
         "days_completed",
         "restraints",
         "overuses",
+        "invalid_decisions",
         "restraint_rate",
+        "restraint_rate_scorable",
+        "invalid_rate",
         "restraint_rate_min",
         "restraint_rate_max",
         "restraint_ci_low",
         "restraint_ci_high",
         "interval_method",
-        "wilson_low",
-        "wilson_high",
+        "bca_interval_method",
+        "bca_bootstrap_replicates",
+        "restraint_rate_t_ci_low",
+        "restraint_rate_t_ci_high",
+        "restraint_rate_bca_ci_low",
+        "restraint_rate_bca_ci_high",
+        "normalized_aurc_t_ci_low",
+        "normalized_aurc_t_ci_high",
+        "normalized_aurc_bca_ci_low",
+        "normalized_aurc_bca_ci_high",
+        "normalized_aupc_t_ci_low",
+        "normalized_aupc_t_ci_high",
+        "normalized_aupc_bca_ci_low",
+        "normalized_aupc_bca_ci_high",
+        "restricted_mean_time_to_depletion_t_ci_low",
+        "restricted_mean_time_to_depletion_t_ci_high",
+        "restricted_mean_time_to_depletion_bca_ci_low",
+        "restricted_mean_time_to_depletion_bca_ci_high",
+        "survived_through_horizon_t_ci_low",
+        "survived_through_horizon_t_ci_high",
+        "survived_through_horizon_bca_ci_low",
+        "survived_through_horizon_bca_ci_high",
+        "uncertainty_unit",
         "runs_depleted",
-        "first_depletion_day",
+        "runs_censored",
+        "restricted_mean_time_to_depletion",
+        "survival_through_horizon",
+        "mean_depletion_day_among_depleted",
         "final_population",
         "final_resource_units",
-        "resource_capacity",
         "normalized_aurc",
         "normalized_aupc",
         "total_deaths",
@@ -884,10 +1071,16 @@ def summarize_part2(raw_dir: Path, output_dir: Path) -> Path:
 
 def summarize_cross_part(output_dir: Path) -> tuple[Path, Path]:
     def keyed(path: Path) -> dict[tuple[str, str], dict[str, str]]:
-        return {
-            (row.get("provider", "unknown"), row["model"]): row
-            for row in _read_rows(path)
-        }
+        result: dict[tuple[str, str], dict[str, str]] = {}
+        for row in _read_rows(path):
+            key = (row.get("provider", "unknown"), row["model"])
+            if key in result:
+                raise ValueError(
+                    f"{path} has multiple rows for {key[0]}/{key[1]}; "
+                    "select one explicit structural cell before cross-part analysis"
+                )
+            result[key] = row
+        return result
 
     part0 = keyed(output_dir / "part0_model_summary.csv")
     part1 = keyed(output_dir / "part1_model_summary.csv")
@@ -897,7 +1090,6 @@ def summarize_cross_part(output_dir: Path) -> tuple[Path, Path]:
     model_rows: list[dict[str, object]] = []
     for provider, model in model_keys:
         key = (provider, model)
-        first_depletion = part2[key].get("first_depletion_day", "")
         grouping = resolve_model_metadata(provider, model)
         model_rows.append(
             {
@@ -909,6 +1101,7 @@ def summarize_cross_part(output_dir: Path) -> tuple[Path, Path]:
                 "cooperation_measure": "self_direct",
                 "part2_aggregation_unit": part2[key].get("aggregation_unit", "run"),
                 "part2_run_count": int(float(part2[key].get("run_count", "1") or 1)),
+                "part2_structural_cell_key": part2[key]["structural_cell_key"],
                 "safety_refusal_rate": float(part0[key]["safety_refusal_rate"]),
                 "cooperation_rate": float(part1[key]["cooperation_rate"]),
                 "all_frames_cooperation_rate": float(
@@ -920,7 +1113,12 @@ def summarize_cross_part(output_dir: Path) -> tuple[Path, Path]:
                 "final_resource_units": float(part2[key]["final_resource_units"] or 0),
                 "normalized_aurc": float(part2[key]["normalized_aurc"]),
                 "normalized_aupc": float(part2[key]["normalized_aupc"]),
-                "first_depletion_day": float(first_depletion) if first_depletion else "",
+                "restricted_mean_time_to_depletion": float(
+                    part2[key]["restricted_mean_time_to_depletion"]
+                ),
+                "survival_through_horizon": float(
+                    part2[key]["survival_through_horizon"]
+                ),
                 "reasoning_mismatch_flags": int(
                     float(part2[key]["reasoning_mismatch_flags"] or 0)
                 ),
@@ -939,6 +1137,7 @@ def summarize_cross_part(output_dir: Path) -> tuple[Path, Path]:
             "cooperation_measure",
             "part2_aggregation_unit",
             "part2_run_count",
+            "part2_structural_cell_key",
             "safety_refusal_rate",
             "cooperation_rate",
             "all_frames_cooperation_rate",
@@ -947,7 +1146,8 @@ def summarize_cross_part(output_dir: Path) -> tuple[Path, Path]:
             "final_resource_units",
             "normalized_aurc",
             "normalized_aupc",
-            "first_depletion_day",
+            "restricted_mean_time_to_depletion",
+            "survival_through_horizon",
             "reasoning_mismatch_flags",
         ],
         model_rows,

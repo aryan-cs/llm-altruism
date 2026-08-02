@@ -9,6 +9,7 @@ from experiments.misc.inference_hub_discovery import (
     InferenceHubDiscoveryError,
     capture_catalog,
     cli,
+    smoke_verify_cohorts,
     smoke_verify_route,
 )
 
@@ -223,6 +224,119 @@ def test_smoke_rejects_provider_model_identity_mismatch(
             client,
             catalog=catalog,
             route="aws/anthropic/claude-sonnet",
+        )
+
+
+def test_cohort_verification_covers_every_exact_target_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cohorts = {
+        "current_sota": {
+            "id": "current_sota",
+            "version": "v1",
+            "registry_version": "registry-v1",
+            "registry_hash": "a" * 64,
+            "routing_roster_hash": "c" * 64,
+            "targets": [
+                {
+                    "id": "openai.current",
+                    "provider": "inference_hub",
+                    "upstream_provider": "openai",
+                    "route": "us/openai/current",
+                },
+                {
+                    "id": "anthropic.current",
+                    "provider": "inference_hub",
+                    "upstream_provider": "anthropic",
+                    "route": "aws/anthropic/current",
+                },
+            ],
+        },
+        "historical": {
+            "id": "historical",
+            "version": "v1",
+            "registry_version": "registry-v1",
+            "registry_hash": "a" * 64,
+            "routing_roster_hash": "c" * 64,
+            "targets": [
+                {
+                    "id": "openai.historical",
+                    "provider": "inference_hub",
+                    "upstream_provider": "openai",
+                    "route": "us/openai/historical",
+                }
+            ],
+        },
+    }
+    monkeypatch.setattr(
+        "experiments.misc.inference_hub_discovery.load_model_cohort",
+        lambda cohort_id: cohorts[cohort_id],
+    )
+    calls: list[str] = []
+
+    def verify(_client, *, catalog, route, max_tokens):
+        del catalog
+        calls.append(route)
+        return {
+            "requested_route": route,
+            "verification_status": "verified",
+            "max_tokens": max_tokens,
+        }
+
+    monkeypatch.setattr(
+        "experiments.misc.inference_hub_discovery.smoke_verify_route", verify
+    )
+    client = InferenceHubClient(api_key="test-key")
+
+    bundle = smoke_verify_cohorts(
+        client,
+        catalog={"source_payload_sha256": "b" * 64},
+        cohort_ids=["current_sota", "historical"],
+        max_tokens=9,
+    )
+
+    assert calls == [
+        "us/openai/current",
+        "aws/anthropic/current",
+        "us/openai/historical",
+    ]
+    assert bundle["target_count"] == 3
+    assert [target["target_id"] for target in bundle["targets"]] == [
+        "openai.current",
+        "anthropic.current",
+        "openai.historical",
+    ]
+    assert len(bundle["bundle_sha256"]) == 64
+    assert bundle["routing_roster_sha256"] == "c" * 64
+
+
+def test_cohort_verification_rejects_non_inference_hub_target(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "experiments.misc.inference_hub_discovery.load_model_cohort",
+        lambda _cohort_id: {
+            "id": "mixed",
+            "version": "v1",
+            "registry_version": "registry-v1",
+            "registry_hash": "a" * 64,
+            "routing_roster_hash": "c" * 64,
+            "targets": [
+                {
+                    "id": "direct.openai",
+                    "provider": "openai",
+                    "upstream_provider": "openai",
+                    "route": "gpt-direct",
+                }
+            ],
+        },
+    )
+
+    with pytest.raises(InferenceHubDiscoveryError, match="not routed through"):
+        smoke_verify_cohorts(
+            InferenceHubClient(api_key="test-key"),
+            catalog={},
+            cohort_ids=["mixed"],
         )
 
 

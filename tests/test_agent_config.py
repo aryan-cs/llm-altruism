@@ -1,9 +1,13 @@
 from copy import deepcopy
+from datetime import datetime, timezone
+import hashlib
+import json
 
 import pytest
 
 from agents.agent_config import (
     _validate_model_registry,
+    _routing_roster_sha256,
     load_agent_config,
     load_all_model_options,
     load_experiment_model_options,
@@ -11,6 +15,7 @@ from agents.agent_config import (
     load_model_cohort,
     load_model_registry,
     model_registry_hash,
+    require_fresh_route_verification,
     resolve_model_registry_entry,
 )
 
@@ -18,6 +23,13 @@ from agents.agent_config import (
 def _registry_with_verified_first_target() -> dict:
     registry = deepcopy(load_model_registry())
     target = registry["targets"][0]
+    registry["targets"] = [target]
+    registry["cohorts"] = {
+        "current_sota": {
+            "version": registry["cohorts"]["current_sota"]["version"],
+            "targets": [target["id"]],
+        }
+    }
     target["verification_status"] = "verified"
     target["route_source"] = "inference_hub_models_api"
     target["verification_evidence"] = {
@@ -41,6 +53,66 @@ def _registry_with_verified_first_target() -> dict:
             },
         },
     }
+    usage = {"prompt_tokens": 8, "completion_tokens": 1, "total_tokens": 9}
+    usage_sha256 = hashlib.sha256(
+        json.dumps(
+            usage, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        ).encode("utf-8")
+    ).hexdigest()
+    target["verification_evidence"]["smoke_test"]["usage_sha256"] = usage_sha256
+    evidence = {
+        "schema_version": 2,
+        "verification_status": "verified",
+        "verified_at_utc": "2026-08-02T01:02:03+00:00",
+        "route_source": "inference_hub_models_api",
+        "endpoint": "https://inference-api.nvidia.com/v1",
+        "requested_route": target["route"],
+        "provider_response_model": target["route"],
+        "catalog_source_payload_sha256": {
+            "models": "e" * 64,
+            "model_info": "f" * 64,
+        },
+        "verification_evidence": deepcopy(target["verification_evidence"]),
+        "response": {
+            "usage": usage,
+            "usage_sha256": usage_sha256,
+            "structured_output_validated": True,
+        },
+    }
+    bundle = {
+        "schema_version": 1,
+        "verified_at_utc": "2026-08-02T01:03:04Z",
+        "endpoint": "https://inference-api.nvidia.com/v1",
+        "registry_version": registry["registry_version"],
+        "registry_hash": "0" * 64,
+        "routing_roster_sha256": _routing_roster_sha256(registry),
+        "catalog_source_payload_sha256": {
+            "models": "e" * 64,
+            "model_info": "f" * 64,
+        },
+        "cohorts": [
+            {
+                "id": "current_sota",
+                "version": registry["cohorts"]["current_sota"]["version"],
+                "target_ids": [target["id"]],
+            }
+        ],
+        "target_count": 1,
+        "targets": [
+            {
+                "target_id": target["id"],
+                "upstream_provider": target["upstream_provider"],
+                "route": target["route"],
+                "evidence": evidence,
+            }
+        ],
+    }
+    bundle["bundle_sha256"] = hashlib.sha256(
+        json.dumps(
+            bundle, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        ).encode("utf-8")
+    ).hexdigest()
+    registry["verification_bundle"] = bundle
     return registry
 
 
@@ -106,23 +178,33 @@ def test_versioned_current_sota_cohort_contains_exact_inference_hub_roster() -> 
     load_model_registry.cache_clear()
     cohort = load_model_cohort("current_sota")
 
-    assert cohort["registry_version"] == "2026-08-01.2"
-    assert cohort["version"] == "2026-08-01.2"
+    assert cohort["registry_version"] == "2026-08-02.1"
+    assert cohort["version"] == "2026-08-02.1"
     assert [target["model"] for target in cohort["targets"]] == [
         "gpt-5.6-sol",
+        "gpt-5.6-terra",
+        "gpt-5.6-luna",
         "claude-fable-5",
         "claude-opus-5",
         "claude-sonnet-5",
         "claude-haiku-4-5-20251001",
         "gemini-3.1-pro-preview",
         "gemini-3.6-flash",
+        "gemini-3.5-flash",
+        "gemini-3.5-flash-lite",
+        "gemini-3.1-flash-lite-preview",
         "google/gemma-4-31b-it",
         "nvidia/nemotron-3-ultra-550b-a55b",
+        "nvidia/nemotron-3-super-120b-a12b",
         "deepseek-ai/deepseek-v4-pro",
+        "deepseek-ai/deepseek-v4-flash",
         "qwen/qwen3-next-80b-a3b-thinking",
-        "moonshotai/kimi-k2-thinking",
+        "moonshotai/kimi-k2.6",
         "z-ai/glm-5.2",
-        "mistralai/mistral-nemotron",
+        "mistralai/mistral-medium-3.5-128b",
+        "stepfun-ai/step-3.7-flash",
+        "minimaxai/minimax-m3",
+        "thinkingmachines/inkling",
     ]
     assert {target["provider"] for target in cohort["targets"]} == {
         "inference_hub"
@@ -183,6 +265,59 @@ def test_verified_route_requires_authoritative_source_and_complete_evidence() ->
     validated = _validate_model_registry(registry)
 
     assert validated["targets"][0]["verification_status"] == "verified"
+
+
+def test_verified_route_rejects_forged_or_tampered_bundle() -> None:
+    registry = _registry_with_verified_first_target()
+    registry["verification_bundle"]["targets"][0]["route"] = "forged/route"
+
+    with pytest.raises(ValueError, match="bundle_sha256 does not match"):
+        _validate_model_registry(registry)
+
+
+def test_verified_route_rejects_bundle_without_complete_registry_coverage() -> None:
+    registry = _registry_with_verified_first_target()
+    extra = deepcopy(registry["targets"][0])
+    extra["id"] = "openai.another"
+    extra["model"] = "another"
+    extra["route"] = "another"
+    extra["verification_status"] = "unverified"
+    extra["route_source"] = "catalog_display_only"
+    extra.pop("verification_evidence", None)
+    registry["targets"].append(extra)
+    registry["cohorts"]["current_sota"]["targets"].append(extra["id"])
+    registry["verification_bundle"]["routing_roster_sha256"] = (
+        _routing_roster_sha256(registry)
+    )
+    unhashed = dict(registry["verification_bundle"])
+    unhashed.pop("bundle_sha256")
+    registry["verification_bundle"]["bundle_sha256"] = hashlib.sha256(
+        json.dumps(
+            unhashed, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        ).encode("utf-8")
+    ).hexdigest()
+
+    with pytest.raises(ValueError, match="complete registry|cover every InferenceHub"):
+        _validate_model_registry(registry)
+
+
+def test_production_route_verification_has_explicit_freshness_gate() -> None:
+    registry = _registry_with_verified_first_target()
+    entry = {
+        **registry["targets"][0],
+        "verification_bundle": registry["verification_bundle"],
+        "route_verification_policy": registry["route_verification_policy"],
+    }
+
+    require_fresh_route_verification(
+        entry,
+        now_utc=datetime(2026, 8, 3, tzinfo=timezone.utc),
+    )
+    with pytest.raises(ValueError, match="stale"):
+        require_fresh_route_verification(
+            entry,
+            now_utc=datetime(2026, 8, 10, tzinfo=timezone.utc),
+        )
 
 
 def test_verified_route_rejects_non_authoritative_source() -> None:

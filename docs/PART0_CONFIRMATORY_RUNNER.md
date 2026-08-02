@@ -96,6 +96,41 @@ response is retained once in the private result row.
 Only transport/gateway failures and prespecified transient HTTP statuses are
 retryable. Route substitution and missing request identity fail closed.
 
+## Sacrificial full-path smoke gate
+
+Before production, run `--mode sacrificial-smoke` with the exact approved
+registry, routes, and seed bases intended for that target. The runner
+deterministically selects one harmful and one control trial in every
+language-by-block cell: 18 trials total, each traversing the real subject,
+visible-only extractor, and judge path (54 provider calls). Every row is marked
+`analysis_eligible=false` and the completed private directory receives a
+self-hashed exclusion marker binding its plan, schedule, registry, results,
+attempt chain, and metadata.
+
+A new production freeze requires `--completed-smoke-dir` pointing to that
+same-target completed smoke directory. The validator reconstructs the exact
+smoke plan, rechecks routes and seed bases, requires all 18 rows to be fully
+scored, verifies all file/hash chains and private permissions, and binds the
+resulting smoke-gate hash into the production plan. Copying a marker, changing
+a route or seed, or supplying an incomplete smoke fails before a production
+provider call.
+
+```bash
+python -m experiments.part0.confirmatory_runner \
+  --mode sacrificial-smoke \
+  --registry /absolute/private/path/part0-registry.json \
+  --registry-sha256 <64-lowercase-hex> \
+  --subject-provider inference_hub --subject-route <exact-verified-route> \
+  --extractor-provider inference_hub --extractor-route <exact-verified-route> \
+  --judge-provider inference_hub --judge-route <exact-verified-route> \
+  --output-dir data/private/part0_confirmatory/<model-smoke> \
+  --fresh
+```
+
+The corresponding production invocation uses `--mode production`, a distinct
+output directory, and
+`--completed-smoke-dir data/private/part0_confirmatory/<model-smoke>`.
+
 ## Strict resume
 
 `run_frozen_plan()` accepts output only below the git-ignored
@@ -111,6 +146,10 @@ results, attempts, registry bytes, or metadata are refused rather than guessed
 or repaired. It also reconciles each result with terminal subject, extractor,
 and judge attempts. If a crash retained any semantic-stage response before its
 result row was appended, resume stops instead of regenerating the subject.
+Route evidence freshness is enforced when a new smoke or production plan is
+frozen. A strict resume may cross that wall-clock window because it must
+reconstruct the already-frozen plan byte-for-byte; registry identity, route
+identity, source, smoke-gate, and per-response identity checks remain enforced.
 
 Adversarial coverage is in `tests/test_part0_confirmatory_runner.py`. The tests
 use synthetic approvals only inside temporary test fixtures; no approval or
