@@ -5,12 +5,16 @@ from typing import Any
 
 import pytest
 
+from analysis.reconcile_inference_hub_routes import reconcile_routes
 from experiments.misc.inference_hub_discovery import (
     InferenceHubClient,
     InferenceHubDiscoveryError,
     capture_catalog,
+    chat_probe_route,
     cli,
+    probe_catalog_routes,
     smoke_verify_cohorts,
+    smoke_verify_reconciled_candidates,
     smoke_verify_route,
 )
 
@@ -208,6 +212,86 @@ def test_smoke_rejects_provider_model_identity_mismatch(
         )
 
 
+def test_minimal_chat_probe_asserts_no_optional_generation_controls(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payloads = _catalog_payloads()
+    payloads[("POST", "https://inference-api.nvidia.com/v1/chat/completions")] = {
+        "id": "completion-minimal",
+        "model": "aws/anthropic/claude-sonnet",
+        "choices": [
+            {
+                "index": 0,
+                "message": {"role": "assistant", "content": "OK"},
+                "finish_reason": "length",
+            }
+        ],
+    }
+    calls = _install_responses(monkeypatch, payloads)
+    client = InferenceHubClient(api_key="test-key")
+    catalog = capture_catalog(client)
+
+    evidence = chat_probe_route(
+        client,
+        catalog=catalog,
+        route="aws/anthropic/claude-sonnet",
+        max_tokens=8,
+    )
+
+    assert evidence["verification_status"] == "chat_callable"
+    assert evidence["request"]["optional_generation_controls_asserted"] == []
+    assert evidence["provider_response_model"] == "aws/anthropic/claude-sonnet"
+    assert "content" not in evidence["response"]
+    assert evidence["response"]["truncated"] is True
+    assert evidence["response"]["usage"] is None
+    assert calls[-1]["body"] == {
+        "model": "aws/anthropic/claude-sonnet",
+        "messages": [{"role": "user", "content": "Reply with OK."}],
+        "max_tokens": 8,
+        "stream": False,
+    }
+
+
+def test_full_catalog_probe_attempts_every_route_and_retains_rejections(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    catalog = _candidate_catalog()
+
+    def probe(_client, *, catalog, route, max_tokens):
+        del catalog, max_tokens
+        if route.endswith("model-b"):
+            raise InferenceHubDiscoveryError("route is not a chat model")
+        return {
+            "requested_route": route,
+            "verification_status": "chat_callable",
+            "response": {"request_id": "completion-a"},
+        }
+
+    monkeypatch.setattr(
+        "experiments.misc.inference_hub_discovery.chat_probe_route", probe
+    )
+    bundle = probe_catalog_routes(
+        InferenceHubClient(api_key="test-key"),
+        catalog=catalog,
+        attempt_ledger_path=tmp_path / "catalog-attempts.json",
+    )
+
+    assert bundle["status"] == "complete"
+    assert bundle["attempted_route_count"] == 2
+    assert bundle["chat_callable_route_count"] == 1
+    assert bundle["rejected_route_count"] == 1
+    assert bundle["chat_callable_routes"][0]["route"] == "openai/openai/model-a"
+    assert bundle["rejected_routes"] == [
+        {
+            "route": "gcp/google/model-b",
+            "failure_code": "minimal_chat_probe_failed",
+        }
+    ]
+    assert len(bundle["run_attempt_ids"]) == 2
+    assert bundle["discovery_attempt_ledger"]["record_count"] == 2
+
+
 def test_cohort_verification_covers_every_exact_target_once(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -346,6 +430,126 @@ def test_cohort_verification_rejects_non_inference_hub_target(
             InferenceHubClient(api_key="test-key"),
             catalog={},
             cohort_ids=["mixed"],
+        )
+
+
+def _candidate_catalog() -> dict[str, Any]:
+    routes = ["openai/openai/model-a", "gcp/google/model-b"]
+    return {
+        "schema_version": 2,
+        "captured_at_utc": "2026-08-02T00:00:00Z",
+        "source_endpoints": ["/models"],
+        "source_payload_sha256": {"models": "b" * 64},
+        "route_count": len(routes),
+        "routes": [
+            {
+                "route": route,
+                "listed_by_models": True,
+                "chat_capability": "unverified_until_structured_smoke",
+            }
+            for route in routes
+        ],
+    }
+
+
+def _candidate_reconciliation(catalog: dict[str, Any]) -> dict[str, Any]:
+    registry = {
+        "registry_version": "registry-v1",
+        "targets": [
+            {
+                "id": "provider.model-a",
+                "upstream_provider": "openai",
+                "route": "model-a",
+            },
+            {
+                "id": "provider.model-b",
+                "upstream_provider": "google",
+                "route": "model-b",
+            },
+            {
+                "id": "provider.missing",
+                "upstream_provider": "other",
+                "route": "missing",
+            },
+        ],
+        "cohorts": {
+            "panel": {
+                "targets": [
+                    "provider.model-a",
+                    "provider.model-b",
+                    "provider.missing",
+                ]
+            }
+        },
+    }
+    return reconcile_routes(catalog=catalog, registry=registry)
+
+
+def test_reconciled_candidate_verification_retains_passes_and_failures(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    catalog = _candidate_catalog()
+    reconciliation = _candidate_reconciliation(catalog)
+
+    def verify(_client, *, catalog, route, max_tokens):
+        del catalog, max_tokens
+        if route.endswith("model-b"):
+            raise InferenceHubDiscoveryError("structured controls rejected")
+        return {
+            "requested_route": route,
+            "verification_status": "verified",
+            "verification_evidence": {
+                "smoke_test": {"request_id": "completion-a"}
+            },
+        }
+
+    monkeypatch.setattr(
+        "experiments.misc.inference_hub_discovery.smoke_verify_route", verify
+    )
+    bundle = smoke_verify_reconciled_candidates(
+        InferenceHubClient(api_key="test-key"),
+        catalog=catalog,
+        reconciliation=reconciliation,
+        attempt_ledger_path=tmp_path / "candidate-attempts.json",
+    )
+
+    assert bundle["status"] == "incomplete"
+    assert bundle["candidate_target_count"] == 2
+    assert bundle["verified_target_count"] == 1
+    assert bundle["targets"][0]["route"] == "openai/openai/model-a"
+    assert bundle["rejected_targets"] == [
+        {
+            "target_id": "provider.model-b",
+            "route": "gcp/google/model-b",
+            "failure_code": "candidate_route_verification_failed",
+        }
+    ]
+    assert bundle["unresolved_targets"] == [
+        {
+            "target_id": "provider.missing",
+            "planned_route": "missing",
+            "status": "unresolved_no_exact_suffix",
+        }
+    ]
+    assert bundle["automatic_registry_promotion"] is False
+    assert bundle["discovery_attempt_ledger"]["record_count"] == 2
+    assert len(bundle["bundle_sha256"]) == 64
+
+
+def test_reconciled_candidate_verification_rejects_catalog_drift(
+    tmp_path: Path,
+) -> None:
+    catalog = _candidate_catalog()
+    reconciliation = _candidate_reconciliation(catalog)
+    catalog["source_payload_sha256"] = {"models": "c" * 64}
+
+    with pytest.raises(InferenceHubDiscoveryError, match="current catalog"):
+        smoke_verify_reconciled_candidates(
+            InferenceHubClient(api_key="test-key"),
+            catalog=catalog,
+            reconciliation=reconciliation,
+            attempt_ledger_path=tmp_path / "candidate-attempts.json",
         )
 
 

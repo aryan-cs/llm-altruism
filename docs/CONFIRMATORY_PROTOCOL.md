@@ -41,6 +41,20 @@ executable only when:
   probed and recorded rather than assumed; and
 - catalog bytes, route evidence, and smoke bytes are hash-bound.
 
+When the checked-in registry still contains display-only labels, first build an
+outcome-blind route reconciliation and run `verify-candidates` as documented in
+the repository README. That batch tests only exact-suffix candidates, atomically
+retains every attempt, and cannot promote the registry. Renamed or versionless
+routes stay unresolved until separately reviewed; an absent planned label is
+never replaced merely because a similar route exists.
+
+The separate `probe-catalog` census attempts a minimal identity-checked chat
+completion for every route authorized by `/models`. It intentionally omits
+optional controls so a provider that lacks seed or JSON-schema support is not
+misreported as non-chat. Passing that census establishes only minimal chat
+callability; confirmatory eligibility still requires the common seeded,
+structured control contract and a complete same-target path smoke.
+
 There are no silent substitutions or mutable aliases. The intended census
 includes current general-purpose GPT, Claude Haiku/Sonnet/Opus, Gemini/Gemma,
 Nemotron, DeepSeek, Qwen, Kimi, GLM, Mistral, Stepfun, MiniMax, Inkling, and

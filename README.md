@@ -239,6 +239,39 @@ leaves renamed, versionless, or merely similar routes unresolved. A selected
 candidate is still `smoke_pending`; only a successful identity-checked chat
 completion can support a later reviewed registry promotion.
 
+Attempt every selected exact-suffix candidate in one durable, fail-closed batch:
+
+```bash
+uv run python -m experiments.misc.inference_hub_discovery verify-candidates \
+  --catalog-input data/private/inference_hub/catalog.json \
+  --reconciliation data/private/inference_hub/route-reconciliation.json \
+  --attempt-ledger data/private/inference_hub/candidate-attempt-ledger.json \
+  --output data/private/inference_hub/candidate-evidence.json
+```
+
+The batch reserves each request before dispatch, continues after individual
+failures, retains a complete pass/fail inventory, and never mutates the checked-in
+registry. It refuses catalog drift, reconciliation tampering, duplicate routes,
+or an unsafe automatic-promotion policy before the first request.
+
+For the exhaustive authorized-route census, minimally probe every catalog entry
+without asserting optional generation controls:
+
+```bash
+uv run python -m experiments.misc.inference_hub_discovery probe-catalog \
+  --catalog-input data/private/inference_hub/catalog.json \
+  --attempt-ledger data/private/inference_hub/catalog-probe-ledger.json \
+  --output data/private/inference_hub/catalog-probe-evidence.json
+```
+
+This performs one bounded, identity-checked chat request per catalog route and
+retains both successes and failures. Minimal chat callability is not equivalent
+to confirmatory compatibility: selected paper routes must additionally pass the
+seeded JSON-schema smoke and the complete experiment-path smoke. A truncated
+minimal response or missing usage block is recorded but does not erase proof
+that the exact route returned visible chat content; those conditions remain
+fatal in the stricter confirmatory smoke.
+
 This captures the virtual key's authorized `GET /models` catalog, inventories
 every returned route with an explicit include/exclude decision, and runs a
 structured, seeded, identity-checked completion against every exact frozen route. It writes

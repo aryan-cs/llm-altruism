@@ -59,9 +59,9 @@ Updated: 2026-08-02 (America/Los_Angeles)
 
 - Strict raw validation: 27 files, 14 pass, 13 warning, 0 fail. The warnings are
   the disclosed one-sided Part 2 rationale/action lexical flags.
-- Full repository suite: 546 passed, 1 optional dependency skip on 2026-08-02.
+- Full repository suite: 550 passed, 1 optional dependency skip on 2026-08-02.
   `tests/conftest.py` selects the noninteractive Agg backend before collection.
-- Clean extracted-supplement suite: 524 passed, 2 intentional skips (withheld
+- Clean extracted-supplement suite: 528 passed, 2 intentional skips (withheld
   raw Part 0 and one optional dependency), without a Git object store.
 - NeurIPS format suite: 6 passed. The official style SHA-256 is
   `c3fc2894e83d2517ca18b66741d6c595986d97957dc08ec08bb2125a7ec4555a`.
@@ -73,7 +73,7 @@ Updated: 2026-08-02 (America/Los_Angeles)
   manifest SHA-256. Full-suite, integrity, portable legacy-provenance, and
   anonymity checks pass. Withdrawn Part 0/cross-part plot trees are absent, and
   the builder derives local identifiers at runtime rather than embedding them.
-  Current ZIP SHA-256: `51a93cf855fbefc5eb12c140dbb974dbbdc1ed259cbcae7b548aa06f466513c8`.
+  Current ZIP SHA-256: `1fc6966a033f3aeca9ab247c60e1906606d92be861e86e31c23bc391a4a860bb`.
 - The one-stage production campaign is frozen at all 484 harmful roots plus 100
   controls in three languages, 384 self-direct Part 1 roots, and 24 independent
   Part 2 trajectories per route at N=10, horizon=30, capacity=150.
@@ -94,7 +94,8 @@ Updated: 2026-08-02 (America/Los_Angeles)
    smokes; 15 planned labels have no exact catalog suffix and require an
    evidence-backed availability decision. All 30 current/historical registry
    routes remain unverified display labels and are rejected by the production
-   adapter.
+   adapter. The exhaustive minimal-chat probe across all 214 authorized routes
+   is implemented but has not run with the interactive-shell credential.
 2. The requested SOTA campaign therefore has no real GPT-3.5/4.1/5/5.6, Claude
    Haiku/Sonnet/Opus, Gemini, Gemma, Nemotron, DeepSeek, Qwen, Kimi, GLM,
    Mistral, Stepfun, MiniMax, or Inkling results. No substitute IDs or results
@@ -113,15 +114,17 @@ Updated: 2026-08-02 (America/Los_Angeles)
 
 ## Exact next execution order
 
-1. Run structured, identity-checked chat smokes for the 15 exact-suffix
-   candidates and retain every attempt, including failures.
-2. Resolve renamed/versionless candidates only from successful chat evidence;
+1. Run the bounded minimal-chat census for all 214 authorized catalog routes,
+   retaining every success and failure in the atomic discovery ledger.
+2. Run structured, identity-checked smokes for the 15 exact-suffix candidates
+   and retain every attempt, including failures.
+3. Resolve renamed/versionless candidates only from successful chat evidence;
    explicitly mark truly unavailable labels without substitution, then review
    and promote verified routes.
-3. Complete genuine Part 0/Part 1 reviews and the Part 0 two-annotator audit.
-4. Execute all successful verified routes without substitution under the frozen
+4. Complete genuine Part 0/Part 1 reviews and the Part 0 two-annotator audit.
+5. Execute all successful verified routes without substitution under the frozen
    430,000-attempt ledger, lock private native artifacts, analyze with
    root/run-level estimators, and rebuild every
    table, figure, manifest, Croissant file, supplement, and paper value.
-5. Repeat full tests, strict validation, the check-paper audit, full PDF visual
+6. Repeat full tests, strict validation, the check-paper audit, full PDF visual
    review, anonymity scan, and a fresh context-free NeurIPS review.
