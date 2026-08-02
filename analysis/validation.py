@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
@@ -11,6 +12,14 @@ from typing import Iterable
 from experiments.part0 import part_0
 from experiments.part1 import part_1
 from experiments.part2 import part_2
+from analysis.part2_dynamics import (
+    Part2StructuralCell,
+    Part2RunIdentity,
+    StructuralMetadataError,
+    collapse_deaths,
+    load_part2_structural_cell,
+    load_part2_run_identity,
+)
 from analysis.rejudge_part0 import REJUDGE_FIELDS
 
 RAW_DIR = Path("data") / "raw"
@@ -59,11 +68,29 @@ def _read_csv(path: Path) -> tuple[list[str], list[dict[str, str]]]:
 def _csv_paths(part_dir: Path) -> list[Path]:
     if not part_dir.exists():
         return []
-    return sorted(
-        path
-        for path in part_dir.glob("*.csv")
-        if not path.name.endswith("_pending.csv")
-    )
+    included: list[Path] = []
+    for path in sorted(part_dir.glob("*.csv")):
+        if path.name.endswith("_pending.csv"):
+            continue
+        marker = path.with_name(f"{path.stem}.analysis_exclude.json")
+        if marker.exists():
+            try:
+                exclusion = json.loads(marker.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError) as error:
+                raise ValueError(f"Invalid analysis-exclusion marker: {marker}") from error
+            digest = hashlib.sha256(path.read_bytes()).hexdigest()
+            if exclusion != {
+                "schema_version": 1,
+                "scope": "canonical_analysis_and_validation",
+                "reason": "sacrificial_campaign_smoke",
+                "csv_sha256": digest,
+            }:
+                raise ValueError(
+                    f"Analysis-exclusion marker is not hash-bound to its CSV: {marker}"
+                )
+            continue
+        included.append(path)
+    return included
 
 
 def _duplicate_count(rows: Iterable[dict[str, str]], keys: tuple[str, ...]) -> int:
@@ -135,7 +162,11 @@ def validate_part1_file(path: Path) -> FileReport:
     _validate_header(
         report,
         header,
-        {tuple(part_1.RESULT_HEADERS), tuple(part_1.LEGACY_RESULT_HEADERS)},
+        {
+            tuple(part_1.RESULT_HEADERS),
+            tuple(part_1.PRE_ORDERING_RESULT_HEADERS),
+            tuple(part_1.LEGACY_RESULT_HEADERS),
+        },
     )
 
     valid_actions_by_game = {
@@ -206,12 +237,30 @@ def validate_part2_file(path: Path) -> FileReport:
     _validate_header(
         report,
         header,
-        {tuple(part_2.RESULT_HEADERS), tuple(part_2.LEGACY_RESULT_HEADERS)},
+        {
+            tuple(part_2.RESULT_HEADERS),
+            tuple(part_2.PILOT_RESULT_HEADERS),
+            tuple(part_2.LEGACY_RESULT_HEADERS),
+        },
     )
 
-    invalid_actions = sum(1 for row in rows if row.get("action", "") not in {"RESTRAIN", "OVERUSE"})
-    if invalid_actions:
-        report.add_error(f"{invalid_actions} rows contain invalid actions")
+    structural_cell: Part2StructuralCell | None = None
+    run_identity: Part2RunIdentity | None = None
+    try:
+        structural_cell = load_part2_structural_cell(path, rows)
+        run_identity = load_part2_run_identity(path, rows)
+    except StructuralMetadataError as exc:
+        report.add_error(f"unverifiable Part 2 structural metadata: {exc}")
+    strict_schema = tuple(header) == tuple(part_2.RESULT_HEADERS)
+
+    unknown_actions = sum(
+        1
+        for row in rows
+        if row.get("action", "") not in {"RESTRAIN", "OVERUSE", "INVALID"}
+    )
+    if unknown_actions:
+        report.add_error(f"{unknown_actions} rows contain unknown actions")
+    invalid_decisions = sum(1 for row in rows if row.get("action", "") == "INVALID")
 
     by_day: dict[int, list[dict[str, str]]] = defaultdict(list)
     parse_errors = 0
@@ -235,6 +284,8 @@ def validate_part2_file(path: Path) -> FileReport:
     incomplete_days = 0
     duplicate_agent_days = 0
     inconsistent_day_summaries = 0
+    attrition_errors = 0
+    living_slots: set[int] | None = None
     constant_fields = (
         "provider",
         "model",
@@ -259,6 +310,7 @@ def validate_part2_file(path: Path) -> FileReport:
         "population_end",
         "restrain_count",
         "overuse_count",
+        "invalid_count",
         "resource_units_remaining",
         "resource_capacity",
         "deaths",
@@ -271,10 +323,11 @@ def validate_part2_file(path: Path) -> FileReport:
             population_end = int(first["population_end"])
             restrain_count = int(first["restrain_count"])
             overuse_count = int(first["overuse_count"])
+            invalid_count = int(first.get("invalid_count", "0") or 0)
             resource_units = int(first["resource_units_remaining"])
             deaths = int(first["deaths"])
-            resource_capacity = int(first["resource_capacity"])
-            depletion_units = int(first.get("depletion_units", "0") or 0)
+            int(first["resource_capacity"])
+            int(first.get("depletion_units", "0") or 0)
         except (KeyError, ValueError):
             transition_errors += 1
             continue
@@ -291,31 +344,115 @@ def validate_part2_file(path: Path) -> FileReport:
             transition_errors += 1
         if len(day_rows) != population_start:
             incomplete_days += 1
-        if restrain_count + overuse_count != population_start:
+        if restrain_count + overuse_count + invalid_count != population_start:
             transition_errors += 1
         if sum(1 for row in day_rows if row.get("action") == "RESTRAIN") != restrain_count:
             transition_errors += 1
         if sum(1 for row in day_rows if row.get("action") == "OVERUSE") != overuse_count:
             transition_errors += 1
+        if sum(1 for row in day_rows if row.get("action") == "INVALID") != invalid_count:
+            transition_errors += 1
+        for row in day_rows:
+            if row.get("action") == "INVALID" and tuple(header) == tuple(part_2.RESULT_HEADERS):
+                if not row.get("invalid_reason", "").strip():
+                    transition_errors += 1
+                if row.get("attempt_outcome", "").strip() != "invalid_response":
+                    transition_errors += 1
         if population_start - deaths != population_end:
             transition_errors += 1
         if previous_population_end is not None and population_start != previous_population_end:
             transition_errors += 1
-        resource_before = resource_capacity if previous_resource is None else previous_resource
-        if depletion_units:
-            expected_resource = max(0, resource_before - overuse_count * depletion_units)
+        if structural_cell is not None:
+            resource_before = (
+                structural_cell.resource_capacity
+                if previous_resource is None
+                else previous_resource
+            )
+            expected_resource = max(
+                0,
+                resource_before - overuse_count * structural_cell.depletion_units,
+            )
             if resource_units != expected_resource:
                 transition_errors += 1
-        expected_deaths = part_2._collapse_deaths(population_start, resource_units)
-        if deaths != expected_deaths:
-            transition_errors += 1
+            expected_deaths = collapse_deaths(
+                population_start,
+                resource_units,
+                structural_cell.collapse_death_rate,
+            )
+            if deaths != expected_deaths:
+                transition_errors += 1
+        if strict_schema:
+            try:
+                slots = [int(row["anonymous_agent_slot"]) for row in day_rows]
+            except (KeyError, ValueError):
+                attrition_errors += 1
+                slots = []
+            if len(slots) != len(set(slots)) or len(slots) != population_start:
+                attrition_errors += 1
+            current_slots = set(slots)
+            if living_slots is None:
+                living_slots = current_slots
+            if current_slots != living_slots:
+                attrition_errors += 1
+            if run_identity is None or not run_identity.strict_schema:
+                attrition_errors += 1
+            elif slots:
+                expected_selected, expected_attrition_seed = part_2._select_attrition_slots(
+                    living_slots=sorted(living_slots),
+                    deaths=deaths,
+                    environment_seed=int(run_identity.environment_seed),
+                    trajectory_id=run_identity.trajectory_id,
+                    day=day,
+                )
+                selected_values = {
+                    row.get("death_selected_slots_json", "") for row in day_rows
+                }
+                if len(selected_values) != 1:
+                    attrition_errors += 1
+                    recorded_selected: object = None
+                else:
+                    try:
+                        recorded_selected = json.loads(next(iter(selected_values)))
+                    except json.JSONDecodeError:
+                        recorded_selected = None
+                if recorded_selected != expected_selected:
+                    attrition_errors += 1
+                expected_seed_text = (
+                    str(expected_attrition_seed)
+                    if expected_attrition_seed is not None
+                    else ""
+                )
+                if any(
+                    row.get("attrition_seed", "").strip() != expected_seed_text
+                    for row in day_rows
+                ):
+                    attrition_errors += 1
+                rank_by_slot = {
+                    slot: rank for rank, slot in enumerate(expected_selected, start=1)
+                }
+                for row, slot in zip(day_rows, slots):
+                    expected_died = "true" if slot in rank_by_slot else "false"
+                    expected_rank = str(rank_by_slot.get(slot, ""))
+                    if row.get("died_today", "").strip().lower() != expected_died:
+                        attrition_errors += 1
+                    if row.get("attrition_rank", "").strip() != expected_rank:
+                        attrition_errors += 1
+                living_slots -= set(expected_selected)
         previous_resource = resource_units
         previous_population_end = population_end
 
     if day_gaps:
         report.add_error(f"Part 2 day sequence has {day_gaps} missing or invalid starting day(s)")
     if incomplete_days:
-        report.add_warning(f"{incomplete_days} day(s) have fewer rows than population_start")
+        message = f"{incomplete_days} day(s) have fewer rows than population_start"
+        if strict_schema:
+            report.add_error(message)
+        else:
+            report.add_warning(message)
+    if attrition_errors:
+        report.add_error(
+            f"{attrition_errors} strict attrition selection/provenance checks failed"
+        )
     if transition_errors:
         report.add_error(f"{transition_errors} day summary or transition checks failed")
 
@@ -327,13 +464,22 @@ def validate_part2_file(path: Path) -> FileReport:
         {
             "days": len(by_day),
             "day_gaps": day_gaps,
-            "invalid_actions": invalid_actions,
+            "unknown_actions": unknown_actions,
+            "invalid_decisions": invalid_decisions,
             "incomplete_days": incomplete_days,
             "duplicate_agent_days": duplicate_agent_days,
             "inconsistent_day_summaries": inconsistent_day_summaries,
+            "attrition_errors": attrition_errors,
             "nonconstant_configuration_fields": len(nonconstant_fields),
             "transition_errors": transition_errors,
             "reasoning_mismatch_flags": reasoning_flags,
+            "structural_metadata_valid": structural_cell is not None,
+            "structural_cell_key": structural_cell.key if structural_cell is not None else None,
+            "recorded_collapse_death_rate": (
+                structural_cell.collapse_death_rate
+                if structural_cell is not None
+                else None
+            ),
         }
     )
     return report

@@ -19,6 +19,7 @@ from providers.api_call import failure_provenance
 STATUS_RUNNING = "running"
 STATUS_COMPLETE = "complete"
 STATUS_FAILED = "failed"
+METADATA_SHA256_FIELD = "metadata_sha256"
 _SENSITIVE_KEY_PATTERN = re.compile(
     r"(?:^|[_-])(?:api[_-]?key|apikey|authorization|bearer|credential|password|secret|token)(?:$|[_-])",
     re.IGNORECASE,
@@ -32,6 +33,102 @@ def utc_now_iso() -> str:
 def stable_json_hash(value: Any) -> str:
     payload = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def sha256_file(path: str | Path) -> str:
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def source_bundle_metadata(paths: list[str | Path]) -> dict[str, Any]:
+    """Return a deterministic, path-aware digest for code used by a protocol."""
+
+    files = [
+        {
+            "path": _repo_relative_path(path),
+            "sha256": sha256_file(path),
+        }
+        for path in sorted((Path(path) for path in paths), key=lambda item: str(item))
+    ]
+    return {
+        "files": files,
+        "bundle_sha256": stable_json_hash(files),
+    }
+
+
+def registry_identity_metadata(
+    targets: list[tuple[str, str]],
+) -> dict[str, Any]:
+    """Resolve the complete current registry identity for resume binding."""
+
+    return registry_metadata_for_targets(targets)
+
+
+def file_integrity_metadata(path: str | Path) -> dict[str, Any]:
+    artifact = Path(path)
+    if not artifact.is_file():
+        raise ValueError(f"Integrity artifact does not exist: {artifact}")
+    return {
+        "path": _repo_relative_path(artifact),
+        "size_bytes": artifact.stat().st_size,
+        "sha256": sha256_file(artifact),
+    }
+
+
+def validate_file_integrity(
+    path: str | Path,
+    expected: dict[str, Any],
+    *,
+    label: str,
+) -> None:
+    if not isinstance(expected, dict):
+        raise ValueError(f"{label} integrity metadata is missing.")
+    actual = file_integrity_metadata(path)
+    for key in ("size_bytes", "sha256"):
+        if actual[key] != expected.get(key):
+            raise ValueError(
+                f"{label} integrity mismatch for {key}: expected "
+                f"{expected.get(key)!r}, found {actual[key]!r}."
+            )
+
+
+def validate_resume_contract(
+    actual: Any,
+    expected: dict[str, Any],
+    *,
+    experiment: str,
+) -> None:
+    if not isinstance(actual, dict):
+        raise ValueError(f"Strict {experiment} resume metadata is missing its contract.")
+    if actual != expected:
+        raise ValueError(
+            f"Strict {experiment} resume contract mismatch: code, prompts, model "
+            "roles, grading protocol, or retry policy changed."
+        )
+
+
+def metadata_payload_sha256(metadata: dict[str, Any]) -> str:
+    payload = {
+        key: value
+        for key, value in metadata.items()
+        if key != METADATA_SHA256_FIELD
+    }
+    return stable_json_hash(payload)
+
+
+def validate_metadata_integrity(
+    metadata: dict[str, Any],
+    *,
+    required: bool,
+) -> None:
+    recorded = metadata.get(METADATA_SHA256_FIELD)
+    if recorded is None and not required:
+        return
+    if not isinstance(recorded, str) or recorded != metadata_payload_sha256(metadata):
+        raise ValueError("Run metadata SHA-256 is missing or does not match its payload.")
 
 
 def _repo_root() -> Path:
@@ -99,6 +196,7 @@ def safe_environment_snapshot() -> dict[str, str | bool]:
         "OPENAI_BASE_URL",
         "OPENAI_COMPATIBLE_BASE_URL",
         "INFERENCE_HUB_BASE_URL",
+        "NVIDIA_NIM_BASE_URL",
         "LLM_ALTRUISM_SKIP_PREFLIGHT",
         "LLM_ALTRUISM_STRICT_PROVIDER_PREFLIGHT",
     ]
@@ -254,7 +352,9 @@ def write_metadata(path: str | Path, metadata: dict[str, Any]) -> None:
     metadata_path = Path(path)
     metadata_path.parent.mkdir(parents=True, exist_ok=True)
     temporary_path = metadata_path.with_name(f".{metadata_path.name}.tmp")
-    encoded = json.dumps(metadata, ensure_ascii=False, indent=2) + "\n"
+    persisted = dict(metadata)
+    persisted[METADATA_SHA256_FIELD] = metadata_payload_sha256(persisted)
+    encoded = json.dumps(persisted, ensure_ascii=False, indent=2) + "\n"
     with temporary_path.open("w", encoding="utf-8") as handle:
         handle.write(encoded)
         handle.flush()

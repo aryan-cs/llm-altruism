@@ -12,8 +12,7 @@ from pydantic import BaseModel
 
 load_dotenv()
 
-NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1"
-INFERENCE_HUB_BASE_URL = NVIDIA_BASE_URL
+NVIDIA_NIM_BASE_URL = "https://integrate.api.nvidia.com/v1"
 OPENROUTER_SITE_URL = "https://openrouter.ai"
 OPENROUTER_APP_NAME = "llm-altruism"
 OLLAMA_BASE_URL = "http://127.0.0.1:11434"
@@ -40,6 +39,31 @@ class ResponseParseError(ValueError):
 
 class UnsupportedControlError(ValueError):
     """A requested generation control is not supported by the provider adapter."""
+
+
+class ResponseModelIdentityError(RuntimeError):
+    """The provider omitted or changed the model identity for a strict route."""
+
+    def __init__(
+        self,
+        *,
+        provider: str,
+        requested_model: str,
+        response_model: str | None,
+    ) -> None:
+        self.provider = provider
+        self.requested_model = requested_model
+        self.response_model = response_model
+        if response_model is None:
+            message = (
+                f"{provider}/{requested_model} did not report a response model."
+            )
+        else:
+            message = (
+                f"{provider} response model did not match the requested route "
+                f"({requested_model!r} != {response_model!r})."
+            )
+        super().__init__(message)
 
 
 TRUNCATION_FINISH_REASONS = {
@@ -70,6 +94,14 @@ class ProviderResponse:
     truncated: bool | None
     usage: dict[str, Any] | None
     request_id: str | None
+    requested_model: str | None = None
+    response_model: str | None = None
+    model_identity_match: bool | None = None
+
+    def __post_init__(self) -> None:
+        # ``model`` remains the backwards-compatible requested-model alias.
+        if self.requested_model is None:
+            object.__setattr__(self, "requested_model", self.model)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -86,6 +118,24 @@ class ProviderText(str):
         return instance
 
 
+def require_response_model_identity(response: ProviderResponse | ProviderText) -> None:
+    """Fail unless a provider reports the exact model route that was requested."""
+
+    details = response.details if isinstance(response, ProviderText) else response
+    if details.response_model is None:
+        raise ResponseModelIdentityError(
+            provider=details.provider,
+            requested_model=str(details.requested_model),
+            response_model=None,
+        )
+    if details.model_identity_match is not True:
+        raise ResponseModelIdentityError(
+            provider=details.provider,
+            requested_model=str(details.requested_model),
+            response_model=details.response_model,
+        )
+
+
 @dataclass(frozen=True)
 class FailureProvenance:
     category: str
@@ -94,6 +144,9 @@ class FailureProvenance:
     upstream_provider: str | None = None
     route: str | None = None
     status_code: int | None = None
+    requested_model: str | None = None
+    response_model: str | None = None
+    model_identity_match: bool | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {key: value for key, value in asdict(self).items() if value is not None}
@@ -203,7 +256,12 @@ def api_call(
     }
     if provider_key == "ollama":
         request_kwargs["keep_alive"] = keep_alive
-    if provider_key in {"openai", "openai_compatible", "inference_hub"}:
+    if provider_key in {
+        "openai",
+        "openai_compatible",
+        "inference_hub",
+        "nvidia",
+    }:
         request_kwargs["base_url"] = base_url
         request_kwargs["api_key"] = api_key
 
@@ -242,6 +300,9 @@ def api_call_detailed(
         truncated=None,
         usage=None,
         request_id=None,
+        requested_model=model,
+        response_model=None,
+        model_identity_match=None,
     )
 
 
@@ -346,6 +407,30 @@ def _registry_route(provider: str, model: str) -> dict[str, Any]:
     return entry or {}
 
 
+def _require_verified_inference_hub_route(model: str) -> dict[str, Any]:
+    """Resolve only an exact, registered, verified InferenceHub callable route."""
+
+    from agents.agent_config import resolve_model_registry_entry
+
+    normalized_model = model.strip()
+    entry = resolve_model_registry_entry("inference_hub", normalized_model)
+    if entry is None:
+        raise ValueError(
+            f"InferenceHub route is not registered and cannot execute: {normalized_model}"
+        )
+    if entry.get("route") != normalized_model:
+        raise ValueError(
+            "InferenceHub calls must use the registry's exact callable route, not "
+            f"its display label: {normalized_model}"
+        )
+    if entry.get("verification_status") != "verified":
+        raise ValueError(
+            "InferenceHub route is not executable until verified with authoritative "
+            f"discovery and smoke evidence: {entry.get('id', normalized_model)}"
+        )
+    return entry
+
+
 def classify_api_failure(
     error: Exception,
     *,
@@ -383,6 +468,22 @@ def classify_api_failure(
         ),
         route=str(route) if route is not None else model,
         status_code=status_code,
+        requested_model=(
+            error.requested_model
+            if isinstance(error, ResponseModelIdentityError)
+            else None
+        ),
+        response_model=(
+            error.response_model
+            if isinstance(error, ResponseModelIdentityError)
+            else None
+        ),
+        model_identity_match=(
+            error.response_model == error.requested_model
+            if isinstance(error, ResponseModelIdentityError)
+            and error.response_model is not None
+            else None
+        ),
     )
 
 
@@ -534,18 +635,37 @@ def _resolve_endpoint_connection(
     base_url: str | None,
     api_key: str | None,
 ) -> tuple[str | None, str]:
-    from agents.agent_config import load_endpoint_profile
+    from agents.agent_config import (
+        load_endpoint_profile,
+        validate_endpoint_base_url,
+    )
 
     profile = load_endpoint_profile(profile_id)
     base_url_env = str(profile["base_url_env"])
     credential_env = str(profile["credential_env"])
+    if str(profile["provider"]) in {"inference_hub", "nvidia"} and api_key is not None:
+        raise ValueError(
+            f"{profile['provider']} does not accept an explicit api_key override; "
+            f"set {credential_env} in the environment."
+        )
     resolved_base_url = (
         base_url
-        or os.getenv(base_url_env, "").strip()
-        or str(profile.get("default_base_url", "")).strip()
-        or None
+        if base_url is not None
+        else (
+            os.getenv(base_url_env, "").strip()
+            or str(profile.get("default_base_url", "")).strip()
+            or None
+        )
     )
-    return resolved_base_url, _resolve_api_key(api_key, env_name=credential_env)
+    if resolved_base_url is None or not resolved_base_url.strip():
+        raise EnvironmentError(
+            f"Missing required environment variable: {base_url_env}"
+        )
+    validated_base_url = validate_endpoint_base_url(
+        profile_id,
+        resolved_base_url,
+    )
+    return validated_base_url, _resolve_api_key(api_key, env_name=credential_env)
 
 
 def _build_ollama_client(*, timeout: float | None = None) -> Any:
@@ -900,6 +1020,7 @@ def _provider_text(
         json_schema=json_schema,
     )
     normalized_reason = finish_reason.strip() if isinstance(finish_reason, str) else None
+    response_model = _string_attribute(response, "model") or None
     details = ProviderResponse(
         provider=provider,
         model=model,
@@ -916,6 +1037,13 @@ def _provider_text(
         request_id=(
             str(request_id).strip()
             if request_id is not None and str(request_id).strip()
+            else None
+        ),
+        requested_model=model,
+        response_model=response_model,
+        model_identity_match=(
+            response_model == model
+            if response_model is not None
             else None
         ),
     )
@@ -1345,12 +1473,13 @@ def _query_inference_hub(
     base_url: str | None,
     api_key: str | None,
 ) -> str:
+    _require_verified_inference_hub_route(model)
     resolved_base_url, resolved_api_key = _resolve_endpoint_connection(
         "inference_hub",
         base_url=base_url,
         api_key=api_key,
     )
-    return _query_openai_compatible_endpoint(
+    response = _query_openai_compatible_endpoint(
         provider_label="inference_hub",
         model=model,
         system_prompt=system_prompt,
@@ -1366,6 +1495,8 @@ def _query_inference_hub(
         base_url=resolved_base_url,
         api_key=resolved_api_key,
     )
+    require_response_model_identity(response)
+    return response
 
 
 def _query_nvidia(
@@ -1381,40 +1512,29 @@ def _query_nvidia(
     seed: int | None,
     reasoning_effort: str | None,
     timeout: float | None,
+    base_url: str | None,
+    api_key: str | None,
 ) -> str:
-    from openai import OpenAI
-
-    client = OpenAI(
-        api_key=_ensure_env("NVIDIA_API_KEY"),
-        base_url=os.getenv("NVIDIA_BASE_URL", NVIDIA_BASE_URL),
+    resolved_base_url, resolved_api_key = _resolve_endpoint_connection(
+        "nvidia",
+        base_url=base_url,
+        api_key=api_key,
     )
-    if timeout is not None:
-        client = client.with_options(timeout=timeout)
-
-    payload: dict[str, Any] = {
-        "model": model,
-        "messages": _build_messages(system_prompt, query),
-    }
-    _apply_openai_generation_controls(
-        payload,
+    return _query_openai_compatible_endpoint(
+        provider_label="nvidia",
+        model=model,
+        system_prompt=system_prompt,
+        query=query,
+        json_mode=json_mode,
+        json_schema=json_schema,
         temperature=temperature,
         top_p=top_p,
         max_tokens=max_tokens,
         seed=seed,
         reasoning_effort=reasoning_effort,
-    )
-
-    response_format = _build_openai_response_format(json_mode, json_schema)
-    if response_format is not None:
-        payload["response_format"] = response_format
-
-    response = client.chat.completions.create(**payload)
-    return _openai_style_provider_text(
-        provider="nvidia",
-        model=model,
-        response=response,
-        json_mode=json_mode,
-        json_schema=json_schema,
+        timeout=timeout,
+        base_url=resolved_base_url,
+        api_key=resolved_api_key,
     )
 
 

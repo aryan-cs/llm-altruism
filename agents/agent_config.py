@@ -3,15 +3,29 @@
 import hashlib
 import json
 import re
+from datetime import datetime, timedelta
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import urlsplit
 
 AGENT_CONFIG_PATH = Path(__file__).resolve().with_name("agent_config.json")
 MODEL_REGISTRY_PATH = Path(__file__).resolve().with_name(
     "agent_config.registry.json"
 )
+STRICT_ENDPOINT_HOSTS = {
+    "inference_hub": "inference-api.nvidia.com",
+    "nvidia": "integrate.api.nvidia.com",
+}
+STRICT_ENDPOINT_PATHS = {
+    "inference_hub": "/v1",
+    "nvidia": "/v1",
+}
+AUTHORITATIVE_ROUTE_SOURCES = {
+    "inference_hub_models_api",
+}
+UNVERIFIED_ROUTE_SOURCES = {"catalog_display_only"}
+_SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
 
 
 def _strip_json_comments(raw_text: str) -> str:
@@ -109,6 +123,98 @@ def _required_non_empty_string(
     return value.strip()
 
 
+def _required_sha256(value: Any, *, label: str) -> str:
+    normalized = _required_non_empty_string(value, label=label)
+    if _SHA256_PATTERN.fullmatch(normalized) is None:
+        raise ValueError(f"{label} must be a lowercase SHA-256 digest.")
+    return normalized
+
+
+def _required_utc_timestamp(value: Any, *, label: str) -> str:
+    normalized = _required_non_empty_string(value, label=label)
+    try:
+        parsed = datetime.fromisoformat(normalized.replace("Z", "+00:00"))
+    except ValueError as error:
+        raise ValueError(f"{label} must be an ISO-8601 UTC timestamp.") from error
+    if parsed.utcoffset() != timedelta(0):
+        raise ValueError(f"{label} must be an ISO-8601 UTC timestamp.")
+    return normalized
+
+
+def _validate_verification_evidence(
+    raw_target: dict[str, Any],
+    *,
+    index: int,
+    route: str,
+) -> None:
+    evidence = raw_target.get("verification_evidence")
+    label = f"targets[{index}].verification_evidence"
+    if not isinstance(evidence, dict):
+        raise ValueError(f"{label} must be an object for a verified route.")
+    _required_utc_timestamp(
+        evidence.get("verified_at_utc"),
+        label=f"{label}.verified_at_utc",
+    )
+    _required_sha256(
+        evidence.get("discovery_sha256"),
+        label=f"{label}.discovery_sha256",
+    )
+    smoke_test = evidence.get("smoke_test")
+    if not isinstance(smoke_test, dict):
+        raise ValueError(f"{label}.smoke_test must be an object.")
+    _required_utc_timestamp(
+        smoke_test.get("completed_at_utc"),
+        label=f"{label}.smoke_test.completed_at_utc",
+    )
+    _required_non_empty_string(
+        smoke_test.get("request_id"),
+        label=f"{label}.smoke_test.request_id",
+    )
+    response_model = _required_non_empty_string(
+        smoke_test.get("response_model"),
+        label=f"{label}.smoke_test.response_model",
+    )
+    if response_model != route:
+        raise ValueError(
+            f"{label}.smoke_test.response_model must match the exact route."
+        )
+    _required_sha256(
+        smoke_test.get("response_sha256"),
+        label=f"{label}.smoke_test.response_sha256",
+    )
+    finish_reason = _required_non_empty_string(
+        smoke_test.get("finish_reason"),
+        label=f"{label}.smoke_test.finish_reason",
+    )
+    if finish_reason.lower() in {"length", "max_tokens", "max_output_tokens"}:
+        raise ValueError(f"{label}.smoke_test.finish_reason indicates truncation.")
+    _required_sha256(
+        smoke_test.get("usage_sha256"),
+        label=f"{label}.smoke_test.usage_sha256",
+    )
+    controls = smoke_test.get("generation_controls")
+    if not isinstance(controls, dict):
+        raise ValueError(f"{label}.smoke_test.generation_controls must be an object.")
+    if (
+        controls.get("temperature") != 0
+        or controls.get("top_p") != 1
+        or not isinstance(controls.get("seed"), int)
+        or isinstance(controls.get("seed"), bool)
+        or not isinstance(controls.get("max_tokens"), int)
+        or isinstance(controls.get("max_tokens"), bool)
+        or controls.get("max_tokens", 0) <= 0
+        or controls.get("stream") is not False
+        or controls.get("structured_output") is not True
+    ):
+        raise ValueError(
+            f"{label}.smoke_test.generation_controls do not prove the frozen controls."
+        )
+    _required_sha256(
+        controls.get("json_schema_sha256"),
+        label=f"{label}.smoke_test.generation_controls.json_schema_sha256",
+    )
+
+
 def _normalize_provider_name(provider: str) -> str:
     normalized = provider.strip().lower().replace("-", "_")
     return {
@@ -118,6 +224,72 @@ def _normalize_provider_name(provider: str) -> str:
         "openaicompatible": "openai_compatible",
         "x.ai": "xai",
     }.get(normalized, normalized)
+
+
+def validate_endpoint_base_url(profile_id: str, value: str) -> str:
+    """Validate and normalize a configured provider API base URL.
+
+    NVIDIA's internal InferenceHub and public API Catalog are deliberately
+    separate trust domains. Their endpoint profiles therefore accept only the
+    exact HTTPS host assigned to that profile and never accept URL-embedded
+    credentials, ports, queries, or fragments.
+    """
+
+    normalized_profile = _normalize_provider_name(profile_id)
+    normalized_url = _required_non_empty_string(
+        value,
+        label=f"endpoint_profiles.{normalized_profile}.base_url",
+    ).rstrip("/")
+    if any(character.isspace() for character in normalized_url):
+        raise ValueError(f"{normalized_profile} base URL must not contain whitespace.")
+    try:
+        parsed_url = urlsplit(normalized_url)
+        parsed_port = parsed_url.port
+    except ValueError as error:
+        raise ValueError(
+            f"{normalized_profile} base URL is not a valid absolute URL."
+        ) from error
+    if parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
+        raise ValueError(
+            f"{normalized_profile} base URL must be an absolute HTTP(S) URL."
+        )
+
+    exact_host = STRICT_ENDPOINT_HOSTS.get(normalized_profile)
+    if exact_host is None:
+        strict_profile_by_host = {
+            host: profile for profile, host in STRICT_ENDPOINT_HOSTS.items()
+        }
+        required_profile = strict_profile_by_host.get(parsed_url.hostname or "")
+        if required_profile is not None:
+            raise ValueError(
+                f"{normalized_profile} base URL cannot target the strict "
+                f"{required_profile} host; use its dedicated endpoint profile."
+            )
+        return normalized_url
+    if parsed_url.scheme != "https":
+        raise ValueError(f"{normalized_profile} base URL must use HTTPS.")
+    if parsed_url.hostname != exact_host:
+        raise ValueError(
+            f"{normalized_profile} base URL must use exact host {exact_host}."
+        )
+    if parsed_url.username is not None or parsed_url.password is not None:
+        raise ValueError(
+            f"{normalized_profile} base URL must not contain URL credentials."
+        )
+    if parsed_port is not None:
+        raise ValueError(f"{normalized_profile} base URL must not specify a port.")
+    exact_path = STRICT_ENDPOINT_PATHS[normalized_profile]
+    if parsed_url.path != exact_path:
+        raise ValueError(
+            f"{normalized_profile} base URL must use exact path {exact_path}."
+        )
+    if "?" in normalized_url or parsed_url.query:
+        raise ValueError(f"{normalized_profile} base URL must not contain a query.")
+    if "#" in normalized_url or parsed_url.fragment:
+        raise ValueError(
+            f"{normalized_profile} base URL must not contain a fragment."
+        )
+    return normalized_url
 
 
 def _validate_model_registry(registry: Any) -> dict[str, Any]:
@@ -153,12 +325,7 @@ def _validate_model_registry(registry: Any) -> dict[str, Any]:
                 default_base_url,
                 label=f"endpoint_profiles.{profile_id}.default_base_url",
             )
-            parsed_url = urlparse(normalized_url)
-            if parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
-                raise ValueError(
-                    f"endpoint_profiles.{profile_id}.default_base_url must be an "
-                    "absolute HTTP(S) URL."
-                )
+            validate_endpoint_base_url(profile_id, normalized_url)
 
     raw_targets = registry.get("targets")
     if not isinstance(raw_targets, list) or not raw_targets:
@@ -182,6 +349,46 @@ def _validate_model_registry(registry: Any) -> dict[str, Any]:
                 "endpoint_profile",
             )
         }
+        verification_status = raw_target.get("verification_status")
+        route_source = raw_target.get("route_source")
+        if target["provider"].lower() == "inference_hub":
+            verification_status = _required_non_empty_string(
+                verification_status,
+                label=f"targets[{index}].verification_status",
+            )
+            route_source = _required_non_empty_string(
+                route_source,
+                label=f"targets[{index}].route_source",
+            )
+            if verification_status not in {"verified", "unverified"}:
+                raise ValueError(
+                    f"targets[{index}].verification_status must be verified or "
+                    "unverified."
+                )
+            if verification_status == "verified":
+                if route_source not in AUTHORITATIVE_ROUTE_SOURCES:
+                    allowed = ", ".join(sorted(AUTHORITATIVE_ROUTE_SOURCES))
+                    raise ValueError(
+                        f"Target {target['id']} verified route_source must be one "
+                        f"of: {allowed}."
+                    )
+                _validate_verification_evidence(
+                    raw_target,
+                    index=index,
+                    route=target["route"],
+                )
+            else:
+                if route_source not in UNVERIFIED_ROUTE_SOURCES:
+                    allowed = ", ".join(sorted(UNVERIFIED_ROUTE_SOURCES))
+                    raise ValueError(
+                        f"Target {target['id']} unverified route_source must be one "
+                        f"of: {allowed}."
+                    )
+                if raw_target.get("verification_evidence") is not None:
+                    raise ValueError(
+                        f"Target {target['id']} must not carry verification evidence "
+                        "while unverified."
+                    )
         target_id = target["id"]
         if target_id in targets_by_id:
             raise ValueError(f"Duplicate model registry target id: {target_id}")

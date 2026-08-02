@@ -52,8 +52,7 @@ The pilot evaluation covers 13 related local/open-weight variants. Refusal and r
 
 Our contributions are:
 \begin{itemize}
-    \item \textbf{Conceptualized behavioral profile.} We organize three controlled probes along increasing social scope and temporal externality, from harmful compliance to a focal dilemma choice to cumulative commons use.
-    \item \textbf{Benchmark artifact.} We release explicit task contracts for multilingual safety refusal, role-conditioned dilemma responses, and commons restraint.
+    \item \textbf{Behavioral profile and benchmark.} We organize three controlled probes along increasing social scope and temporal externality, with explicit task contracts for multilingual safety refusal, role-conditioned dilemma responses, and commons restraint.
     \item \textbf{Traceable release package.} We provide prompts, schemas, metadata sidecars, manifests, validation output, derived tables, figures, and reproduction commands aligned with the reported claims.
     \item \textbf{Open-model pilot.} We report 56,382 decisions or judgments across 13 local/open-weight model variants, using Wilson intervals for prompt-row rates and influence diagnostics for model-level cross-part correlations.
     \item \textbf{Diagnostic findings.} We report partial coupling, role-conditioned response gaps, and model-level discordances instead of collapsing the profile into a readiness score.
@@ -115,8 +114,6 @@ The closest Part~2 precedent is GovSim, an open-source generative commons enviro
 
 \section{Benchmark Design and Task Contracts}
 \subsection{Design Principles}
-The benchmark uses three design principles.
-
 \paragraph{Probe cost-shifting responses at increasing social scope.}
 Each task offers an action that would shift costs onto another party or a collective, but the tasks do not establish one common latent decision process. Part 0 tests harmful compliance affecting third parties, Part 1 tests a focal choice in a hypothetical dyad, and Part 2 tests repeated resource-use responses in a population. This micro-to-macro ordering varies interaction topology and temporal externality while retaining a machine-scorable action contract.
 
@@ -124,9 +121,7 @@ Each task offers an action that would shift costs onto another party or a collec
 Safety refusal, focal dilemma choices, and commons restraint are related deployment-relevant behaviors, but they are not interchangeable. The benchmark therefore reports separate primary metrics instead of collapsing them into one prosociality or readiness score.
 
 \paragraph{Make every claim traceable to stored artifacts.}
-Each run produces structured CSV output, actions, justifications when available, and metadata sidecars. The analysis pipeline writes derived tables, validation reports, and figures from those files, so paper claims can be audited against concrete artifacts rather than plot files alone.
-
-The task contracts are intentionally narrow: Part 0 stores responses and judge verdicts, Part 1 requires a JSON action and justification, and Part 2 records daily JSON actions plus resource and population state.
+Each run produces structured CSV output, actions, justifications when available, and metadata sidecars. Derived tables, validation reports, and figures are generated from these artifacts so the paper can be audited against stored traces rather than plot files alone.
 
 \subsection{Construct Map and Selection Rationale}
 Table~\ref{tab:construct-map} states what each probe measures and, equally important, what it omits. The suite is deliberately non-exhaustive. Fairness, truthfulness, helping, negotiation, reputation, and institutional behavior are candidates for future modules rather than unmeasured evidence of prosociality.
@@ -188,8 +183,7 @@ The primary action metric is commons restraint:
 \mathrm{restraint} =
 \frac{\#\mathrm{restrain}}{\#\mathrm{restrain}+\#\mathrm{overuse}}.
 \]
-Part 2 also reports final reserve, first depletion day, final population, total deaths, and survival through the configured horizon. This makes repeated local choices visible as aggregate population and resource trajectories.
-To summarize trajectories rather than endpoints alone, we also compute normalized area under the reserve curve (AURC) and population curve (AUPC):
+Part 2 also reports final reserve, first depletion day, final population, total deaths, survival, and normalized area under the reserve curve (AURC) and population curve (AUPC):
 \[
 \mathrm{AURC}=\frac{1}{T}\sum_{t=1}^{T}\frac{R_t}{R_{\max}}, \qquad
 \mathrm{AUPC}=\frac{1}{T}\sum_{t=1}^{T}\frac{P_t}{P_0}.
@@ -207,9 +201,6 @@ Part 0 stores model outputs and a normalized compliance verdict; Part 1 stores a
 
 \paragraph{Validation.}
 Validation is graph-independent. It checks CSV headers, duplicate rows, missing required fields, invalid actions, prompt-matrix coverage, Part 2 day continuity, incomplete days, reserve and population transition consistency, and interrupted versus complete status. The current validation report covers 27 CSV files: one Part 0 file, 13 Part 1 files, and 13 Part 2 files, with 0 failures; it validates artifact structure and transitions, not the semantic accuracy of the automated Part 0 judge labels.
-
-\paragraph{Harmful-output handling.}
-Part 0 evaluates harmful prompts and may produce unsafe completions. The anonymous supplement therefore emphasizes derived tables, validation outputs, and aggregate summaries rather than raw harmful generations. This release choice preserves the evidence used in the paper while limiting unnecessary redistribution of harmful text.
 
 \paragraph{Scale.}
 The release contains 56,382 total decisions or judgments with 0 validation failures across 27 CSV files: 3,861 Part~0 judgments, 4,992 Part~1 decisions, and 47,529 Part~2 agent-day decisions. Part~2 is below the 65,000 maximum because collapsed societies stop producing living-agent decisions.
@@ -250,7 +241,7 @@ Model & Safety refusal & Direct self-choice coop. & Commons restraint \\
 \end{table}
 
 \section{Pilot Results}
-The comparisons below are descriptive pilot results over 13 related local/open-weight variants, used to demonstrate benchmark behavior and generate hypotheses rather than estimate vendor or architecture effects.
+These descriptive results over 13 related local/open-weight variants demonstrate benchmark behavior and generate hypotheses rather than estimate vendor or architecture effects.
 
 \begin{figure}[!htbp]
 \centering
@@ -307,7 +298,7 @@ Restraint $\times$ Final population & $0.85$ [$0.57$, $0.95$] & $0.90$ [$0.69$, 
 Because there are only 13 related variants in four families, neither the conventional intervals nor the family-deletion ranges support architecture- or vendor-level inference. The machine-readable correlation table additionally reports Kendall's $\tau_b$, 2,000-replicate model-row bootstrap intervals, and leave-one-model-out ranges. The refusal--cooperation family-deletion range crosses zero widely, whereas the refusal--restraint estimate remains positive under every family deletion.
 
 \paragraph{Family profiles are not one-dimensional.}
-Within each family, release-style variants produce distinct profiles. Most notably, Qwen~2.5 base and abliterate variants have the same near-universal direct Part~1 cooperation but opposite commons outcomes. Appendix~\ref{app:extended-diagnostics} and Figures~\ref{fig:behavioral-fingerprint}--\ref{fig:model-behavior-pca} give the remaining contrasts.
+Release-style variants produce distinct profiles: most notably, Qwen~2.5 base and abliterate variants have near-universal direct Part~1 cooperation but opposite commons outcomes. Appendix~\ref{app:extended-diagnostics} and Figures~\ref{fig:behavioral-fingerprint}--\ref{fig:model-behavior-pca} give the remaining contrasts.
 
 \paragraph{Roles change the meaning of a cooperative response.}
 Part~1 treats prompt frame as an experimental variable (Figure~\ref{fig:frame-effects}). Observer prompts elicit high cooperative judgments while prediction prompts yield near-zero cooperative predictions. This gap distinguishes normative evaluation from beliefs about others; it should not be interpreted as one cooperation construct changing under superficial paraphrase.
@@ -315,7 +306,7 @@ Part~1 treats prompt frame as an experimental variable (Figure~\ref{fig:frame-ef
 Appendix Figure~\ref{fig:frame-effects} shows that nearly every model predicts selfish behavior even when it cooperates under other frames; \texttt{llama2-uncensored} is the main exception (58.3\%). Frame is the largest measured main effect (35.1\% of binary outcome variance), and the model$\times$frame interaction (9.6\%) exceeds the game-family main effect (4.3\%). Appendix~\ref{app:extended-diagnostics} and Tables~\ref{tab:part1-decomposition} and~\ref{tab:prompt-sensitivity} give the full decomposition.
 
 \paragraph{Restraint mechanically drives survival in the microworld.}
-Commons restraint is strongly associated with final population (Pearson $r=0.85$, bootstrap interval $[0.68,0.98]$), as expected from the deterministic transition rules. This verifies the implemented depletion mechanism; it is not an ecological-validity result. Appendix Figures~\ref{fig:cross-diagnostics} and~\ref{fig:restraint-population} show the model-level outcomes.
+The strong restraint--population association (Pearson $r=0.85$, bootstrap interval $[0.68,0.98]$) verifies the deterministic depletion mechanism, not ecological validity; Appendix Figures~\ref{fig:cross-diagnostics} and~\ref{fig:restraint-population} show the outcomes.
 
 \paragraph{Rationale-action mismatches as a lexical diagnostic.}
 Part 2 also records a brief rationale. A directional lexical check flags 823 of 47,529 rows (1.7\%) where an \texttt{OVERUSE} action accompanies reserve-preservation or collective-benefit language. This is a surface-form diagnostic, not evidence about hidden reasoning quality; Appendix~\ref{app:extended-diagnostics} gives its asymmetric definition and model breakdown.
@@ -324,14 +315,14 @@ Across the diagnostics, refusal is informative but incomplete. The positive refu
 
 \section{Scope and Responsible Use}
 \label{sec:scope}
-Prosocial Readiness Bench evaluates observable responses under controlled prompts, not intent or moral status. The current release is an open-model pilot: related variants and local/Ollama tag drift limit cohort inference; the April Part 0 labels scored rationale or response and lack row-level judge provenance; the Part~1 prompt order was fixed and retry attempts were not retained; Part~1 uses hypothetical one-shot choices rather than realized interaction; and Part~2 uses one homogeneous same-model trajectory per model with no repeated runs. Part~2 is a repeated stateless-prompting diagnostic, not a forecast of human institutions or deployed multi-agent systems. Real deployments add communication, tools, memory, realized individual payoffs, heterogeneous goals, uncertainty, enforceable rules, and organizational oversight. The model tags, decoding defaults, judge provenance, prompt order, and transition parameters are therefore part of the measured provider--model stack rather than stable estimates of model families.
+Prosocial Readiness Bench measures controlled responses, not intent or moral status. This open-model pilot is limited by related variants and mutable local tags; Part~0 labels that scored rationale or response without row-level judge provenance; fixed Part~1 order and unretained retries; hypothetical one-shot rather than realized interaction; one homogeneous Part~2 trajectory per model; and missing decoding controls. Model tags, decoding defaults, judge provenance, prompt order, and transition parameters are properties of the measured provider--model stack, not stable family estimates.
 
-The real-world interpretation is deliberately asymmetric. Failure to select restraint even in a transparent, low-complexity scarcity prompt identifies a minimal stress-test failure; success does not establish cooperation in a richer institution. Likewise, a gap between self choice, advice, evaluation, and prediction reveals specification sensitivity that a deployment audit should probe, but it does not predict realized bargaining behavior. The suite can therefore prioritize follow-up tests and mitigations, not certify an agent as prosocial. Communication, sanctioning, memory, heterogeneous populations, scale, shocks, and repeated parameter sweeps are external-validity tests rather than conclusions licensed by this pilot; GovSim provides a substantially richer commons precedent \citep{piatti2024govsim}.
+Part~2 uses repeated stateless prompting, not a forecast of human institutions or deployed agents. Communication, tools, memory, realized payoffs, heterogeneous goals, uncertainty, enforcement, organizational oversight, scale, shocks, and parameter sweeps remain external-validity tests; GovSim provides a richer commons precedent \citep{piatti2024govsim}. Thus failure under the transparent scarcity prompt identifies a minimal stress-test failure, but success does not establish cooperation in richer institutions. Role gaps identify specification sensitivity, not realized bargaining behavior. The suite can prioritize follow-up tests and mitigations, not certify prosociality.
 
-The artifact is intended for behavioral auditing and mitigation comparison, not for improving harmful compliance. Raw Part 0 harmful prompts and completions are excluded from the anonymous supplement by default, and multilingual harmful-request evaluation needs language-specific and culture-specific expert review before stronger cross-cultural claims. The same multilingual coverage that helps expose English-centric blind spots could surface culturally specific harmful-request patterns, so downstream releases should preserve safety filtering, access controls, and responsible-use documentation.
+The artifact supports behavioral auditing and mitigation comparison, not harmful compliance. Raw Part~0 harmful prompts and completions are excluded from the anonymous supplement; multilingual evaluation requires language- and culture-specific expert review before stronger cross-cultural claims. Because this coverage can surface culturally specific harmful-request patterns, downstream releases should retain safety filtering, access controls, and responsible-use documentation.
 
 \section{Conclusion}
-Safety Beyond Refusal packages traceable probes of harmful-request refusal, focal dilemma choices, and commons restraint. The pilot shows a non-redundant but partially coupled profile: refusal and restraint co-vary positively, while role-conditioned responses and specific model profiles expose gaps that refusal alone does not capture. The contribution is a cross-context, trace-level evaluation package rather than a latent prosociality score or a realistic society simulation. Confirmatory claims require broader model coverage, quantitative judge validation, recorded decoding controls, repeated trajectories, and sensitivity analysis over the commons dynamics.
+Safety Beyond Refusal packages traceable probes of harmful-request refusal, focal dilemma choices, and commons restraint. The pilot profile is partially coupled: refusal and restraint co-vary positively, while role-conditioned and model-specific gaps show that refusal is not a substitute for the full profile. This trace-level evaluation is neither a latent prosociality score nor a realistic society simulation. Confirmatory claims require broader coverage, quantitative judge validation, recorded decoding controls, repeated trajectories, and sensitivity analysis of the commons dynamics.
 
 \bibliographystyle{plainnat}
 \bibliography{references}
@@ -669,7 +660,7 @@ Short label & Exact tag & Family & Parameter/quantization note \\
     \item Croissant metadata: \path{data/analysis/croissant_metadata.json}. Local Croissant validation exits successfully with nonfatal metadata warnings.
     \item Figures: \path{data/graphs}.
     \item Documentation: \path{docs/release/REPRODUCIBILITY.md}, \path{docs/release/DATA_CARD.md} (datasheet- and data-card-style fields following \citealp{gebru2021datasheets,pushkarna2022datacards}), \path{docs/release/MODEL_REGISTRY.md}, \path{docs/release/COMPUTE.md}, and \path{docs/release/LICENSES_AND_TERMS.md}.
-    \item Anonymous supplement: \path{docs/conference_submission/supplement.zip}, generated from the repository root with \texttt{uv run python -m analysis.build\_supplement}. The package manifest records the exact file count and exclusions, and the final archive is checked with \texttt{ZipFile.testzip()}.
+    \item Anonymous supplement: \path{supplement.zip}, generated from the repository root with \texttt{uv run python -m analysis.build\_supplement}. The package manifest records the exact file count and exclusions, and the final archive is checked with \texttt{ZipFile.testzip()}.
 \end{itemize}
 
 From the repository root, the main reproduction commands are:
@@ -686,28 +677,6 @@ uv run python -m analysis.build_supplement
 \end{verbatim}
 \endgroup
 
-\section{NeurIPS Paper Checklist}
-\begingroup\small
-\begin{enumerate}
-\setlength{\itemsep}{1pt plus 0.5pt}
-\setlength{\parsep}{0pt}
-    \item \textbf{Claims.} \answerYes{} The abstract, introduction, results, and scope sections frame the work as a reproducible behavioral benchmark and open-model pilot over observable actions and justifications.
-    \item \textbf{Limitations.} \answerYes{} Scope boundaries are discussed in the main text, including local-model coverage, prompt sensitivity, homogeneous societies, model-tag drift, automated-judge calibration, and reasoning-text interpretation.
-    \item \textbf{Theory, assumptions, and proofs.} \answerNA{} The paper does not present theoretical theorems or proofs.
-    \item \textbf{Experimental reproducibility.} \answerYes{} Reproduction commands, metadata sidecars, manifests, validation reports, derived tables, and the supplement build command are documented in the paper and supplement.
-    \item \textbf{Open access to data and code.} \answerYes{} The anonymous supplement at \path{docs/conference_submission/supplement.zip} contains executable code, release documentation, tests, derived tables, validation outputs, figures, and Part 1/Part 2 raw CSVs with metadata sidecars. Raw Part 0 harmful prompts, source prompt CSVs, metadata sidecars, and completions are excluded by default for safety reasons.
-    \item \textbf{Experimental setting/details.} \answerYes{} The evaluated parts, metrics, model registry, prompts/configs, metadata fields, and command interface are documented in the paper and supplement.
-    \item \textbf{Statistical significance.} \answerYes{} Rate summaries include Wilson confidence intervals; cross-part correlations include Fisher-transform and bootstrap intervals, Kendall sensitivity estimates, and leave-one-model/family-out ranges. The pilot interpretation remains descriptive because the model cohort is small and related.
-    \item \textbf{Compute resources.} \answerYes{} The main text and \path{docs/release/COMPUTE.md} report local Ollama execution, the visible GPU, the cgroup RAM/no-swap/CPU quota, and model-selection implications. Metadata sidecars capture backend and run settings, but full per-run hardware metadata remains incomplete for legacy runs.
-    \item \textbf{Code of ethics.} \answerYes{} The work is an evaluation benchmark and includes safety precautions for harmful prompts.
-    \item \textbf{Broader impacts.} \answerYes{} Harmful-output handling, intended-use, and responsible-use text discuss harmful prompt handling, misuse risk, intended use, and release restrictions.
-    \item \textbf{Safeguards.} \answerNA{} The paper does not release a new pretrained model. Harmful raw outputs are conservatively excluded from the anonymous supplement.
-    \item \textbf{Licenses.} \answerYes{} The repository code is MIT-licensed. \path{docs/release/LICENSES_AND_TERMS.md} documents release terms, public MIT license labels for the Part 0 source datasets, and the policy excluding raw Part 0 harmful prompts and completions from the default anonymous supplement.
-    \item \textbf{Assets.} \answerYes{} The data card, model registry, compute note, and license/release-terms document the released evaluation artifacts.
-    \item \textbf{Crowdsourcing and human subjects.} \answerNA{} No crowdsourcing or human-subject data collection is used.
-    \item \textbf{IRB approvals.} \answerNA{} No human-subject study is conducted.
-    \item \textbf{Declaration of LLM usage.} \answerYes{} LLMs are the objects of evaluation, and an LLM judge is used for Part 0 compliance labels; the benchmark sections describe how their outputs are generated and analyzed. LLM-based assistance was also used for manuscript editing and code/layout changes, with all text, figures, references, and analyses reviewed by the authors.
-\end{enumerate}
-\endgroup
+\input{checklist}
 
 \end{document}

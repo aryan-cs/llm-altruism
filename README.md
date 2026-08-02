@@ -42,9 +42,16 @@ cp .env.example .env
 ```
 
 Fill in only the provider credentials you plan to use. Local Ollama runs do not require cloud API keys, but they do require Ollama to be installed and the requested model tag to be available locally.
-The configured NVIDIA-hosted Inference Hub uses `NVIDIA_API_KEY`; its base URL
-defaults to `https://integrate.api.nvidia.com/v1` and can be overridden with
-`INFERENCE_HUB_BASE_URL`.
+
+Internal NVIDIA InferenceHub and the public NVIDIA API Catalog/NIM are separate
+trust domains. Internal calls require `NVIDIA_API_KEY` and an explicit
+`INFERENCE_HUB_BASE_URL=https://inference-api.nvidia.com/v1`; the adapter rejects
+any other host, scheme, path, port, URL credentials, query, or fragment. The
+portal at `https://inference.nvidia.com` is not the API base. Public NIM calls
+use the separate `NVIDIA_NIM_API_KEY` and `NVIDIA_NIM_BASE_URL` variables. Never
+reuse either credential in the other endpoint profile. Explicit `api_key`
+arguments are disabled for both NVIDIA profiles, and generic OpenAI-compatible
+profiles cannot target either NVIDIA host.
 
 Run the test suite:
 
@@ -143,8 +150,16 @@ uv run python -m experiments.campaign \
 ```
 
 The `current_sota` and `historical` cohorts are defined in
-`agents/agent_config.registry.json`. Registry membership is a run plan, not a
-claim that a provider route is available or that its results appear in the
+`agents/agent_config.registry.json`. The current internal entries came from
+catalog display names, are marked `verification_status=unverified` and
+`route_source=catalog_display_only`, and cannot be executed. Replace each route
+with its exact backend-namespaced callable ID from the authenticated InferenceHub
+models API (Developer Tools display text alone is insufficient), preserve
+discovery and smoke-test evidence,
+and mark it verified only after review. The provider adapter independently
+requires a registered verified route before reading credentials and rejects a
+missing or different response-model identity. Registry membership is a run plan, not
+a claim that a provider route is available or that its results appear in the
 paper. A model enters the result set only after successful endpoint smoke tests,
 completed native artifacts, and validation.
 

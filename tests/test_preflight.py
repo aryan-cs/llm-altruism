@@ -167,18 +167,50 @@ def test_run_test_command_stops_subprocess_on_keyboard_interrupt(monkeypatch) ->
     assert process.wait_calls == [None, 5]
 
 
-def test_validate_provider_targets_resolves_inference_hub_registry_route(
+def test_validate_provider_targets_blocks_catalog_only_inference_hub_route(
     monkeypatch,
 ) -> None:
-    monkeypatch.setenv("INFERENCE_HUB_BASE_URL", "https://hub.example.test/v1")
-    metadata = preflight.validate_provider_targets(
-        [("inference-hub", "claude-opus-5")]
+    monkeypatch.setenv(
+        "INFERENCE_HUB_BASE_URL",
+        "https://inference-api.nvidia.com/v1",
     )
 
-    assert metadata["registry_version"] == "2026-08-01.1"
-    assert metadata["targets"][0]["provider"] == "inference_hub"
-    assert metadata["targets"][0]["upstream_provider"] == "anthropic"
-    assert metadata["targets"][0]["route"] == "claude-opus-5"
+    with pytest.raises(ValueError, match="not executable"):
+        preflight.validate_provider_targets(
+            [("inference-hub", "claude-opus-5")]
+        )
+
+
+def test_validate_provider_targets_requires_explicit_internal_base(monkeypatch) -> None:
+    monkeypatch.delenv("INFERENCE_HUB_BASE_URL", raising=False)
+
+    with pytest.raises(EnvironmentError, match="INFERENCE_HUB_BASE_URL"):
+        preflight.validate_provider_targets(
+            [("inference_hub", "claude-opus-5")]
+        )
+
+
+@pytest.mark.parametrize(
+    "base_url",
+    [
+        "http://inference-api.nvidia.com/v1",
+        "https://inference.nvidia.com/v1",
+        "https://integrate.api.nvidia.com/v1",
+        "https://user@inference-api.nvidia.com/v1",
+        "https://inference-api.nvidia.com/v1?credential=value",
+        "https://inference-api.nvidia.com/v1#fragment",
+    ],
+)
+def test_validate_provider_targets_rejects_unsafe_internal_base(
+    monkeypatch,
+    base_url: str,
+) -> None:
+    monkeypatch.setenv("INFERENCE_HUB_BASE_URL", base_url)
+
+    with pytest.raises(ValueError):
+        preflight.validate_provider_targets(
+            [("inference_hub", "claude-opus-5")]
+        )
 
 
 def test_validate_provider_targets_rejects_invalid_compatible_url(monkeypatch) -> None:
@@ -190,6 +222,10 @@ def test_validate_provider_targets_rejects_invalid_compatible_url(monkeypatch) -
 
 
 def test_validate_provider_targets_strict_mode_checks_credentials(monkeypatch) -> None:
+    monkeypatch.setenv(
+        "INFERENCE_HUB_BASE_URL",
+        "https://inference-api.nvidia.com/v1",
+    )
     monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
     with pytest.raises(EnvironmentError, match="NVIDIA_API_KEY"):
         preflight.validate_provider_targets(
@@ -198,10 +234,92 @@ def test_validate_provider_targets_strict_mode_checks_credentials(monkeypatch) -
         )
 
 
-def test_validate_provider_targets_rejects_unpinned_inference_hub_route() -> None:
+def test_validate_provider_targets_rejects_unpinned_inference_hub_route(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv(
+        "INFERENCE_HUB_BASE_URL",
+        "https://inference-api.nvidia.com/v1",
+    )
     with pytest.raises(ValueError, match="must be pinned"):
         preflight.validate_provider_targets(
             [("inference_hub", "typo-model")]
+        )
+
+
+def test_skipping_test_suite_cannot_bypass_unverified_route_gate(monkeypatch) -> None:
+    monkeypatch.setattr(preflight, "_should_skip_preflight", lambda: True)
+    monkeypatch.setenv(
+        "INFERENCE_HUB_BASE_URL",
+        "https://inference-api.nvidia.com/v1",
+    )
+
+    with pytest.raises(ValueError, match="not executable"):
+        preflight.run_experiment_preflight(
+            "Blocked experiment",
+            [("inference_hub", "gpt-5.6-sol")],
+        )
+
+
+def test_public_nim_strict_mode_requires_distinct_key(monkeypatch) -> None:
+    monkeypatch.setenv("NVIDIA_API_KEY", "internal-key")
+    monkeypatch.delenv("NVIDIA_NIM_API_KEY", raising=False)
+
+    with pytest.raises(EnvironmentError, match="NVIDIA_NIM_API_KEY"):
+        preflight.validate_provider_targets(
+            [("nvidia", "public-model")],
+            require_credentials=True,
+        )
+
+
+@pytest.mark.parametrize(
+    ("provider", "model", "base_url"),
+    [
+        (
+            "inference_hub",
+            "gpt-5.6-sol",
+            "https://inference-api.nvidia.com/v1",
+        ),
+        (
+            "nvidia",
+            "public-model",
+            "https://integrate.api.nvidia.com/v1",
+        ),
+    ],
+)
+def test_preflight_rejects_generic_key_override_for_strict_nvidia_profiles(
+    monkeypatch,
+    provider: str,
+    model: str,
+    base_url: str,
+) -> None:
+    monkeypatch.setenv("INFERENCE_HUB_BASE_URL", base_url)
+
+    with pytest.raises(ValueError, match="does not accept an explicit api_key"):
+        preflight.validate_provider_targets(
+            [(provider, model)],
+            connection_overrides={
+                provider: {"base_url": base_url, "api_key": "generic-key"}
+            },
+        )
+
+
+@pytest.mark.parametrize(
+    "base_url",
+    [
+        "https://inference-api.nvidia.com/v1",
+        "https://integrate.api.nvidia.com/v1",
+    ],
+)
+def test_preflight_generic_compatible_profile_cannot_target_nvidia_host(
+    monkeypatch,
+    base_url: str,
+) -> None:
+    monkeypatch.setenv("OPENAI_COMPATIBLE_BASE_URL", base_url)
+
+    with pytest.raises(ValueError, match="dedicated endpoint profile"):
+        preflight.validate_provider_targets(
+            [("openai_compatible", "route")],
         )
 
 

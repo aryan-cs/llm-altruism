@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import zipfile
 from datetime import UTC, datetime
 from pathlib import Path
@@ -9,6 +10,46 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT = PROJECT_ROOT / "docs" / "conference_submission" / "supplement.zip"
 MANIFEST_NAME = "SUPPLEMENT_MANIFEST.json"
+
+# The experiment repository supports a private OpenAI-compatible gateway, but an
+# anonymous conference artifact must neither disclose the operator nor imply an
+# author affiliation.  Apply the same deterministic substitutions to code,
+# configuration, documentation, tests, and textual data inside the ZIP.  The
+# source tree remains unchanged so the private production runner stays exact.
+ANONYMOUS_TEXT_REPLACEMENTS = (
+    ("https://inference-api.nvidia.com/v1", "https://YOUR_HOSTED_GATEWAY.example/v1"),
+    ("https://inference.nvidia.com", "https://YOUR_HOSTED_GATEWAY.example"),
+    ("inference-api.nvidia.com", "YOUR_HOSTED_GATEWAY.example"),
+    ("inference.nvidia.com", "YOUR_HOSTED_GATEWAY.example"),
+    ("INFERENCE_HUB_BASE_URL", "HOSTED_GATEWAY_BASE_URL"),
+    ("NVIDIA_API_KEY", "HOSTED_GATEWAY_API_KEY"),
+    ("inference_hub_models_api", "hosted_gateway_models_api"),
+    ("InferenceHub", "HostedGateway"),
+    ("INFERENCE_HUB", "HOSTED_GATEWAY"),
+    ("inference_hub", "hosted_gateway"),
+    ("inference-hub", "hosted-gateway"),
+    ("Inference Hub", "Hosted Gateway"),
+    ("internal NVIDIA", "private hosted"),
+    ("Internal NVIDIA", "Private hosted"),
+    ("aryan.cs.app@gmail.com", "anonymous@example.invalid"),
+    ("aryan-cs", "anonymous-author"),
+    ("Aryan Gupta", "Anonymous Author"),
+    ("/Users/aryagupta", "/home/anonymous"),
+    ("aryagupta", "anonymous"),
+)
+
+ANONYMITY_FORBIDDEN_MARKERS = (
+    "inference-api.nvidia.com",
+    "inference.nvidia.com",
+    "nvidia_api_key",
+    "inference_hub",
+    "inferencehub",
+    "aryan.cs.app@gmail.com",
+    "aryan-cs",
+    "aryan gupta",
+    "/users/aryagupta",
+    "aryagupta",
+)
 
 INCLUDE_PATHS = (
     Path("README.md"),
@@ -151,6 +192,48 @@ def _writestr(zf: zipfile.ZipFile, arcname: str, data: bytes) -> None:
     zf.writestr(info, data)
 
 
+def _anonymous_archive_path(rel_path: Path) -> str:
+    return _anonymous_text(rel_path.as_posix())
+
+
+def _anonymous_text(text: str) -> str:
+    for source, replacement in ANONYMOUS_TEXT_REPLACEMENTS:
+        text = text.replace(source, replacement)
+    text = re.sub(r"inference[ _-]?hub", "hosted_gateway", text, flags=re.IGNORECASE)
+    text = re.sub(r"nvidia_api_key", "HOSTED_GATEWAY_API_KEY", text, flags=re.IGNORECASE)
+    text = re.sub(r"aryan gupta", "Anonymous Author", text, flags=re.IGNORECASE)
+    return text
+
+
+def _anonymous_archive_payload(payload: bytes) -> bytes:
+    try:
+        text = payload.decode("utf-8")
+    except UnicodeDecodeError:
+        return payload
+    return _anonymous_text(text).encode("utf-8")
+
+
+def audit_anonymous_archive(output_path: Path) -> list[str]:
+    """Return entry/marker descriptions for anonymity leaks in a built ZIP."""
+
+    findings: list[str] = []
+    with zipfile.ZipFile(output_path) as zf:
+        for info in zf.infolist():
+            name_lower = info.filename.lower()
+            for marker in ANONYMITY_FORBIDDEN_MARKERS:
+                if marker in name_lower:
+                    findings.append(f"path {info.filename!r} contains {marker!r}")
+            payload = zf.read(info)
+            try:
+                text_lower = payload.decode("utf-8").lower()
+            except UnicodeDecodeError:
+                continue
+            for marker in ANONYMITY_FORBIDDEN_MARKERS:
+                if marker in text_lower:
+                    findings.append(f"entry {info.filename!r} contains {marker!r}")
+    return findings
+
+
 def build_supplement(
     project_root: Path = PROJECT_ROOT,
     output_path: Path = DEFAULT_OUTPUT,
@@ -168,7 +251,11 @@ def build_supplement(
         "included_roots": [path.as_posix() for path in INCLUDE_PATHS],
         "policy_exclusions": list(POLICY_EXCLUSIONS),
         "file_count": len(files),
-        "files": [path.as_posix() for path in files],
+        "files": [_anonymous_archive_path(path) for path in files],
+        "anonymization": (
+            "private hosted-gateway identifiers, endpoints, credential-variable "
+            "names, and author identifiers are deterministically replaced"
+        ),
     }
 
     with zipfile.ZipFile(output_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
@@ -178,7 +265,16 @@ def build_supplement(
             json.dumps(manifest, indent=2, sort_keys=True).encode("utf-8"),
         )
         for rel_path in files:
-            _writestr(zf, rel_path.as_posix(), (project_root / rel_path).read_bytes())
+            _writestr(
+                zf,
+                _anonymous_archive_path(rel_path),
+                _anonymous_archive_payload((project_root / rel_path).read_bytes()),
+            )
+
+    findings = audit_anonymous_archive(output_path)
+    if findings:
+        output_path.unlink()
+        raise ValueError("Anonymous supplement audit failed: " + "; ".join(findings))
 
     return output_path, files
 

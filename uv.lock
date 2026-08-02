@@ -718,6 +718,7 @@ source = { editable = "." }
 dependencies = [
     { name = "anthropic" },
     { name = "cerebras-cloud-sdk" },
+    { name = "certifi" },
     { name = "deep-translator" },
     { name = "groq" },
     { name = "matplotlib" },
@@ -740,6 +741,7 @@ dev = [
 requires-dist = [
     { name = "anthropic", specifier = ">=0.72.0" },
     { name = "cerebras-cloud-sdk", specifier = ">=1.50.0" },
+    { name = "certifi", specifier = ">=2026.1.4" },
     { name = "deep-translator", specifier = ">=1.11.4" },
     { name = "groq", specifier = ">=0.31.0" },
     { name = "matplotlib", specifier = ">=3.10.0" },

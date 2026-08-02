@@ -15,6 +15,8 @@ from experiments.part1.scenario_variants import list_scenario_variants
 from experiments.misc.attempt_log import (
     DurableAttemptLogger,
     attempt_log_path_for_csv,
+    validate_terminal_attempt_coverage,
+    verify_attempt_log_metadata,
 )
 from experiments.misc.final_answer import (
     DEFAULT_EXTRACTOR_MAX_TOKENS,
@@ -29,11 +31,18 @@ from experiments.misc.prompt_loader import load_prompt_config
 from experiments.misc.result_writer import IncrementalCsvWriter
 from experiments.misc.run_metadata import (
     base_run_metadata,
+    file_integrity_metadata,
     mark_metadata_complete,
     mark_metadata_failed,
     metadata_is_complete,
     read_metadata,
+    registry_identity_metadata,
     safe_error_message,
+    source_bundle_metadata,
+    stable_json_hash,
+    validate_resume_contract,
+    validate_file_integrity,
+    validate_metadata_integrity,
     write_metadata,
 )
 from experiments.misc.wizard import (
@@ -552,7 +561,7 @@ def _query_variant_until_valid(
             raise
         except Exception as error:
             retryable = (
-                is_retryable_api_failure(error)
+                bool(getattr(error, "retryable", is_retryable_api_failure(error)))
                 or _is_ollama_resource_error(error)
             ) and not isinstance(error, OllamaConnectionError)
             will_retry = retryable and attempt < MAX_AGENT_ATTEMPTS
@@ -602,7 +611,10 @@ def _query_variant_until_valid(
                 allowed_actions=variant.allowed_actions,
             )
         except Exception as error:
-            retryable = is_retryable_api_failure(error)
+            retryable = (
+                extraction_config is None
+                and is_retryable_api_failure(error)
+            )
             will_retry = retryable and attempt < MAX_AGENT_ATTEMPTS
             if attempt_logger is not None:
                 attempt_logger.append(
@@ -776,8 +788,16 @@ def _write_part_1_metadata(
         provider=provider,
         model=model,
         parameters=parameters,
+        prompt_config_hash=stable_json_hash(PART_1_PROMPTS),
     )
     metadata.update(parameters)
+    if extraction_config is not None:
+        metadata["resume_contract"] = _strict_resume_contract(
+            provider=provider,
+            model=model,
+            run_parameters=parameters,
+            extraction_config=extraction_config,
+        )
     attempt_log = attempt_logger.summary().to_metadata()
     attempt_log["coverage"] = "full_run"
     metadata["attempt_log"] = attempt_log
@@ -794,13 +814,88 @@ def _fresh_extraction_config(
     extractor_provider: str | None,
     extractor_model: str | None,
     extractor_max_tokens: int | None,
-) -> ExtractionConfig:
+) -> ExtractionConfig | None:
+    if all(
+        value is None
+        for value in (
+            output_token_cap,
+            extractor_provider,
+            extractor_model,
+            extractor_max_tokens,
+        )
+    ):
+        return None
     return ExtractionConfig(
-        subject_output_token_cap=(output_token_cap or DEFAULT_OUTPUT_TOKEN_CAP),
-        provider=(extractor_provider or DEFAULT_EXTRACTOR_PROVIDER),
-        model=(extractor_model or DEFAULT_EXTRACTOR_MODEL),
-        extractor_max_tokens=(extractor_max_tokens or DEFAULT_EXTRACTOR_MAX_TOKENS),
+        subject_output_token_cap=(
+            DEFAULT_OUTPUT_TOKEN_CAP
+            if output_token_cap is None
+            else output_token_cap
+        ),
+        provider=(
+            DEFAULT_EXTRACTOR_PROVIDER
+            if extractor_provider is None
+            else extractor_provider
+        ),
+        model=(
+            DEFAULT_EXTRACTOR_MODEL
+            if extractor_model is None
+            else extractor_model
+        ),
+        extractor_max_tokens=(
+            DEFAULT_EXTRACTOR_MAX_TOKENS
+            if extractor_max_tokens is None
+            else extractor_max_tokens
+        ),
     )
+
+
+def _strict_resume_contract(
+    *,
+    provider: str,
+    model: str,
+    run_parameters: dict[str, Any],
+    extraction_config: ExtractionConfig,
+) -> dict[str, Any]:
+    repo_root = Path(__file__).resolve().parents[2]
+    grading_protocol = extraction_config.to_metadata()
+    return {
+        "schema_version": 1,
+        "experiment": "part_1",
+        "source_bundle": source_bundle_metadata(
+            [
+                Path(__file__),
+                repo_root / "agents" / "agent_1.py",
+                repo_root / "agents" / "base_agent.py",
+                repo_root / "experiments" / "misc" / "attempt_log.py",
+                repo_root / "experiments" / "misc" / "final_answer.py",
+                repo_root / "experiments" / "misc" / "preflight.py",
+                repo_root / "experiments" / "misc" / "prompt_loader.py",
+                repo_root / "experiments" / "misc" / "result_writer.py",
+                repo_root / "experiments" / "misc" / "run_metadata.py",
+                repo_root / "experiments" / "part1" / "part_1_prompt.json",
+                repo_root / "experiments" / "part1" / "scenario_variants.py",
+                repo_root / "agents" / "agent_config.py",
+                repo_root / "agents" / "agent_config.registry.json",
+                repo_root / "providers" / "api_call.py",
+                repo_root / "pyproject.toml",
+                repo_root / "uv.lock",
+            ]
+        ),
+        "prompt_config_hash": stable_json_hash(PART_1_PROMPTS),
+        "grading_protocol": grading_protocol,
+        "model_roles": {
+            "subject": registry_identity_metadata([(provider, model)]),
+            "extractor": grading_protocol["extractor"],
+        },
+        "run_parameters": run_parameters,
+        "retry_policy": {
+            "agent_max_attempts": MAX_AGENT_ATTEMPTS,
+            "run_max_attempts": MAX_RUN_ATTEMPTS,
+            "initial_delay_seconds": INITIAL_RETRY_DELAY_SECONDS,
+            "max_delay_seconds": MAX_RETRY_DELAY_SECONDS,
+            "classification": "typed_provider_retryability_v1",
+        },
+    }
 
 
 def _resume_extraction_config(metadata: dict[str, Any]) -> ExtractionConfig | None:
@@ -834,12 +929,17 @@ def _sync_part_1_attempt_metadata(
     logger: DurableAttemptLogger,
     *,
     coverage: str,
+    csv_path: str | Path,
 ) -> None:
     path = Path(metadata_path)
     if not path.exists():
         return
     metadata = read_metadata(path)
     metadata.update(_attempt_log_metadata(logger, coverage=coverage))
+    if Path(csv_path).is_file():
+        metadata["artifact_integrity"] = {
+            "results": file_integrity_metadata(csv_path)
+        }
     write_metadata(path, metadata)
 
 
@@ -949,6 +1049,8 @@ def run_part_1(
             else _latest_interrupted_part_1_metadata_path()
         )
         metadata = _load_part_1_metadata(metadata_path)
+        if metadata.get("grading_protocol") is not None:
+            validate_metadata_integrity(metadata, required=True)
         extraction_config = _resume_extraction_config(metadata)
         if extraction_config is None:
             if any(
@@ -966,12 +1068,24 @@ def run_part_1(
         else:
             requested_extraction = ExtractionConfig(
                 subject_output_token_cap=(
-                    output_token_cap or extraction_config.subject_output_token_cap
+                    extraction_config.subject_output_token_cap
+                    if output_token_cap is None
+                    else output_token_cap
                 ),
-                provider=extractor_provider or extraction_config.provider,
-                model=extractor_model or extraction_config.model,
+                provider=(
+                    extraction_config.provider
+                    if extractor_provider is None
+                    else extractor_provider
+                ),
+                model=(
+                    extraction_config.model
+                    if extractor_model is None
+                    else extractor_model
+                ),
                 extractor_max_tokens=(
-                    extractor_max_tokens or extraction_config.extractor_max_tokens
+                    extraction_config.extractor_max_tokens
+                    if extractor_max_tokens is None
+                    else extractor_max_tokens
                 ),
                 timeout_seconds=extraction_config.timeout_seconds,
             )
@@ -979,6 +1093,29 @@ def run_part_1(
                 raise ValueError(
                     "Resume final-answer extraction configuration does not match metadata."
                 )
+        if extraction_config is not None:
+            validate_resume_contract(
+                metadata.get("resume_contract"),
+                _strict_resume_contract(
+                    provider=str(metadata["provider"]),
+                    model=str(metadata["model"]),
+                    run_parameters={
+                        key: metadata[key]
+                        for key in (
+                            "games",
+                            "frames",
+                            "domains",
+                            "presentations",
+                            "limit",
+                            "total_prompts",
+                            "ordering",
+                            "grading_protocol",
+                        )
+                    },
+                    extraction_config=extraction_config,
+                ),
+                experiment="Part 1",
+            )
         resumed_provider = str(metadata["provider"])
         resumed_model = str(metadata["model"])
         resumed_games = [str(value) for value in metadata["games"]]
@@ -1043,6 +1180,18 @@ def run_part_1(
         order_seed = resumed_order_seed
         order_strategy = resumed_order_strategy
         counterbalance_index = resumed_counterbalance_index
+
+        if extraction_config is not None:
+            artifact_integrity = metadata.get("artifact_integrity")
+            if not isinstance(artifact_integrity, dict):
+                raise ValueError(
+                    "Strict Part 1 resume metadata is missing result integrity."
+                )
+            validate_file_integrity(
+                csv_path,
+                artifact_integrity.get("results"),
+                label="Part 1 result CSV",
+            )
 
         completed_rows = _load_part_1_rows(csv_path)
         _render_resume_panel(
@@ -1147,6 +1296,20 @@ def run_part_1(
     )
     if is_resuming and not configured_attempt_path:
         attempt_log_coverage = "resume_segment_only"
+    if is_resuming and extraction_config is not None:
+        if not isinstance(attempt_log_metadata, dict):
+            raise ValueError(
+                "Strict Part 1 resume metadata is missing attempt-log integrity."
+            )
+        verify_attempt_log_metadata(
+            attempt_path,
+            attempt_log_metadata,
+            require_hash_chain=True,
+        )
+        validate_terminal_attempt_coverage(
+            attempt_path,
+            {row["prompt_id"] for row in completed_rows},
+        )
     attempt_logger = DurableAttemptLogger(attempt_path, experiment="part_1")
 
     run_experiment_preflight(
@@ -1229,6 +1392,9 @@ def run_part_1(
                         attempt_logger,
                         coverage=attempt_log_coverage,
                     ),
+                    "artifact_integrity": {
+                        "results": file_integrity_metadata(csv_path)
+                    },
                 },
             )
         console.print(
@@ -1340,6 +1506,15 @@ def run_part_1(
                         attempt_logger,
                         coverage=attempt_log_coverage,
                     ),
+                    **(
+                        {
+                            "artifact_integrity": {
+                                "results": file_integrity_metadata(csv_path)
+                            }
+                        }
+                        if Path(csv_path).is_file()
+                        else {}
+                    ),
                 },
             )
         if isinstance(error, OllamaConnectionError) or _is_ollama_resource_error(error):
@@ -1354,6 +1529,7 @@ def run_part_1(
             metadata_path,
             attempt_logger,
             coverage=attempt_log_coverage,
+            csv_path=csv_path,
         )
         if not suppress_keyboard_interrupt:
             raise KeyboardInterrupt()
@@ -1383,6 +1559,9 @@ def run_part_1(
                     attempt_logger,
                     coverage=attempt_log_coverage,
                 ),
+                "artifact_integrity": {
+                    "results": file_integrity_metadata(csv_path)
+                },
             },
         )
 

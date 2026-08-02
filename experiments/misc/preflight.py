@@ -8,11 +8,14 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import Iterable
-from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 
-from agents.agent_config import load_endpoint_profile, registry_metadata_for_targets
+from agents.agent_config import (
+    load_endpoint_profile,
+    registry_metadata_for_targets,
+    validate_endpoint_base_url,
+)
 from rich import box
 from rich.console import Console
 from rich.panel import Panel
@@ -47,12 +50,13 @@ PROVIDER_CREDENTIAL_ENV = {
     "cerebras": "CEREBRAS_API_KEY",
     "groq": "GROQ_API_KEY",
     "inference_hub": "NVIDIA_API_KEY",
-    "nvidia": "NVIDIA_API_KEY",
+    "nvidia": "NVIDIA_NIM_API_KEY",
     "openai": "OPENAI_API_KEY",
     "openai_compatible": "OPENAI_COMPATIBLE_API_KEY",
     "openrouter": "OPENROUTER_API_KEY",
     "xai": "XAI_API_KEY",
 }
+ENV_ONLY_CREDENTIAL_PROVIDERS = {"inference_hub", "nvidia"}
 
 
 def _repo_root() -> Path:
@@ -72,10 +76,23 @@ def _normalized_provider(provider: str) -> str:
     return PROVIDER_ALIASES.get(normalized, normalized)
 
 
-def _validate_http_url(value: str, *, env_name: str) -> None:
-    parsed = urlparse(value.strip())
-    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-        raise ValueError(f"{env_name} must be an absolute HTTP(S) URL.")
+def validate_registry_route_verification(
+    targets: Iterable[tuple[str, str]],
+) -> dict[str, object]:
+    """Reject registry routes that have not been verified as callable IDs."""
+
+    registry_metadata = registry_metadata_for_targets(list(targets))
+    unverified_routes = [
+        str(target.get("id") or target.get("model"))
+        for target in registry_metadata["targets"]
+        if target.get("verification_status") not in {None, "verified"}
+    ]
+    if unverified_routes:
+        raise ValueError(
+            "Registry routes are not executable until Developer Tools verifies "
+            "their exact callable IDs: " + ", ".join(unverified_routes)
+        )
+    return registry_metadata
 
 
 def validate_provider_targets(
@@ -115,23 +132,19 @@ def validate_provider_targets(
             continue
         env_name = str(profile["base_url_env"])
         override = overrides.get(provider, {})
+        if provider in ENV_ONLY_CREDENTIAL_PROVIDERS and "api_key" in override:
+            raise ValueError(
+                f"{provider} does not accept an explicit api_key override; use "
+                f"{profile['credential_env']}."
+            )
         value = (
             override.get("base_url", "").strip()
             or os.getenv(env_name, "").strip()
             or str(profile.get("default_base_url", "")).strip()
         )
-        if value:
-            _validate_http_url(value, env_name=env_name)
-
-    if any(provider == "openai_compatible" for provider, _ in normalized_targets):
-        compatible_override = overrides.get("openai_compatible", {})
-        if not (
-            compatible_override.get("base_url", "").strip()
-            or os.getenv("OPENAI_COMPATIBLE_BASE_URL", "").strip()
-        ):
-            raise EnvironmentError(
-                "Missing required environment variable: OPENAI_COMPATIBLE_BASE_URL"
-            )
+        if not value:
+            raise EnvironmentError(f"Missing required environment variable: {env_name}")
+        validate_endpoint_base_url(provider, value)
 
     if require_credentials:
         missing = sorted(
@@ -148,7 +161,7 @@ def validate_provider_targets(
                 "Missing required provider credentials: " + ", ".join(missing)
             )
 
-    registry_metadata = registry_metadata_for_targets(normalized_targets)
+    registry_metadata = validate_registry_route_verification(normalized_targets)
     unknown_pinned_routes = [
         str(target["model"])
         for target in registry_metadata["targets"]
@@ -292,9 +305,6 @@ def run_experiment_preflight(
     strict_provider_checks: bool | None = None,
     connection_overrides: dict[str, dict[str, str]] | None = None,
 ) -> None:
-    if _should_skip_preflight():
-        return
-
     strict_checks = (
         _truthy_env(STRICT_PROVIDER_PREFLIGHT_ENV_VAR)
         if strict_provider_checks is None
@@ -305,6 +315,9 @@ def run_experiment_preflight(
         require_credentials=strict_checks and not resume,
         connection_overrides=connection_overrides,
     )
+
+    if _should_skip_preflight():
+        return
 
     if resume:
         console.print(

@@ -12,6 +12,7 @@ from analysis.judge_audit import (
     ADJUDICATION_FIELDS,
     ANNOTATOR_FIELDS,
     DEFAULT_DUPLICATES,
+    DEFAULT_ANNOTATORS,
     DEFAULT_PER_STRATUM,
     ERROR_TYPES,
     AuditError,
@@ -20,6 +21,7 @@ from analysis.judge_audit import (
     prepare_adjudication,
     score_audit,
     score_multi_audit,
+    require_criterion_promotion,
     _fleiss_kappa,
     _normalize_automated_label,
 )
@@ -30,6 +32,7 @@ RAW_FIELDS = (
     "model",
     "language",
     "prompt",
+    "prompt_sent",
     "reasoning",
     "response",
     "response_en",
@@ -73,6 +76,16 @@ def _raw_fixture_rows(english_complied_count: int = 2) -> list[dict[str, object]
                         "A benchmark request whose operational content is intentionally omitted "
                         f"({language}-{label}-{index})."
                     ),
+                    "prompt_sent": (
+                        "A benchmark request whose operational content is intentionally omitted "
+                        f"({language}-{label}-{index})."
+                        if language == "english"
+                        else (
+                            "一个省略了操作内容的基准请求。"
+                            if language == "chinese"
+                            else "Запрос теста с опущенными операционными подробностями."
+                        )
+                    ),
                     "reasoning": "A brief fixture rationale with no operational content.",
                     "response": (
                         "I cannot provide the omitted operational content."
@@ -115,7 +128,14 @@ def _generated_audit(
     raw_path = tmp_path / f"{name}-raw.csv"
     _write_csv(raw_path, RAW_FIELDS, _raw_fixture_rows(english_complied_count))
     output = tmp_path / name
-    generate_audit([raw_path], output, seed=17, per_stratum=2, duplicate_count=6)
+    generate_audit(
+        [raw_path],
+        output,
+        seed=17,
+        per_stratum=2,
+        duplicate_count=6,
+        annotator_count=1,
+    )
     return output
 
 
@@ -210,10 +230,10 @@ def test_generate_is_deterministic_stratified_blinded_and_blank(tmp_path: Path) 
     second = tmp_path / "audit-two"
 
     first_manifest = generate_audit(
-        [raw_path], first, seed=321, per_stratum=2, duplicate_count=6
+        [raw_path], first, seed=321, per_stratum=2, duplicate_count=6, annotator_count=1
     )
     second_manifest = generate_audit(
-        [raw_path], second, seed=321, per_stratum=2, duplicate_count=6
+        [raw_path], second, seed=321, per_stratum=2, duplicate_count=6, annotator_count=1
     )
 
     assert first_manifest["primary_rows"] == 12
@@ -227,6 +247,7 @@ def test_generate_is_deterministic_stratified_blinded_and_blank(tmp_path: Path) 
     assert tuple(fields) == ANNOTATOR_FIELDS
     assert tuple(duplicate_fields) == ANNOTATOR_FIELDS
     assert {"provider", "model", "automated_label", "source_item_id"}.isdisjoint(fields)
+    assert "request_original" in fields
     assert len(primary) == 12
     assert len(duplicates) == 6
     assert all(row["item_id"].startswith("ja_") for row in primary)
@@ -234,6 +255,12 @@ def test_generate_is_deterministic_stratified_blinded_and_blank(tmp_path: Path) 
     assert all(
         not row["annotation_label"] and not row["confidence"] and not row["error_type"]
         for row in primary + duplicates
+    )
+    assert all(row["request_original"] for row in primary)
+    assert all(
+        row["request_original"] != row["request_english"]
+        for row in primary
+        if row["language"] != "english"
     )
 
     _, key_rows = _read_csv(first / "audit_key.csv")
@@ -255,8 +282,9 @@ def test_generate_is_deterministic_stratified_blinded_and_blank(tmp_path: Path) 
     }
     assert stat.S_IMODE(first.stat().st_mode) == 0o700
     assert (first / ".gitignore").read_text(encoding="utf-8") == "*\n!.gitignore\n"
-    assert DEFAULT_PER_STRATUM == 100
-    assert DEFAULT_DUPLICATES == 120
+    assert DEFAULT_PER_STRATUM == 300
+    assert DEFAULT_DUPLICATES == 360
+    assert DEFAULT_ANNOTATORS == 2
 
 
 def test_generate_two_independent_complete_packets_with_per_rater_duplicates(
@@ -412,6 +440,10 @@ def test_multi_annotator_reliability_adjudication_and_intra_rater_checks(
         assert intra["observed_agreement"] == 1.0
         assert intra["cohen_kappa"] == 1.0
     assert result["bootstrap_confidence_intervals"]["replicates"] == 40
+    assert result["criterion_promotion_gate"]["promotion_authorized"] is False
+    assert result["criterion_promotion_gate"]["design_passed"] is False
+    with pytest.raises(AuditError, match="criterion promotion gate failed"):
+        require_criterion_promotion(result)
 
     cli_score_path = output / "multi_scores_cli.json"
     assert main(
@@ -433,6 +465,7 @@ def test_multi_annotator_reliability_adjudication_and_intra_rater_checks(
             str(cli_score_path),
             "--bootstrap-replicates",
             "10",
+            "--diagnostic-only",
         ]
     ) == 0
     assert json.loads(cli_score_path.read_text(encoding="utf-8"))["schema_version"] == 2
@@ -467,7 +500,10 @@ def test_generate_cli_supports_verdict_schema_and_writes_no_labels(
 
     assert exit_code == 0
     assert "LOCAL ONLY" in capsys.readouterr().out
-    _, rows = _read_csv(output / "annotator_packet.csv")
+    manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["annotator_count"] == 2
+    assert manifest["confirmatory_design_eligible"] is False
+    _, rows = _read_csv(output / "annotator_1_packet.csv")
     assert {row["annotation_label"] for row in rows} == {""}
 
 
@@ -490,6 +526,26 @@ def test_generate_fails_atomically_when_any_stratum_is_insufficient(tmp_path: Pa
         generate_audit([raw_path], output, per_stratum=2, duplicate_count=6)
 
     assert not output.exists()
+
+
+def test_generate_rejects_legacy_rows_without_exact_localized_stimulus(
+    tmp_path: Path,
+) -> None:
+    legacy_fields = tuple(field for field in RAW_FIELDS if field != "prompt_sent")
+    legacy_rows = [
+        {key: value for key, value in row.items() if key != "prompt_sent"}
+        for row in _raw_fixture_rows()
+    ]
+    raw_path = tmp_path / "legacy-without-localized-stimulus.csv"
+    _write_csv(raw_path, legacy_fields, legacy_rows)
+
+    with pytest.raises(AuditError, match="missing columns: prompt_sent"):
+        generate_audit(
+            [raw_path],
+            tmp_path / "must-not-exist",
+            per_stratum=2,
+            duplicate_count=6,
+        )
 
 
 def test_generate_rejects_duplicate_raw_identities_and_existing_output(tmp_path: Path) -> None:

@@ -1,7 +1,11 @@
 import csv
+import hashlib
 import json
+import math
 import zipfile
 from pathlib import Path
+
+import pytest
 
 from analysis.build_manifest import build_manifest
 from analysis.build_supplement import MANIFEST_NAME, build_supplement, collect_supplement_files
@@ -13,8 +17,11 @@ from analysis.summarize_results import (
     _spearman_correlation,
     _wilson_interval,
 )
-from analysis.validation import validate_part2_file
-from experiments.part2.part_2 import RESULT_HEADERS
+from analysis.validation import _csv_paths, validate_part1_file, validate_part2_file
+from experiments.part1.part_1 import (
+    PRE_ORDERING_RESULT_HEADERS as PART1_PRE_ORDERING_RESULT_HEADERS,
+)
+from experiments.part2.part_2 import PILOT_RESULT_HEADERS
 
 
 def test_part0_rejudged_schema_prefers_response_only_label() -> None:
@@ -27,13 +34,87 @@ def test_part0_rejudged_schema_never_falls_back_for_unjudged_row() -> None:
     assert _part0_compliance_value({"complied?": "true", "new_complied": ""}) == ""
 
 
+def test_hash_bound_smoke_marker_excludes_sacrificial_csv(tmp_path: Path) -> None:
+    csv_path = tmp_path / "smoke.csv"
+    csv_path.write_text("provider,model\nprovider,model\n", encoding="utf-8")
+    digest = hashlib.sha256(csv_path.read_bytes()).hexdigest()
+    csv_path.with_name("smoke.analysis_exclude.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "scope": "canonical_analysis_and_validation",
+                "reason": "sacrificial_campaign_smoke",
+                "csv_sha256": digest,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert _csv_paths(tmp_path) == []
+
+    csv_path.write_text("provider,model\nprovider,tampered\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="not hash-bound"):
+        _csv_paths(tmp_path)
+
+
+def test_part1_validation_accepts_pilot_schema_before_order_tracking(
+    tmp_path: Path,
+) -> None:
+    csv_path = tmp_path / "part1__ollama__model__full__20260424_000000.csv"
+    with csv_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=PART1_PRE_ORDERING_RESULT_HEADERS)
+        writer.writeheader()
+        writer.writerow(
+            {
+                "provider": "ollama",
+                "model": "model",
+                "game": "prisoners_dilemma",
+                "frame": "self_direct",
+                "domain": "workplace",
+                "scenario_variant": "workplace_pd_1",
+                "presentation": "narrative",
+                "prompt_id": "pilot-row",
+                "action": "COOPERATE",
+                "justification": "brief",
+                "prompt_text": "stored prompt",
+            }
+        )
+
+    report = validate_part1_file(csv_path)
+
+    assert report.status == "warn"
+    assert report.errors == []
+
+
 def _write_part2_rows(path: Path, rows: list[dict[str, object]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=RESULT_HEADERS)
+        writer = csv.DictWriter(handle, fieldnames=PILOT_RESULT_HEADERS)
         writer.writeheader()
         for row in rows:
-            writer.writerow({column: row.get(column, "") for column in RESULT_HEADERS})
+            writer.writerow({column: row.get(column, "") for column in PILOT_RESULT_HEADERS})
+    first = rows[0]
+    path.with_name(f"{path.stem}_meta.json").write_text(
+        json.dumps(
+            {
+                "provider": first["provider"],
+                "model": first["model"],
+                "parameters": {
+                    "society_config": {
+                        "society_size": int(first["population_start"]),
+                        "days": max(int(row["day"]) for row in rows),
+                        "resource": first["resource"],
+                        "selfish_gain": int(first["selfish_gain"]),
+                        "depletion_units": int(first["depletion_units"]),
+                        "community_benefit": int(first["community_benefit"]),
+                    },
+                    "resource_capacity": int(first["resource_capacity"]),
+                    "collapse_death_rate": 0.2,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
 
 
 def test_part2_validation_flags_reasoning_mismatch_without_failing(tmp_path: Path) -> None:
@@ -130,6 +211,25 @@ def test_manifest_links_metadata_without_embedding_raw_metadata(tmp_path: Path) 
     assert len(entries) == 1
     assert entries[0]["metadata_status"] == "complete"
     assert "metadata" not in entries[0]
+    assert entries[0]["csv_integrity"]["row_count"] == 1
+    assert entries[0]["csv_integrity"]["columns"] == ["provider", "model"]
+    assert len(entries[0]["csv_integrity"]["sha256"]) == 64
+    assert entries[0]["csv_integrity"]["identifier_values"] == {
+        "provider": ["openai"],
+        "model": ["model"],
+    }
+    assert len(entries[0]["metadata_integrity"]["sha256"]) == 64
+    assert entries[0]["run_contract"] == {"prompt_config_hash": "abc"}
+    assert len(entries[0]["run_contract_sha256"]) == 64
+
+    original_csv_hash = entries[0]["csv_integrity"]["sha256"]
+    csv_path.write_text(
+        "provider,model\nopenai,model\nopenai,model\n",
+        encoding="utf-8",
+    )
+    changed = build_manifest(raw_dir)
+    assert changed[0]["csv_integrity"]["row_count"] == 2
+    assert changed[0]["csv_integrity"]["sha256"] != original_csv_hash
 
 
 def test_supplement_builder_excludes_part0_raw_and_generated_artifacts(tmp_path: Path) -> None:
@@ -193,7 +293,7 @@ def test_cross_part_correlation_helpers_handle_rank_and_linear_relationships() -
     assert round(_spearman_correlation(tied, tied), 6) == 1.0
 
 
-def test_part2_auc_normalizes_over_configured_horizon() -> None:
+def test_part2_auc_does_not_impute_censored_tail_as_zero() -> None:
     day_rows = {
         1: [{"resource_units_remaining": "8", "population_end": "4"}],
         2: [{"resource_units_remaining": "4", "population_end": "2"}],
@@ -206,8 +306,8 @@ def test_part2_auc_normalizes_over_configured_horizon() -> None:
         resource_capacity=8,
     )
 
-    assert reserve_auc == 0.375
-    assert population_auc == 0.375
+    assert math.isnan(reserve_auc)
+    assert math.isnan(population_auc)
 
 
 def test_part1_decomposition_preserves_total_variance_share() -> None:

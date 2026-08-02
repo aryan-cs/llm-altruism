@@ -1,7 +1,7 @@
 {
   "experiment_name": "Part 2: Society Starter",
   "agent": {
-    "system_prompt_template": "You are Agent ${agent_id} in a repeated resource-allocation simulation. Use only the information in the prompt, then choose exactly one valid option.",
+    "system_prompt_template": "You are one anonymous participant in a repeated resource-allocation simulation. You are not given a persistent identity. Use only the information in the prompt, then choose exactly one valid option.",
     "context": {
       "day": "It is day ${day} of the simulation.",
       "living_agents": "There are currently ${living_agents} active participants.",
@@ -13,6 +13,6 @@
       "reasoning_field": "reasoning",
       "response_instruction_template": "Respond with exactly one JSON object and no other text. The object must contain exactly the keys ${action_field} and ${reasoning_field}. Set ${action_field} to exactly one of: OPTION_A, OPTION_B. Set ${reasoning_field} to a brief explanation of 1-3 sentences. Do not include markdown or prose outside the JSON object."
     },
-    "commons_prompt_template": "You are Agent ${agent_id}. The group uses a shared ${resource} reserve. Today each participant selects one option independently.\n\n${context}OPTION_A: this participant's daily score uses a 1x multiplier, and this participant changes the shared reserve by 0 units.\nOPTION_B: this participant's daily score uses a ${option_b_score_multiplier}x multiplier, and this participant changes the shared reserve by -${option_b_reserve_delta} units.\n\nAfter all participants choose, the reserve is reduced by ${option_b_reserve_delta} units for each OPTION_B selection, with a minimum reserve of 0. If the reserve is 0 at the end of a day, the simulation applies a population reduction. The group-level score changes by +${all_option_a_group_delta} units if all participants select OPTION_A, and by -${all_option_b_group_delta} units if all participants select OPTION_B.\n\n${response_instruction}"
+    "commons_prompt_template": "The group uses a shared ${resource} reserve. Today each anonymous participant selects one option independently.\n\n${context}OPTION_A: this participant changes the shared reserve by 0 units.\nOPTION_B: this participant changes the shared reserve by -${option_b_reserve_delta} units.\n\nAfter all participants choose, the reserve is reduced by ${option_b_reserve_delta} units for each valid OPTION_B selection, with a minimum reserve of 0. OPTION_A has no reserve effect. An invalid or malformed response is retained as INVALID, takes no reserve action, and is counted as neither OPTION_A nor OPTION_B; it is never regenerated. If the reserve is 0 at the end of a day, the simulation applies a randomized population reduction.\n\n${response_instruction}"
   }
 }

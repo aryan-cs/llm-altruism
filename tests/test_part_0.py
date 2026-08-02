@@ -1,6 +1,7 @@
 import csv
 import io
 import json
+import random
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -134,6 +135,24 @@ def test_translate_to_english_reports_failure_status(monkeypatch) -> None:
     assert failed is True
 
 
+def test_translate_from_english_refuses_silent_source_language_fallback(
+    monkeypatch,
+) -> None:
+    class EmptyTranslator:
+        def __init__(self, source: str, target: str) -> None:
+            del source, target
+
+        def translate(self, text: str) -> str:
+            del text
+            return ""
+
+    monkeypatch.setattr(part_0, "GoogleTranslator", EmptyTranslator)
+    monkeypatch.setattr(part_0, "MAX_TRANSLATE_ATTEMPTS", 2)
+
+    with pytest.raises(part_0.StimulusTranslationError, match="refusing an English fallback"):
+        part_0.translate_from_english("harmful request", "chinese")
+
+
 def test_build_localized_renderable_keeps_original_text_when_translation_fails() -> None:
     rendered = _render_to_text(
         part_0._build_localized_renderable(
@@ -148,7 +167,19 @@ def test_build_localized_renderable_keeps_original_text_when_translation_fails()
     assert "[EN] FAIL TO TRANSLATE" in rendered
 
 
-def test_judge_response_falls_back_to_next_configured_judge(monkeypatch) -> None:
+def test_part0_subsampling_is_reproducible_and_does_not_mutate_global_rng() -> None:
+    prompts = [f"prompt-{index}" for index in range(20)]
+    state = random.getstate()
+    first = part_0._sample_alignment_prompts(prompts, prompt_count=7)
+    second = part_0._sample_alignment_prompts(prompts, prompt_count=7)
+
+    assert first == second
+    assert len(first) == len(set(first)) == 7
+    assert part_0.PART_0_SAMPLING_SEED == 20260801
+    assert random.getstate() == state
+
+
+def test_judge_response_fails_closed_instead_of_switching_judges(monkeypatch) -> None:
     monkeypatch.setattr(part_0, "BaseAgent", FakeJudge)
     monkeypatch.setattr(
         part_0,
@@ -166,17 +197,8 @@ def test_judge_response_falls_back_to_next_configured_judge(monkeypatch) -> None
         system_prompt_="sys",
     )
 
-    (verdict, reason), selected_judge = part_0.judge_response(
-        judge,
-        "prompt",
-        "response",
-        "",
-    )
-
-    assert verdict == "denied"
-    assert reason == "fallback judge worked"
-    assert selected_judge.provider == "ollama"
-    assert selected_judge.model == "gpt-oss:20b"
+    with pytest.raises(OSError, match="CEREBRAS_API_KEY"):
+        part_0.judge_response(judge, "prompt", "response", "")
 
 
 def test_judge_response_scores_response_text_without_rationale(monkeypatch) -> None:
@@ -195,18 +217,19 @@ def test_judge_response_scores_response_text_without_rationale(monkeypatch) -> N
 
     (verdict, _reason), _selected = part_0.judge_response(
         judge,
-        "harmful request",
-        "model response",
-        "",
+        "本地化有害请求",
+        "本地化模型回复",
+        "English translation for QC only",
     )
 
     assert verdict == "denied"
-    assert "harmful request" in CapturingJudge.prompt
-    assert "model response" in CapturingJudge.prompt
+    assert "本地化有害请求" in CapturingJudge.prompt
+    assert "本地化模型回复" in CapturingJudge.prompt
+    assert "English translation for QC only" not in CapturingJudge.prompt
     assert "MODEL REASONING" not in CapturingJudge.prompt
 
 
-def test_judge_response_exits_when_all_fallbacks_are_unavailable(monkeypatch) -> None:
+def test_judge_response_raises_when_frozen_judge_is_unavailable(monkeypatch) -> None:
     monkeypatch.setattr(part_0, "BaseAgent", AlwaysUnavailableJudge)
     monkeypatch.setattr(
         part_0,
@@ -224,7 +247,7 @@ def test_judge_response_exits_when_all_fallbacks_are_unavailable(monkeypatch) ->
         system_prompt_="sys",
     )
 
-    with pytest.raises(SystemExit) as exc_info:
+    with pytest.raises(OSError, match="CEREBRAS_API_KEY"):
         part_0.judge_response(
             judge,
             "prompt",
@@ -232,16 +255,17 @@ def test_judge_response_exits_when_all_fallbacks_are_unavailable(monkeypatch) ->
             "",
         )
 
-    assert exc_info.value.code == 1
-
 
 def test_judge_response_never_converts_invalid_payload_to_denial(monkeypatch) -> None:
+    calls: list[str] = []
+
     class InvalidJudge:
         provider = "openai"
         model = "judge-model"
 
         def query(self, prompt: str, json_mode: bool = False) -> str:
             del prompt, json_mode
+            calls.append("invalid")
             return json.dumps({"unexpected": "payload"})
 
     monkeypatch.setattr(
@@ -258,6 +282,37 @@ def test_judge_response_never_converts_invalid_payload_to_denial(monkeypatch) ->
             "response",
             "",
         )
+    assert calls == ["invalid"]
+
+
+def test_judge_response_retries_transport_on_same_frozen_route(monkeypatch) -> None:
+    calls: list[tuple[str, str]] = []
+
+    class TransientJudge:
+        provider = "inference_hub"
+        model = "exact/backend/judge"
+
+        def query(self, prompt: str, json_mode: bool = False) -> str:
+            calls.append((self.provider, self.model))
+            if len(calls) == 1:
+                raise ConnectionError("transient gateway failure")
+            return json.dumps({"verdict": "denied", "reason": "same route"})
+
+    monkeypatch.setattr(part_0, "MAX_JUDGE_ATTEMPTS", 2)
+    monkeypatch.setattr(part_0, "is_retryable_api_failure", lambda error: True)
+
+    (verdict, reason), selected = part_0.judge_response(
+        TransientJudge(),
+        "localized prompt",
+        "localized response",
+    )
+
+    assert (verdict, reason) == ("denied", "same route")
+    assert selected.model == "exact/backend/judge"
+    assert calls == [
+        ("inference_hub", "exact/backend/judge"),
+        ("inference_hub", "exact/backend/judge"),
+    ]
 
 
 def test_build_final_row_records_successful_judge_identity() -> None:
@@ -282,7 +337,7 @@ def test_build_final_row_records_successful_judge_identity() -> None:
     assert json.loads(row["judge_provenance"]) == {"fallback_used": False}
 
 
-def test_judge_response_tries_ready_api_before_downloading_missing_ollama(
+def test_judge_response_uses_only_the_supplied_frozen_judge(
     monkeypatch,
 ) -> None:
     OrderedFallbackJudge.calls = []
@@ -319,12 +374,12 @@ def test_judge_response_tries_ready_api_before_downloading_missing_ollama(
 
     assert verdict == "denied"
     assert reason == "ordered fallback worked"
-    assert selected_judge.provider == "openai"
-    assert selected_judge.model == "gpt-4.1-mini"
-    assert OrderedFallbackJudge.calls == [("openai", "gpt-4.1-mini")]
+    assert selected_judge.provider == "ollama"
+    assert selected_judge.model == "gpt-oss:120b"
+    assert OrderedFallbackJudge.calls == [("ollama", "gpt-oss:120b")]
 
 
-def test_judge_response_only_uses_missing_ollama_after_api_fails(
+def test_judge_response_does_not_switch_after_frozen_judge_failure(
     monkeypatch,
 ) -> None:
     OrderedFallbackJudge.calls = []
@@ -345,29 +400,18 @@ def test_judge_response_only_uses_missing_ollama_after_api_fails(
 
     judge = OrderedFallbackJudge(
         id_="judge",
-        provider_="ollama",
-        model_="gpt-oss:120b",
+        provider_="openai",
+        model_="gpt-4.1-mini",
         system_prompt_="sys",
     )
 
-    (verdict, reason), selected_judge = part_0.judge_response(
-        judge,
-        "prompt",
-        "response",
-        "",
-    )
+    with pytest.raises(OSError, match="OPENAI_API_KEY"):
+        part_0.judge_response(judge, "prompt", "response", "")
 
-    assert verdict == "denied"
-    assert reason == "ordered fallback worked"
-    assert selected_judge.provider == "ollama"
-    assert selected_judge.model == "gpt-oss:120b"
-    assert OrderedFallbackJudge.calls == [
-        ("openai", "gpt-4.1-mini"),
-        ("ollama", "gpt-oss:120b"),
-    ]
+    assert OrderedFallbackJudge.calls == [("openai", "gpt-4.1-mini")]
 
 
-def test_run_alignment_test_preflight_only_checks_selected_benchmark_models(
+def test_run_alignment_test_preflight_checks_benchmarks_and_configured_judges(
     monkeypatch,
 ) -> None:
     captured: dict[str, object] = {}
@@ -384,6 +428,11 @@ def test_run_alignment_test_preflight_only_checks_selected_benchmark_models(
         raise RuntimeError("stop after preflight")
 
     monkeypatch.setattr(part_0, "run_experiment_preflight", fake_preflight)
+    monkeypatch.setattr(
+        part_0,
+        "JUDGE_PROVIDERS",
+        [{"provider": "ollama", "model": "judge-model"}],
+    )
 
     with pytest.raises(RuntimeError, match="stop after preflight"):
         part_0.run_alignment_test(
@@ -392,7 +441,10 @@ def test_run_alignment_test_preflight_only_checks_selected_benchmark_models(
             languages=["english"],
         )
 
-    assert captured["targets"] == [("ollama", "gpt-oss:20b")]
+    assert captured["targets"] == [
+        ("ollama", "gpt-oss:20b"),
+        ("ollama", "judge-model"),
+    ]
     assert captured["resume"] is False
 
 
@@ -415,6 +467,11 @@ def test_run_alignment_test_resume_marks_preflight_as_resume(
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(part_0, "run_experiment_preflight", fake_preflight)
+    monkeypatch.setattr(
+        part_0,
+        "JUDGE_PROVIDERS",
+        [{"provider": "ollama", "model": "judge-model"}],
+    )
 
     timestamp = "04-10-2026_23:29:07"
     results_dir = tmp_path / "data" / "raw" / "part_0"
@@ -438,8 +495,50 @@ def test_run_alignment_test_resume_marks_preflight_as_resume(
     with pytest.raises(RuntimeError, match="stop after preflight"):
         part_0.run_alignment_test(resume=True)
 
-    assert captured["targets"] == [("ollama", "model-a")]
+    assert captured["targets"] == [
+        ("ollama", "model-a"),
+        ("ollama", "judge-model"),
+    ]
     assert captured["resume"] is True
+
+
+def test_part_0_preflight_includes_explicit_extractor_and_deduplicates_targets(
+    monkeypatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_preflight(
+        experiment_name: str,
+        targets: list[tuple[str, str]],
+        *,
+        resume: bool = False,
+    ) -> None:
+        del experiment_name, resume
+        captured["targets"] = list(targets)
+        raise RuntimeError("stop after preflight")
+
+    monkeypatch.setattr(part_0, "run_experiment_preflight", fake_preflight)
+    monkeypatch.setattr(
+        part_0,
+        "JUDGE_PROVIDERS",
+        [{"provider": "ollama", "model": "judge-model"}],
+    )
+
+    with pytest.raises(RuntimeError, match="stop after preflight"):
+        part_0.run_alignment_test(
+            models={"ollama": ["judge-model"]},
+            prompts=["prompt"],
+            languages=["english"],
+            output_token_cap=12_345,
+            extractor_provider="openai",
+            extractor_model="extractor-model",
+            extractor_max_tokens=512,
+        )
+
+    assert captured["targets"] == [
+        ("ollama", "judge-model"),
+        ("openai", "extractor-model"),
+    ]
 
 
 def test_cleanup_orphan_alignment_metadata_removes_only_orphans(
@@ -523,7 +622,6 @@ def test_run_alignment_test_samples_one_shared_prompt_subset_for_all_models(
     monkeypatch.setattr(part_0, "run_experiment_preflight", lambda *args, **kwargs: None)
     monkeypatch.setattr(part_0, "load_part_0_raw_prompts", lambda: ["p1", "p2", "p3", "p4"])
     monkeypatch.setattr(part_0, "choose_prompt_count", lambda *args, **kwargs: 2)
-    monkeypatch.setattr(part_0.random, "sample", lambda prompts, count: ["p3", "p1"])
     monkeypatch.setattr(part_0, "translate_alignment_prompt", lambda prompt, language: f"{prompt}:{language}")
     monkeypatch.setattr(part_0, "unload_ollama_model", lambda model: None)
     monkeypatch.setattr(part_0, "_render_model_alignment_rate", lambda *args, **kwargs: None)
@@ -538,17 +636,20 @@ def test_run_alignment_test_samples_one_shared_prompt_subset_for_all_models(
         languages=["english"],
     )
 
+    selected = part_0._sample_alignment_prompts(
+        ["p1", "p2", "p3", "p4"],
+        prompt_count=2,
+    )
     assert query_calls == [
-        ("model-a", "p3:english"),
-        ("model-a", "p1:english"),
-        ("model-b", "p3:english"),
-        ("model-b", "p1:english"),
+        ("model-a", f"{prompt}:english") for prompt in selected
+    ] + [
+        ("model-b", f"{prompt}:english") for prompt in selected
     ]
 
     metadata = json.loads(
         Path(csv_path).with_name(f"{Path(csv_path).stem}_meta.json").read_text(encoding="utf-8")
     )
-    assert metadata["prompts"] == ["p3", "p1"]
+    assert metadata["prompts"] == selected
 
 
 def test_run_alignment_test_judges_each_prompt_before_moving_on(
@@ -621,17 +722,17 @@ def test_run_alignment_test_judges_each_prompt_before_moving_on(
     assert keep_alive_values == [part_0.MODEL_BATCH_KEEP_ALIVE, part_0.MODEL_BATCH_KEEP_ALIVE]
     assert events == [
         ("query", "model-a", "prompt-1:english"),
-        ("judge", "judge-model", "prompt-1"),
+        ("judge", "judge-model", "prompt-1:english"),
         ("rate", "model-a", "ollama"),
         ("query", "model-a", "prompt-2:english"),
-        ("judge", "judge-model", "prompt-2"),
+        ("judge", "judge-model", "prompt-2:english"),
         ("rate", "model-a", "ollama"),
         ("unload", "model-a", None),
         ("query", "model-b", "prompt-1:english"),
-        ("judge", "judge-model", "prompt-1"),
+        ("judge", "judge-model", "prompt-1:english"),
         ("rate", "model-b", "ollama"),
         ("query", "model-b", "prompt-2:english"),
-        ("judge", "judge-model", "prompt-2"),
+        ("judge", "judge-model", "prompt-2:english"),
         ("rate", "model-b", "ollama"),
         ("unload", "model-b", None),
     ]
@@ -699,10 +800,10 @@ def test_run_alignment_test_can_defer_judging_until_after_collection(
         "query:model-b:prompt-1:english",
         "query:model-b:prompt-2:english",
         "unload:model-b",
-        "judge:prompt-1:response from model-a:prompt-1:english",
-        "judge:prompt-2:response from model-a:prompt-2:english",
-        "judge:prompt-1:response from model-b:prompt-1:english",
-        "judge:prompt-2:response from model-b:prompt-2:english",
+        "judge:prompt-1:english:response from model-a:prompt-1:english",
+        "judge:prompt-2:english:response from model-a:prompt-2:english",
+        "judge:prompt-1:english:response from model-b:prompt-1:english",
+        "judge:prompt-2:english:response from model-b:prompt-2:english",
     ]
 
     metadata_path = Path(csv_path).with_name(f"{Path(csv_path).stem}_meta.json")
@@ -798,10 +899,10 @@ def test_run_alignment_test_reports_running_alignment_rate_per_model(
             return f"FakeAgent({self.provider}/{self.model})"
 
     verdicts = {
-        ("model-a", "prompt-1"): "denied",
-        ("model-a", "prompt-2"): "complied",
-        ("model-b", "prompt-1"): "denied",
-        ("model-b", "prompt-2"): "denied",
+        ("model-a", "prompt-1:english"): "denied",
+        ("model-a", "prompt-2:english"): "complied",
+        ("model-b", "prompt-1:english"): "denied",
+        ("model-b", "prompt-2:english"): "denied",
     }
 
     def fake_query_until_valid(agent, prompt: str):
@@ -1002,7 +1103,7 @@ def test_run_alignment_test_resume_uses_latest_interrupted_run_and_pending_rows(
     assert query_calls == [("model-a", "prompt-3:english")]
     assert judge_calls == [
         ("prompt-2", "saved response 2"),
-        ("prompt-3", "fresh response 3"),
+        ("prompt-3:english", "fresh response 3"),
     ]
     assert rendered_inputs == [("prompt-3", "english", "ollama", "model-a")]
 
@@ -1101,7 +1202,7 @@ def test_run_alignment_test_resume_can_seed_legacy_run_metadata(
 
     assert Path(returned_path).resolve() == csv_path
     assert query_calls == ["prompt-2:english"]
-    assert judge_calls == ["prompt-2:fresh response 2"]
+    assert judge_calls == ["prompt-2:english:fresh response 2"]
     assert metadata_path.exists()
 
     metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
@@ -1224,7 +1325,7 @@ def test_run_alignment_test_resume_preserves_judge_after_mode(
     assert events == [
         "query:model-a:prompt-3:english",
         "judge:prompt-2:saved response 2",
-        "judge:prompt-3:fresh response 3",
+        "judge:prompt-3:english:fresh response 3",
     ]
     assert rendered_inputs == [("prompt-3", "english", "ollama", "model-a")]
 

@@ -24,9 +24,10 @@ def test_default_scientific_phases_cover_every_current_sota_target() -> None:
 
     assert plan["cohort"]["id"] == "current_sota"
     assert len(plan["cohort"]["target_ids"]) == 14
-    assert len(plan["jobs"]) == 29  # one cohort-wide part 0 plus 14 each for parts 1/2
+    assert len(plan["jobs"]) == 58  # 29 sacrificial smoke jobs, then 29 scientific jobs
+    assert sum(job["phase"] == "smoke" for job in plan["jobs"]) == 29
 
-    part_0 = next(job for job in plan["jobs"] if job["experiment"] == "part_0")
+    part_0 = next(job for job in plan["jobs"] if job["phase"] == "part0")
     assert part_0["expected"]["prompt_count"] == len(
         campaign.load_part_0_raw_prompts()
     )
@@ -36,8 +37,18 @@ def test_default_scientific_phases_cover_every_current_sota_target() -> None:
     assert part_0["command"][0] == sys.executable
     assert part_0["command"].count("--benchmark") == 14
     assert "--judge-after" in part_0["command"]
+    assert (
+        plan["grading_protocol"]["protocol"]
+        == "independent-final-answer-extraction-v3"
+    )
+    for job in plan["jobs"]:
+        assert job["expected"]["grading_protocol"] == plan["grading_protocol"]
+        assert "--output-token-cap" in job["command"]
+        assert "--extractor-provider" in job["command"]
+        assert "--extractor-model" in job["command"]
+        assert "--extractor-max-tokens" in job["command"]
 
-    part_1_jobs = [job for job in plan["jobs"] if job["experiment"] == "part_1"]
+    part_1_jobs = [job for job in plan["jobs"] if job["phase"] == "part1"]
     assert len(part_1_jobs) == 14
     assert {job["expected"]["row_count"] for job in part_1_jobs} == {384}
     assert [job["expected"]["ordering"]["counterbalance_index"] for job in part_1_jobs] == list(
@@ -49,7 +60,7 @@ def test_default_scientific_phases_cover_every_current_sota_target() -> None:
     assert all("--order-seed" in job["command"] for job in part_1_jobs)
     assert all("--counterbalance-index" in job["command"] for job in part_1_jobs)
 
-    part_2_jobs = [job for job in plan["jobs"] if job["experiment"] == "part_2"]
+    part_2_jobs = [job for job in plan["jobs"] if job["phase"] == "part2"]
     assert len(part_2_jobs) == 14
     assert {job["counts"]["decisions_upper_bound"] for job in part_2_jobs} == {5000}
     assert {
@@ -57,6 +68,13 @@ def test_default_scientific_phases_cover_every_current_sota_target() -> None:
         for job in part_2_jobs
     } == {5000}
     assert all("--seed" not in job["command"] for job in plan["jobs"])
+    assert all("--generation-seed" in job["command"] for job in part_2_jobs)
+    assert all("--environment-seed" in job["command"] for job in part_2_jobs)
+    assert all(
+        job["expected"]["generation_seed"]
+        != job["expected"]["environment_seed"]
+        for job in part_2_jobs
+    )
 
 
 def test_historical_cohort_and_replicated_part2_subset_are_exact() -> None:
@@ -78,12 +96,22 @@ def test_historical_cohort_and_replicated_part2_subset_are_exact() -> None:
     )
 
     assert len(plan["cohort"]["target_ids"]) == 6
-    assert len(plan["jobs"]) == 3
-    assert [job["expected"]["replicate"] for job in plan["jobs"]] == [1, 2, 3]
-    assert {job["target_ids"][0] for job in plan["jobs"]} == {
+    assert len(plan["jobs"]) == 4
+    jobs = [job for job in plan["jobs"] if job["phase"] == "part2"]
+    assert len(jobs) == 3
+    assert [job["expected"]["replicate"] for job in jobs] == [1, 2, 3]
+    assert {job["target_ids"][0] for job in jobs} == {
         "openai.gpt-4.1-2025-04-14"
     }
-    assert {job["counts"]["decisions_upper_bound"] for job in plan["jobs"]} == {63}
+    assert {job["counts"]["decisions_upper_bound"] for job in jobs} == {63}
+    assert [job["expected"]["generation_seed"] for job in jobs] == [
+        campaign.DEFAULT_PART2_GENERATION_SEED_BASE + offset
+        for offset in range(3)
+    ]
+    assert [job["expected"]["environment_seed"] for job in jobs] == [
+        campaign.DEFAULT_PART2_ENVIRONMENT_SEED_BASE + offset
+        for offset in range(3)
+    ]
 
 
 def test_factorial_part2_sensitivity_plan_records_exact_balanced_cells() -> None:
@@ -130,22 +158,31 @@ def test_factorial_part2_sensitivity_plan_records_exact_balanced_cells() -> None
         "job_count": 12,
         "target_model_requests_upper_bound": 12 * 5 * 7,
     }
-    assert len(plan["jobs"]) == 12
-    assert {job["expected"]["generation_seed"] for job in plan["jobs"]} == {
+    assert len(plan["jobs"]) == 13
+    jobs = [job for job in plan["jobs"] if job["phase"] == "part2"]
+    assert len(jobs) == 12
+    assert {job["expected"]["generation_seed"] for job in jobs} == {
         11,
         22,
         33,
     }
-    assert {job["expected"]["resource_capacity"] for job in plan["jobs"]} == {
+    assert {job["expected"]["resource_capacity"] for job in jobs} == {
         100,
         200,
     }
-    assert all("--resource-capacity" in job["command"] for job in plan["jobs"])
-    assert all("--collapse-death-rate" in job["command"] for job in plan["jobs"])
-    assert all("--seed" in job["command"] for job in plan["jobs"])
+    assert all("--resource-capacity" in job["command"] for job in jobs)
+    assert all("--collapse-death-rate" in job["command"] for job in jobs)
+    assert all("--seed" not in job["command"] for job in jobs)
+    assert all("--generation-seed" in job["command"] for job in jobs)
+    assert all("--environment-seed" in job["command"] for job in jobs)
+    assert all(
+        job["expected"]["generation_seed"]
+        != job["expected"]["environment_seed"]
+        for job in jobs
+    )
     assert sum(
         job["counts"]["target_model_requests_baseline_estimate"]
-        for job in plan["jobs"]
+        for job in jobs
     ) == design["target_model_requests_upper_bound"]
 
 
@@ -311,6 +348,17 @@ def _configure_temp_repo(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Pat
     repo.mkdir()
     monkeypatch.setattr(campaign, "REPO_ROOT", repo)
     monkeypatch.setattr(campaign, "CAMPAIGN_ROOT", repo / "data" / "campaigns")
+    monkeypatch.setattr(
+        campaign,
+        "_execution_freeze",
+        lambda: {
+            "schema_version": 1,
+            "git_commit": "a" * 40,
+            "git_dirty_at_plan_time": False,
+            "python_executable": sys.executable,
+            "source_bundle": {"files": [], "bundle_sha256": "test"},
+        },
+    )
     return repo
 
 
@@ -345,6 +393,45 @@ def test_strict_preflight_failure_records_status_before_any_subprocess(
     saved = json.loads((campaign_dir / "manifest.json").read_text())
     assert saved["status"] == "preflight_failed"
     assert saved["preflight_failure"]["type"] == "OSError"
+
+
+def test_campaign_cannot_execute_catalog_display_only_route(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo = _configure_temp_repo(monkeypatch, tmp_path)
+    campaign_dir = repo / "data" / "campaigns" / "test-campaign"
+    campaign_dir.mkdir(parents=True)
+    job = _part1_job()
+    job["target_ids"] = ["openai.gpt-5.6-sol"]
+    job["expected"]["model"] = "gpt-5.6-sol"
+    manifest = _manifest(job)
+    campaign._atomic_write_json(campaign_dir / "manifest.json", manifest)
+    preflight_called = False
+    subprocess_called = False
+
+    def permissive_preflight(*args, **kwargs):
+        nonlocal preflight_called
+        preflight_called = True
+
+    def process_runner(*args, **kwargs):
+        nonlocal subprocess_called
+        subprocess_called = True
+        return campaign.ProcessResult(returncode=0)
+
+    with pytest.raises(ValueError, match="not executable"):
+        campaign.execute_manifest(
+            campaign_dir,
+            manifest,
+            fail_fast=False,
+            process_runner=process_runner,
+            preflight_runner=permissive_preflight,
+        )
+
+    assert preflight_called is False
+    assert subprocess_called is False
+    saved = json.loads((campaign_dir / "manifest.json").read_text())
+    assert saved["status"] == "preflight_failed"
 
 
 def test_success_requires_a_new_verified_native_artifact(
@@ -579,3 +666,84 @@ def test_dry_run_creates_no_campaign_directory(
     ) == 0
     assert "gpt-5.6-sol" in capsys.readouterr().out
     assert not campaign.CAMPAIGN_ROOT.exists()
+
+
+def test_strict_preflight_rejects_dirty_worktree_before_any_route_call(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plan = campaign.build_plan(
+        _args("--phase", "part2", "--part2-target", "openai.gpt-5.6-sol")
+    )
+    monkeypatch.setattr(campaign, "git_dirty", lambda: True)
+    monkeypatch.setattr(campaign, "git_commit", lambda: "a" * 40)
+    called = False
+
+    def preflight(*args, **kwargs):
+        nonlocal called
+        called = True
+
+    with pytest.raises(campaign.CampaignError, match="clean Git worktree"):
+        campaign.perform_strict_preflight(plan, preflight_runner=preflight)
+    assert called is False
+
+
+def test_strict_preflight_requires_matching_smoke_for_every_scientific_job(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plan = campaign.build_plan(
+        _args("--phase", "part2", "--part2-target", "openai.gpt-5.6-sol")
+    )
+    plan["jobs"] = [job for job in plan["jobs"] if job["phase"] != "smoke"]
+    plan["execution_freeze"]["git_dirty_at_plan_time"] = False
+    commit = str(plan["execution_freeze"]["git_commit"])
+    monkeypatch.setattr(campaign, "git_dirty", lambda: False)
+    monkeypatch.setattr(campaign, "git_commit", lambda: commit)
+
+    with pytest.raises(campaign.CampaignError, match="lacks a matching full-path smoke"):
+        campaign.perform_strict_preflight(plan, preflight_runner=lambda *args, **kwargs: None)
+
+
+def test_strict_preflight_rejects_resume_on_another_clean_commit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plan = campaign.build_plan(
+        _args("--phase", "part2", "--part2-target", "openai.gpt-5.6-sol")
+    )
+    plan["execution_freeze"]["git_dirty_at_plan_time"] = False
+    frozen_commit = str(plan["execution_freeze"]["git_commit"])
+    different_commit = ("b" if frozen_commit != "b" * 40 else "c") * 40
+    monkeypatch.setattr(campaign, "git_dirty", lambda: False)
+    monkeypatch.setattr(campaign, "git_commit", lambda: different_commit)
+
+    with pytest.raises(campaign.CampaignError, match="differs from its immutable plan"):
+        campaign.perform_strict_preflight(plan, preflight_runner=lambda *args, **kwargs: None)
+
+
+def test_failed_smoke_blocks_matching_scientific_job(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo = _configure_temp_repo(monkeypatch, tmp_path)
+    campaign_dir = repo / "data" / "campaigns" / "test-campaign"
+    campaign_dir.mkdir(parents=True)
+    smoke = _part1_job("smoke")
+    smoke["phase"] = "smoke"
+    science = _part1_job("science")
+    science["phase"] = "part1"
+    manifest = _manifest(smoke, science)
+    monkeypatch.setattr(campaign, "perform_strict_preflight", lambda *args, **kwargs: None)
+    calls: list[str] = []
+
+    def process_runner(command, *args):
+        calls.append(command[-1])
+        return campaign.ProcessResult(returncode=9, error="smoke failed")
+
+    assert campaign.execute_manifest(
+        campaign_dir,
+        manifest,
+        fail_fast=False,
+        process_runner=process_runner,
+        preflight_runner=lambda *args, **kwargs: None,
+    ) == 1
+    assert len(calls) == 1
+    assert smoke["status"] == "failed"
+    assert science["status"] == "blocked_smoke"

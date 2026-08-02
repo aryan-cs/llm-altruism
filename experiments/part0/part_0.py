@@ -12,7 +12,12 @@ from pathlib import Path
 
 from agents.agent_0 import Agent0
 from agents.base_agent import BaseAgent
-from experiments.misc.attempt_log import DurableAttemptLogger, attempt_log_path_for_csv
+from experiments.misc.attempt_log import (
+    DurableAttemptLogger,
+    attempt_log_path_for_csv,
+    validate_terminal_attempt_coverage,
+    verify_attempt_log_metadata,
+)
 from experiments.misc.final_answer import (
     DEFAULT_EXTRACTOR_MAX_TOKENS,
     DEFAULT_EXTRACTOR_MODEL,
@@ -32,10 +37,18 @@ from experiments.misc.prompt_loader import (
 from experiments.misc.result_writer import IncrementalCsvWriter
 from experiments.misc.run_metadata import (
     base_run_metadata,
+    file_integrity_metadata,
     mark_metadata_complete,
     mark_metadata_failed,
+    read_metadata,
+    registry_identity_metadata,
+    source_bundle_metadata,
     stable_json_hash,
     safe_error_message,
+    validate_resume_contract,
+    validate_file_integrity,
+    validate_metadata_integrity,
+    write_metadata,
 )
 from experiments.misc.wizard import (
     choose_benchmark_models,
@@ -49,6 +62,7 @@ from providers.api_call import (
     ResponseParseError,
     ollama_model_available_locally,
     failure_provenance,
+    is_retryable_api_failure,
 )
 from providers.api_call import unload_ollama_model
 from rich.console import Console, Group
@@ -60,6 +74,8 @@ from rich.text import Text
 from rich import box
 
 console = Console()
+
+PART_0_SAMPLING_SEED = 20260801
 
 
 _JUDGE_REFUSAL_KEYWORDS: tuple[str, ...] = (
@@ -316,6 +332,12 @@ def _headless_bar_width() -> int:
 MAX_TRANSLATE_ATTEMPTS = 3
 MAX_JUDGE_ATTEMPTS = 10
 MAX_AGENT_ATTEMPTS = 10
+
+
+class StimulusTranslationError(RuntimeError):
+    """A requested non-English stimulus could not be rendered exactly."""
+
+
 PART_0_PROMPTS = load_prompt_config("part_0")
 PART_0_CONFIG = load_experiment_json("part_0_config.json")
 EXPERIMENT_NAME = PART_0_PROMPTS["experiment_name"]
@@ -329,7 +351,8 @@ LOCALIZED_RESPONSE_SUFFIX = PART_0_PROMPTS["translation"]["localized_response_su
 PROVIDER_ENV_VARS = {
     "anthropic": "ANTHROPIC_API_KEY",
     "openai": "OPENAI_API_KEY",
-    "nvidia": "NVIDIA_API_KEY",
+    "inference_hub": "NVIDIA_API_KEY",
+    "nvidia": "NVIDIA_NIM_API_KEY",
     "cerebras": "CEREBRAS_API_KEY",
     "openrouter": "OPENROUTER_API_KEY",
     "groq": "GROQ_API_KEY",
@@ -460,7 +483,12 @@ def _load_alignment_rows(
             return [
                 {
                     **{column: row.get(column, "") or "" for column in legacy_pending},
-                    "prompt_sent": row.get("prompt", "") or "",
+                    "prompt_sent": (
+                        row.get("prompt", "") or ""
+                        if (row.get("language", "") or "").strip().lower()
+                        == "english"
+                        else ""
+                    ),
                 }
                 for row in reader
             ]
@@ -583,6 +611,7 @@ def _write_alignment_metadata(
         "models": models,
         "prompts": prompts,
         "languages": languages,
+        "sampling_seed": PART_0_SAMPLING_SEED,
         "grading_protocol": (
             extraction_config.to_metadata() if extraction_config is not None else None
         ),
@@ -600,15 +629,21 @@ def _write_alignment_metadata(
         prompt_config_hash=stable_json_hash(PART_0_PROMPTS),
     )
     payload.update(parameters)
+    if extraction_config is not None:
+        payload["resume_contract"] = _strict_resume_contract(
+            models=models,
+            prompts=prompts,
+            languages=languages,
+            judge_after=judge_after,
+            extraction_config=extraction_config,
+        )
     if judge_after:
         payload["judge_after"] = True
     if attempt_logger is not None:
         attempt_metadata = attempt_logger.summary().to_metadata()
         attempt_metadata["coverage"] = "full_run"
         payload["attempt_log"] = attempt_metadata
-    with metadata_path.open("w", encoding="utf-8") as handle:
-        json.dump(payload, handle, ensure_ascii=False, indent=2)
-        handle.write("\n")
+    write_metadata(metadata_path, payload)
 
 
 def _fresh_extraction_config(
@@ -617,13 +652,102 @@ def _fresh_extraction_config(
     extractor_provider: str | None,
     extractor_model: str | None,
     extractor_max_tokens: int | None,
-) -> ExtractionConfig:
+) -> ExtractionConfig | None:
+    if all(
+        value is None
+        for value in (
+            output_token_cap,
+            extractor_provider,
+            extractor_model,
+            extractor_max_tokens,
+        )
+    ):
+        return None
     return ExtractionConfig(
-        subject_output_token_cap=(output_token_cap or DEFAULT_OUTPUT_TOKEN_CAP),
-        provider=(extractor_provider or DEFAULT_EXTRACTOR_PROVIDER),
-        model=(extractor_model or DEFAULT_EXTRACTOR_MODEL),
-        extractor_max_tokens=(extractor_max_tokens or DEFAULT_EXTRACTOR_MAX_TOKENS),
+        subject_output_token_cap=(
+            DEFAULT_OUTPUT_TOKEN_CAP
+            if output_token_cap is None
+            else output_token_cap
+        ),
+        provider=(
+            DEFAULT_EXTRACTOR_PROVIDER
+            if extractor_provider is None
+            else extractor_provider
+        ),
+        model=(
+            DEFAULT_EXTRACTOR_MODEL
+            if extractor_model is None
+            else extractor_model
+        ),
+        extractor_max_tokens=(
+            DEFAULT_EXTRACTOR_MAX_TOKENS
+            if extractor_max_tokens is None
+            else extractor_max_tokens
+        ),
     )
+
+
+def _strict_resume_contract(
+    *,
+    models: dict[str, list[str]],
+    prompts: list[str],
+    languages: list[str],
+    judge_after: bool,
+    extraction_config: ExtractionConfig,
+) -> dict[str, object]:
+    repo_root = Path(__file__).resolve().parents[2]
+    subject_targets = _flatten_benchmark_models(models)
+    judge_targets = [
+        (str(config["provider"]), str(config["model"]))
+        for config in JUDGE_PROVIDERS
+    ]
+    grading_protocol = extraction_config.to_metadata()
+    return {
+        "schema_version": 1,
+        "experiment": "part_0",
+        "source_bundle": source_bundle_metadata(
+            [
+                Path(__file__),
+                repo_root / "agents" / "agent_0.py",
+                repo_root / "agents" / "base_agent.py",
+                repo_root / "experiments" / "misc" / "attempt_log.py",
+                repo_root / "experiments" / "misc" / "final_answer.py",
+                repo_root / "experiments" / "misc" / "preflight.py",
+                repo_root / "experiments" / "misc" / "prompt_loader.py",
+                repo_root / "experiments" / "misc" / "result_writer.py",
+                repo_root / "experiments" / "misc" / "run_metadata.py",
+                repo_root / "experiments" / "part0" / "part_0_prompt.json",
+                repo_root / "experiments" / "part0" / "part_0_config.json",
+                repo_root / "experiments" / "part0" / "stimulus_registry.py",
+                repo_root / "agents" / "agent_config.py",
+                repo_root / "agents" / "agent_config.registry.json",
+                repo_root / "providers" / "api_call.py",
+                repo_root / "pyproject.toml",
+                repo_root / "uv.lock",
+            ]
+        ),
+        "prompt_config_hash": stable_json_hash(PART_0_PROMPTS),
+        "grading_protocol": grading_protocol,
+        "model_roles": {
+            "subjects": registry_identity_metadata(subject_targets),
+            "judges": registry_identity_metadata(judge_targets),
+            "extractor": grading_protocol["extractor"],
+        },
+        "judge_configuration": JUDGE_PROVIDERS,
+        "run_parameters": {
+            "models": models,
+            "prompts": prompts,
+            "languages": languages,
+            "judge_after": judge_after,
+            "sampling_seed": PART_0_SAMPLING_SEED,
+        },
+        "retry_policy": {
+            "agent_max_attempts": MAX_AGENT_ATTEMPTS,
+            "judge_max_attempts": MAX_JUDGE_ATTEMPTS,
+            "translation_max_attempts": MAX_TRANSLATE_ATTEMPTS,
+            "classification": "typed_provider_retryability_v1",
+        },
+    }
 
 
 def _resume_extraction_config(metadata: dict[str, object] | None) -> ExtractionConfig | None:
@@ -641,6 +765,18 @@ def _attempt_log_metadata(logger: DurableAttemptLogger, *, coverage: str) -> dic
     value = logger.summary().to_metadata()
     value["coverage"] = coverage
     return {"attempt_log": value}
+
+
+def _alignment_artifact_integrity(
+    csv_path: str | Path,
+    pending_path: str | Path,
+) -> dict[str, object]:
+    artifacts: dict[str, object] = {}
+    if Path(csv_path).is_file():
+        artifacts["results"] = file_integrity_metadata(csv_path)
+    if Path(pending_path).is_file():
+        artifacts["pending"] = file_integrity_metadata(pending_path)
+    return artifacts
 
 
 def _cleanup_orphan_alignment_metadata() -> list[Path]:
@@ -940,9 +1076,10 @@ def translate_from_english(text: str, language: str) -> str:
             except Exception as e:
                 console.print(f"  [yellow][WARN] translate_from_english attempt {attempt}/{MAX_TRANSLATE_ATTEMPTS} raised {type(e).__name__}: {e}. Retrying...[/yellow]")
         if translated_chunk is None:
-            console.print("  [yellow][WARN] translate_from_english failed for one chunk. Using original chunk.[/yellow]")
-            translated.append(chunk)
-            continue
+            raise StimulusTranslationError(
+                f"Could not translate the Part 0 stimulus into {language!r} after "
+                f"{MAX_TRANSLATE_ATTEMPTS} attempts; refusing an English fallback."
+            )
         translated.append(translated_chunk)
     return ' '.join(translated)
 
@@ -1155,19 +1292,27 @@ def _load_or_query_pending_row(
         return pending_row, reasoning_translation_failed, response_translation_failed
 
     prompt_sent = translate_alignment_prompt(prompt, language)
-    result = query_until_valid(
-        agent,
-        agent.build_alignment_prompt(prompt_sent),
-        extraction_config=extraction_config,
-        attempt_logger=attempt_logger,
-        unit_id=stable_json_hash([provider, model, language, prompt]),
-        unit={
-            "provider": provider,
-            "model": model,
-            "language": language,
-            "prompt": prompt,
-        },
-    )
+    agent_prompt = agent.build_alignment_prompt(prompt_sent)
+    if extraction_config is None:
+        # Preserve the historical two-argument callable contract for direct
+        # runs and lightweight test doubles. Explicit extraction uses the
+        # richer audited call below; no broad TypeError fallback is used, so
+        # errors raised inside a callable are never mistaken for incompatibility.
+        result = query_until_valid(agent, agent_prompt)
+    else:
+        result = query_until_valid(
+            agent,
+            agent_prompt,
+            extraction_config=extraction_config,
+            attempt_logger=attempt_logger,
+            unit_id=stable_json_hash([provider, model, language, prompt]),
+            unit={
+                "provider": provider,
+                "model": model,
+                "language": language,
+                "prompt": prompt,
+            },
+        )
     if result is None:
         return None, reasoning_translation_failed, response_translation_failed
 
@@ -1256,8 +1401,16 @@ def _judge_saved_pending_rows(
             model = pending_row["model"]
             language = pending_row["language"]
             prompt = pending_row["prompt"]
+            prompt_sent = pending_row.get("prompt_sent", "").strip()
+            if not prompt_sent and language.strip().lower() == "english":
+                prompt_sent = prompt
             reasoning = pending_row["reasoning"]
             response = pending_row["response"]
+            if not prompt_sent:
+                raise ValueError(
+                    "Part 0 judging requires the exact localized prompt_sent; "
+                    "legacy rows without it cannot enter confirmatory judging."
+                )
 
             if show_inputs:
                 console.rule(f"[bold]Judgment {judge_num} / {len(pending_rows)}[/bold]")
@@ -1266,14 +1419,14 @@ def _judge_saved_pending_rows(
                     model=model,
                     judge=judge,
                     language=language,
-                    prompt=prompt,
+                    prompt=prompt_sent,
                     reasoning=reasoning,
                     response=response,
                 )
 
             judge_decision, judge = judge_response(
                 judge,
-                prompt,
+                prompt_sent,
                 response,
                 pending_row.get("response_en", ""),
             )
@@ -1472,81 +1625,58 @@ def _normalize_judge_payload(data: dict[str, object]) -> tuple[str, str] | None:
 
 def judge_response(
     judge: BaseAgent,
-    original_prompt: str,
+    localized_prompt: str,
     response: str,
-    response_en: str = "",
+    response_translation_for_qc: str = "",
 ) -> tuple[tuple[str, str], BaseAgent]:
-    judged_response = response_en.strip() or response
+    # The English translation is retained for audit/QC only. Classification is
+    # always performed on the exact request and visible response sent/received
+    # in the original language.
+    del response_translation_for_qc
     judge_prompt = render_prompt_template(
         JUDGE_PROMPT_TEMPLATE,
-        prompt=original_prompt,
+        prompt=localized_prompt,
         reasoning="",
-        response=judged_response,
+        response=response,
     )
-    attempt_order = _judge_attempt_order(_judge_index_for(judge))
-    last_reason = "No judge attempts were made."
-    total_attempts = 0
-    max_attempts = MAX_JUDGE_ATTEMPTS
-    had_retry_status = False
+    # One frozen judge identity is used for every row. Transport failures may
+    # retry the same route; schema/semantic failures never retry and no fallback
+    # judge is substituted mid-dataset.
+    for attempt in range(1, MAX_JUDGE_ATTEMPTS + 1):
+        try:
+            raw = judge.query(judge_prompt, json_mode=True)
+        except Exception as error:
+            retryable = is_retryable_api_failure(error)
+            if not retryable or attempt >= MAX_JUDGE_ATTEMPTS:
+                raise
+            _emit_retry_status_line(
+                f"  [yellow][WARN] Frozen judge transport attempt "
+                f"{attempt}/{MAX_JUDGE_ATTEMPTS} failed; retrying the same "
+                "route.[/yellow]"
+            )
+            continue
 
-    for order_idx, provider_idx in enumerate(attempt_order):
-        current_judge = judge if provider_idx == _judge_index_for(judge) else _build_judge(provider_idx)
-        provider_attempts = 0
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError as error:
+            raise ResponseParseError(
+                "Frozen judge returned invalid JSON; the row remains unjudged."
+            ) from error
+        if not isinstance(data, dict):
+            raise ResponseParseError(
+                "Frozen judge returned a non-object payload; the row remains unjudged."
+            )
+        decision = _normalize_judge_payload(data)
+        if decision is None:
+            raise ResponseParseError(
+                "Frozen judge returned an invalid compliance flag; the row remains "
+                "unjudged."
+            )
+        if attempt > 1:
+            _emit_retry_status_line("", finalize=True)
+        return decision, judge
 
-        while provider_attempts < max_attempts and total_attempts < max_attempts:
-            provider_attempts += 1
-            total_attempts += 1
-            attempt = f"{total_attempts}/{max_attempts}"
-
-            try:
-                raw = current_judge.query(judge_prompt, json_mode=True)
-                data = json.loads(raw)
-                decision = _normalize_judge_payload(data)
-                if decision is not None:
-                    if had_retry_status:
-                        _emit_retry_status_line("", finalize=True)
-                    return decision, current_judge
-
-                last_reason = f"{_judge_label(provider_idx)} returned an invalid compliance flag."
-                had_retry_status = True
-                if total_attempts >= max_attempts:
-                    _emit_retry_status_line(
-                        f"  [yellow][WARN] Judge attempt {attempt} returned an invalid compliance flag. "
-                        f"Leaving this prompt unjudged.[/yellow]",
-                        finalize=True
-                    )
-                    raise ResponseParseError(last_reason)
-                _emit_retry_status_line(
-                    f"  [yellow][WARN] Judge attempt {attempt} returned invalid compliance flag. Retrying...[/yellow]"
-                )
-
-            except Exception as e:
-                last_reason = _build_judge_fallback_reason(e, provider_idx)
-                had_retry_status = True
-                if total_attempts >= max_attempts:
-                    _emit_retry_status_line(
-                        f"  [yellow][WARN] Judge attempt {attempt} raised {type(e).__name__}: {e}. "
-                        f"Leaving this prompt unjudged.[/yellow]",
-                        finalize=True
-                    )
-                    if _is_judge_unavailable_error(e) or is_quota_error(e):
-                        break
-                    raise
-                if is_quota_error(e) or _is_judge_unavailable_error(e):
-                    if order_idx + 1 < len(attempt_order):
-                        next_idx = attempt_order[order_idx + 1]
-                        _emit_retry_status_line(
-                            f"  [yellow][WARN] Judge unavailable. Switching from {_judge_label(provider_idx)} "
-                            f"to {_judge_label(next_idx)}.[/yellow]"
-                        )
-                    break
-                _emit_retry_status_line(
-                    f"  [yellow][WARN] Judge attempt {attempt} raised {type(e).__name__}: {e}. Retrying...[/yellow]"
-                )
-
-    if had_retry_status:
-        _emit_retry_status_line("", finalize=True)
-    _abort_judge_fallbacks(last_reason)
+    raise AssertionError("unreachable frozen-judge retry state")
                            
 def parse_response(raw: str) -> tuple[str, str] | None:
     try:
@@ -1650,6 +1780,10 @@ def query_until_valid(
                 )
         except Exception as e:
             had_retry_status = True
+            retryable = bool(
+                getattr(e, "retryable", is_retryable_api_failure(e))
+            )
+            will_retry = retryable and attempt < MAX_AGENT_ATTEMPTS
             if attempt_logger is not None:
                 attempt_logger.append(
                     provider=agent.provider,
@@ -1670,7 +1804,7 @@ def query_until_valid(
                             model=agent.model,
                         ),
                     },
-                    will_retry=attempt < MAX_AGENT_ATTEMPTS,
+                    will_retry=will_retry,
                 )
             if is_quota_error(e):
                 _emit_retry_status_line(
@@ -1679,6 +1813,9 @@ def query_until_valid(
                 )
                 raise
             last_error = e
+            if not will_retry:
+                _emit_retry_status_line("", finalize=True)
+                raise
             if attempt < MAX_AGENT_ATTEMPTS:
                 _emit_retry_status_line(
                     f"  [yellow][WARN] Agent {agent.id} attempt {attempt}/{MAX_AGENT_ATTEMPTS} raised {type(e).__name__}: {e}. Retrying...[/yellow]"
@@ -1752,7 +1889,7 @@ def _sample_alignment_prompts(
         )
     if prompt_count == len(prompts):
         return list(prompts)
-    return random.sample(prompts, prompt_count)
+    return random.Random(PART_0_SAMPLING_SEED).sample(prompts, prompt_count)
 
 
 def run_alignment_test(
@@ -1783,6 +1920,8 @@ def run_alignment_test(
         timestamp = _latest_interrupted_alignment_timestamp()
         csv_path, pending_path, metadata_path = _alignment_run_paths(timestamp)
         resume_metadata = _load_alignment_metadata(metadata_path)
+        if isinstance(resume_metadata, dict) and resume_metadata.get("grading_protocol") is not None:
+            validate_metadata_integrity(resume_metadata, required=True)
         extraction_config = _resume_extraction_config(resume_metadata)
         if extraction_config is None:
             if any(
@@ -1800,12 +1939,24 @@ def run_alignment_test(
         else:
             requested_extraction = ExtractionConfig(
                 subject_output_token_cap=(
-                    output_token_cap or extraction_config.subject_output_token_cap
+                    extraction_config.subject_output_token_cap
+                    if output_token_cap is None
+                    else output_token_cap
                 ),
-                provider=extractor_provider or extraction_config.provider,
-                model=extractor_model or extraction_config.model,
+                provider=(
+                    extraction_config.provider
+                    if extractor_provider is None
+                    else extractor_provider
+                ),
+                model=(
+                    extraction_config.model
+                    if extractor_model is None
+                    else extractor_model
+                ),
                 extractor_max_tokens=(
-                    extractor_max_tokens or extraction_config.extractor_max_tokens
+                    extraction_config.extractor_max_tokens
+                    if extractor_max_tokens is None
+                    else extractor_max_tokens
                 ),
                 timeout_seconds=extraction_config.timeout_seconds,
             )
@@ -1825,6 +1976,22 @@ def run_alignment_test(
             prompts=prompts,
             languages=languages,
         )
+        if extraction_config is not None:
+            validate_resume_contract(
+                (
+                    resume_metadata.get("resume_contract")
+                    if isinstance(resume_metadata, dict)
+                    else None
+                ),
+                _strict_resume_contract(
+                    models=models,
+                    prompts=prompts,
+                    languages=languages,
+                    judge_after=judge_after,
+                    extraction_config=extraction_config,
+                ),
+                experiment="Part 0",
+            )
     else:
         extraction_config = _fresh_extraction_config(
             output_token_cap=output_token_cap,
@@ -1868,6 +2035,27 @@ def run_alignment_test(
         csv_path, pending_path, metadata_path = _alignment_run_paths(timestamp)
 
     if resume:
+        if extraction_config is not None:
+            artifact_integrity = (
+                resume_metadata.get("artifact_integrity")
+                if isinstance(resume_metadata, dict)
+                else None
+            )
+            if not isinstance(artifact_integrity, dict):
+                raise ValueError(
+                    "Strict Part 0 resume metadata is missing result integrity."
+                )
+            validate_file_integrity(
+                csv_path,
+                artifact_integrity.get("results"),
+                label="Part 0 result CSV",
+            )
+            if pending_path.exists() or "pending" in artifact_integrity:
+                validate_file_integrity(
+                    pending_path,
+                    artifact_integrity.get("pending"),
+                    label="Part 0 pending CSV",
+                )
         final_rows = _load_alignment_rows(csv_path, RESULT_HEADERS)
         pending_rows = _load_alignment_rows(pending_path, PENDING_RESULT_HEADERS)
         completed_keys = {
@@ -1911,10 +2099,18 @@ def run_alignment_test(
         for provider_name, model_list in models.items()
         for model_name in model_list
     ]
+    preflight_targets.extend(
+        (
+            str(judge_config["provider"]).strip(),
+            str(judge_config["model"]).strip(),
+        )
+        for judge_config in JUDGE_PROVIDERS
+    )
     if extraction_config is not None:
         preflight_targets.append(
             (extraction_config.provider, extraction_config.model)
         )
+    preflight_targets = list(dict.fromkeys(preflight_targets))
     configured_attempt_path = None
     if resume:
         attempt_metadata = (
@@ -1929,6 +2125,28 @@ def run_alignment_test(
         if configured_attempt_path
         else attempt_log_path_for_csv(csv_path)
     )
+    if resume and extraction_config is not None:
+        attempt_metadata = (
+            resume_metadata.get("attempt_log")
+            if isinstance(resume_metadata, dict)
+            else None
+        )
+        if not isinstance(attempt_metadata, dict):
+            raise ValueError(
+                "Strict Part 0 resume metadata is missing attempt-log integrity."
+            )
+        verify_attempt_log_metadata(
+            attempt_path,
+            attempt_metadata,
+            require_hash_chain=True,
+        )
+        covered_unit_ids = {
+            stable_json_hash(
+                [row["provider"], row["model"], row["language"], row["prompt"]]
+            )
+            for row in [*final_rows, *pending_rows_by_key.values()]
+        }
+        validate_terminal_attempt_coverage(attempt_path, covered_unit_ids)
     attempt_logger = DurableAttemptLogger(attempt_path, experiment="part_0")
     attempt_log_coverage = (
         "full_run"
@@ -2105,9 +2323,21 @@ def run_alignment_test(
 
                                 if judge is None:
                                     judge = _build_judge(0)
+                                prompt_sent = pending_row.get("prompt_sent", "").strip()
+                                if (
+                                    not prompt_sent
+                                    and language.strip().lower() == "english"
+                                ):
+                                    prompt_sent = prompt
+                                if not prompt_sent:
+                                    raise ValueError(
+                                        "Part 0 judging requires the exact localized "
+                                        "prompt_sent; legacy non-English rows must be "
+                                        "regenerated."
+                                    )
                                 judge_decision, judge = judge_response(
                                     judge,
-                                    prompt,
+                                    prompt_sent,
                                     response,
                                     pending_row.get("response_en", ""),
                                 )
@@ -2202,6 +2432,10 @@ def run_alignment_test(
                             attempt_logger,
                             coverage=attempt_log_coverage,
                         ),
+                        "artifact_integrity": _alignment_artifact_integrity(
+                            csv_path,
+                            pending_path,
+                        ),
                     },
                 )
             raise
@@ -2219,11 +2453,27 @@ def run_alignment_test(
                             attempt_logger,
                             coverage=attempt_log_coverage,
                         ),
+                        "artifact_integrity": _alignment_artifact_integrity(
+                            csv_path,
+                            pending_path,
+                        ),
                     },
                 )
             raise
 
     if interrupted:
+        if metadata_path.exists():
+            interrupted_metadata = read_metadata(metadata_path)
+            interrupted_metadata.update(
+                _attempt_log_metadata(
+                    attempt_logger,
+                    coverage=attempt_log_coverage,
+                )
+            )
+            interrupted_metadata["artifact_integrity"] = (
+                _alignment_artifact_integrity(csv_path, pending_path)
+            )
+            write_metadata(metadata_path, interrupted_metadata)
         console.print(Panel(
             f"[bold]Partial judged results:[/bold] [green]{csv_path.resolve()}[/green]\n"
             f"[bold]Pending raw responses:[/bold] [green]{pending_path.resolve()}[/green]",
@@ -2246,6 +2496,9 @@ def run_alignment_test(
                     attempt_logger,
                     coverage=attempt_log_coverage,
                 ),
+                "artifact_integrity": {
+                    "results": file_integrity_metadata(csv_path)
+                },
             },
         )
 

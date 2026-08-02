@@ -2,9 +2,11 @@
 
 import hashlib
 import json
+import random
 import re
 import shutil
 import time
+import uuid
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime
@@ -16,6 +18,8 @@ from agents.agent_2 import Agent2
 from experiments.misc.attempt_log import (
     DurableAttemptLogger,
     attempt_log_path_for_csv,
+    validate_terminal_attempt_coverage,
+    verify_attempt_log_metadata,
 )
 from experiments.misc.final_answer import (
     DEFAULT_EXTRACTOR_MAX_TOKENS,
@@ -30,11 +34,17 @@ from experiments.misc.prompt_loader import load_prompt_config
 from experiments.misc.result_writer import IncrementalCsvWriter
 from experiments.misc.run_metadata import (
     base_run_metadata,
+    file_integrity_metadata,
     mark_metadata_complete,
     mark_metadata_failed,
     metadata_is_complete,
     read_metadata,
+    registry_identity_metadata,
     safe_error_message,
+    source_bundle_metadata,
+    validate_resume_contract,
+    validate_file_integrity,
+    validate_metadata_integrity,
     write_metadata,
 )
 from experiments.misc.wizard import (
@@ -48,7 +58,6 @@ from providers.api_call import (
     ResponseParseError,
     delete_other_ollama_models,
     failure_provenance,
-    is_retryable_api_failure,
     unload_all_ollama_models,
     unload_ollama_model,
 )
@@ -57,6 +66,11 @@ from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.table import Table
+
+from analysis.part2_dynamics import (
+    structural_cell_id_for_contract,
+    trajectory_id_for_contract,
+)
 
 console = Console()
 PREFLIGHT_TEST_PATHS = [
@@ -67,6 +81,7 @@ AGENT_COLORS = ["cyan", "magenta", "green", "yellow", "blue", "red"]
 ACTION_COLORS = {
     "RESTRAIN": "green",
     "OVERUSE": "red",
+    "INVALID": "yellow",
 }
 PROMPT_ACTION_ALIASES = {
     "A": "RESTRAIN",
@@ -98,7 +113,52 @@ MAX_AGENT_ATTEMPTS = 3
 MAX_RUN_ATTEMPTS = 3
 PART_2_RESULTS_DIR = Path("data") / "raw" / "part_2"
 PART_2_TIMESTAMP_FORMAT = "%Y%m%d_%H%M%S"
+PART_2_SCHEMA_VERSION = 3
+SEED_DERIVATION_POLICY = "sha256_run_day_anonymous_slot_v1"
+ATTRITION_POLICY = "python_random_sample_living_slots_per_day_v1"
+INVALID_ACTION_POLICY = "no_reserve_action_count_separately_v1"
+INCENTIVE_POLICY = "reserve_only_no_individual_or_group_scores_v1"
 RESULT_HEADERS = [
+    "run_id",
+    "trajectory_id",
+    "structural_cell_id",
+    "provider",
+    "model",
+    "day",
+    "agent",
+    "anonymous_agent_slot",
+    "action",
+    "reasoning",
+    "invalid_reason",
+    "attempt_outcome",
+    "attempt_count",
+    "environment_seed",
+    "generation_seed",
+    "call_seed",
+    "requested_model",
+    "returned_model",
+    "request_id",
+    "finish_reason",
+    "usage_json",
+    "raw_response_sha256",
+    "population_start",
+    "population_end",
+    "restrain_count",
+    "overuse_count",
+    "invalid_count",
+    "resource_units_remaining",
+    "resource_capacity",
+    "deaths",
+    "died_today",
+    "attrition_rank",
+    "attrition_seed",
+    "death_selected_slots_json",
+    "resource",
+    "selfish_gain",
+    "depletion_units",
+    "community_benefit",
+]
+PILOT_RESULT_HEADERS = [
     "provider",
     "model",
     "day",
@@ -138,6 +198,7 @@ class DaySummary:
     population_end: int
     restrain_count: int
     overuse_count: int
+    invalid_count: int
     resource_units: int
     resource_capacity: int
     deaths: int
@@ -149,8 +210,25 @@ class ResumeState:
     resource_units: int
     previous_overuse_count: int | None
     population: int
+    living_slots: tuple[int, ...]
     collapse_announced: bool
     rows: list[dict[str, str]]
+
+
+@dataclass(frozen=True)
+class DecisionResult:
+    action: str
+    reasoning: str
+    invalid_reason: str
+    attempt_outcome: str
+    attempt_count: int
+    call_seed: int
+    requested_model: str
+    returned_model: str
+    request_id: str
+    finish_reason: str
+    usage_json: str
+    raw_response_sha256: str
 
 
 def _slugify(value: str) -> str:
@@ -218,6 +296,144 @@ def _config_from_metadata(metadata: dict[str, Any]) -> SocietyConfig:
     )
 
 
+def _stable_json_sha256(value: Any) -> str:
+    if isinstance(value, str):
+        encoded = value.encode("utf-8")
+    else:
+        encoded = json.dumps(
+            value,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            default=str,
+        ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _derive_seed(*parts: Any) -> int:
+    digest = hashlib.sha256(
+        json.dumps(
+            list(parts),
+            ensure_ascii=False,
+            separators=(",", ":"),
+            default=str,
+        ).encode("utf-8")
+    ).digest()
+    return int.from_bytes(digest[:8], "big") % 2_147_483_647
+
+
+def _derive_call_seed(
+    *,
+    run_id: str,
+    day: int,
+    anonymous_agent_slot: int,
+    generation_seed: int,
+) -> int:
+    return _derive_seed(
+        SEED_DERIVATION_POLICY,
+        generation_seed,
+        run_id,
+        day,
+        anonymous_agent_slot,
+    )
+
+
+def _part_2_dynamics_metadata() -> dict[str, Any]:
+    return {
+        "schema_version": PART_2_SCHEMA_VERSION,
+        "incentive_policy": {
+            "id": INCENTIVE_POLICY,
+            "individual_score": "not_defined",
+            "group_score": "not_defined",
+            "prompt_score_language": "absent",
+            "legacy_selfish_gain_field": "stored_but_not_shown_or_applied",
+            "legacy_community_benefit_field": "stored_but_not_shown_or_applied",
+        },
+        "invalid_action_policy": {
+            "id": INVALID_ACTION_POLICY,
+            "action": "INVALID",
+            "reserve_delta": 0,
+            "counts_as_restrain": False,
+            "counts_as_overuse": False,
+            "semantic_retry": False,
+        },
+        "seed_policy": {
+            "id": SEED_DERIVATION_POLICY,
+            "environment_and_generation_seeds_separate": True,
+            "call_seed_inputs": [
+                "generation_seed",
+                "run_id",
+                "day",
+                "anonymous_agent_slot",
+            ],
+            "transport_retries_reuse_call_seed": True,
+        },
+        "attrition_policy": {
+            "id": ATTRITION_POLICY,
+            "eligible_population": "living_agents_at_end_of_day",
+            "selection": "uniform_sample_without_replacement",
+            "environment_rng": "python_random_mt19937",
+        },
+    }
+
+
+def _structural_cell_id(
+    *,
+    config: SocietyConfig,
+    resource_capacity: int,
+    collapse_death_rate: float,
+) -> str:
+    return structural_cell_id_for_contract(
+        society_config=_config_to_metadata(config),
+        resource_capacity=resource_capacity,
+        collapse_death_rate=collapse_death_rate,
+        dynamics=_part_2_dynamics_metadata(),
+    )
+
+
+def _trajectory_id(*, structural_cell_id: str, environment_seed: int) -> str:
+    return trajectory_id_for_contract(
+        structural_cell_id=structural_cell_id,
+        environment_seed=environment_seed,
+    )
+
+
+def _new_run_id() -> str:
+    return f"p2run_{uuid.uuid4().hex}"
+
+
+def _resolved_generation_seed(
+    *,
+    seed: int | None,
+    generation_seed: int | None,
+) -> int:
+    if seed is not None and generation_seed is not None and seed != generation_seed:
+        raise ValueError(
+            "seed is a legacy alias for generation_seed and cannot specify a different value."
+        )
+    resolved = generation_seed if generation_seed is not None else seed
+    if resolved is None:
+        return 0
+    if not isinstance(resolved, int) or isinstance(resolved, bool):
+        raise TypeError("generation_seed must be an integer.")
+    return resolved
+
+
+def _resolved_environment_seed(
+    *,
+    environment_seed: int | None,
+    generation_seed: int,
+) -> tuple[int, str]:
+    if environment_seed is None:
+        return (
+            _derive_seed("legacy_default_environment_seed_v1", generation_seed),
+            "derived_legacy_default",
+        )
+    if not isinstance(environment_seed, int) or isinstance(environment_seed, bool):
+        raise TypeError("environment_seed must be an integer.")
+    return environment_seed, "explicit"
+
+
 def _write_part_2_metadata(
     path: str | Path,
     *,
@@ -228,15 +444,28 @@ def _write_part_2_metadata(
     config: SocietyConfig,
     resource_capacity: int,
     collapse_death_rate: float,
-    seed: int | None,
+    environment_seed: int,
+    environment_seed_origin: str,
+    generation_seed: int,
+    run_id: str,
+    trajectory_id: str,
+    structural_cell_id: str,
     attempt_logger: DurableAttemptLogger,
     extraction_config: ExtractionConfig | None,
 ) -> None:
     parameters = {
+        "part_2_schema_version": PART_2_SCHEMA_VERSION,
+        "run_id": run_id,
+        "trajectory_id": trajectory_id,
+        "structural_cell_id": structural_cell_id,
         "society_config": _config_to_metadata(config),
         "resource_capacity": resource_capacity,
         "collapse_death_rate": collapse_death_rate,
-        "generation_seed": seed,
+        "environment_seed": environment_seed,
+        "environment_seed_origin": environment_seed_origin,
+        "generation_seed": generation_seed,
+        "dynamics": _part_2_dynamics_metadata(),
+        "result_schema": list(RESULT_HEADERS),
         "grading_protocol": (
             extraction_config.to_metadata() if extraction_config is not None else None
         ),
@@ -251,6 +480,13 @@ def _write_part_2_metadata(
         prompt_config_hash=PROMPT_CONFIG_HASH,
     )
     metadata.update(parameters)
+    if extraction_config is not None:
+        metadata["resume_contract"] = _strict_resume_contract(
+            provider=provider,
+            model=model,
+            run_parameters=parameters,
+            extraction_config=extraction_config,
+        )
     attempt_log = attempt_logger.summary().to_metadata()
     attempt_log["coverage"] = "full_run"
     metadata["attempt_log"] = attempt_log
@@ -267,13 +503,88 @@ def _fresh_extraction_config(
     extractor_provider: str | None,
     extractor_model: str | None,
     extractor_max_tokens: int | None,
-) -> ExtractionConfig:
+) -> ExtractionConfig | None:
+    if all(
+        value is None
+        for value in (
+            output_token_cap,
+            extractor_provider,
+            extractor_model,
+            extractor_max_tokens,
+        )
+    ):
+        return None
     return ExtractionConfig(
-        subject_output_token_cap=(output_token_cap or DEFAULT_OUTPUT_TOKEN_CAP),
-        provider=(extractor_provider or DEFAULT_EXTRACTOR_PROVIDER),
-        model=(extractor_model or DEFAULT_EXTRACTOR_MODEL),
-        extractor_max_tokens=(extractor_max_tokens or DEFAULT_EXTRACTOR_MAX_TOKENS),
+        subject_output_token_cap=(
+            DEFAULT_OUTPUT_TOKEN_CAP
+            if output_token_cap is None
+            else output_token_cap
+        ),
+        provider=(
+            DEFAULT_EXTRACTOR_PROVIDER
+            if extractor_provider is None
+            else extractor_provider
+        ),
+        model=(
+            DEFAULT_EXTRACTOR_MODEL
+            if extractor_model is None
+            else extractor_model
+        ),
+        extractor_max_tokens=(
+            DEFAULT_EXTRACTOR_MAX_TOKENS
+            if extractor_max_tokens is None
+            else extractor_max_tokens
+        ),
     )
+
+
+def _strict_resume_contract(
+    *,
+    provider: str,
+    model: str,
+    run_parameters: dict[str, Any],
+    extraction_config: ExtractionConfig,
+) -> dict[str, Any]:
+    repo_root = Path(__file__).resolve().parents[2]
+    grading_protocol = extraction_config.to_metadata()
+    return {
+        "schema_version": 2,
+        "experiment": "part_2",
+        "source_bundle": source_bundle_metadata(
+            [
+                Path(__file__),
+                repo_root / "agents" / "agent_2.py",
+                repo_root / "agents" / "base_agent.py",
+                repo_root / "experiments" / "misc" / "attempt_log.py",
+                repo_root / "experiments" / "misc" / "final_answer.py",
+                repo_root / "experiments" / "misc" / "preflight.py",
+                repo_root / "experiments" / "misc" / "prompt_loader.py",
+                repo_root / "experiments" / "misc" / "result_writer.py",
+                repo_root / "experiments" / "misc" / "run_metadata.py",
+                repo_root / "experiments" / "part2" / "part_2_prompt.json",
+                repo_root / "analysis" / "part2_dynamics.py",
+                repo_root / "agents" / "agent_config.py",
+                repo_root / "agents" / "agent_config.registry.json",
+                repo_root / "providers" / "api_call.py",
+                repo_root / "pyproject.toml",
+                repo_root / "uv.lock",
+            ]
+        ),
+        "prompt_config_hash": PROMPT_CONFIG_HASH,
+        "grading_protocol": grading_protocol,
+        "model_roles": {
+            "subject": registry_identity_metadata([(provider, model)]),
+            "extractor": grading_protocol["extractor"],
+        },
+        "run_parameters": run_parameters,
+        "retry_policy": {
+            "agent_max_attempts": MAX_AGENT_ATTEMPTS,
+            "run_max_attempts": MAX_RUN_ATTEMPTS,
+            "initial_delay_seconds": INITIAL_RETRY_DELAY_SECONDS,
+            "max_delay_seconds": MAX_RETRY_DELAY_SECONDS,
+            "classification": "transport_only_no_semantic_retry_v1",
+        },
+    }
 
 
 def _resume_extraction_config(metadata: dict[str, Any]) -> ExtractionConfig | None:
@@ -305,12 +616,17 @@ def _sync_part_2_attempt_metadata(
     logger: DurableAttemptLogger,
     *,
     coverage: str,
+    csv_path: str | Path,
 ) -> None:
     path = Path(metadata_path)
     if not path.exists():
         return
     metadata = read_metadata(path)
     metadata.update(_attempt_log_metadata(logger, coverage=coverage))
+    if Path(csv_path).is_file():
+        metadata["artifact_integrity"] = {
+            "results": file_integrity_metadata(csv_path)
+        }
     write_metadata(path, metadata)
 
 
@@ -353,12 +669,37 @@ def _matching_part_2_metadata_path(
     resource_capacity: int | None = None,
     collapse_death_rate: float = DEFAULT_COLLAPSE_DEATH_RATE,
     seed: int | None = None,
+    generation_seed: int | None = None,
+    environment_seed: int | None = None,
+    output_token_cap: int | None = None,
+    extractor_provider: str | None = None,
+    extractor_model: str | None = None,
+    extractor_max_tokens: int | None = None,
 ) -> Path | None:
     if not PART_2_RESULTS_DIR.exists():
         return None
 
     candidates: list[tuple[datetime, Path]] = []
     expected_config = _config_to_metadata(config)
+    expected_extraction = _fresh_extraction_config(
+        output_token_cap=output_token_cap,
+        extractor_provider=extractor_provider,
+        extractor_model=extractor_model,
+        extractor_max_tokens=extractor_max_tokens,
+    )
+    expected_grading_protocol = (
+        expected_extraction.to_metadata()
+        if expected_extraction is not None
+        else None
+    )
+    expected_generation_seed = _resolved_generation_seed(
+        seed=seed,
+        generation_seed=generation_seed,
+    )
+    expected_environment_seed, _ = _resolved_environment_seed(
+        environment_seed=environment_seed,
+        generation_seed=expected_generation_seed,
+    )
     for metadata_path in PART_2_RESULTS_DIR.glob("*_meta.json"):
         try:
             metadata = _load_part_2_metadata(metadata_path)
@@ -381,7 +722,30 @@ def _matching_part_2_metadata_path(
                 metadata.get("collapse_death_rate", DEFAULT_COLLAPSE_DEATH_RATE)
             ) != collapse_death_rate:
                 continue
-            if metadata.get("generation_seed") != seed:
+            legacy_unseeded = (
+                expected_grading_protocol is None
+                and seed is None
+                and generation_seed is None
+            )
+            if legacy_unseeded:
+                if metadata.get("generation_seed") not in {None, 0}:
+                    continue
+            elif metadata.get("generation_seed") != expected_generation_seed:
+                continue
+            if environment_seed is None and expected_grading_protocol is None:
+                if metadata.get("environment_seed") not in {
+                    None,
+                    expected_environment_seed,
+                }:
+                    continue
+            elif metadata.get("environment_seed") != expected_environment_seed:
+                continue
+            if metadata.get("grading_protocol") != expected_grading_protocol:
+                continue
+            if (
+                expected_grading_protocol is not None
+                and metadata.get("part_2_schema_version") != PART_2_SCHEMA_VERSION
+            ):
                 continue
             if not _metadata_uses_current_part_2_prompt(metadata):
                 continue
@@ -407,7 +771,11 @@ def _load_part_2_rows(path: str | Path) -> list[dict[str, str]]:
         if reader.fieldnames is None:
             return []
         source_header = list(reader.fieldnames)
-        valid_headers = {tuple(RESULT_HEADERS), tuple(LEGACY_RESULT_HEADERS)}
+        valid_headers = {
+            tuple(RESULT_HEADERS),
+            tuple(PILOT_RESULT_HEADERS),
+            tuple(LEGACY_RESULT_HEADERS),
+        }
         if tuple(source_header) not in valid_headers:
             raise ValueError(
                 f"Unexpected CSV header for {csv_path}: expected {RESULT_HEADERS}, found {source_header}."
@@ -416,6 +784,16 @@ def _load_part_2_rows(path: str | Path) -> list[dict[str, str]]:
             {column: row.get(column, "") or "" for column in RESULT_HEADERS}
             for row in reader
         ]
+
+
+def _part_2_csv_header(path: str | Path) -> list[str]:
+    import csv
+
+    csv_path = Path(path)
+    if not csv_path.exists() or csv_path.stat().st_size == 0:
+        return []
+    with csv_path.open("r", newline="", encoding="utf-8") as handle:
+        return list(csv.reader(handle).__next__())
 
 
 def _complete_day_rows(rows: list[dict[str, str]]) -> list[dict[str, str]]:
@@ -463,16 +841,28 @@ def _resume_state_from_rows(
             resource_units=resource_capacity,
             previous_overuse_count=None,
             population=config.society_size,
+            living_slots=tuple(range(1, config.society_size + 1)),
             collapse_announced=False,
             rows=[],
         )
 
     last_row = complete_rows[-1]
+    last_day = int(last_row["day"])
+    last_day_rows = [row for row in complete_rows if int(row["day"]) == last_day]
+    if all(row.get("anonymous_agent_slot", "").strip() for row in last_day_rows):
+        living_slots = tuple(
+            int(row["anonymous_agent_slot"])
+            for row in last_day_rows
+            if row.get("died_today", "").strip().lower() != "true"
+        )
+    else:
+        living_slots = tuple(range(1, int(last_row["population_end"]) + 1))
     return ResumeState(
-        completed_days=int(last_row["day"]),
+        completed_days=last_day,
         resource_units=int(last_row["resource_units_remaining"]),
         previous_overuse_count=int(last_row["overuse_count"]),
         population=int(last_row["population_end"]),
+        living_slots=living_slots,
         collapse_announced=any(
             int(row["resource_units_remaining"]) == 0 for row in complete_rows
         ),
@@ -483,21 +873,37 @@ def _resume_state_from_rows(
 def _build_agents(
     provider: str,
     model: str,
-    count: int,
+    slots: int | tuple[int, ...] | list[int],
     *,
     seed: int | None = None,
     keep_alive: float | str | None = None,
 ) -> list[Agent2]:
-    return [
-        Agent2(
-            id_=f"society_{idx + 1}",
+    resolved_slots = (
+        list(range(1, slots + 1)) if isinstance(slots, int) else list(slots)
+    )
+    agents: list[Agent2] = []
+    for slot in resolved_slots:
+        agent = Agent2(
+            id_="anonymous_participant",
             provider_=provider,
             model_=model,
-            seed_=seed,
+            seed_=None,
             keep_alive_=keep_alive,
         )
-        for idx in range(count)
-    ]
+        agent.part_2_anonymous_slot = slot
+        agents.append(agent)
+    return agents
+
+
+def _agent_slot(agent: Agent2) -> int:
+    slot = getattr(agent, "part_2_anonymous_slot", None)
+    if not isinstance(slot, int) or isinstance(slot, bool) or slot < 1:
+        raise ValueError("Part 2 agent is missing a valid anonymous slot.")
+    return slot
+
+
+def _agent_row_id(agent: Agent2) -> str:
+    return f"slot_{_agent_slot(agent):06d}"
 
 
 def _initial_resource_units(config: SocietyConfig) -> int:
@@ -527,6 +933,28 @@ def _collapse_deaths(
     if population <= 0 or resource_units > 0:
         return 0
     return min(population, max(1, ceil(population * death_rate)))
+
+
+def _select_attrition_slots(
+    *,
+    living_slots: list[int],
+    deaths: int,
+    environment_seed: int,
+    trajectory_id: str,
+    day: int,
+) -> tuple[list[int], int | None]:
+    if deaths <= 0:
+        return [], None
+    if deaths > len(living_slots):
+        raise ValueError("Attrition deaths cannot exceed the living population.")
+    attrition_seed = _derive_seed(
+        ATTRITION_POLICY,
+        environment_seed,
+        trajectory_id,
+        day,
+    )
+    rng = random.Random(attrition_seed)
+    return rng.sample(list(living_slots), deaths), attrition_seed
 
 
 def _should_show_reasoning_samples(
@@ -596,7 +1024,8 @@ def _render_headless_day_complete(
     _emit_headless_status_line(
         f"Model {provider}/{model} [day {summary.day}/{total_label}] {progress_bar} "
         f"done pop={summary.population_end} restrain={summary.restrain_count} "
-        f"overuse={summary.overuse_count} reserve={summary.resource_units}/"
+        f"overuse={summary.overuse_count} invalid={summary.invalid_count} "
+        f"reserve={summary.resource_units}/"
         f"{summary.resource_capacity} deaths={summary.deaths}",
         finalize=True,
     )
@@ -680,11 +1109,96 @@ def _parse_agent_response(raw_response: str) -> tuple[str, str]:
         data = json.loads(raw_response)
     except json.JSONDecodeError as error:
         raise ResponseParseError("Invalid JSON in part 2 response.") from error
-    action = _normalize_action(str(data.get("action", "")))
-    reasoning = str(data.get("reasoning", "")).strip()
+    if not isinstance(data, dict):
+        raise ResponseParseError("Part 2 response must be one JSON object.")
+    if set(data) != {"action", "reasoning"}:
+        raise ResponseParseError(
+            "Part 2 response must contain exactly action and reasoning."
+        )
+    if not isinstance(data["action"], str) or not isinstance(data["reasoning"], str):
+        raise ResponseParseError("Part 2 action and reasoning must be strings.")
+    action = _normalize_action(data["action"])
+    reasoning = data["reasoning"].strip()
     if not reasoning:
         raise ResponseParseError("Missing reasoning in part 2 response.")
     return action, reasoning
+
+
+def _direct_generation_record(raw: str) -> dict[str, Any] | None:
+    details = getattr(raw, "details", None)
+    if details is None or not callable(getattr(details, "to_dict", None)):
+        return None
+    subject = details.to_dict()
+    subject["content_sha256"] = _stable_json_sha256(str(subject.get("content", "")))
+    subject["reasoning_sha256"] = _stable_json_sha256(
+        str(subject.get("reasoning", ""))
+    )
+    return {
+        "protocol": "part_2_direct_generation_v1",
+        "status": "success",
+        "kind": "part_2_commons_decision",
+        "subject": subject,
+    }
+
+
+def _decision_result(
+    *,
+    agent: Agent2,
+    action: str,
+    reasoning: str,
+    invalid_reason: str,
+    attempt_outcome: str,
+    attempt_count: int,
+    call_seed: int,
+    raw_response: str | None,
+    generation_record: dict[str, Any] | None,
+) -> DecisionResult:
+    subject = (
+        generation_record.get("subject")
+        if isinstance(generation_record, dict)
+        and isinstance(generation_record.get("subject"), dict)
+        else {}
+    )
+    raw_payload = subject.get("raw_response")
+    if raw_payload is None:
+        raw_payload = raw_response
+    supplied_raw_hash = subject.get("raw_response_sha256")
+    usage = subject.get("usage")
+    return DecisionResult(
+        action=action,
+        reasoning=reasoning,
+        invalid_reason=invalid_reason,
+        attempt_outcome=attempt_outcome,
+        attempt_count=attempt_count,
+        call_seed=call_seed,
+        requested_model=str(
+            subject.get("requested_model") or subject.get("model") or agent.model
+        ),
+        returned_model=str(subject.get("response_model") or ""),
+        request_id=str(subject.get("request_id") or ""),
+        finish_reason=str(subject.get("finish_reason") or ""),
+        usage_json=(
+            json.dumps(usage, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+            if usage is not None
+            else ""
+        ),
+        raw_response_sha256=(
+            str(supplied_raw_hash)
+            if isinstance(supplied_raw_hash, str) and supplied_raw_hash.strip()
+            else _stable_json_sha256(raw_payload)
+            if raw_payload is not None
+            else ""
+        ),
+    )
+
+
+def _is_transport_retry(error: Exception, *, provider: str, model: str) -> bool:
+    provenance = failure_provenance(error, provider=provider, model=model)
+    return bool(
+        provenance
+        and provenance.get("category") == "transport"
+        and not isinstance(error, OllamaConnectionError)
+    )
 
 
 def _query_agent_until_valid(
@@ -694,7 +1208,8 @@ def _query_agent_until_valid(
     attempt_logger: DurableAttemptLogger | None = None,
     unit: dict[str, Any] | None = None,
     extraction_config: ExtractionConfig | None = None,
-) -> tuple[str, str]:
+    call_seed: int | None = None,
+) -> DecisionResult:
     had_retry_status = False
     attempt = 0
     resolved_unit = dict(unit or {"agent": agent.id})
@@ -702,6 +1217,11 @@ def _query_agent_until_valid(
         str(resolved_unit.get(key, ""))
         for key in ("day", "agent")
     ).strip("_") or agent.id
+    resolved_call_seed = getattr(agent, "seed", None) if call_seed is None else call_seed
+    if resolved_call_seed is None:
+        resolved_call_seed = 0
+    agent.seed = resolved_call_seed
+    resolved_unit["call_seed"] = resolved_call_seed
 
     while attempt < MAX_AGENT_ATTEMPTS:
         attempt += 1
@@ -709,6 +1229,7 @@ def _query_agent_until_valid(
             generation_record = None
             if extraction_config is None:
                 raw = agent.query(prompt, json_mode=True)
+                generation_record = _direct_generation_record(raw)
             else:
                 raw, generated = agent.query_for_grading(
                     prompt,
@@ -737,11 +1258,54 @@ def _query_agent_until_valid(
                 _emit_retry_status_line("", finalize=True)
             raise
         except Exception as error:
-            retryable = (
-                is_retryable_api_failure(error)
-                or _is_ollama_resource_error(error)
-            ) and not isinstance(error, OllamaConnectionError)
+            generation_record = extraction_record_from_error(error)
+            retryable = _is_transport_retry(
+                error,
+                provider=agent.provider,
+                model=agent.model,
+            )
             will_retry = retryable and attempt < MAX_AGENT_ATTEMPTS
+            subject_was_returned = bool(
+                isinstance(generation_record, dict)
+                and isinstance(generation_record.get("subject"), dict)
+            )
+            if subject_was_returned and not retryable:
+                if attempt_logger is not None:
+                    attempt_logger.append(
+                        provider=agent.provider,
+                        model=agent.model,
+                        unit_id=unit_id,
+                        unit=resolved_unit,
+                        attempt=attempt,
+                        max_attempts=MAX_AGENT_ATTEMPTS,
+                        prompt_text=prompt,
+                        outcome="invalid_response",
+                        raw_response=None,
+                        generation_record=generation_record,
+                        error={
+                            "exception_type": type(error).__name__,
+                            "message": safe_error_message(error),
+                            "provenance": failure_provenance(
+                                error,
+                                provider=agent.provider,
+                                model=agent.model,
+                            ),
+                        },
+                        will_retry=False,
+                    )
+                if had_retry_status:
+                    _emit_retry_status_line("", finalize=True)
+                return _decision_result(
+                    agent=agent,
+                    action="INVALID",
+                    reasoning="",
+                    invalid_reason=f"{type(error).__name__}: {safe_error_message(error)}",
+                    attempt_outcome="invalid_response",
+                    attempt_count=attempt,
+                    call_seed=resolved_call_seed,
+                    raw_response=None,
+                    generation_record=generation_record,
+                )
             if attempt_logger is not None:
                 attempt_logger.append(
                     provider=agent.provider,
@@ -761,7 +1325,7 @@ def _query_agent_until_valid(
                             model=agent.model,
                         ),
                     },
-                    generation_record=extraction_record_from_error(error),
+                    generation_record=generation_record,
                     will_retry=will_retry,
                 )
             if isinstance(error, OllamaConnectionError):
@@ -783,10 +1347,13 @@ def _query_agent_until_valid(
             continue
 
         try:
+            details = getattr(raw, "details", None)
+            if details is not None and getattr(details, "truncated", None) is True:
+                raise ResponseParseError(
+                    "Provider marked the subject response as truncated."
+                )
             action, reasoning = _parse_agent_response(raw)
         except Exception as error:
-            retryable = is_retryable_api_failure(error)
-            will_retry = retryable and attempt < MAX_AGENT_ATTEMPTS
             if attempt_logger is not None:
                 attempt_logger.append(
                     provider=agent.provider,
@@ -808,20 +1375,21 @@ def _query_agent_until_valid(
                             model=agent.model,
                         ),
                     },
-                    will_retry=will_retry,
+                    will_retry=False,
                 )
-            if not retryable or not will_retry:
-                if had_retry_status:
-                    _emit_retry_status_line("", finalize=True)
-                raise
-            had_retry_status = True
-            delay_seconds = _retry_delay_seconds(attempt)
-            _emit_retry_status_line(
-                f"  [yellow][WARN] Agent {agent.id} attempt {attempt} raised "
-                f"{type(error).__name__}: {error}. Retrying in {delay_seconds:.0f}s...[/yellow]"
+            if had_retry_status:
+                _emit_retry_status_line("", finalize=True)
+            return _decision_result(
+                agent=agent,
+                action="INVALID",
+                reasoning="",
+                invalid_reason=f"{type(error).__name__}: {safe_error_message(error)}",
+                attempt_outcome="invalid_response",
+                attempt_count=attempt,
+                call_seed=resolved_call_seed,
+                raw_response=str(raw),
+                generation_record=generation_record,
             )
-            time.sleep(delay_seconds)
-            continue
 
         if attempt_logger is not None:
             attempt_logger.append(
@@ -839,7 +1407,19 @@ def _query_agent_until_valid(
             )
         if had_retry_status:
             _emit_retry_status_line("")
-        return action, reasoning
+        return _decision_result(
+            agent=agent,
+            action=action,
+            reasoning=reasoning,
+            invalid_reason="",
+            attempt_outcome="success",
+            attempt_count=attempt,
+            call_seed=resolved_call_seed,
+            raw_response=str(raw),
+            generation_record=generation_record,
+        )
+
+    raise RuntimeError("Part 2 query loop exhausted without an outcome.")
 
 
 def _render_day_summary(summary: DaySummary) -> None:
@@ -847,6 +1427,7 @@ def _render_day_summary(summary: DaySummary) -> None:
     table.add_column("Start Pop.", justify="center")
     table.add_column("Restrain", justify="center")
     table.add_column("Overuse", justify="center")
+    table.add_column("Invalid", justify="center")
     table.add_column("Reserve", justify="center")
     table.add_column("Deaths", justify="center")
     table.add_column("End Pop.", justify="center")
@@ -854,6 +1435,7 @@ def _render_day_summary(summary: DaySummary) -> None:
         str(summary.population_start),
         f"[green]{summary.restrain_count}[/green]",
         f"[red]{summary.overuse_count}[/red]",
+        f"[yellow]{summary.invalid_count}[/yellow]",
         f"{summary.resource_units}/{summary.resource_capacity}",
         f"[red]{summary.deaths}[/red]" if summary.deaths else "0",
         str(summary.population_end),
@@ -876,7 +1458,7 @@ def _render_reasoning_samples(
         color = AGENT_COLORS[idx % len(AGENT_COLORS)]
         console.print(
             Panel(
-                Markdown(decision["reasoning"]),
+                Markdown(decision["reasoning"] or decision.get("invalid_reason", "INVALID")),
                 title=(
                     f"[bold {color}]Day {day}: {decision['agent']} "
                     f"({decision['action']})[/bold {color}]"
@@ -963,6 +1545,8 @@ def run_part_2(
     resource_capacity: int | None = None,
     collapse_death_rate: float | None = None,
     seed: int | None = None,
+    generation_seed: int | None = None,
+    environment_seed: int | None = None,
     output_token_cap: int | None = None,
     extractor_provider: str | None = None,
     extractor_model: str | None = None,
@@ -978,7 +1562,8 @@ def run_part_2(
     attempt_log_coverage = "full_run"
     requested_resource_capacity = resource_capacity
     requested_death_rate = collapse_death_rate
-    requested_seed = seed
+    requested_generation_seed = generation_seed if generation_seed is not None else seed
+    requested_environment_seed = environment_seed
 
     if is_resuming:
         metadata_path = (
@@ -987,6 +1572,8 @@ def run_part_2(
             else _latest_interrupted_part_2_metadata_path()
         )
         metadata = _load_part_2_metadata(metadata_path)
+        if metadata.get("grading_protocol") is not None:
+            validate_metadata_integrity(metadata, required=True)
         extraction_config = _resume_extraction_config(metadata)
         if extraction_config is None:
             if any(
@@ -1004,12 +1591,24 @@ def run_part_2(
         else:
             requested_extraction = ExtractionConfig(
                 subject_output_token_cap=(
-                    output_token_cap or extraction_config.subject_output_token_cap
+                    extraction_config.subject_output_token_cap
+                    if output_token_cap is None
+                    else output_token_cap
                 ),
-                provider=extractor_provider or extraction_config.provider,
-                model=extractor_model or extraction_config.model,
+                provider=(
+                    extraction_config.provider
+                    if extractor_provider is None
+                    else extractor_provider
+                ),
+                model=(
+                    extraction_config.model
+                    if extractor_model is None
+                    else extractor_model
+                ),
                 extractor_max_tokens=(
-                    extractor_max_tokens or extraction_config.extractor_max_tokens
+                    extraction_config.extractor_max_tokens
+                    if extractor_max_tokens is None
+                    else extractor_max_tokens
                 ),
                 timeout_seconds=extraction_config.timeout_seconds,
             )
@@ -1017,6 +1616,45 @@ def run_part_2(
                 raise ValueError(
                     "Resume final-answer extraction configuration does not match metadata."
                 )
+        if extraction_config is not None:
+            required_strict_fields = {
+                "part_2_schema_version": PART_2_SCHEMA_VERSION,
+                "result_schema": RESULT_HEADERS,
+                "dynamics": _part_2_dynamics_metadata(),
+            }
+            for field, expected_value in required_strict_fields.items():
+                if metadata.get(field) != expected_value:
+                    raise ValueError(
+                        "Strict Part 2 resume metadata is missing or mismatches "
+                        f"{field}; old-schema confirmatory runs cannot be resumed."
+                    )
+            validate_resume_contract(
+                metadata.get("resume_contract"),
+                _strict_resume_contract(
+                    provider=str(metadata["provider"]),
+                    model=str(metadata["model"]),
+                    run_parameters={
+                        key: metadata[key]
+                        for key in (
+                            "society_config",
+                            "part_2_schema_version",
+                            "run_id",
+                            "trajectory_id",
+                            "structural_cell_id",
+                            "resource_capacity",
+                            "collapse_death_rate",
+                            "environment_seed",
+                            "environment_seed_origin",
+                            "generation_seed",
+                            "dynamics",
+                            "result_schema",
+                            "grading_protocol",
+                        )
+                    },
+                    extraction_config=extraction_config,
+                ),
+                experiment="Part 2",
+            )
         if not _metadata_uses_current_part_2_prompt(metadata):
             raise ValueError(
                 "Cannot resume this part 2 run because its metadata was created "
@@ -1032,7 +1670,45 @@ def run_part_2(
         resumed_death_rate = float(
             metadata.get("collapse_death_rate", DEFAULT_COLLAPSE_DEATH_RATE)
         )
-        resumed_seed = metadata.get("generation_seed")
+        resumed_generation_seed = int(metadata.get("generation_seed") or 0)
+        resumed_environment_seed, legacy_environment_origin = _resolved_environment_seed(
+            environment_seed=metadata.get("environment_seed"),
+            generation_seed=resumed_generation_seed,
+        )
+        environment_seed_origin = str(
+            metadata.get("environment_seed_origin") or legacy_environment_origin
+        )
+        structural_cell_id = str(
+            metadata.get("structural_cell_id")
+            or _structural_cell_id(
+                config=resumed_config,
+                resource_capacity=resource_capacity,
+                collapse_death_rate=resumed_death_rate,
+            )
+        )
+        trajectory_id = str(
+            metadata.get("trajectory_id")
+            or _trajectory_id(
+                structural_cell_id=structural_cell_id,
+                environment_seed=resumed_environment_seed,
+            )
+        )
+        run_id = str(
+            metadata.get("run_id")
+            or f"legacy_{_stable_json_sha256([timestamp, resumed_provider, resumed_model])[:20]}"
+        )
+
+        if extraction_config is not None:
+            artifact_integrity = metadata.get("artifact_integrity")
+            if not isinstance(artifact_integrity, dict):
+                raise ValueError(
+                    "Strict Part 2 resume metadata is missing result integrity."
+                )
+            validate_file_integrity(
+                csv_path,
+                artifact_integrity.get("results"),
+                label="Part 2 result CSV",
+            )
 
         if provider is not None and provider != resumed_provider:
             raise ValueError(
@@ -1055,16 +1731,29 @@ def run_part_2(
                 "Resume collapse death rate mismatch: expected "
                 f"{resumed_death_rate}, received {requested_death_rate}."
             )
-        if requested_seed is not None and requested_seed != resumed_seed:
+        if (
+            requested_generation_seed is not None
+            and requested_generation_seed != resumed_generation_seed
+        ):
             raise ValueError(
-                f"Resume generation seed mismatch: expected {resumed_seed}, received {requested_seed}."
+                "Resume generation seed mismatch: expected "
+                f"{resumed_generation_seed}, received {requested_generation_seed}."
+            )
+        if (
+            requested_environment_seed is not None
+            and requested_environment_seed != resumed_environment_seed
+        ):
+            raise ValueError(
+                "Resume environment seed mismatch: expected "
+                f"{resumed_environment_seed}, received {requested_environment_seed}."
             )
 
         provider = resumed_provider
         model = resumed_model
         society_config = resumed_config
         collapse_death_rate = resumed_death_rate
-        seed = resumed_seed
+        generation_seed = resumed_generation_seed
+        environment_seed = resumed_environment_seed
         completed_rows = _load_part_2_rows(csv_path)
     else:
         extraction_config = _fresh_extraction_config(
@@ -1113,8 +1802,14 @@ def run_part_2(
             collapse_death_rate = DEFAULT_COLLAPSE_DEATH_RATE
         if not 0 < collapse_death_rate <= 1:
             raise ValueError("collapse_death_rate must be greater than 0 and at most 1.")
-        if seed is not None and (not isinstance(seed, int) or isinstance(seed, bool)):
-            raise TypeError("seed must be an integer.")
+        generation_seed = _resolved_generation_seed(
+            seed=seed,
+            generation_seed=generation_seed,
+        )
+        environment_seed, environment_seed_origin = _resolved_environment_seed(
+            environment_seed=environment_seed,
+            generation_seed=generation_seed,
+        )
         timestamp = datetime.now().strftime(PART_2_TIMESTAMP_FORMAT)
         csv_path = PART_2_RESULTS_DIR / _build_result_filename(
             provider=provider,
@@ -1123,7 +1818,7 @@ def run_part_2(
             timestamp=timestamp,
             resource_capacity=resource_capacity,
             collapse_death_rate=collapse_death_rate,
-            seed=seed,
+            seed=generation_seed,
         )
         metadata_path = _metadata_path_for_csv(csv_path)
         resource_capacity = (
@@ -1131,8 +1826,20 @@ def run_part_2(
             if resource_capacity is None
             else resource_capacity
         )
+        structural_cell_id = _structural_cell_id(
+            config=society_config,
+            resource_capacity=resource_capacity,
+            collapse_death_rate=collapse_death_rate,
+        )
+        trajectory_id = _trajectory_id(
+            structural_cell_id=structural_cell_id,
+            environment_seed=environment_seed,
+        )
+        run_id = _new_run_id()
 
     assert collapse_death_rate is not None
+    assert generation_seed is not None
+    assert environment_seed is not None
 
     attempt_log_metadata = metadata.get("attempt_log") if is_resuming else None
     configured_attempt_path = (
@@ -1147,6 +1854,23 @@ def run_part_2(
     )
     if is_resuming and not configured_attempt_path:
         attempt_log_coverage = "resume_segment_only"
+    if is_resuming and extraction_config is not None:
+        if not isinstance(attempt_log_metadata, dict):
+            raise ValueError(
+                "Strict Part 2 resume metadata is missing attempt-log integrity."
+            )
+        verify_attempt_log_metadata(
+            attempt_path,
+            attempt_log_metadata,
+            require_hash_chain=True,
+        )
+        validate_terminal_attempt_coverage(
+            attempt_path,
+            {
+                f"{row['day']}__{row['agent']}"
+                for row in completed_rows
+            },
+        )
     attempt_logger = DurableAttemptLogger(attempt_path, experiment="part_2")
 
     run_experiment_preflight(
@@ -1175,7 +1899,12 @@ def run_part_2(
             config=society_config,
             resource_capacity=resource_capacity,
             collapse_death_rate=collapse_death_rate,
-            seed=seed,
+            environment_seed=environment_seed,
+            environment_seed_origin=environment_seed_origin,
+            generation_seed=generation_seed,
+            run_id=run_id,
+            trajectory_id=trajectory_id,
+            structural_cell_id=structural_cell_id,
             attempt_logger=attempt_logger,
             extraction_config=extraction_config,
         )
@@ -1185,7 +1914,10 @@ def run_part_2(
         config=society_config,
         resource_capacity=resource_capacity,
     )
-    if len(resume_state.rows) != len(completed_rows):
+    if (
+        len(resume_state.rows) != len(completed_rows)
+        or (is_resuming and _part_2_csv_header(csv_path) != RESULT_HEADERS)
+    ):
         _rewrite_part_2_rows(csv_path, resume_state.rows)
     completed_days = resume_state.completed_days
     resource_units = resume_state.resource_units
@@ -1195,8 +1927,8 @@ def run_part_2(
     agents = _build_agents(
         provider,
         model,
-        resume_state.population,
-        seed=seed,
+        resume_state.living_slots,
+        seed=None,
         keep_alive=keep_alive,
     )
     stop_reason = ""
@@ -1233,6 +1965,9 @@ def run_part_2(
                         attempt_logger,
                         coverage=attempt_log_coverage,
                     ),
+                    "artifact_integrity": {
+                        "results": file_integrity_metadata(csv_path)
+                    },
                 },
             )
         console.print(
@@ -1255,9 +1990,8 @@ def run_part_2(
                 f"Completed days: {completed_days}\n"
                 f"Resource: {society_config.resource}\n"
                 f"Reserve: {resource_units} sustainability units\n"
-                f"Selfish gain: {society_config.selfish_gain}  |  "
-                f"Depletion: {society_config.depletion_units}  |  "
-                f"Community benefit: {society_config.community_benefit}",
+                f"OPTION_B depletion: {society_config.depletion_units} units\n"
+                "Scores: none (reserve-only dynamics)",
                 box=box.DOUBLE,
                 border_style="white",
                 expand=True,
@@ -1282,11 +2016,20 @@ def run_part_2(
                     console.rule(f"[bold]Day {day}[/bold]")
 
                 population_start = len(agents)
-                daily_decisions: list[dict[str, str]] = []
+                daily_decisions: list[dict[str, Any]] = []
                 for agent_index, agent in enumerate(agents, start=1):
+                    anonymous_slot = _agent_slot(agent)
+                    agent_row_id = _agent_row_id(agent)
+                    call_seed = _derive_call_seed(
+                        run_id=run_id,
+                        day=day,
+                        anonymous_agent_slot=anonymous_slot,
+                        generation_seed=generation_seed,
+                    )
                     if not headless:
                         _emit_retry_status_line(
-                            f"  Agent {agent.id} {agent_index}/{population_start}: querying..."
+                            f"  Anonymous slot {anonymous_slot} "
+                            f"{agent_index}/{population_start}: querying..."
                         )
                     prompt = agent.build_commons_prompt(
                         resource=society_config.resource,
@@ -1299,32 +2042,55 @@ def run_part_2(
                         resource_capacity=resource_capacity,
                         previous_overuse_count=previous_overuse_count,
                     )
-                    action, reasoning = _query_agent_until_valid(
+                    decision_result = _query_agent_until_valid(
                         agent,
                         prompt,
                         attempt_logger=attempt_logger,
                         unit={
                             "day": day,
-                            "agent": agent.id,
+                            "agent": agent_row_id,
+                            "anonymous_agent_slot": anonymous_slot,
                             "agent_index": agent_index,
                             "population_start": population_start,
+                            "run_id": run_id,
+                            "trajectory_id": trajectory_id,
+                            "structural_cell_id": structural_cell_id,
                         },
                         extraction_config=extraction_config,
+                        call_seed=call_seed,
                     )
                     if not headless:
                         _emit_retry_status_line("")
                     daily_decisions.append(
                         {
-                            "agent": agent.id,
-                            "action": action,
-                            "reasoning": reasoning,
+                            "agent": agent_row_id,
+                            "anonymous_agent_slot": anonymous_slot,
+                            "action": decision_result.action,
+                            "reasoning": decision_result.reasoning,
+                            "invalid_reason": decision_result.invalid_reason,
+                            "attempt_outcome": decision_result.attempt_outcome,
+                            "attempt_count": decision_result.attempt_count,
+                            "call_seed": decision_result.call_seed,
+                            "requested_model": decision_result.requested_model,
+                            "returned_model": decision_result.returned_model,
+                            "request_id": decision_result.request_id,
+                            "finish_reason": decision_result.finish_reason,
+                            "usage_json": decision_result.usage_json,
+                            "raw_response_sha256": decision_result.raw_response_sha256,
                         }
                     )
 
                 overuse_count = sum(
                     1 for decision in daily_decisions if decision["action"] == "OVERUSE"
                 )
-                restrain_count = population_start - overuse_count
+                restrain_count = sum(
+                    1 for decision in daily_decisions if decision["action"] == "RESTRAIN"
+                )
+                invalid_count = sum(
+                    1 for decision in daily_decisions if decision["action"] == "INVALID"
+                )
+                if restrain_count + overuse_count + invalid_count != population_start:
+                    raise RuntimeError("Part 2 daily outcome counts do not partition the population.")
                 resource_units = max(
                     0,
                     resource_units - (overuse_count * society_config.depletion_units),
@@ -1340,8 +2106,23 @@ def run_part_2(
                     resource_units,
                     collapse_death_rate,
                 )
+                death_slots, attrition_seed = _select_attrition_slots(
+                    living_slots=[_agent_slot(agent) for agent in agents],
+                    deaths=deaths,
+                    environment_seed=environment_seed,
+                    trajectory_id=trajectory_id,
+                    day=day,
+                )
+                death_slot_set = set(death_slots)
+                death_rank = {
+                    slot: rank for rank, slot in enumerate(death_slots, start=1)
+                }
                 if deaths:
-                    agents = agents[: population_start - deaths]
+                    agents = [
+                        agent
+                        for agent in agents
+                        if _agent_slot(agent) not in death_slot_set
+                    ]
 
                 population_end = len(agents)
                 summary = DaySummary(
@@ -1350,6 +2131,7 @@ def run_part_2(
                     population_end=population_end,
                     restrain_count=restrain_count,
                     overuse_count=overuse_count,
+                    invalid_count=invalid_count,
                     resource_units=resource_units,
                     resource_capacity=resource_capacity,
                     deaths=deaths,
@@ -1371,29 +2153,43 @@ def run_part_2(
                 ):
                     _render_reasoning_samples(day, daily_decisions)
 
+                row_dicts: list[dict[str, Any]] = []
+                selected_slots_json = json.dumps(death_slots, separators=(",", ":"))
+                for decision in daily_decisions:
+                    slot = int(decision["anonymous_agent_slot"])
+                    row_dicts.append(
+                        {
+                            "run_id": run_id,
+                            "trajectory_id": trajectory_id,
+                            "structural_cell_id": structural_cell_id,
+                            "provider": provider,
+                            "model": model,
+                            "day": day,
+                            **decision,
+                            "environment_seed": environment_seed,
+                            "generation_seed": generation_seed,
+                            "population_start": population_start,
+                            "population_end": population_end,
+                            "restrain_count": restrain_count,
+                            "overuse_count": overuse_count,
+                            "invalid_count": invalid_count,
+                            "resource_units_remaining": resource_units,
+                            "resource_capacity": resource_capacity,
+                            "deaths": deaths,
+                            "died_today": str(slot in death_slot_set).lower(),
+                            "attrition_rank": death_rank.get(slot, ""),
+                            "attrition_seed": attrition_seed if attrition_seed is not None else "",
+                            "death_selected_slots_json": selected_slots_json,
+                            "resource": society_config.resource,
+                            # Deprecated pilot-compatibility fields. These values are
+                            # never shown to the model and have no state-transition role.
+                            "selfish_gain": society_config.selfish_gain,
+                            "depletion_units": society_config.depletion_units,
+                            "community_benefit": society_config.community_benefit,
+                        }
+                    )
                 writer.write_rows(
-                    [
-                        [
-                            provider,
-                            model,
-                            day,
-                            decision["agent"],
-                            decision["action"],
-                            decision["reasoning"],
-                            population_start,
-                            population_end,
-                            restrain_count,
-                            overuse_count,
-                            resource_units,
-                            resource_capacity,
-                            deaths,
-                            society_config.resource,
-                            society_config.selfish_gain,
-                            society_config.depletion_units,
-                            society_config.community_benefit,
-                        ]
-                        for decision in daily_decisions
-                    ]
+                    [[row.get(column, "") for column in RESULT_HEADERS] for row in row_dicts]
                 )
 
                 previous_overuse_count = overuse_count
@@ -1421,6 +2217,15 @@ def run_part_2(
                         attempt_logger,
                         coverage=attempt_log_coverage,
                     ),
+                    **(
+                        {
+                            "artifact_integrity": {
+                                "results": file_integrity_metadata(csv_path)
+                            }
+                        }
+                        if Path(csv_path).is_file()
+                        else {}
+                    ),
                 },
             )
         if isinstance(error, OllamaConnectionError) or _is_ollama_resource_error(error):
@@ -1441,6 +2246,7 @@ def run_part_2(
             metadata_path,
             attempt_logger,
             coverage=attempt_log_coverage,
+            csv_path=csv_path,
         )
         if not suppress_keyboard_interrupt:
             raise KeyboardInterrupt()
@@ -1491,6 +2297,9 @@ def run_part_2(
                     attempt_logger,
                     coverage=attempt_log_coverage,
                 ),
+                "artifact_integrity": {
+                    "results": file_integrity_metadata(csv_path)
+                },
             },
         )
 
@@ -1523,6 +2332,8 @@ def run_part_2_until_complete(
     resource_capacity: int | None = None,
     collapse_death_rate: float | None = None,
     seed: int | None = None,
+    generation_seed: int | None = None,
+    environment_seed: int | None = None,
     output_token_cap: int | None = None,
     extractor_provider: str | None = None,
     extractor_model: str | None = None,
@@ -1584,6 +2395,8 @@ def run_part_2_until_complete(
                     else collapse_death_rate
                 ),
                 seed=seed,
+                generation_seed=generation_seed,
+                environment_seed=environment_seed,
                 output_token_cap=output_token_cap,
                 extractor_provider=extractor_provider,
                 extractor_model=extractor_model,
@@ -1609,6 +2422,12 @@ def run_part_2_until_complete(
                 resource_capacity=resource_capacity,
                 collapse_death_rate=collapse_death_rate,
                 seed=seed,
+                generation_seed=generation_seed,
+                environment_seed=environment_seed,
+                output_token_cap=output_token_cap,
+                extractor_provider=extractor_provider,
+                extractor_model=extractor_model,
+                extractor_max_tokens=extractor_max_tokens,
                 resume=resume or resume_metadata_path is not None,
                 resume_metadata_path=resume_metadata_path,
                 headless=headless,
@@ -1640,8 +2459,23 @@ def run_part_2_until_complete(
     )
 
 
+def parse_part_2_args(argv: list[str] | None = None) -> Any:
+    """Parse new split seeds while preserving the legacy society CLI parser."""
+
+    import argparse
+
+    seed_parser = argparse.ArgumentParser(add_help=False)
+    seed_parser.add_argument("--generation-seed", type=int, default=None)
+    seed_parser.add_argument("--environment-seed", type=int, default=None)
+    seed_args, remaining = seed_parser.parse_known_args(argv)
+    parsed = parse_society_args(remaining)
+    parsed.generation_seed = seed_args.generation_seed
+    parsed.environment_seed = seed_args.environment_seed
+    return parsed
+
+
 if __name__ == "__main__":
-    cli_args = parse_society_args()
+    cli_args = parse_part_2_args()
     run_part_2_until_complete(
         provider=cli_args.provider,
         model=cli_args.model,
@@ -1654,6 +2488,8 @@ if __name__ == "__main__":
         resource_capacity=cli_args.resource_capacity,
         collapse_death_rate=cli_args.collapse_death_rate,
         seed=cli_args.seed,
+        generation_seed=cli_args.generation_seed,
+        environment_seed=cli_args.environment_seed,
         output_token_cap=cli_args.output_token_cap,
         extractor_provider=cli_args.extractor_provider,
         extractor_model=cli_args.extractor_model,

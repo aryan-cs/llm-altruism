@@ -47,6 +47,7 @@ def _install_openai_module(monkeypatch: pytest.MonkeyPatch) -> list[dict]:
         def _create(self, **kwargs):
             calls.append({"client": dict(self.kwargs), "request": kwargs})
             return SimpleNamespace(
+                model=kwargs["model"],
                 choices=[
                     SimpleNamespace(
                         message=SimpleNamespace(content='{"value":"ok"}')
@@ -56,6 +57,52 @@ def _install_openai_module(monkeypatch: pytest.MonkeyPatch) -> list[dict]:
 
     module = ModuleType("openai")
     module.OpenAI = FakeOpenAIClient
+    monkeypatch.setitem(sys.modules, "openai", module)
+    return calls
+
+
+def _allow_inference_hub_route(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        api_call_module,
+        "_require_verified_inference_hub_route",
+        lambda model: {
+            "id": "verified.test-route",
+            "route": model,
+            "verification_status": "verified",
+        },
+    )
+
+
+def _install_openai_response_model(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    response_model: str | None,
+) -> list[dict]:
+    calls: list[dict] = []
+
+    class IdentityOpenAIClient:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+            self.chat = SimpleNamespace(
+                completions=SimpleNamespace(create=self._create)
+            )
+
+        def _create(self, **kwargs):
+            calls.append({"client": dict(self.kwargs), "request": kwargs})
+            response = SimpleNamespace(
+                choices=[
+                    SimpleNamespace(
+                        message=SimpleNamespace(content='{"value":"ok"}'),
+                        finish_reason="stop",
+                    )
+                ]
+            )
+            if response_model is not None:
+                response.model = response_model
+            return response
+
+    module = ModuleType("openai")
+    module.OpenAI = IdentityOpenAIClient
     monkeypatch.setitem(sys.modules, "openai", module)
     return calls
 
@@ -254,7 +301,7 @@ def _install_xai_module(monkeypatch: pytest.MonkeyPatch) -> list[dict]:
     ("provider", "env_name", "installer"),
     [
         ("openai", "OPENAI_API_KEY", _install_openai_module),
-        ("nvidia", "NVIDIA_API_KEY", _install_openai_module),
+        ("nvidia", "NVIDIA_NIM_API_KEY", _install_openai_module),
         ("groq", "GROQ_API_KEY", _install_groq_module),
         ("cerebras", "CEREBRAS_API_KEY", _install_cerebras_module),
         ("openrouter", "OPENROUTER_API_KEY", _install_openrouter_module),
@@ -290,21 +337,26 @@ def test_api_call_uses_openai_compatible_base_url_for_nvidia(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls = _install_openai_module(monkeypatch)
-    monkeypatch.setenv("NVIDIA_API_KEY", "test-key")
+    monkeypatch.setenv("NVIDIA_NIM_API_KEY", "test-key")
 
     api_call_module.api_call("nvidia", "nemotron", "sys", "query")
 
-    assert calls[0]["client"]["base_url"] == os.getenv(
-        "NVIDIA_BASE_URL", api_call_module.NVIDIA_BASE_URL
-    )
+    assert calls[0]["client"] == {
+        "api_key": "test-key",
+        "base_url": api_call_module.NVIDIA_NIM_BASE_URL,
+    }
 
 
 def test_api_call_inference_hub_forwards_route_credentials_and_controls(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls = _install_openai_module(monkeypatch)
+    _allow_inference_hub_route(monkeypatch)
     monkeypatch.setenv("NVIDIA_API_KEY", "hub-test-key")
-    monkeypatch.setenv("INFERENCE_HUB_BASE_URL", "https://hub.example.test/v1/")
+    monkeypatch.setenv(
+        "INFERENCE_HUB_BASE_URL",
+        "https://inference-api.nvidia.com/v1/",
+    )
 
     api_call_module.api_call(
         "inference-hub",
@@ -323,7 +375,7 @@ def test_api_call_inference_hub_forwards_route_credentials_and_controls(
         {
             "client": {
                 "api_key": "hub-test-key",
-                "base_url": "https://hub.example.test/v1",
+                "base_url": "https://inference-api.nvidia.com/v1",
                 "timeout": 30,
             },
             "request": {
@@ -340,6 +392,210 @@ def test_api_call_inference_hub_forwards_route_credentials_and_controls(
             },
         }
     ]
+
+
+def test_api_call_inference_hub_requires_explicit_internal_base_url(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _install_openai_module(monkeypatch)
+    _allow_inference_hub_route(monkeypatch)
+    monkeypatch.setenv("NVIDIA_API_KEY", "internal-key")
+    monkeypatch.delenv("INFERENCE_HUB_BASE_URL", raising=False)
+
+    with pytest.raises(EnvironmentError, match="INFERENCE_HUB_BASE_URL"):
+        api_call_module.api_call(
+            "inference_hub",
+            "route",
+            "sys",
+            "query",
+        )
+
+    assert calls == []
+
+
+@pytest.mark.parametrize(
+    ("base_url", "message"),
+    [
+        ("http://inference-api.nvidia.com/v1", "HTTPS"),
+        ("https://inference.nvidia.com/v1", "exact host"),
+        ("https://integrate.api.nvidia.com/v1", "exact host"),
+        ("https://user@inference-api.nvidia.com/v1", "credentials"),
+        ("https://inference-api.nvidia.com:443/v1", "port"),
+        ("https://inference-api.nvidia.com/chat", "exact path"),
+        ("https://inference-api.nvidia.com/v1?key=value", "query"),
+        ("https://inference-api.nvidia.com/v1#fragment", "fragment"),
+        ("https://inference-api.nvidia.com/\nv1", "whitespace"),
+    ],
+)
+def test_api_call_inference_hub_rejects_unsafe_base_urls_before_sdk_use(
+    monkeypatch: pytest.MonkeyPatch,
+    base_url: str,
+    message: str,
+) -> None:
+    calls = _install_openai_module(monkeypatch)
+    _allow_inference_hub_route(monkeypatch)
+    monkeypatch.setenv("NVIDIA_API_KEY", "internal-key")
+    monkeypatch.setenv("INFERENCE_HUB_BASE_URL", base_url)
+
+    with pytest.raises(ValueError, match=message):
+        api_call_module.api_call(
+            "inference_hub",
+            "route",
+            "sys",
+            "query",
+        )
+
+    assert calls == []
+
+
+def test_public_nim_does_not_accept_internal_inference_hub_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _install_openai_module(monkeypatch)
+    monkeypatch.setenv("NVIDIA_API_KEY", "internal-key")
+    monkeypatch.delenv("NVIDIA_NIM_API_KEY", raising=False)
+
+    with pytest.raises(EnvironmentError, match="NVIDIA_NIM_API_KEY"):
+        api_call_module.api_call("nvidia", "route", "sys", "query")
+
+    assert calls == []
+
+
+def test_internal_inference_hub_does_not_accept_public_nim_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _install_openai_module(monkeypatch)
+    _allow_inference_hub_route(monkeypatch)
+    monkeypatch.setenv("NVIDIA_NIM_API_KEY", "public-key")
+    monkeypatch.setenv(
+        "INFERENCE_HUB_BASE_URL",
+        "https://inference-api.nvidia.com/v1",
+    )
+    monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
+
+    with pytest.raises(EnvironmentError, match="NVIDIA_API_KEY"):
+        api_call_module.api_call("inference_hub", "route", "sys", "query")
+
+    assert calls == []
+
+
+@pytest.mark.parametrize(
+    ("model", "message"),
+    [
+        ("gpt-5.6-sol", "not executable"),
+        ("unknown/backend-route", "not registered"),
+    ],
+)
+def test_inference_hub_registry_gate_runs_before_client_or_credential_use(
+    monkeypatch: pytest.MonkeyPatch,
+    model: str,
+    message: str,
+) -> None:
+    class ForbiddenOpenAIClient:
+        def __init__(self, **kwargs):
+            raise AssertionError(f"SDK client must not be constructed: {kwargs}")
+
+    module = ModuleType("openai")
+    module.OpenAI = ForbiddenOpenAIClient
+    monkeypatch.setitem(sys.modules, "openai", module)
+    monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
+    monkeypatch.delenv("INFERENCE_HUB_BASE_URL", raising=False)
+
+    with pytest.raises(ValueError, match=message):
+        api_call_module.api_call("inference_hub", model, "sys", "query")
+
+
+def test_base_agent_cannot_bypass_inference_hub_registry_gate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class ForbiddenOpenAIClient:
+        def __init__(self, **kwargs):
+            raise AssertionError(f"SDK client must not be constructed: {kwargs}")
+
+    module = ModuleType("openai")
+    module.OpenAI = ForbiddenOpenAIClient
+    monkeypatch.setitem(sys.modules, "openai", module)
+
+    agent = BaseAgent(
+        id_="blocked",
+        provider_="inference_hub",
+        model_="claude-opus-5",
+    )
+    with pytest.raises(ValueError, match="not executable"):
+        agent.query("query")
+
+
+@pytest.mark.parametrize(
+    ("provider", "env_name", "base_url"),
+    [
+        ("inference_hub", "NVIDIA_API_KEY", "https://inference-api.nvidia.com/v1"),
+        ("nvidia", "NVIDIA_NIM_API_KEY", "https://integrate.api.nvidia.com/v1"),
+    ],
+)
+def test_strict_nvidia_profiles_reject_explicit_api_key_overrides(
+    monkeypatch: pytest.MonkeyPatch,
+    provider: str,
+    env_name: str,
+    base_url: str,
+) -> None:
+    calls = _install_openai_module(monkeypatch)
+    if provider == "inference_hub":
+        _allow_inference_hub_route(monkeypatch)
+    monkeypatch.setenv(env_name, "environment-key")
+
+    with pytest.raises(ValueError, match="does not accept an explicit api_key"):
+        api_call_module.api_call(
+            provider,
+            "verified/route",
+            "sys",
+            "query",
+            base_url=base_url,
+            api_key="generic-override-key",
+        )
+
+    assert calls == []
+
+
+@pytest.mark.parametrize(
+    "base_url",
+    [
+        "https://inference-api.nvidia.com/v1",
+        "https://integrate.api.nvidia.com/v1",
+    ],
+)
+def test_generic_openai_compatible_profile_cannot_target_nvidia_trust_domains(
+    monkeypatch: pytest.MonkeyPatch,
+    base_url: str,
+) -> None:
+    calls = _install_openai_module(monkeypatch)
+
+    with pytest.raises(ValueError, match="dedicated endpoint profile"):
+        api_call_module.api_call(
+            "openai_compatible",
+            "route",
+            "sys",
+            "query",
+            base_url=base_url,
+            api_key="generic-key",
+        )
+
+    assert calls == []
+
+
+def test_public_nim_key_cannot_be_sent_to_internal_inference_hub_host(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _install_openai_module(monkeypatch)
+    monkeypatch.setenv("NVIDIA_NIM_API_KEY", "public-key")
+    monkeypatch.setenv(
+        "NVIDIA_NIM_BASE_URL",
+        "https://inference-api.nvidia.com/v1",
+    )
+
+    with pytest.raises(ValueError, match="exact host"):
+        api_call_module.api_call("nvidia", "route", "sys", "query")
+
+    assert calls == []
 
 
 def test_api_call_generic_openai_compatible_accepts_explicit_endpoint_and_key(
@@ -360,6 +616,68 @@ def test_api_call_generic_openai_compatible_accepts_explicit_endpoint_and_key(
         "api_key": "explicit-key",
         "base_url": "http://127.0.0.1:8000/v1",
     }
+
+
+def test_openai_compatible_records_requested_and_actual_model_identity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_openai_response_model(
+        monkeypatch,
+        response_model="actual/backend-model",
+    )
+
+    response = api_call_module.api_call_detailed(
+        "openai-compatible",
+        "requested/backend-model",
+        "sys",
+        "query",
+        base_url="http://127.0.0.1:8000/v1",
+        api_key="explicit-key",
+    )
+
+    assert response.model == "requested/backend-model"
+    assert response.requested_model == "requested/backend-model"
+    assert response.response_model == "actual/backend-model"
+    assert response.model_identity_match is False
+    assert response.to_dict()["response_model"] == "actual/backend-model"
+    with pytest.raises(api_call_module.ResponseModelIdentityError, match="did not match"):
+        api_call_module.require_response_model_identity(response)
+
+
+@pytest.mark.parametrize("response_model", ["different/backend", None])
+def test_inference_hub_rejects_mismatched_or_missing_response_model(
+    monkeypatch: pytest.MonkeyPatch,
+    response_model: str | None,
+) -> None:
+    calls = _install_openai_response_model(
+        monkeypatch,
+        response_model=response_model,
+    )
+    _allow_inference_hub_route(monkeypatch)
+    monkeypatch.setenv("NVIDIA_API_KEY", "internal-key")
+    monkeypatch.setenv(
+        "INFERENCE_HUB_BASE_URL",
+        "https://inference-api.nvidia.com/v1",
+    )
+
+    with pytest.raises(api_call_module.ResponseModelIdentityError) as caught:
+        api_call_module.api_call(
+            "inference_hub",
+            "verified/backend",
+            "sys",
+            "query",
+        )
+
+    assert len(calls) == 1
+    provenance = api_call_module.failure_provenance(caught.value)
+    assert provenance is not None
+    assert provenance["requested_model"] == "verified/backend"
+    if response_model is None:
+        assert "response_model" not in provenance
+        assert "model_identity_match" not in provenance
+    else:
+        assert provenance["response_model"] == response_model
+        assert provenance["model_identity_match"] is False
 
 
 def test_api_call_rejects_invalid_generation_controls_before_request(
@@ -459,7 +777,12 @@ def test_api_call_reraises_same_sdk_error_with_failure_provenance(
     module = ModuleType("openai")
     module.OpenAI = FailingOpenAIClient
     monkeypatch.setitem(sys.modules, "openai", module)
+    _allow_inference_hub_route(monkeypatch)
     monkeypatch.setenv("NVIDIA_API_KEY", "test-key")
+    monkeypatch.setenv(
+        "INFERENCE_HUB_BASE_URL",
+        "https://inference-api.nvidia.com/v1",
+    )
 
     with pytest.raises(GatewayError) as caught:
         api_call_module.api_call(
@@ -501,7 +824,12 @@ def test_api_call_malformed_json_is_tagged_as_parser_failure(
     module = ModuleType("openai")
     module.OpenAI = InvalidJSONClient
     monkeypatch.setitem(sys.modules, "openai", module)
+    _allow_inference_hub_route(monkeypatch)
     monkeypatch.setenv("NVIDIA_API_KEY", "test-key")
+    monkeypatch.setenv(
+        "INFERENCE_HUB_BASE_URL",
+        "https://inference-api.nvidia.com/v1",
+    )
 
     with pytest.raises(api_call_module.ResponseParseError) as caught:
         api_call_module.api_call(

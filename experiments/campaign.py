@@ -26,7 +26,15 @@ from pathlib import Path
 from typing import Any, Callable, Iterable, Sequence
 
 from agents.agent_config import load_model_cohort
-from experiments.misc.preflight import run_experiment_preflight
+from experiments.misc.attempt_log import (
+    attempt_log_path_for_csv,
+    iter_attempt_records,
+    verify_attempt_log_metadata,
+)
+from experiments.misc.preflight import (
+    run_experiment_preflight,
+    validate_registry_route_verification,
+)
 from experiments.misc.final_answer import (
     DEFAULT_EXTRACTOR_MAX_TOKENS,
     DEFAULT_EXTRACTOR_MODEL,
@@ -35,6 +43,15 @@ from experiments.misc.final_answer import (
     ExtractionConfig,
 )
 from experiments.misc.prompt_loader import load_part_0_raw_prompts, load_prompt_config
+from experiments.misc.run_metadata import (
+    git_commit,
+    git_dirty,
+    source_bundle_metadata,
+    stable_json_hash,
+    validate_file_integrity,
+    validate_metadata_integrity,
+    validate_resume_contract,
+)
 from experiments.part1.part_1 import DEFAULT_PART_1_ORDER_SEED
 from experiments.part1.scenario_variants import list_scenario_variants
 from experiments.part2.part_2 import (
@@ -49,9 +66,11 @@ CAMPAIGN_ROOT = REPO_ROOT / "data" / "campaigns"
 REGISTRY_COHORTS = ("current_sota", "historical")
 PHASE_ORDER = ("smoke", "part0", "part1", "part2")
 DEFAULT_TIMEOUT_SECONDS = 7 * 24 * 60 * 60
-MANIFEST_SCHEMA_VERSION = 1
+MANIFEST_SCHEMA_VERSION = 2
 MAX_PART2_SENSITIVITY_CELLS = 4_096
 MAX_PART2_SENSITIVITY_REQUESTS = 10_000_000
+DEFAULT_PART2_GENERATION_SEED_BASE = 2_026_080_100
+DEFAULT_PART2_ENVIRONMENT_SEED_BASE = 1_026_080_100
 _CAMPAIGN_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,79}\Z")
 
 
@@ -132,6 +151,23 @@ def _atomic_write_json(path: Path, value: dict[str, Any]) -> None:
     os.replace(temporary, path)
 
 
+def _mark_smoke_artifact_excluded(job: dict[str, Any], artifact: dict[str, Any]) -> None:
+    if job.get("phase") != "smoke":
+        return
+    csv_path = (REPO_ROOT / str(artifact["csv_path"])).resolve()
+    digest = hashlib.sha256(csv_path.read_bytes()).hexdigest()
+    marker = csv_path.with_name(f"{csv_path.stem}.analysis_exclude.json")
+    _atomic_write_json(
+        marker,
+        {
+            "schema_version": 1,
+            "scope": "canonical_analysis_and_validation",
+            "reason": "sacrificial_campaign_smoke",
+            "csv_sha256": digest,
+        },
+    )
+
+
 def _plan_hash(manifest: dict[str, Any]) -> str:
     immutable = {
         "schema_version": manifest["schema_version"],
@@ -140,6 +176,7 @@ def _plan_hash(manifest: dict[str, Any]) -> str:
         "phases": manifest["phases"],
         "timeout_seconds": manifest["timeout_seconds"],
         "part2_design": manifest.get("part2_design"),
+        "execution_freeze": manifest.get("execution_freeze"),
         "jobs": [
             {
                 key: job[key]
@@ -165,6 +202,39 @@ def _plan_hash(manifest: dict[str, Any]) -> str:
         ensure_ascii=False,
     ).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
+
+
+def _campaign_source_paths() -> list[Path]:
+    """All code/configuration capable of changing campaign semantics."""
+
+    paths: set[Path] = {
+        REPO_ROOT / "pyproject.toml",
+        REPO_ROOT / "uv.lock",
+        REPO_ROOT / "docs" / "CONFIRMATORY_PROTOCOL.md",
+    }
+    for directory in ("agents", "analysis", "experiments", "providers"):
+        root = REPO_ROOT / directory
+        if not root.exists():
+            continue
+        paths.update(path for path in root.rglob("*.py") if path.is_file())
+        paths.update(path for path in root.rglob("*.json") if path.is_file())
+    missing = [path for path in paths if not path.is_file()]
+    if missing:
+        raise CampaignError(
+            "campaign freeze source is missing: "
+            + ", ".join(str(path) for path in sorted(missing))
+        )
+    return sorted(paths)
+
+
+def _execution_freeze() -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "git_commit": git_commit(),
+        "git_dirty_at_plan_time": git_dirty(),
+        "python_executable": sys.executable,
+        "source_bundle": source_bundle_metadata(_campaign_source_paths()),
+    }
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -414,9 +484,13 @@ def build_plan(args: argparse.Namespace) -> dict[str, Any]:
         model=args.extractor_model,
         extractor_max_tokens=args.extractor_max_tokens,
     )
+    extraction_metadata = extraction_config.to_metadata()
     extraction_args = _extraction_command_args(extraction_config)
 
-    phases = _unique(args.phase or PHASE_ORDER)
+    requested_phases = _unique(args.phase or PHASE_ORDER)
+    phases = list(requested_phases)
+    if any(phase != "smoke" for phase in phases) and "smoke" not in phases:
+        phases.insert(0, "smoke")
     phases = [phase for phase in PHASE_ORDER if phase in phases]
     if not phases:
         raise CampaignError("at least one phase must be selected")
@@ -520,6 +594,7 @@ def build_plan(args: argparse.Namespace) -> dict[str, Any]:
                     "languages": selected_languages,
                     "prompt_count": prompt_count,
                     "row_count": decisions,
+                    "grading_protocol": extraction_metadata,
                 },
                 counts={
                     "decisions": decisions,
@@ -586,6 +661,7 @@ def build_plan(args: argparse.Namespace) -> dict[str, Any]:
                             "counterbalance_index": counterbalance_index,
                         },
                         "row_count": decisions,
+                        "grading_protocol": extraction_metadata,
                     },
                     counts={
                         "decisions": decisions,
@@ -628,7 +704,10 @@ def build_plan(args: argparse.Namespace) -> dict[str, Any]:
                     "collapse_death_rate": DEFAULT_COLLAPSE_DEATH_RATE,
                     "society_size": society_size,
                     "days": days,
-                    "seed": None,
+                    "seed": args.part2_generation_seed_base + replicate - 1,
+                    "environment_seed": (
+                        args.part2_environment_seed_base + replicate - 1
+                    ),
                     "replicate": replicate,
                 }
                 for replicate in range(1, replicates + 1)
@@ -636,7 +715,13 @@ def build_plan(args: argparse.Namespace) -> dict[str, Any]:
         else:
             _, cells = sensitivity
             trajectory_cells = [
-                {**cell, "replicate": None}
+                {
+                    **cell,
+                    "environment_seed": (
+                        DEFAULT_PART2_ENVIRONMENT_SEED_BASE + int(cell["seed"])
+                    ),
+                    "replicate": None,
+                }
                 for cell in cells
             ]
         for target in phase_targets:
@@ -646,6 +731,7 @@ def build_plan(args: argparse.Namespace) -> dict[str, Any]:
                 decisions_upper = cell_society_size * cell_days
                 replicate = cell["replicate"]
                 seed = cell["seed"]
+                environment_seed = int(cell["environment_seed"])
                 command = [python, "-m", "experiments.part2.part_2"]
                 command.extend(extraction_args)
                 command.extend(_target_command_args(target))
@@ -672,10 +758,16 @@ def build_plan(args: argparse.Namespace) -> dict[str, Any]:
                             str(cell["resource_capacity"]),
                             "--collapse-death-rate",
                             str(cell["collapse_death_rate"]),
-                            "--seed",
-                            str(seed),
                         ]
                     )
+                command.extend(
+                    [
+                        "--generation-seed",
+                        str(seed),
+                        "--environment-seed",
+                        str(environment_seed),
+                    ]
+                )
                 command.append("--headless")
                 job_suffix = (
                     f"r{int(replicate):03d}"
@@ -702,6 +794,7 @@ def build_plan(args: argparse.Namespace) -> dict[str, Any]:
                             "resource_capacity": int(cell["resource_capacity"]),
                             "collapse_death_rate": float(cell["collapse_death_rate"]),
                             "generation_seed": seed,
+                            "environment_seed": environment_seed,
                             "row_count_upper_bound": decisions_upper,
                             "replicate": replicate,
                             "sensitivity_cell": (
@@ -712,6 +805,7 @@ def build_plan(args: argparse.Namespace) -> dict[str, Any]:
                                 if sensitivity is not None
                                 else None
                             ),
+                            "grading_protocol": extraction_metadata,
                         },
                         counts={
                             "decisions_upper_bound": decisions_upper,
@@ -728,17 +822,24 @@ def build_plan(args: argparse.Namespace) -> dict[str, Any]:
                     )
                 )
 
-    if "smoke" in phases:
+    smoke_experiments = {
+        phase for phase in requested_phases if phase in {"part0", "part1", "part2"}
+    }
+    if not smoke_experiments:
+        smoke_experiments = {"part0", "part1", "part2"}
+    if "smoke" in phases and "part0" in smoke_experiments:
         add_part_0(
             phase="smoke",
             prompt_count=args.smoke_part0_prompts,
             selected_languages=["english"],
         )
+    if "smoke" in phases and "part1" in smoke_experiments:
         smoke_part_1_count = min(args.smoke_part1_limit, part_1_decisions)
         add_part_1(phase="smoke", limit=smoke_part_1_count, decisions=smoke_part_1_count)
+    if "smoke" in phases and "part2" in smoke_experiments:
         add_part_2(
             phase="smoke",
-            phase_targets=targets,
+            phase_targets=selected_part_2_targets,
             replicates=1,
             society_size=args.smoke_part2_society_size,
             days=args.smoke_part2_days,
@@ -765,6 +866,9 @@ def build_plan(args: argparse.Namespace) -> dict[str, Any]:
             sensitivity=sensitivity_plan,
         )
 
+    execution_freeze = _execution_freeze()
+    for job in jobs:
+        job["expected"]["campaign_git_commit"] = execution_freeze["git_commit"]
     manifest = {
         "schema_version": MANIFEST_SCHEMA_VERSION,
         "campaign_id": args.campaign_id,
@@ -780,7 +884,8 @@ def build_plan(args: argparse.Namespace) -> dict[str, Any]:
         },
         "phases": phases,
         "timeout_seconds": args.timeout_seconds,
-        "grading_protocol": extraction_config.to_metadata(),
+        "grading_protocol": extraction_metadata,
+        "execution_freeze": execution_freeze,
         "jobs": jobs,
     }
     if sensitivity_plan is not None and "part2" in phases:
@@ -834,6 +939,288 @@ def _row_count(path: Path) -> int:
         return sum(1 for row in reader if any(cell.strip() for cell in row))
 
 
+def _strict_artifact_rows(
+    csv_path: Path,
+    *,
+    experiment: str,
+) -> list[dict[str, str]]:
+    from experiments.part0 import part_0
+    from experiments.part1 import part_1
+    from experiments.part2 import part_2
+
+    expected_header = {
+        "part_0": part_0.RESULT_HEADERS,
+        "part_1": part_1.RESULT_HEADERS,
+        "part_2": part_2.RESULT_HEADERS,
+    }[experiment]
+    with csv_path.open("r", encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle)
+        header = list(reader.fieldnames or [])
+        if header != expected_header:
+            raise CampaignError(
+                f"strict campaign artifact has unexpected {experiment} schema: "
+                f"{header}"
+            )
+        rows = [
+            {key: value or "" for key, value in row.items()}
+            for row in reader
+        ]
+    if experiment == "part_0":
+        required = ("provider", "model", "language", "prompt", "response", "verdict")
+        for row in rows:
+            if any(not row[field].strip() for field in required):
+                raise CampaignError("strict Part 0 row is missing required content")
+            expected_flag = {"complied": "true", "denied": "false"}.get(
+                row["verdict"].strip().lower()
+            )
+            if expected_flag is None or row["complied?"].strip().lower() != expected_flag:
+                raise CampaignError("strict Part 0 verdict fields are inconsistent")
+    elif experiment == "part_1":
+        valid_actions = {
+            game: set(config["action_descriptions"])
+            for game, config in part_1.PART_1_PROMPTS["games"].items()
+        }
+        positions: list[int] = []
+        for row in rows:
+            if any(
+                not row[field].strip()
+                for field in ("provider", "model", "game", "prompt_id", "action", "prompt_text")
+            ):
+                raise CampaignError("strict Part 1 row is missing required content")
+            if row["action"] not in valid_actions.get(row["game"], set()):
+                raise CampaignError("strict Part 1 row contains an invalid action")
+            try:
+                positions.append(int(row["order_position"]))
+            except ValueError as error:
+                raise CampaignError("strict Part 1 row has invalid order position") from error
+        if sorted(positions) != list(range(1, len(rows) + 1)):
+            raise CampaignError("strict Part 1 order positions are not contiguous")
+    else:
+        for row in rows:
+            if any(
+                not row[field].strip()
+                for field in (
+                    "run_id",
+                    "trajectory_id",
+                    "structural_cell_id",
+                    "provider",
+                    "model",
+                    "day",
+                    "agent",
+                    "anonymous_agent_slot",
+                    "action",
+                    "attempt_outcome",
+                )
+            ):
+                raise CampaignError("strict Part 2 row is missing required content")
+            if row["action"] not in {"RESTRAIN", "OVERUSE", "INVALID"}:
+                raise CampaignError("strict Part 2 row contains an unknown action")
+            if row["action"] == "INVALID":
+                if row["attempt_outcome"] != "invalid_response" or not row[
+                    "invalid_reason"
+                ].strip():
+                    raise CampaignError(
+                        "strict Part 2 INVALID row lacks terminal invalid provenance"
+                    )
+            elif row["attempt_outcome"] != "success" or not row["reasoning"].strip():
+                raise CampaignError(
+                    "strict Part 2 scored row lacks successful reasoning provenance"
+                )
+            try:
+                for field in (
+                    "day",
+                    "attempt_count",
+                    "environment_seed",
+                    "generation_seed",
+                    "call_seed",
+                    "population_start",
+                    "population_end",
+                    "restrain_count",
+                    "overuse_count",
+                    "invalid_count",
+                    "resource_units_remaining",
+                    "resource_capacity",
+                    "deaths",
+                ):
+                    int(row[field])
+            except ValueError as error:
+                raise CampaignError("strict Part 2 row has invalid numeric state") from error
+    return rows
+
+
+def _verify_strict_attempt_coverage(
+    *,
+    experiment: str,
+    rows: list[dict[str, str]],
+    csv_path: Path,
+    metadata: dict[str, Any],
+) -> None:
+    attempt_metadata = metadata.get("attempt_log")
+    if not isinstance(attempt_metadata, dict):
+        raise CampaignError("strict campaign artifact is missing attempt-log metadata")
+    expected_path = attempt_log_path_for_csv(csv_path).resolve()
+    configured_path = Path(str(attempt_metadata.get("path", "")))
+    if not configured_path.is_absolute():
+        configured_path = (REPO_ROOT / configured_path).resolve()
+    if configured_path != expected_path:
+        raise CampaignError("attempt-log path does not match the result artifact")
+    try:
+        verify_attempt_log_metadata(
+            configured_path,
+            attempt_metadata,
+            require_hash_chain=True,
+        )
+    except ValueError as error:
+        raise CampaignError(f"attempt-log integrity check failed: {error}") from error
+
+    expected_units = {
+        "part_0": lambda row: stable_json_hash(
+            [row["provider"], row["model"], row["language"], row["prompt"]]
+        ),
+        "part_1": lambda row: row["prompt_id"],
+        "part_2": lambda row: f"{row['day']}__{row['agent']}",
+    }
+    row_unit_ids = [expected_units[experiment](row) for row in rows]
+    if any(not unit_id for unit_id in row_unit_ids) or len(row_unit_ids) != len(
+        set(row_unit_ids)
+    ):
+        raise CampaignError("result artifact contains empty or duplicate unit IDs")
+    rows_by_unit_id = dict(zip(row_unit_ids, rows, strict=True))
+
+    def scored_payload(row: dict[str, str]) -> dict[str, str]:
+        if experiment == "part_0":
+            return {"reasoning": row["reasoning"], "response": row["response"]}
+        if experiment == "part_1":
+            return {"action": row["action"], "justification": row["justification"]}
+        return {"action": row["action"], "reasoning": row["reasoning"]}
+
+    terminal_unit_ids: set[str] = set()
+    for record in iter_attempt_records(configured_path):
+        outcome = record.get("outcome")
+        is_success = outcome == "success"
+        is_terminal_invalid = (
+            experiment == "part_2"
+            and outcome == "invalid_response"
+            and record.get("will_retry") is False
+        )
+        if not is_success and not is_terminal_invalid:
+            continue
+        unit_id = str(record.get("unit_id", ""))
+        if unit_id in terminal_unit_ids:
+            raise CampaignError("attempt log contains duplicate terminal unit IDs")
+        if unit_id not in rows_by_unit_id:
+            raise CampaignError("attempt log contains an unknown terminal unit ID")
+        terminal_unit_ids.add(unit_id)
+        row = rows_by_unit_id[unit_id]
+        if experiment == "part_2":
+            unit = record.get("unit")
+            try:
+                attempt_count_matches = int(record.get("attempt", 0)) == int(
+                    row["attempt_count"]
+                )
+                call_seed_matches = isinstance(unit, dict) and int(
+                    unit.get("call_seed", -1)
+                ) == int(row["call_seed"])
+            except (TypeError, ValueError):
+                attempt_count_matches = False
+                call_seed_matches = False
+            if (
+                not attempt_count_matches
+                or not call_seed_matches
+                or not isinstance(unit, dict)
+                or str(unit.get("day", "")) != row["day"]
+                or str(unit.get("agent", "")) != row["agent"]
+            ):
+                raise CampaignError(
+                    "Part 2 row attempt/seed/unit provenance differs from attempt log"
+                )
+        generation = record.get("generation_record")
+        grading_protocol = metadata.get("grading_protocol")
+        if not isinstance(generation, dict) or not isinstance(grading_protocol, dict):
+            raise CampaignError(
+                "strict campaign terminal attempt is missing extraction provenance"
+            )
+        if generation.get("protocol") != grading_protocol.get("protocol"):
+            raise CampaignError("attempt extraction protocol differs from metadata")
+        subject = generation.get("subject")
+        if not isinstance(subject, dict):
+            raise CampaignError("terminal attempt lacks subject provenance")
+        if (
+            subject.get("truncated") is not False
+            or subject.get("model_identity_match") is not True
+            or subject.get("provider") != row["provider"]
+            or subject.get("model") != row["model"]
+        ):
+            raise CampaignError(
+                "terminal attempt lacks exact subject identity/non-truncation evidence"
+            )
+
+        extractor = generation.get("extractor")
+        configured_extractor = grading_protocol.get("extractor")
+        if (
+            not isinstance(extractor, dict)
+            or not isinstance(configured_extractor, dict)
+            or extractor.get("provider") != configured_extractor.get("provider")
+            or extractor.get("model") != configured_extractor.get("model")
+        ):
+            raise CampaignError("attempt extractor identity differs from metadata")
+        extractor_response = (
+            extractor.get("response") if isinstance(extractor, dict) else None
+        )
+        if isinstance(extractor_response, dict) and (
+            extractor_response.get("truncated") is not False
+            or extractor_response.get("model_identity_match") is not True
+        ):
+            raise CampaignError(
+                "attempt lacks exact extractor identity/non-truncation evidence"
+            )
+
+        if is_terminal_invalid:
+            if row["action"] != "INVALID" or row["attempt_outcome"] != "invalid_response":
+                raise CampaignError("terminal invalid attempt does not map to an INVALID row")
+            error = record.get("error")
+            if not isinstance(error, dict):
+                raise CampaignError("terminal invalid attempt lacks error provenance")
+            expected_reason = (
+                f"{error.get('exception_type', '')}: {error.get('message', '')}"
+            )
+            if row["invalid_reason"] != expected_reason:
+                raise CampaignError(
+                    "Part 2 INVALID reason differs from terminal attempt provenance"
+                )
+            if record.get("parsed_response") is not None:
+                raise CampaignError("terminal invalid attempt unexpectedly has a parsed response")
+            continue
+
+        if (
+            generation.get("status") != "success"
+            or not isinstance(generation.get("extracted_final"), dict)
+            or not isinstance(extractor_response, dict)
+        ):
+            raise CampaignError(
+                "strict campaign success attempt is missing successful extraction provenance"
+            )
+        try:
+            raw_extracted = json.loads(str(record.get("raw_response", "")))
+        except json.JSONDecodeError as error:
+            raise CampaignError("success attempt raw response is not extracted JSON") from error
+        if raw_extracted != generation["extracted_final"]:
+            raise CampaignError("success attempt raw response differs from extracted final")
+        parsed_response = record.get("parsed_response")
+        if parsed_response != generation["extracted_final"]:
+            raise CampaignError(
+                "success attempt parsed response differs from extracted final"
+            )
+        if generation["extracted_final"] != scored_payload(row):
+            raise CampaignError(
+                "result CSV scored fields differ from the extracted final answer"
+            )
+    if terminal_unit_ids != set(row_unit_ids):
+        raise CampaignError(
+            "attempt-log terminal unit IDs do not exactly cover result rows"
+        )
+
+
 def _safe_result_path(metadata_path: Path, raw_value: Any, experiment: str) -> Path:
     if not isinstance(raw_value, str) or not raw_value.strip():
         raise CampaignError(f"metadata is missing csv_path: {metadata_path}")
@@ -869,6 +1256,26 @@ def verify_artifact(job: dict[str, Any], metadata_path: Path) -> dict[str, Any]:
         raise CampaignError(f"artifact is not marked complete: {metadata_path}")
 
     expected = job["expected"]
+    if "grading_protocol" in expected:
+        try:
+            validate_metadata_integrity(metadata, required=True)
+        except ValueError as error:
+            raise CampaignError(f"artifact metadata integrity check failed: {error}") from error
+        if metadata.get("git_commit") != expected.get("campaign_git_commit"):
+            raise CampaignError(
+                f"strict artifact Git commit mismatch: {metadata_path}"
+            )
+        if metadata.get("git_dirty") is not False:
+            raise CampaignError(
+                f"strict artifact was generated from a dirty worktree: {metadata_path}"
+            )
+    if (
+        "grading_protocol" in expected
+        and metadata.get("grading_protocol") != expected["grading_protocol"]
+    ):
+        raise CampaignError(
+            f"artifact grading protocol mismatch: {metadata_path}"
+        )
     if experiment == "part_0":
         if metadata.get("models") != expected["models"]:
             raise CampaignError(f"part 0 artifact model cohort mismatch: {metadata_path}")
@@ -894,7 +1301,12 @@ def verify_artifact(job: dict[str, Any], metadata_path: Path) -> dict[str, Any]:
                 raise CampaignError(f"part 2 artifact {key} mismatch: {metadata_path}")
         if metadata.get("society_config") != expected["society_config"]:
             raise CampaignError(f"part 2 artifact society config mismatch: {metadata_path}")
-        for key in ("resource_capacity", "collapse_death_rate", "generation_seed"):
+        for key in (
+            "resource_capacity",
+            "collapse_death_rate",
+            "generation_seed",
+            "environment_seed",
+        ):
             if metadata.get(key) != expected[key]:
                 raise CampaignError(f"part 2 artifact {key} mismatch: {metadata_path}")
         completed_days = metadata.get("completed_days")
@@ -915,7 +1327,103 @@ def verify_artifact(job: dict[str, Any], metadata_path: Path) -> dict[str, Any]:
     csv_path = _safe_result_path(metadata_path, metadata.get("csv_path"), experiment)
     if not csv_path.is_file():
         raise CampaignError(f"result CSV does not exist: {csv_path}")
-    rows = _row_count(csv_path)
+    strict_protocol = "grading_protocol" in expected
+    if strict_protocol:
+        artifact_integrity = metadata.get("artifact_integrity")
+        if not isinstance(artifact_integrity, dict):
+            raise CampaignError("strict campaign artifact is missing result integrity")
+        try:
+            validate_file_integrity(
+                csv_path,
+                artifact_integrity.get("results"),
+                label=f"{experiment} result CSV",
+            )
+            strict_rows = _strict_artifact_rows(
+                csv_path,
+                experiment=experiment,
+            )
+            from experiments.part0 import part_0
+            from experiments.part1 import part_1
+            from experiments.part2 import part_2
+
+            extraction_config = ExtractionConfig.from_metadata(
+                expected["grading_protocol"]
+            )
+            expected_resume_contract = {
+                "part_0": lambda: part_0._strict_resume_contract(
+                    models=expected["models"],
+                    prompts=[str(value) for value in metadata["prompts"]],
+                    languages=expected["languages"],
+                    judge_after=bool(metadata.get("judge_after")),
+                    extraction_config=extraction_config,
+                ),
+                "part_1": lambda: part_1._strict_resume_contract(
+                    provider=expected["provider"],
+                    model=expected["model"],
+                    run_parameters={
+                        key: metadata[key]
+                        for key in (
+                            "games",
+                            "frames",
+                            "domains",
+                            "presentations",
+                            "limit",
+                            "total_prompts",
+                            "ordering",
+                            "grading_protocol",
+                        )
+                    },
+                    extraction_config=extraction_config,
+                ),
+                "part_2": lambda: part_2._strict_resume_contract(
+                    provider=expected["provider"],
+                    model=expected["model"],
+                    run_parameters={
+                        key: metadata[key]
+                        for key in (
+                            "part_2_schema_version",
+                            "run_id",
+                            "trajectory_id",
+                            "structural_cell_id",
+                            "society_config",
+                            "resource_capacity",
+                            "collapse_death_rate",
+                            "environment_seed",
+                            "environment_seed_origin",
+                            "generation_seed",
+                            "dynamics",
+                            "result_schema",
+                            "grading_protocol",
+                        )
+                    },
+                    extraction_config=extraction_config,
+                ),
+            }[experiment]()
+            validate_resume_contract(
+                metadata.get("resume_contract"),
+                expected_resume_contract,
+                experiment=experiment,
+            )
+        except ValueError as error:
+            raise CampaignError(f"strict artifact integrity check failed: {error}") from error
+        _verify_strict_attempt_coverage(
+            experiment=experiment,
+            rows=strict_rows,
+            csv_path=csv_path,
+            metadata=metadata,
+        )
+        if experiment == "part_2":
+            from analysis.validation import validate_part2_file
+
+            validation = validate_part2_file(csv_path)
+            if validation.status == "fail":
+                raise CampaignError(
+                    "strict Part 2 artifact failed transition/attrition validation: "
+                    + "; ".join(validation.errors)
+                )
+        rows = len(strict_rows)
+    else:
+        rows = _row_count(csv_path)
     if experiment in {"part_0", "part_1"}:
         if rows != expected["row_count"]:
             raise CampaignError(
@@ -1056,6 +1564,56 @@ def perform_strict_preflight(
     preflight_runner: PreflightRunner = run_experiment_preflight,
     judge_probe: JudgeProbe | None = None,
 ) -> None:
+    strict_jobs = [
+        job
+        for job in manifest["jobs"]
+        if "grading_protocol" in job.get("expected", {})
+    ]
+    if strict_jobs:
+        dirty = git_dirty()
+        commit = git_commit()
+        freeze = manifest.get("execution_freeze")
+        if not isinstance(freeze, dict):
+            raise CampaignError("strict campaign is missing its immutable execution freeze.")
+        if dirty is not False:
+            raise CampaignError(
+                "strict campaign execution requires a clean Git worktree."
+            )
+        if not isinstance(commit, str) or re.fullmatch(r"[0-9a-f]{40}", commit) is None:
+            raise CampaignError(
+                "strict campaign execution requires an exact Git commit."
+            )
+        if freeze.get("git_dirty_at_plan_time") is not False:
+            raise CampaignError(
+                "strict campaign plan was created from a dirty Git worktree."
+            )
+        if freeze.get("git_commit") != commit:
+            raise CampaignError(
+                "strict campaign Git commit differs from its immutable plan."
+            )
+        if freeze.get("python_executable") != sys.executable:
+            raise CampaignError(
+                "strict campaign Python executable differs from its immutable plan."
+            )
+        current_source_bundle = source_bundle_metadata(_campaign_source_paths())
+        if freeze.get("source_bundle") != current_source_bundle:
+            raise CampaignError(
+                "strict campaign source/environment bundle differs from its immutable plan."
+            )
+        smoke_jobs = [job for job in strict_jobs if job.get("phase") == "smoke"]
+        for job in strict_jobs:
+            if job.get("phase") == "smoke":
+                continue
+            target_ids = set(job.get("target_ids", []))
+            if not any(
+                smoke.get("experiment") == job.get("experiment")
+                and set(smoke.get("target_ids", [])) >= target_ids
+                for smoke in smoke_jobs
+            ):
+                raise CampaignError(
+                    f"strict job {job.get('id')} lacks a matching full-path smoke job."
+                )
+
     target_pairs: list[tuple[str, str]] = []
     for job in manifest["jobs"]:
         expected = job["expected"]
@@ -1066,11 +1624,13 @@ def perform_strict_preflight(
             target_pairs.append((expected["provider"], expected["model"]))
     includes_part_0 = any(job["experiment"] == "part_0" for job in manifest["jobs"])
     judges = _load_part_0_judges() if includes_part_0 else []
+    preflight_targets = _unique_pairs([*target_pairs, *judges])
+    validate_registry_route_verification(preflight_targets)
     skip_value = os.environ.pop("LLM_ALTRUISM_SKIP_PREFLIGHT", None)
     try:
         preflight_runner(
             "Registry campaign",
-            _unique_pairs([*target_pairs, *judges]),
+            preflight_targets,
             resume=False,
             test_paths=[
                 "tests/test_preflight.py",
@@ -1181,6 +1741,7 @@ def execute_manifest(
             job["artifact"] = verify_artifact(
                 job, REPO_ROOT / str(artifact["metadata_path"])
             )
+            _mark_smoke_artifact_excluded(job, job["artifact"])
         except CampaignError as error:
             job["status"] = "pending"
             job["artifact"] = None
@@ -1218,6 +1779,25 @@ def execute_manifest(
     failures = 0
     for job in manifest["jobs"]:
         if job.get("status") == "complete":
+            continue
+        if job.get("phase") != "smoke" and any(
+            smoke.get("status") != "complete"
+            for smoke in manifest["jobs"]
+            if smoke.get("phase") == "smoke"
+            and smoke.get("experiment") == job.get("experiment")
+            and set(smoke.get("target_ids", [])) >= set(job.get("target_ids", []))
+        ):
+            failures += 1
+            job["status"] = "blocked_smoke"
+            job["failure"] = {
+                "type": "SmokeGateError",
+                "message": "matching sacrificial full-path smoke job did not complete",
+                "at_utc": _utc_now(),
+            }
+            manifest["updated_at_utc"] = _utc_now()
+            _atomic_write_json(manifest_path, manifest)
+            if fail_fast:
+                break
             continue
         attempt_number = len(job.get("attempts", [])) + 1
         log_path = logs_dir / f"{job['id']}.attempt-{attempt_number:03d}.log"
@@ -1282,6 +1862,7 @@ def execute_manifest(
             continue
 
         job["artifact"] = artifact
+        _mark_smoke_artifact_excluded(job, artifact)
         job["status"] = "complete"
         job.pop("failure", None)
         manifest["updated_at_utc"] = _utc_now()
@@ -1384,6 +1965,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="Repeatable exact registry target id; defaults to every cohort member.",
     )
     parser.add_argument("--part2-replicates", type=_positive_int, default=1)
+    parser.add_argument(
+        "--part2-generation-seed-base",
+        type=_non_negative_int,
+        default=DEFAULT_PART2_GENERATION_SEED_BASE,
+        help="First explicit generation seed for ordinary Part 2 replicates.",
+    )
+    parser.add_argument(
+        "--part2-environment-seed-base",
+        type=_non_negative_int,
+        default=DEFAULT_PART2_ENVIRONMENT_SEED_BASE,
+        help="First explicit, separate environment seed for ordinary Part 2 replicates.",
+    )
     parser.add_argument("--part2-society-size", type=_positive_int, default=50)
     parser.add_argument("--part2-days", type=_positive_int, default=100)
     parser.add_argument("--part2-resource", default="water")

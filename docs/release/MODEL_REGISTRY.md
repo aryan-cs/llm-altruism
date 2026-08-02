@@ -35,16 +35,32 @@ promotion.
 ## Exact-Version Confirmatory Registry
 
 The machine-readable registry is `agents/agent_config.registry.json`, schema 1,
-registry version `2026-08-01.1`, SHA-256
-`a59f35eca92085550e364419163047457f844e24186ca4a67327ba8fc9c04d62`.
-These entries are planned confirmatory targets through the user-provided
-Inference Hub using `NVIDIA_API_KEY`. They are not evaluated models and must not appear in a result
-table until the exact route passes a live smoke test and produces validated
-native artifacts.
+registry version `2026-08-01.2`, SHA-256
+`b73ecad3109c3a287ffc77903645bf97a1607bc2a8f65b2cbd89fec258ba569f`.
+These entries are catalog-display-only placeholders for planned confirmatory
+targets. Every entry is marked `verification_status=unverified` and
+`route_source=catalog_display_only`; preflight and campaign execution reject
+them. Catalog labels are not callable model IDs. Each route must be replaced by
+the exact backend-namespaced ID reported by InferenceHub Developer Tools before
+promotion. Because the benchmark adapter never sends an unverified route, the
+first approved smoke record must be captured through the separate route-review
+workflow and added as verification evidence. Only then may the entry be marked
+verified and used by the benchmark adapter or included in any result table.
+
+A verified entry may use only the authoritative route source
+`inference_hub_models_api`. It must include a
+`verification_evidence` object with an ISO-8601 UTC `verified_at_utc`, a
+lowercase SHA-256 `discovery_sha256`, and a `smoke_test` record containing its
+UTC completion time, request ID, exact response model, and response-body
+SHA-256. The smoke response model must equal the registered route. Unverified
+entries may use only `catalog_display_only` and must not carry verification
+evidence. Even after schema validation, the production adapter checks that the
+requested InferenceHub route is registered and verified before credential use,
+then rejects a missing or mismatched provider response-model identity.
 
 ### Current-SOTA cohort
 
-| Upstream family | Exact configured route |
+| Upstream family | Unverified catalog label |
 | --- | --- |
 | OpenAI | `gpt-5.6-sol` |
 | Anthropic | `claude-fable-5` |
@@ -63,7 +79,7 @@ native artifacts.
 
 ### Historical comparison cohort
 
-| Upstream family | Exact configured route |
+| Upstream family | Unverified catalog label |
 | --- | --- |
 | OpenAI | `gpt-3.5-turbo-0125` |
 | OpenAI | `gpt-4.1-2025-04-14` |
@@ -74,10 +90,12 @@ native artifacts.
 
 ## Promotion Gate
 
-For every target, preserve the registry version and hash, route, provider
-response model ID, endpoint profile, run time, supported decoding controls,
+For every target, preserve the registry version and hash, Developer
+Tools-derived route source and verification status, provider
+requested and response model IDs, model-identity match status, endpoint profile,
+run time, supported decoding controls,
 request/retry log, prompt/config hashes, and output hashes. A missing credential,
-404/deprecated route, schema failure, unsupported control, incomplete phase, or
-validation failure keeps that target out of the reported cohort. The campaign
-manifest records failures rather than replacing a route or silently changing a
-model version.
+catalog-only label, 404/deprecated route, schema failure, unsupported control,
+incomplete phase, or validation failure keeps that target out of the reported
+cohort. The campaign manifest records failures rather than replacing a route or
+silently changing a model version.

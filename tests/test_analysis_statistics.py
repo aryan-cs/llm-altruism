@@ -19,7 +19,7 @@ from analysis.statistics import (
     spearman_correlation,
 )
 from analysis.summarize_results import summarize_cross_part, summarize_part1, summarize_part2
-from experiments.part2.part_2 import RESULT_HEADERS as PART2_RESULT_HEADERS
+from experiments.part2.part_2 import PILOT_RESULT_HEADERS as PART2_RESULT_HEADERS
 
 
 def _read_rows(path: Path) -> list[dict[str, str]]:
@@ -156,12 +156,14 @@ def test_cross_part_table_reports_all_correlations_and_influence_ranges(tmp_path
                 "model": model,
                 "aggregation_unit": "run",
                 "run_count": 2,
+                "structural_cell_key": f"cell-{model}",
                 "restraint_rate": restraint,
                 "final_population": population,
                 "final_resource_units": 10 + index,
                 "normalized_aurc": 0.2 + index / 100,
                 "normalized_aupc": 0.3 + index / 100,
-                "first_depletion_day": "",
+                "restricted_mean_time_to_depletion": 100,
+                "survival_through_horizon": 1,
                 "reasoning_mismatch_flags": 0,
             }
             for index, (model, restraint, population) in enumerate(
@@ -239,6 +241,9 @@ def _write_part2_run(path: Path, actions: list[str]) -> None:
         writer = csv.DictWriter(handle, fieldnames=PART2_RESULT_HEADERS)
         writer.writeheader()
         restraint_count = sum(action == "RESTRAIN" for action in actions)
+        overuse_count = len(actions) - restraint_count
+        resource_remaining = max(0, 10 - overuse_count * 2)
+        deaths = math.ceil(len(actions) * 0.2) if resource_remaining == 0 else 0
         for index, action in enumerate(actions, start=1):
             writer.writerow(
                 {
@@ -249,12 +254,12 @@ def _write_part2_run(path: Path, actions: list[str]) -> None:
                     "action": action,
                     "reasoning": "",
                     "population_start": len(actions),
-                    "population_end": len(actions),
+                    "population_end": len(actions) - deaths,
                     "restrain_count": restraint_count,
-                    "overuse_count": len(actions) - restraint_count,
-                    "resource_units_remaining": 10,
+                    "overuse_count": overuse_count,
+                    "resource_units_remaining": resource_remaining,
                     "resource_capacity": 10,
-                    "deaths": 0,
+                    "deaths": deaths,
                     "resource": "water",
                     "selfish_gain": 2,
                     "depletion_units": 2,
@@ -265,8 +270,16 @@ def _write_part2_run(path: Path, actions: list[str]) -> None:
         json.dumps(
             {
                 "parameters": {
-                    "society_config": {"days": 1, "society_size": len(actions)},
+                    "society_config": {
+                        "days": 1,
+                        "society_size": len(actions),
+                        "resource": "water",
+                        "selfish_gain": 2,
+                        "depletion_units": 2,
+                        "community_benefit": 5,
+                    },
                     "resource_capacity": 10,
+                    "collapse_death_rate": 0.2,
                 }
             }
         ),
@@ -274,7 +287,7 @@ def _write_part2_run(path: Path, actions: list[str]) -> None:
     )
 
 
-def test_part2_replications_average_run_rates_instead_of_pooling_agent_days(tmp_path: Path) -> None:
+def test_part2_different_population_cells_are_not_pooled(tmp_path: Path) -> None:
     raw_dir = tmp_path / "raw"
     part_dir = raw_dir / "part_2"
     _write_part2_run(
@@ -288,14 +301,16 @@ def test_part2_replications_average_run_rates_instead_of_pooling_agent_days(tmp_
 
     output_dir = tmp_path / "tables"
     summarize_part2(raw_dir, output_dir)
-    [summary] = _read_rows(output_dir / "part2_model_summary.csv")
+    summaries = _read_rows(output_dir / "part2_model_summary.csv")
     run_rows = _read_rows(output_dir / "part2_run_summary.csv")
 
     assert len(run_rows) == 2
-    assert summary["aggregation_unit"] == "run"
-    assert int(summary["run_count"]) == 2
-    assert float(summary["restraint_rate"]) == 0.5
-    assert float(summary["restraint_rate_min"]) == 0.0
-    assert float(summary["restraint_rate_max"]) == 1.0
-    assert summary["interval_method"] == "between_run_t"
-    assert float(summary["restraint_rate"]) != 1 / 10
+    assert len(summaries) == 2
+    assert {int(row["society_size"]) for row in summaries} == {1, 9}
+    assert {int(row["run_count"]) for row in summaries} == {1}
+    assert {float(row["restraint_rate"]) for row in summaries} == {0.0, 1.0}
+    assert {row["interval_method"] for row in summaries} == {
+        "not_estimable_single_run"
+    }
+    assert all(not row["restraint_ci_low"] for row in summaries)
+    assert all(not row["restraint_ci_high"] for row in summaries)

@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from experiments.misc import run_metadata
 from providers.api_call import ResponseParseError
 
@@ -35,12 +37,16 @@ def test_base_run_metadata_preserves_registry_route_and_generation_controls(
             "reasoning_effort": "low",
             "access_token": "config-secret",
         },
-        parameters={"nested": {"password": "parameter-secret"}},
+        parameters={
+            "nested": {"password": "parameter-secret"},
+            "request_id": "ordinary-request-provenance",
+        },
     )
 
     assert metadata["generation_config"]["seed"] == 11
     assert metadata["generation_config"]["access_token"] == "<REDACTED>"
     assert metadata["parameters"]["nested"]["password"] == "<REDACTED>"
+    assert metadata["parameters"]["request_id"] == "ordinary-request-provenance"
     assert metadata["command"] == [
         "experiment.py",
         "--api-key",
@@ -48,15 +54,17 @@ def test_base_run_metadata_preserves_registry_route_and_generation_controls(
         "--seed=11",
     ]
     assert metadata["schema_version"] == 2
-    assert metadata["model_registry"]["registry_version"] == "2026-08-01.1"
+    assert metadata["model_registry"]["registry_version"] == "2026-08-01.2"
     assert metadata["cohort"] == {
         "id": "current_sota",
-        "version": "2026-08-01.1",
+        "version": "2026-08-01.2",
     }
     assert metadata["route"]["provider"] == "inference_hub"
     assert metadata["route"]["upstream_provider"] == "google"
     assert metadata["route"]["model"] == "gemini-3.1-pro-preview"
     assert metadata["route"]["route"] == "gemini-3.1-pro-preview"
+    assert metadata["route"]["verification_status"] == "unverified"
+    assert metadata["route"]["route_source"] == "catalog_display_only"
     assert metadata["route"]["endpoint"]["base_url_env"] == "INFERENCE_HUB_BASE_URL"
     assert metadata["credential_environment"]["NVIDIA_API_KEY"] is True
     assert list(metadata["credential_environment"]) == ["NVIDIA_API_KEY"]
@@ -94,3 +102,18 @@ def test_mark_metadata_failed_records_parser_provenance(tmp_path) -> None:
     assert metadata["failure"]["provenance"]["category"] == "parser"
     assert metadata["failure"]["provenance"]["upstream_provider"] == "anthropic"
     assert metadata["failure"]["provenance"]["route"] == "claude-sonnet-5"
+
+
+def test_run_metadata_payload_hash_detects_missing_or_changed_fields(tmp_path) -> None:
+    metadata_path = tmp_path / "integrity_meta.json"
+    run_metadata.write_metadata(metadata_path, {"status": "running", "value": 1})
+    metadata = run_metadata.read_metadata(metadata_path)
+    run_metadata.validate_metadata_integrity(metadata, required=True)
+
+    metadata["value"] = 2
+    with pytest.raises(ValueError, match="SHA-256"):
+        run_metadata.validate_metadata_integrity(metadata, required=True)
+
+    metadata.pop("metadata_sha256")
+    with pytest.raises(ValueError, match="SHA-256"):
+        run_metadata.validate_metadata_integrity(metadata, required=True)

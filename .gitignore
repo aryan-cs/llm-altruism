@@ -48,6 +48,8 @@ pip-wheel-metadata/
 *.egg-info/
 *.egg
 data/archive/
+# Generated harmful-text registries and human-audit work products.
+data/private/
 
 # Generated paper artifacts
 docs/*.aux
