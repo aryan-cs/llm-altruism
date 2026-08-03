@@ -22,6 +22,7 @@ ANONYMIZATION_POLICY_NAME = ".supplement-anonymization.json"
 HOSTED_REPRODUCIBILITY_ALLOWLIST = frozenset(
     {
         Path("analysis") / "analyze_inference_hub_part1_panel.py",
+        Path("analysis") / "build_developer_descriptives.py",
         Path("analysis") / "build_final_results.py",
         Path("analysis") / "build_paper_headlines.py",
         Path("analysis") / "reconcile_inference_hub_routes.py",
@@ -40,6 +41,7 @@ HOSTED_REPRODUCIBILITY_ALLOWLIST = frozenset(
         Path("tests") / "test_inference_hub_part1_stratified_panel.py",
         Path("tests") / "test_inference_hub_part2_panel.py",
         Path("tests") / "test_inference_hub_rate_limit.py",
+        Path("tests") / "test_build_developer_descriptives.py",
         Path("tests") / "test_build_final_results.py",
         Path("tests") / "test_build_paper_headlines.py",
         Path("tests") / "test_reconcile_inference_hub_routes.py",

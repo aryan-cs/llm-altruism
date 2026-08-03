@@ -49,18 +49,29 @@ Create the immutable public result directory once:
 uv run python -m analysis.build_final_results \
   --part0-manifest data/private/inference_hub/part0-sota-panel-v2-n24/private/manifest.json \
   --part1-full-manifest data/private/inference_hub/part1-sota-deadline-glm51-v1/private/manifest.json \
-  --part1-n96-manifest data/private/inference_hub/part1-sota-balanced-main75-v1-n96/private/manifest.json \
-  --part1-n96-manifest data/private/inference_hub/part1-sota-balanced-slow2-v2-n12/private/manifest.json \
+  --part1-partial-manifest data/private/inference_hub/part1-sota-balanced-main75-v1-n96/private/manifest.json \
+  --part1-partial-manifest data/private/inference_hub/part1-sota-balanced-slow2-v2-n12/private/manifest.json \
   --part2-manifest data/private/inference_hub/part2-sota-matched-v1-n8/private/manifest.json \
   --panel-config experiments/sota_cross_axis_panel.json \
   --output-dir data/analysis/final_results
 ```
 
+For a primary manifest with a validated target-bound operational or identity
+failure, add the affected study ID with the repeatable axis-specific
+`--part0-unavailable-target`, `--part1-unavailable-target`, or
+`--part2-unavailable-target` option. A complete contract-matched replacement
+manifest may instead be supplied with the corresponding repeatable
+`--part*-replacement-manifest` option. Never add the three Part 1 targets that
+were unavailable in the frozen registry before execution to these flags: they
+were not manifest subjects and remain a separate pre-execution-unavailable
+count.
+
 The command refuses an existing output directory and fails on incomplete
-coverage, identity drift, a broken journal chain, a changed response hash,
-parser inconsistency, an ineligible Part 2 trajectory, or any forbidden public
-text field. It preserves each Part 1 target's observed count and never pools the
-12-root, 96-root, or 384-root rows. Cross-axis
+coverage without validated target-bound unavailability, identity drift, a
+broken journal chain, a changed response hash, parser inconsistency, an
+ineligible Part 2 trajectory, or any forbidden public text field. It preserves
+each included Part 1 target's observed count and never pools the 12-root,
+96-root, or 384-root rows. Cross-axis
 output is absent unless the exact 24-system overlap and every evidence gate
 pass.
 
@@ -79,6 +90,19 @@ emitting within-axis counts, medians, ranges, and LaTeX macros. It refuses to
 pool Part 1 scopes or compute model rankings, family effects, significance
 tests, or cross-axis associations.
 
+Build the separately labeled developer-route descriptives used for bounded
+within-axis discussion:
+
+```bash
+uv run python -m analysis.build_developer_descriptives \
+  --input data/analysis/final_results/final_results.json \
+  --output data/analysis/final_results/developer_descriptives.json
+```
+
+This output groups exact systems alphabetically by upstream provider only when
+at least two systems are present. It keeps Part 1 scopes separate and supports
+neither rankings nor population-level family, vendor, or causal claims.
+
 ## Build Croissant metadata
 
 ```bash
@@ -89,11 +113,16 @@ uv run python -m analysis.build_croissant_metadata \
 
 This command no longer catalogs April raw CSVs. It accepts only the self-hashed
 `prosocial_readiness_final_sanitized_results` artifact and its hash-bound CSVs.
-It checks the actually executed 24-system matched panel, 75 Part 1 routes at 96
-roots, two slower routes at 12 roots, one full-bank route at 384 roots, 24 Part
-0 roots per condition, and eight Part 2 trajectories. Missing final results,
-stale hashes, sensitive fields, path
-traversal, or changed coverage stop metadata emission.
+It checks that included rows plus validated, axis-specific operationally
+unavailable IDs reconstruct the frozen 24-system Part 0 panel, the 78-target
+Part 1 execution roster (75 at n=96, two at n=12, one at n=384), and the
+24-system Part 2 panel. It separately accounts for the three frozen Part 1
+registry targets that were unavailable before execution, yielding 81 planned
+Part 1 targets without describing those three as observed. It also verifies 24
+Part 0 roots per condition, eight Part 2 trajectories, scope-separated CSV
+rows, and public-basename-only provenance. Missing final results, stale hashes,
+sensitive fields, private paths, or a changed frozen scope stop metadata
+emission.
 
 At anonymous review time, omit the dataset URL. At hosting time, supply a real
 public HTTPS landing page with `--dataset-url` and rerun the metadata tests.

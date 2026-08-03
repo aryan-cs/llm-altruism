@@ -4,8 +4,10 @@ This folder documents the paper-facing artifact for **Safety Beyond Refusal**
 and its three-axis **Prosocial Readiness Bench**:
 
 - `DATA_CARD.md`: dataset contents, collection process, validation, and safety policy.
-- `MODEL_REGISTRY.md`: matched 24-system coverage and 78 observed Part 1 routes
-  with explicit 12-root, 96-root, and 384-root scopes.
+- `MODEL_REGISTRY.md`: frozen matched 24-system coverage and the 81-target Part
+  1 registry, distinguishing the 78-target execution roster from three targets
+  unavailable before execution and preserving explicit n=12, n=96, and n=384
+  scopes.
 - `REPRODUCIBILITY.md`: commands for tests, validation, table generation, figures, and paper builds.
 - `COMPUTE.md`: hosted execution controls, rate limits, and legacy local compute
   context.

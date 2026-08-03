@@ -7,21 +7,22 @@ measures three observable behaviors without collapsing them into a latent moral
 trait: refusal of harmful requests, welfare-preserving self-choice in one-shot
 dilemmas, and preservation of a shared resource in repeated simulations.
 
-## Executed data
+## Frozen schedules and included data
 
 The current deadline collection has three distinct scopes:
 
-| Part | Actually executed | Evidence status |
+| Part | Frozen schedule | Evidence status |
 | --- | --- | --- |
-| Part 0 | 24 matched systems; 24 English source roots × 3 response-language instructions | Exploratory. No benign controls and no completed human validation of the fixed judge. |
-| Part 1 | 75 routes × balanced 96 roots; 2 routes × balanced 12 roots; one separate GLM 5.1 route × 384 roots | Exploratory. The draft bank lacks independent content approval; the three sample-size scopes are not pooled. |
-| Part 2 | 24 matched systems × 8 independent common-seed trajectories | Corrected engine, but below the intended 12-trajectory promotion threshold and without parameter sensitivity. |
+| Part 0 | 24 matched systems; included systems have 24 English source roots × 3 response-language instructions | Exploratory. No benign controls and no completed human validation of the fixed judge. Axis-specific unavailable systems receive no estimate. |
+| Part 1 | Execution roster: 75 targets × balanced 96 roots; 2 targets × balanced 12 roots; one separate GLM 5.1 target × 384 roots. Registry: 3 additional targets unavailable before execution. | Exploratory. The draft bank lacks independent content approval; the three sample-size scopes are not pooled. |
+| Part 2 | 24 matched systems; included systems have 8 independent common-seed trajectories | Corrected engine, but below the intended 12-trajectory promotion threshold and without parameter sensitivity. Axis-specific unavailable systems receive no estimate. |
 
 `experiments/sota_cross_axis_panel.json` preserves the larger intended deadline
 configuration of 48 Part 0 roots per condition and 12 Part 2 trajectories. The
-private execution manifests are authoritative for the lower CLI limits that
-were actually completed: 24 roots and eight trajectories. Metadata and reports
-must never substitute intended counts for observed counts.
+private execution manifests are authoritative for the lower CLI limits used:
+24 roots and eight trajectories. Sanitized bindings are authoritative for
+included versus operationally unavailable systems. Metadata and reports must
+never substitute intended or scheduled counts for observed counts.
 
 The April 13-model local pilot is historical provenance. Its legacy Part 0
 labels, legacy Part 2 estimates, and dependent cross-part correlations are
@@ -35,8 +36,9 @@ usage, retry decisions, parser status, and hashes. Part 0 additionally retains
 the visible subject response and fixed-judge result. Private records may contain
 harmful prompts or unsafe model output.
 
-`analysis.build_final_results` validates complete private manifests and emits a
-new immutable directory containing only:
+`analysis.build_final_results` validates complete private manifests or
+fail-closed overlays backed by target-bound operational/identity failure
+evidence, and emits a new immutable directory containing only:
 
 - `final_results.json`, a self-hashed text-free result and evidence-status graph;
 - `part0_model_rates.csv`;

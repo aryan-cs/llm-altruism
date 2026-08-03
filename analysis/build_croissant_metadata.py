@@ -68,6 +68,34 @@ class ReleaseFile:
     records: bool = False
 
 
+@dataclass(frozen=True)
+class AxisCoverage:
+    included: int
+    unavailable: int
+    targeted: int
+
+
+@dataclass(frozen=True)
+class FinalCoverage:
+    part0: AxisCoverage
+    part1: AxisCoverage
+    part1_scopes: Mapping[int, AxisCoverage]
+    part1_pre_execution_unavailable: int
+    part2: AxisCoverage
+
+
+PART0_TARGETED_SYSTEMS = 24
+PART1_EXECUTION_SCOPES = {12: 2, 96: 75, 384: 1}
+PART1_PRE_EXECUTION_UNAVAILABLE_TARGET_IDS = frozenset({
+    "moonshotai/kimi-k2.5",
+    "moonshotai/kimi-k2.6",
+    "zai-org/glm-5.2",
+})
+PART1_PRE_EXECUTION_UNAVAILABLE = len(PART1_PRE_EXECUTION_UNAVAILABLE_TARGET_IDS)
+PART1_TARGETED_SYSTEMS = sum(PART1_EXECUTION_SCOPES.values()) + PART1_PRE_EXECUTION_UNAVAILABLE
+PART2_TARGETED_SYSTEMS = 24
+
+
 FINAL_OUTPUT_SPECS = {
     "part0_csv": (
         "part0-model-rates", "Part 0 exploratory refusal summaries over 24 English-source roots crossed with three response-language instructions."
@@ -118,7 +146,231 @@ def _reject_sensitive_keys(value: object, path: str = "root") -> None:
             _reject_sensitive_keys(child, f"{path}[{index}]")
 
 
-def _validated_final_results(final_results_dir: Path) -> tuple[dict[str, Any], tuple[ReleaseFile, ...]]:
+def _target_ids(rows: list[Any], label: str) -> set[str]:
+    result: set[str] = set()
+    for index, row in enumerate(rows):
+        if not isinstance(row, Mapping):
+            raise CroissantBuildError(f"{label} row {index} is not an object")
+        target_id = row.get("target_id")
+        if not isinstance(target_id, str) or not target_id.strip():
+            raise CroissantBuildError(f"{label} row {index} lacks a target ID")
+        if target_id in result:
+            raise CroissantBuildError(f"{label} target ID is duplicated: {target_id}")
+        result.add(target_id)
+    return result
+
+
+def _is_sha256(value: object) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(character in "0123456789abcdef" for character in value)
+    )
+
+
+def _validate_binding_paths(value: object, path: str = "bindings") -> None:
+    """Require every public provenance path to be a basename, never a private path."""
+    if isinstance(value, Mapping):
+        for key, child in value.items():
+            normalized = str(key).casefold()
+            if normalized == "path" or normalized.endswith("_path"):
+                if (
+                    not isinstance(child, str)
+                    or not child
+                    or child != Path(child).name
+                    or "/" in child
+                    or "\\" in child
+                ):
+                    raise CroissantBuildError(
+                        f"final-results binding exposes a non-public path at {path}.{key}"
+                    )
+            _validate_binding_paths(child, f"{path}.{key}")
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            _validate_binding_paths(child, f"{path}[{index}]")
+
+
+def _binding_containers(binding: object, label: str) -> list[Mapping[str, Any]]:
+    if isinstance(binding, Mapping):
+        containers = [binding]
+    elif (
+        isinstance(binding, list)
+        and binding
+        and all(isinstance(item, Mapping) for item in binding)
+    ):
+        containers = list(binding)
+    else:
+        raise CroissantBuildError(f"{label} binding has an invalid structure")
+    for container in containers:
+        bound = (
+            container.get("primary")
+            if container.get("overlay_schema_version") == 1
+            else container
+        )
+        if (
+            not isinstance(bound, Mapping)
+            or not isinstance(bound.get("manifest_path"), str)
+            or not bound.get("manifest_path")
+            or not _is_sha256(bound.get("file_sha256"))
+            or not _is_sha256(bound.get("evidence_sha256"))
+        ):
+            raise CroissantBuildError(f"{label} manifest binding is incomplete")
+    return containers
+
+
+def _unavailable_ids(
+    container: Mapping[str, Any], label: str,
+) -> set[str]:
+    unavailable = container.get("unavailable_target_ids", [])
+    if not isinstance(unavailable, list):
+        raise CroissantBuildError(f"{label} unavailable target IDs are malformed")
+    result: set[str] = set()
+    for target_id in unavailable:
+        if not isinstance(target_id, str) or not target_id.strip():
+            raise CroissantBuildError(f"{label} unavailable target ID is invalid")
+        if target_id in result:
+            raise CroissantBuildError(f"{label} unavailable target ID is duplicated")
+        result.add(target_id)
+    if result and container.get("overlay_schema_version") != 1:
+        raise CroissantBuildError(f"{label} unavailable targets lack an overlay binding")
+    failures = container.get("unavailable_target_failures", [])
+    if not isinstance(failures, list):
+        raise CroissantBuildError(f"{label} unavailable failure evidence is malformed")
+    failure_ids: set[str] = set()
+    for failure in failures:
+        if (
+            not isinstance(failure, Mapping)
+            or failure.get("target_id") not in result
+            or failure.get("provenance")
+            != "validated_target_bound_primary_evidence"
+            or not isinstance(failure.get("total_failure_count"), int)
+            or isinstance(failure.get("total_failure_count"), bool)
+            or failure["total_failure_count"] <= 0
+        ):
+            raise CroissantBuildError(f"{label} unavailable failure evidence is invalid")
+        target_id = str(failure["target_id"])
+        if target_id in failure_ids:
+            raise CroissantBuildError(f"{label} unavailable failure evidence is duplicated")
+        failure_ids.add(target_id)
+    if failure_ids != result:
+        raise CroissantBuildError(f"{label} unavailable failure evidence is incomplete")
+    return result
+
+
+def _part1_binding_root_count(container: Mapping[str, Any]) -> int:
+    bound = (
+        container.get("primary")
+        if container.get("overlay_schema_version") == 1
+        else container
+    )
+    assert isinstance(bound, Mapping)
+    root_count = bound.get("root_count")
+    scope = container.get("scope", bound.get("scope"))
+    if (
+        not isinstance(root_count, int)
+        or isinstance(root_count, bool)
+        or root_count not in PART1_EXECUTION_SCOPES
+        or (root_count == 384 and scope != "full_384")
+        or (root_count in {12, 96} and scope != "balanced_partial")
+    ):
+        raise CroissantBuildError("Part 1 binding scope/root count is invalid")
+    return root_count
+
+
+def _coverage(
+    artifact: Mapping[str, Any], part0: list[Any], part1: list[Any], part2: list[Any],
+) -> FinalCoverage:
+    bindings = artifact.get("bindings")
+    if not isinstance(bindings, Mapping):
+        raise CroissantBuildError("final-results provenance bindings are absent")
+    _validate_binding_paths(bindings)
+    p0_containers = _binding_containers(bindings.get("part0"), "Part 0")
+    p1_containers = _binding_containers(bindings.get("part1"), "Part 1")
+    p2_containers = _binding_containers(bindings.get("part2"), "Part 2")
+    if len(p0_containers) != 1 or len(p2_containers) != 1:
+        raise CroissantBuildError("Part 0 and Part 2 require one primary binding each")
+
+    p0_ids = _target_ids(part0, "Part 0")
+    p1_ids = _target_ids(part1, "Part 1")
+    p2_ids = _target_ids(part2, "Part 2")
+    p0_unavailable = _unavailable_ids(p0_containers[0], "Part 0")
+    p2_unavailable = _unavailable_ids(p2_containers[0], "Part 2")
+    if p0_ids & p0_unavailable or p2_ids & p2_unavailable:
+        raise CroissantBuildError("included and unavailable target IDs overlap")
+    if (
+        len(p0_ids) + len(p0_unavailable) != PART0_TARGETED_SYSTEMS
+        or len(p2_ids) + len(p2_unavailable) != PART2_TARGETED_SYSTEMS
+        or p0_ids | p0_unavailable != p2_ids | p2_unavailable
+    ):
+        raise CroissantBuildError(
+            "final-results coverage differs from the frozen 24-system matched design"
+        )
+
+    rows_by_root: dict[int, set[str]] = {count: set() for count in PART1_EXECUTION_SCOPES}
+    for row in part1:
+        assert isinstance(row, Mapping)
+        root_count = row.get("root_count")
+        scope = row.get("scope")
+        if (
+            not isinstance(root_count, int)
+            or isinstance(root_count, bool)
+            or root_count not in PART1_EXECUTION_SCOPES
+            or (root_count == 384 and scope != "full_384")
+            or (root_count in {12, 96} and scope != "balanced_partial")
+        ):
+            raise CroissantBuildError("Part 1 row scope/root count is invalid")
+        rows_by_root[root_count].add(str(row["target_id"]))
+
+    unavailable_by_root: dict[int, set[str]] = {
+        count: set() for count in PART1_EXECUTION_SCOPES
+    }
+    all_p1_unavailable: set[str] = set()
+    for container in p1_containers:
+        root_count = _part1_binding_root_count(container)
+        unavailable = _unavailable_ids(container, "Part 1")
+        if all_p1_unavailable & unavailable:
+            raise CroissantBuildError("Part 1 unavailable target ID is duplicated across bindings")
+        all_p1_unavailable.update(unavailable)
+        unavailable_by_root[root_count].update(unavailable)
+    if p1_ids & all_p1_unavailable:
+        raise CroissantBuildError("Part 1 included and unavailable target IDs overlap")
+    if (p1_ids | all_p1_unavailable) & PART1_PRE_EXECUTION_UNAVAILABLE_TARGET_IDS:
+        raise CroissantBuildError(
+            "a pre-execution-unavailable Part 1 registry target appears in the execution roster"
+        )
+    for root_count, targeted in PART1_EXECUTION_SCOPES.items():
+        if len(rows_by_root[root_count]) + len(unavailable_by_root[root_count]) != targeted:
+            raise CroissantBuildError(
+                "final-results coverage differs from the frozen Part 1 "
+                "75x96+2x12+1x384 execution scopes"
+            )
+    if not (p0_ids | p0_unavailable) <= (p1_ids | all_p1_unavailable):
+        raise CroissantBuildError("Part 1 omits a frozen matched-panel target")
+
+    p1_scopes = {
+        root_count: AxisCoverage(
+            included=len(rows_by_root[root_count]),
+            unavailable=len(unavailable_by_root[root_count]),
+            targeted=targeted,
+        )
+        for root_count, targeted in PART1_EXECUTION_SCOPES.items()
+    }
+    return FinalCoverage(
+        part0=AxisCoverage(len(p0_ids), len(p0_unavailable), PART0_TARGETED_SYSTEMS),
+        part1=AxisCoverage(
+            len(p1_ids),
+            len(all_p1_unavailable) + PART1_PRE_EXECUTION_UNAVAILABLE,
+            PART1_TARGETED_SYSTEMS,
+        ),
+        part1_scopes=p1_scopes,
+        part1_pre_execution_unavailable=PART1_PRE_EXECUTION_UNAVAILABLE,
+        part2=AxisCoverage(len(p2_ids), len(p2_unavailable), PART2_TARGETED_SYSTEMS),
+    )
+
+
+def _validated_final_results(
+    final_results_dir: Path,
+) -> tuple[dict[str, Any], tuple[ReleaseFile, ...], FinalCoverage]:
     directory = final_results_dir.resolve()
     artifact_path = directory / "final_results.json"
     try:
@@ -145,6 +397,12 @@ def _validated_final_results(final_results_dir: Path) -> tuple[dict[str, Any], t
         or any(privacy.values())
     ):
         raise CroissantBuildError("final-results privacy contract is absent or unsafe")
+    parameters = artifact.get("parameters")
+    if (
+        not isinstance(parameters, Mapping)
+        or parameters.get("part1_scopes_pooled") is not False
+    ):
+        raise CroissantBuildError("final-results Part 1 no-pooling contract is absent")
     _reject_sensitive_keys(artifact)
 
     part0 = artifact.get("part0")
@@ -152,33 +410,12 @@ def _validated_final_results(final_results_dir: Path) -> tuple[dict[str, Any], t
     part2 = artifact.get("part2")
     if not all(isinstance(rows, list) for rows in (part0, part1, part2)):
         raise CroissantBuildError("final-results axis rows are absent")
-    p0_ids = {row.get("target_id") for row in part0 if isinstance(row, Mapping)}
-    p2_ids = {row.get("target_id") for row in part2 if isinstance(row, Mapping)}
-    p1_ids = {row.get("target_id") for row in part1 if isinstance(row, Mapping)}
-    balanced = [row for row in part1 if isinstance(row, Mapping) and row.get("scope") == "balanced_partial"]
-    full = [row for row in part1 if isinstance(row, Mapping) and row.get("scope") == "full_384"]
-    balanced_counts = {
-        count: sum(row.get("root_count") == count for row in balanced)
-        for count in (12, 96)
-    }
+    coverage = _coverage(artifact, part0, part1, part2)
     if (
-        len(part0) != len(p0_ids) != 0
-        or len(part2) != len(p2_ids) != 0
-        or len(p0_ids) != 24
-        or p0_ids != p2_ids
-        or len(part1) != 78
-        or len(p1_ids) != 78
-        or any(row.get("root_count_per_condition") != 24 for row in part0)
+        any(row.get("root_count_per_condition") != 24 for row in part0)
         or any(row.get("trajectory_count") != 8 for row in part2)
-        or len(balanced) != 77
-        or len(full) != 1
-        or balanced_counts != {12: 2, 96: 75}
-        or full[0].get("root_count") != 384
-        or not p0_ids <= p1_ids
     ):
-        raise CroissantBuildError(
-            "final-results coverage differs from the executed 24-matched/75x96+2x12+1x384 Part 1 design"
-        )
+        raise CroissantBuildError("final-results per-system execution counts changed")
 
     outputs = artifact.get("outputs")
     if not isinstance(outputs, Mapping):
@@ -190,6 +427,7 @@ def _validated_final_results(final_results_dir: Path) -> tuple[dict[str, Any], t
             "application/json", False,
         )
     ]
+    bound_csvs: dict[str, Path] = {}
     for key, (object_id, description) in FINAL_OUTPUT_SPECS.items():
         binding = outputs.get(key)
         if binding is None and key == "cross_axis_csv":
@@ -205,7 +443,61 @@ def _validated_final_results(final_results_dir: Path) -> tuple[dict[str, Any], t
         if binding.get("file_sha256") != _sha256(path):
             raise CroissantBuildError(f"final-results binding {key} hash changed")
         releases.append(ReleaseFile(object_id, path, description, "text/csv", True))
-    return artifact, tuple(releases)
+        bound_csvs[key] = path
+    _validate_axis_csvs(part0, part1, part2, bound_csvs)
+    return artifact, tuple(releases), coverage
+
+
+def _read_csv_rows(path: Path) -> tuple[list[str], list[dict[str, str]]]:
+    with path.open(newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        if not reader.fieldnames:
+            raise CroissantBuildError(f"CSV has no header: {path}")
+        columns = list(reader.fieldnames)
+        for column in columns:
+            normalized = column.casefold()
+            if any(marker == normalized or marker in normalized for marker in _FORBIDDEN_KEYS):
+                raise CroissantBuildError(f"CSV exposes forbidden private column: {column}")
+        return columns, list(reader)
+
+
+def _validate_axis_csvs(
+    part0: list[Any], part1: list[Any], part2: list[Any], bound_csvs: Mapping[str, Path],
+) -> None:
+    try:
+        _, p0_csv = _read_csv_rows(bound_csvs["part0_csv"])
+        _, p1_csv = _read_csv_rows(bound_csvs["part1_csv"])
+        _, p2_csv = _read_csv_rows(bound_csvs["part2_csv"])
+    except KeyError as error:
+        raise CroissantBuildError("a required axis CSV binding is absent") from error
+
+    p0_expected = {str(row["target_id"]) for row in part0}
+    p0_observed = [row.get("target_id", "") for row in p0_csv]
+    if (
+        set(p0_observed) != p0_expected
+        or len(p0_observed) != 3 * len(p0_expected)
+        or any(p0_observed.count(target_id) != 3 for target_id in p0_expected)
+    ):
+        raise CroissantBuildError("Part 0 CSV rows do not match included systems")
+
+    p1_expected = {
+        (str(row["target_id"]), str(row["scope"]), int(row["root_count"]))
+        for row in part1
+    }
+    try:
+        p1_observed = {
+            (row["target_id"], row["scope"], int(row["root_count"]))
+            for row in p1_csv
+        }
+    except (KeyError, TypeError, ValueError) as error:
+        raise CroissantBuildError("Part 1 CSV scope fields are malformed") from error
+    if p1_observed != p1_expected or len(p1_csv) != len(p1_expected):
+        raise CroissantBuildError("Part 1 CSV rows do not match included scope rows")
+
+    p2_expected = {str(row["target_id"]) for row in part2}
+    p2_observed = [row.get("target_id", "") for row in p2_csv]
+    if set(p2_observed) != p2_expected or len(p2_observed) != len(p2_expected):
+        raise CroissantBuildError("Part 2 CSV rows do not match included systems")
 
 
 def _is_integer(value: str) -> bool:
@@ -239,15 +531,11 @@ def _data_type(values: Iterable[str]) -> str:
 
 
 def _csv_schema(path: Path) -> tuple[list[str], dict[str, str]]:
-    with path.open(newline="", encoding="utf-8") as handle:
-        reader = csv.DictReader(handle)
-        if not reader.fieldnames:
-            raise CroissantBuildError(f"CSV has no header: {path}")
-        columns = list(reader.fieldnames)
-        values = {column: [] for column in columns}
-        for row in reader:
-            for column in columns:
-                values[column].append(row[column] or "")
+    columns, rows = _read_csv_rows(path)
+    values = {column: [] for column in columns}
+    for row in rows:
+        for column in columns:
+            values[column].append(row[column] or "")
     return columns, {column: _data_type(values[column]) for column in columns}
 
 
@@ -274,7 +562,7 @@ def build_metadata(
 
     dataset_url = _validate_dataset_url(dataset_url)
     final_dir = final_results_dir or repository_root / "data" / "analysis" / "final_results"
-    artifact, release_files = _validated_final_results(final_dir)
+    artifact, release_files, coverage = _validated_final_results(final_dir)
     distributions: list[dict[str, object]] = []
     record_sets: list[dict[str, object]] = []
     for release_file in release_files:
@@ -305,6 +593,12 @@ def build_metadata(
             })
 
     cross_status = artifact.get("cross_axis", {}).get("status") if isinstance(artifact.get("cross_axis"), Mapping) else None
+    p1_execution_unavailable = (
+        coverage.part1.unavailable - coverage.part1_pre_execution_unavailable
+    )
+    p1_n96 = coverage.part1_scopes[96]
+    p1_n12 = coverage.part1_scopes[12]
+    p1_n384 = coverage.part1_scopes[384]
     metadata: dict[str, object] = {
         "@context": CROISSANT_CONTEXT, "@type": "sc:Dataset",
         "conformsTo": [CORE_SPEC, RAI_SPEC],
@@ -314,7 +608,11 @@ def build_metadata(
             "of harmful-request refusal, welfare-preserving self-choice, and repeated commons "
             "preservation. Part 0 and the balanced Part 1 expansion remain exploratory because "
             "their human/content approval gates are incomplete; Part 2 uses a corrected engine "
-            "with eight independent common-seed trajectories per matched system."
+            "with eight independent common-seed trajectories per included system. "
+            f"The release includes {coverage.part0.included} of {coverage.part0.targeted} "
+            f"Part 0 systems, {coverage.part1.included} of {coverage.part1.targeted} frozen "
+            f"Part 1 targets, and {coverage.part2.included} of {coverage.part2.targeted} "
+            "Part 2 systems; the remainder are explicitly unavailable rather than scored."
         ),
         "version": DATASET_VERSION, "cr:sdVersion": METADATA_VERSION,
         "dateCreated": DATE_CREATED, "datePublished": DATE_PUBLISHED,
@@ -327,7 +625,17 @@ def build_metadata(
         "isAccessibleForFree": True, "rai:hasSyntheticData": True,
         "prov:wasDerivedFrom": [{
             "@type": "sc:CreativeWork", "name": "Executed hosted Prosocial Readiness Bench panels",
-            "description": "Twenty-four matched systems for Parts 0 and 2, plus 75 Part 1 routes at 96 roots, two at 12 roots, and one separate 384-root route (78 observed of 81 frozen targets).",
+            "description": (
+                f"The frozen 24-system matched panel yielded {coverage.part0.included} "
+                f"Part 0 and {coverage.part2.included} Part 2 included systems; "
+                f"{coverage.part0.unavailable} and {coverage.part2.unavailable}, respectively, "
+                "were operationally unavailable on those axes. The 78-target Part 1 execution "
+                f"roster yielded {coverage.part1.included} included targets and "
+                f"{p1_execution_unavailable} target-bound operational unavailability records. "
+                f"A separate frozen pre-execution registry records "
+                f"{coverage.part1_pre_execution_unavailable} additional unavailable targets, "
+                f"for {coverage.part1.targeted} frozen Part 1 targets total."
+            ),
         }],
         "prov:wasGeneratedBy": {
             "@type": "sc:SoftwareApplication", "name": "Prosocial Readiness Bench fail-closed final-results pipeline",
@@ -339,9 +647,20 @@ def build_metadata(
             "Provider credentials, private manifests, harmful prompts, visible responses, reasoning, raw journals, and interrupted artifacts are excluded."
         ),
         "rai:dataCollection": (
-            "Part 0 executes 24 archived English harmful-request roots under English, Chinese, and Russian response-language instructions. "
-            "Part 1 executes 75 routes on 96 balanced roots, two slower routes on 12 balanced roots each, and one separate route on all 384 roots. "
-            "Part 2 executes eight independent corrected 12-step trajectories for each of the 24 matched systems."
+            f"Part 0 scheduled {coverage.part0.targeted} systems on 24 archived English "
+            "harmful-request roots under English, Chinese, and Russian response-language "
+            f"instructions; {coverage.part0.included} systems are included and "
+            f"{coverage.part0.unavailable} are operationally unavailable. Part 1 scheduled "
+            f"{p1_n96.targeted} execution-roster targets on 96 balanced roots "
+            f"({p1_n96.included} included, {p1_n96.unavailable} unavailable), "
+            f"{p1_n12.targeted} on 12 balanced roots ({p1_n12.included} included, "
+            f"{p1_n12.unavailable} unavailable), and {p1_n384.targeted} on all 384 roots "
+            f"({p1_n384.included} included, {p1_n384.unavailable} unavailable). Another "
+            f"{coverage.part1_pre_execution_unavailable} frozen Part 1 registry targets were "
+            "unavailable before execution and are not described as observed. Part 2 scheduled "
+            f"{coverage.part2.targeted} matched systems for eight independent corrected "
+            f"12-step trajectories each; {coverage.part2.included} systems are included and "
+            f"{coverage.part2.unavailable} are operationally unavailable."
         ),
         "rai:dataCollectionType": ["Experiments", "Software Collection"],
         "rai:dataCollectionRawData": "Private model responses and execution journals are retained for provenance but are not distributions in this release.",
@@ -351,7 +670,7 @@ def build_metadata(
         ),
         "rai:machineAnnotationTools": ["Fixed disjoint Part 0 judge and deterministic structured-output parsers."],
         "rai:dataPreprocessingProtocol": [
-            "Validate complete self-hashed manifests and exact response-model identity.",
+            "Validate self-hashed complete manifests or target-bound fail-closed overlays and exact response-model identity.",
             "Retain invalid and unclear scheduled units in denominators.",
             "Preserve every Part 1 target's observed root count and never pool the 12-root, 96-root, and 384-root estimates.",
             "Emit text-free aggregates only after output hashes and privacy flags pass.",
@@ -363,8 +682,19 @@ def build_metadata(
         ],
         "rai:dataLimitations": [
             "Part 0 reconstructs response-language instructions over English inputs, has no benign controls, and lacks completed human judge validation.",
-            "The Part 1 bank lacks independent content approval; the two 12-root routes, 75 96-root routes, and single 384-root route have different support and are not pooled.",
+            (
+                "The Part 1 bank lacks independent content approval; the frozen 12-root, "
+                "96-root, and 384-root execution scopes have different support and are not "
+                f"pooled. {p1_execution_unavailable} execution-roster targets and "
+                f"{coverage.part1_pre_execution_unavailable} pre-execution registry targets "
+                "are unavailable rather than estimated."
+            ),
             "Part 2 has eight rather than the intended twelve independent trajectories per system and no parameter-sensitivity analysis.",
+            (
+                f"Axis-specific operational availability differs: {coverage.part0.unavailable} "
+                f"Part 0 and {coverage.part2.unavailable} Part 2 matched-panel targets have no "
+                "released estimate on the affected axis."
+            ),
             f"Cross-axis artifact status is {cross_status!r}; associations are not paper evidence unless every gate passes.",
             "The tasks measure observable outputs in artificial settings, not intent, moral status, or unrestricted deployment behavior.",
         ],

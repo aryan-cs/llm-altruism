@@ -30,8 +30,13 @@ def _write_csv(path: Path, rows: list[dict[str, object]]) -> None:
         writer.writerows(rows)
 
 
-def _final_fixture(tmp_path: Path) -> Path:
+def _final_fixture(
+    tmp_path: Path, *, p0_unavailable: tuple[str, ...] = (),
+    p1_unavailable_by_root: dict[int, tuple[str, ...]] | None = None,
+    p2_unavailable: tuple[str, ...] = (),
+) -> Path:
     directory = tmp_path / "data/analysis/final_results"
+    p1_unavailable_by_root = p1_unavailable_by_root or {}
     p0_ids = [f"matched-{index:02d}" for index in range(24)]
     part0 = [
         {
@@ -40,7 +45,7 @@ def _final_fixture(tmp_path: Path) -> Path:
             "human_validation_complete": False,
             "paper_eligible": False,
         }
-        for target_id in p0_ids
+        for target_id in p0_ids if target_id not in p0_unavailable
     ]
     part1 = [
         {
@@ -50,6 +55,7 @@ def _final_fixture(tmp_path: Path) -> Path:
             "paper_eligible": False,
         }
         for target_id in [*p0_ids, *(f"expanded-{index:02d}" for index in range(51))]
+        if target_id not in p1_unavailable_by_root.get(96, ())
     ]
     part1.extend(
         {
@@ -59,34 +65,48 @@ def _final_fixture(tmp_path: Path) -> Path:
             "paper_eligible": False,
         }
         for index in range(2)
+        if f"slow-{index:02d}" not in p1_unavailable_by_root.get(12, ())
     )
-    part1.append(
-        {
-            "target_id": "glm-5.1-full",
-            "scope": "full_384",
-            "root_count": 384,
-            "paper_eligible": True,
-        }
-    )
+    if "glm-5.1-full" not in p1_unavailable_by_root.get(384, ()):
+        part1.append(
+            {
+                "target_id": "glm-5.1-full",
+                "scope": "full_384",
+                "root_count": 384,
+                "paper_eligible": True,
+            }
+        )
     part2 = [
         {
             "target_id": target_id,
             "trajectory_count": 8,
             "paper_eligible": False,
         }
-        for target_id in p0_ids
+        for target_id in p0_ids if target_id not in p2_unavailable
     ]
     tables = {
         "part0_model_rates.csv": [
-            {"target_id": target_id, "refusal_rate": 0.5} for target_id in p0_ids
+            {
+                "target_id": target_id,
+                "response_language_condition": language,
+                "refusal_rate": 0.5,
+            }
+            for target_id in p0_ids
+            if target_id not in p0_unavailable
+            for language in ("english", "chinese", "russian")
         ],
         "part1_model_rates.csv": [
-            {"target_id": row["target_id"], "scope": row["scope"], "cooperation_rate": 0.5}
+            {
+                "target_id": row["target_id"],
+                "scope": row["scope"],
+                "root_count": row["root_count"],
+                "cooperation_rate": 0.5,
+            }
             for row in part1
         ],
         "part2_model_metrics.csv": [
             {"target_id": target_id, "trajectory_count": 8, "restraint_rate_mean": 0.5}
-            for target_id in p0_ids
+            for target_id in p0_ids if target_id not in p2_unavailable
         ],
     }
     for filename, rows in tables.items():
@@ -106,6 +126,64 @@ def _final_fixture(tmp_path: Path) -> Path:
         },
         "cross_axis_csv": None,
     }
+
+    def manifest_binding(
+        name: str, *, scope: str | None = None, root_count: int | None = None,
+        unavailable: tuple[str, ...] = (),
+    ) -> dict[str, object]:
+        base: dict[str, object] = {
+            "manifest_path": f"{name}.json",
+            "path_scope": "input_manifest_basename_only",
+            "file_sha256": "a" * 64,
+            "evidence_sha256": "b" * 64,
+        }
+        if scope is not None:
+            base["scope"] = scope
+        if root_count is not None:
+            base["root_count"] = root_count
+        if not unavailable:
+            return base
+        return {
+            "overlay_schema_version": 1,
+            "primary": base,
+            "replacements": [],
+            "replaced_target_ids": [],
+            "unavailable_target_ids": list(unavailable),
+            "unavailable_target_failures": [
+                {
+                    "target_id": target_id,
+                    "total_failure_count": 1,
+                    "provenance": "validated_target_bound_primary_evidence",
+                }
+                for target_id in unavailable
+            ],
+            **({"scope": scope} if scope is not None else {}),
+        }
+
+    bindings = {
+        "part0": manifest_binding("part0", unavailable=p0_unavailable),
+        "part1": [
+            manifest_binding(
+                "part1-n96", scope="balanced_partial", root_count=96,
+                unavailable=p1_unavailable_by_root.get(96, ()),
+            ),
+            manifest_binding(
+                "part1-n12", scope="balanced_partial", root_count=12,
+                unavailable=p1_unavailable_by_root.get(12, ()),
+            ),
+            manifest_binding(
+                "part1-n384", scope="full_384", root_count=384,
+                unavailable=p1_unavailable_by_root.get(384, ()),
+            ),
+        ],
+        "part2": manifest_binding("part2", unavailable=p2_unavailable),
+        "cross_axis_panel": {
+            "path": "sota_cross_axis_panel.json",
+            "path_scope": "input_panel_basename_only",
+            "file_sha256": "c" * 64,
+            "canonical_sha256": "d" * 64,
+        },
+    }
     artifact = {
         "schema_version": 1,
         "artifact_type": "prosocial_readiness_final_sanitized_results",
@@ -116,9 +194,11 @@ def _final_fixture(tmp_path: Path) -> Path:
             "contains_raw_responses": False,
             "contains_routes": False,
         },
+        "parameters": {"part1_scopes_pooled": False},
         "part0": part0,
         "part1": part1,
         "part2": part2,
+        "bindings": bindings,
         "cross_axis": {"status": "withheld_evidence_gates"},
         "outputs": outputs,
     }
@@ -153,8 +233,9 @@ def test_metadata_uses_restored_title_design_and_evidence_status(tmp_path: Path)
     assert metadata["name"] == "Prosocial Readiness Bench"
     assert "Safety Beyond Refusal" in metadata["citeAs"]
     assert "negative benchmark" not in json.dumps(metadata).lower()
-    assert "75 Part 1 routes at 96 roots, two at 12 roots" in metadata["prov:wasDerivedFrom"][0]["description"]
-    assert "78 observed of 81" in metadata["prov:wasDerivedFrom"][0]["description"]
+    provenance = metadata["prov:wasDerivedFrom"][0]["description"]
+    assert "78-target Part 1 execution roster yielded 78 included targets" in provenance
+    assert "3 additional unavailable targets" in provenance
     assert "eight independent" in metadata["rai:dataCollection"]
     assert "exploratory" in metadata["description"]
     assert "private manifests" in metadata["conditionsOfAccess"]
@@ -213,18 +294,95 @@ def test_hash_privacy_and_executed_coverage_changes_fail_closed(tmp_path: Path) 
     with pytest.raises(CroissantBuildError, match="forbidden private field"):
         build_metadata(final_results_dir=final_dir, output_path=tmp_path / "out.json")
 
+    final_dir = _final_fixture(tmp_path / "pooling")
+    artifact_path = final_dir / "final_results.json"
+    artifact = json.loads(artifact_path.read_text(encoding="utf-8"))
+    artifact["parameters"]["part1_scopes_pooled"] = True
+    artifact["evidence_sha256"] = _canonical_hash(artifact)
+    artifact_path.write_text(json.dumps(artifact), encoding="utf-8")
+    with pytest.raises(CroissantBuildError, match="no-pooling contract"):
+        build_metadata(final_results_dir=final_dir, output_path=tmp_path / "out.json")
+
     final_dir = _final_fixture(tmp_path / "coverage")
     artifact_path = final_dir / "final_results.json"
     artifact = json.loads(artifact_path.read_text(encoding="utf-8"))
     artifact["part2"][0]["trajectory_count"] = 12
     artifact["evidence_sha256"] = _canonical_hash(artifact)
     artifact_path.write_text(json.dumps(artifact), encoding="utf-8")
-    with pytest.raises(CroissantBuildError, match=r"24-matched/75x96\+2x12\+1x384"):
+    with pytest.raises(CroissantBuildError, match="per-system execution counts changed"):
         build_metadata(final_results_dir=final_dir, output_path=tmp_path / "out.json")
 
     final_dir = _final_fixture(tmp_path / "hash")
     (final_dir / "part1_model_rates.csv").write_text("tampered\n", encoding="utf-8")
     with pytest.raises(CroissantBuildError, match="hash changed"):
+        build_metadata(final_results_dir=final_dir, output_path=tmp_path / "out.json")
+
+
+def test_axis_specific_unavailable_targets_are_counted_without_being_scored(
+    tmp_path: Path,
+) -> None:
+    final_dir = _final_fixture(
+        tmp_path,
+        p0_unavailable=("matched-23",),
+        p1_unavailable_by_root={96: ("expanded-50",), 12: ("slow-01",)},
+        p2_unavailable=("matched-22", "matched-23"),
+    )
+    metadata = build_metadata(
+        final_results_dir=final_dir, output_path=tmp_path / "croissant.json"
+    )
+    description = metadata["description"]
+    collection = metadata["rai:dataCollection"]
+    provenance = metadata["prov:wasDerivedFrom"][0]["description"]
+
+    assert "23 of 24 Part 0 systems" in description
+    assert "76 of 81 frozen Part 1 targets" in description
+    assert "22 of 24 Part 2 systems" in description
+    assert "75 execution-roster targets on 96 balanced roots (74 included, 1 unavailable)" in collection
+    assert "2 on 12 balanced roots (1 included, 1 unavailable)" in collection
+    assert "3 frozen Part 1 registry targets were unavailable before execution" in collection
+    assert "76 included targets and 2 target-bound operational" in provenance
+    assert "5 additional unavailable" not in provenance
+    serialized = json.dumps(metadata)
+    assert "expanded-50" not in serialized
+    assert "slow-01" not in serialized
+
+
+def test_unavailable_evidence_and_private_binding_paths_fail_closed(tmp_path: Path) -> None:
+    final_dir = _final_fixture(
+        tmp_path / "evidence", p0_unavailable=("matched-23",)
+    )
+    artifact_path = final_dir / "final_results.json"
+    artifact = json.loads(artifact_path.read_text(encoding="utf-8"))
+    artifact["bindings"]["part0"]["unavailable_target_failures"] = []
+    artifact["evidence_sha256"] = _canonical_hash(artifact)
+    artifact_path.write_text(json.dumps(artifact), encoding="utf-8")
+    with pytest.raises(CroissantBuildError, match="failure evidence is incomplete"):
+        build_metadata(final_results_dir=final_dir, output_path=tmp_path / "out.json")
+
+    final_dir = _final_fixture(tmp_path / "paths")
+    artifact_path = final_dir / "final_results.json"
+    artifact = json.loads(artifact_path.read_text(encoding="utf-8"))
+    artifact["bindings"]["part2"]["manifest_path"] = "/private/run/manifest.json"
+    artifact["evidence_sha256"] = _canonical_hash(artifact)
+    artifact_path.write_text(json.dumps(artifact), encoding="utf-8")
+    with pytest.raises(CroissantBuildError, match="non-public path"):
+        build_metadata(final_results_dir=final_dir, output_path=tmp_path / "out.json")
+
+    final_dir = _final_fixture(tmp_path / "csv-route")
+    artifact_path = final_dir / "final_results.json"
+    artifact = json.loads(artifact_path.read_text(encoding="utf-8"))
+    csv_path = final_dir / "part2_model_metrics.csv"
+    with csv_path.open(newline="", encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle))
+    for row in rows:
+        row["requested_route"] = "private/provider/path"
+    _write_csv(csv_path, rows)
+    artifact["outputs"]["part2_csv"]["file_sha256"] = hashlib.sha256(
+        csv_path.read_bytes()
+    ).hexdigest()
+    artifact["evidence_sha256"] = _canonical_hash(artifact)
+    artifact_path.write_text(json.dumps(artifact), encoding="utf-8")
+    with pytest.raises(CroissantBuildError, match="forbidden private column"):
         build_metadata(final_results_dir=final_dir, output_path=tmp_path / "out.json")
 
 

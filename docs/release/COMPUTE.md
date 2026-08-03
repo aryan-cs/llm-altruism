@@ -20,14 +20,22 @@ within an upstream provider while allowing bounded progress across providers.
 Part 2 bounds both trajectory and participant-level workers. These controls are
 operational safeguards, not model hyperparameters.
 
-## Actually executed workload
+## Frozen workload and availability accounting
 
-- Part 0: 24 systems × 24 roots × 3 response-language conditions, followed by
-  fixed-judge batches of at most eight visible responses.
-- Part 1: 75 systems × 96 roots, two slower systems × 12 roots, and one system
-  × 384 roots, for 78 observed systems.
-- Part 2: 24 systems × 8 independent trajectories × 12 steps × up to 5 active
-  participants per step.
+- Part 0: 24 systems were targeted at 24 roots × 3 response-language
+  conditions, followed by fixed-judge batches of at most eight visible
+  responses for included systems.
+- Part 1: the execution roster assigns 75 systems × 96 roots, two slower
+  systems × 12 roots, and one system × 384 roots. Three additional frozen
+  registry targets were unavailable before execution and are not part of this
+  78-target execution roster.
+- Part 2: 24 systems were targeted at 8 independent trajectories × 12 steps ×
+  up to 5 active participants per step.
+
+Final compute totals must be calculated from the included rows and sanitized
+availability bindings. A target-bound operationally unavailable system is
+counted in frozen coverage but contributes no scored units; scheduled maxima
+must not be reported as completed calls.
 
 Retries are transport-only and bounded. Invalid structured output is retained
 and is not regenerated. Durable reservation and append-only journal records

@@ -37,21 +37,27 @@ identity probe.
 The matched panel is defined in `experiments/sota_cross_axis_panel.json`. The
 file also records intended limits of 48 Part 0 roots per response-language
 condition and 12 Part 2 trajectories. Deadline execution used lower explicit
-CLI limits: 24 roots and eight trajectories. Final public metadata derives the
-observed counts from complete manifests rather than treating planning defaults
-as completed work.
+CLI limits: 24 roots and eight trajectories. Final public metadata derives
+included and operationally unavailable counts from sanitized manifest bindings
+rather than treating planning defaults or scheduled systems as completed work.
 
 ## Part 1 expansion
 
-Part 1 has a wider observed scope: 75 routes completed the balanced 96-root
-schedule, while two slower routes completed balanced 12-root schedules. GLM
-5.1 completed one separate 384-root schedule. These 78 observed routes cover 78
-of 81 frozen targets. Three remain unavailable in provenance and are not
-replaced after outcomes are observed.
+Part 1 has a wider frozen execution roster: 75 targets were assigned the
+balanced 96-root schedule, two slower targets the balanced 12-root schedule,
+and GLM 5.1 the separate 384-root schedule. The final sanitized bindings, not
+this document, determine how many of those 78 execution-roster targets are
+included and how many are operationally unavailable. Kimi K2.5, Kimi K2.6, and
+GLM-5.2 are three additional frozen registry targets that were unavailable
+before execution; they were never manifest subjects and are not described as
+observed. Together the execution roster and pre-execution-unavailable registry
+contain 81 frozen Part 1 targets.
 
-Every Part 1 row is released with explicit `scope` and `root_count` fields. The
-12-root, 96-root, and 384-root estimates are not pooled. The larger Part 1 route
-set does not change the 24-system matched cross-axis cohort.
+Every included Part 1 row is released with explicit `scope` and `root_count`
+fields. Operationally unavailable execution-roster targets are retained only
+as sanitized, target-bound provenance and receive no estimate. The 12-root,
+96-root, and 384-root estimates are not pooled. The larger Part 1 target set
+does not change the frozen 24-system matched cross-axis cohort.
 
 ## Fixed judge
 

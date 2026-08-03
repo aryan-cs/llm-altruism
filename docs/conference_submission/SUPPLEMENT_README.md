@@ -41,6 +41,7 @@ From the package root:
 uv sync
 uv run pytest -q
 uv run python -m analysis.build_final_results --help
+uv run python -m analysis.build_developer_descriptives --help
 uv run python -m analysis.build_paper_headlines --help
 uv run python -m analysis.build_croissant_metadata --help
 uv run python -m analysis.build_supplement
@@ -52,7 +53,10 @@ hash-bound journals, parser outcomes, and evidence gates before writing a
 text-free immutable directory. `analysis.build_paper_headlines` validates that
 sealed artifact and emits only within-axis, scope-separated manuscript values;
 it does not compute rankings, family effects, significance tests, or cross-axis
-associations. `analysis.build_croissant_metadata` accepts only the final-results
+associations. `analysis.build_developer_descriptives` separately emits
+alphabetical within-axis summaries for operational developer-route groups with
+at least two evaluated systems; it never pools Part 1 scopes or supports vendor
+effects. `analysis.build_croissant_metadata` accepts only the final-results
 directory and fails if the artifact is absent, incomplete, self-hash-invalid,
 privacy-unsafe, or inconsistent with the executed scopes.
 
