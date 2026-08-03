@@ -6,6 +6,8 @@ from pathlib import Path
 import pytest
 
 from analysis import build_supplement
+from analysis.build_provider_safe_v2_croissant_metadata import write_metadata
+from test_build_provider_safe_v2_croissant_metadata import _fixture as _release_fixture
 
 
 def test_anonymous_supplement_excludes_author_identity_metadata(tmp_path: Path) -> None:
@@ -201,10 +203,10 @@ def test_supplement_includes_exact_hosted_reproducibility_surface_only() -> None
         "tests/test_part2_confirmatory_statistics.py",
     } <= names
 
-    # b94e65a adds deterministic scalar manuscript macros to the already
-    # exact-allowlisted paper-assets generator and sealed final-result surface.
-    assert "data/analysis/final_results/paper_headlines.tex" in names
-    assert "data/analysis/final_results/paper_macros.tex" in names
+    assert "analysis/build_provider_safe_v2_croissant_metadata.py" in names
+    assert "tests/test_build_provider_safe_v2_croissant_metadata.py" in names
+    assert not any(name.startswith("data/analysis/final_results/") for name in names)
+    assert "data/analysis/croissant_metadata.json" not in names
 
 
 def test_unreviewed_availability_retry_source_is_fail_closed(
@@ -239,7 +241,6 @@ def test_supplement_release_boundary_is_aggregate_only_and_current() -> None:
 
     assert not any(name.startswith("data/raw/") for name in names)
     assert not any(name.startswith("data/private/") for name in names)
-    assert not any(name.startswith("artifacts/availability_retry") for name in names)
     assert not any(name.startswith("data/analysis/tables/") for name in names)
     assert not any(name.startswith("data/analysis/validation/") for name in names)
     assert "data/analysis/part0_rejudge_audit_checkpoint.json" not in names
@@ -256,22 +257,18 @@ def test_supplement_release_boundary_is_aggregate_only_and_current() -> None:
         )
         for name in names
     )
+    assert "data/analysis/local_hf_part1_controls.json" in names
+    assert not any(name.startswith("data/analysis/final_results/") for name in names)
+    assert "data/analysis/croissant_metadata.json" not in names
+    assert not any(
+        name.startswith("docs/conference_submission/figures/") for name in names
+    )
     assert {
-        "data/analysis/final_results/final_results.json",
-        "data/analysis/final_results/part0_model_rates.csv",
-        "data/analysis/final_results/part1_model_rates.csv",
-        "data/analysis/final_results/part2_model_metrics.csv",
-        "data/analysis/croissant_metadata.json",
-        "data/analysis/local_hf_part1_controls.json",
-    } <= names
-    assert {
-        name
-        for name in names
-        if name.startswith("docs/conference_submission/figures/")
+        path.as_posix() for path in build_supplement.DEFINITIVE_RELEASE_PATHS
     } == {
-        "docs/conference_submission/figures/part0_response_language_conditions.png",
-        "docs/conference_submission/figures/part1_scope_distributions.png",
-        "docs/conference_submission/figures/part2_corrected_outcomes.png",
+        "data/processed/provider-safe-v2-definitive-analysis",
+        "data/processed/provider-safe-v2-paper-assets",
+        "data/processed/provider-safe-v2-croissant-metadata.json",
     }
 
 
@@ -469,3 +466,129 @@ def test_packaged_reproducibility_note_matches_frozen_sensitivity_counts() -> No
     assert "192 total" in text
     assert "four exact paired" in text
     assert "103,680-post" not in text
+
+
+def _write_isolated_release(
+    directory: Path, *, artifact_type: str, availability: bool
+) -> None:
+    directory.mkdir(parents=True)
+    bindings: dict[str, dict[str, object]] = {}
+    for suffix, payload in {
+        "csv": b"target_id,status\nroute/model,complete\n",
+        "jsonl": b'{"status":"complete","target_id":"route/model"}\n',
+        "tex": b"% isolated supplemental table\n",
+    }.items():
+        path = directory / f"isolated.{suffix}"
+        path.write_bytes(payload)
+        bindings[suffix] = {
+            "filename": path.name,
+            "file_sha256": hashlib.sha256(payload).hexdigest(),
+        }
+    manifest: dict[str, object] = {
+        "schema_version": 1,
+        "artifact_type": artifact_type,
+        "published_outputs": {"isolated": {"row_count": 1, **bindings}},
+    }
+    if availability:
+        manifest.update(
+            {
+                "exploratory_only": True,
+                "replaces_primary": False,
+                "merge_with_primary_permitted": False,
+                "cross_axis_permitted": False,
+            }
+        )
+    else:
+        manifest.update(
+            {
+                "primary_records_mutated": False,
+                "primary_denominators_changed": False,
+                "repaired_estimates_separate_only": True,
+                "promotion_permitted": False,
+            }
+        )
+    manifest["evidence_sha256"] = build_supplement._self_hash(manifest)
+    (directory / "analysis_manifest.json").write_text(
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+
+
+def test_strict_definitive_build_packages_only_hash_bound_current_artifacts(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "repo"
+    release_root = root / "data/processed"
+    analysis, assets, metadata = _release_fixture(release_root)
+    write_metadata(
+        analysis_dir=analysis, paper_assets_dir=assets, output_path=metadata
+    )
+    _write_isolated_release(
+        root / "artifacts/availability_retry_analysis_definitive_v1",
+        artifact_type="inference_hub_availability_retry_analysis_v1",
+        availability=True,
+    )
+    _write_isolated_release(
+        root / "artifacts/semantic_invalid_repair_analysis_definitive_v1",
+        artifact_type="inference_hub_semantic_invalid_repair_analysis_v1",
+        availability=False,
+    )
+
+    output, _ = build_supplement.build_supplement(
+        root,
+        tmp_path / "strict.zip",
+        require_definitive_artifacts=True,
+    )
+    with zipfile.ZipFile(output) as archive:
+        names = set(archive.namelist())
+        manifest = json.loads(archive.read(build_supplement.MANIFEST_NAME))
+    assert manifest["definitive_release_status"] == (
+        "complete_hash_and_privacy_validated"
+    )
+    assert "data/processed/provider-safe-v2-definitive-analysis/part0_models.csv" in names
+    assert "data/processed/provider-safe-v2-paper-assets/part0_model_language.png" in names
+    assert "data/processed/provider-safe-v2-paper-assets/all_models_cross_phase_table.tex" in names
+    assert "data/processed/provider-safe-v2-paper-assets/all_models_cross_phase_table.md" in names
+    assert "data/processed/provider-safe-v2-croissant-metadata.json" in names
+    assert "artifacts/availability_retry_analysis_definitive_v1/isolated.csv" in names
+    assert "artifacts/semantic_invalid_repair_analysis_definitive_v1/isolated.csv" in names
+    assert not any(name.endswith(".pdf") for name in names)
+    assert not any("final_results" in name for name in names)
+
+    extracted = tmp_path / "extracted"
+    with zipfile.ZipFile(output) as archive:
+        archive.extractall(extracted)
+    rebuilt, _ = build_supplement.build_supplement(
+        extracted,
+        tmp_path / "rebuilt.zip",
+        require_definitive_artifacts=True,
+    )
+    assert build_supplement.audit_anonymous_archive(rebuilt, extracted) == []
+    with zipfile.ZipFile(rebuilt) as archive:
+        rebuilt_manifest = json.loads(archive.read(build_supplement.MANIFEST_NAME))
+    assert rebuilt_manifest == manifest
+
+
+def test_strict_definitive_build_rejects_missing_partial_and_stale_metadata(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "missing"
+    root.mkdir()
+    with pytest.raises(ValueError, match="not present"):
+        build_supplement.build_supplement(
+            root,
+            tmp_path / "missing.zip",
+            require_definitive_artifacts=True,
+        )
+
+    root = tmp_path / "partial"
+    (root / "data/processed/provider-safe-v2-definitive-analysis").mkdir(
+        parents=True
+    )
+    with pytest.raises(ValueError, match="partial"):
+        build_supplement.build_supplement(root, tmp_path / "partial.zip")
+
+    root = tmp_path / "stale"
+    analysis, assets, metadata = _release_fixture(root / "data/processed")
+    metadata.write_text("{}\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="absent or stale"):
+        build_supplement.build_supplement(root, tmp_path / "stale.zip")

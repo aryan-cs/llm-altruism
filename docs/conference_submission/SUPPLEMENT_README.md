@@ -1,85 +1,110 @@
 # Safety Beyond Refusal: Anonymous Supplement
 
-This package accompanies **Safety Beyond Refusal** and its three-axis
-**Prosocial Readiness Bench**. The benchmark reports three observable behaviors
-separately: harmful-request refusal, welfare-preserving self-choice in one-shot
-dilemmas, and preservation of a shared resource in repeated simulations. It
-does not assign a single altruism, morality, or deployment-safety score.
+This package accompanies **Safety Beyond Refusal** and the three-axis
+**Prosocial Readiness Bench**. It reports three observable behaviors
+separately: harmful-request refusal, welfare-preserving self-choice in
+one-shot dilemmas, and preservation of a shared resource in repeated
+simulations. It does not construct an altruism, morality, deployment-safety,
+or cross-axis composite score.
 
-## Executed deadline design
+## Definitive deadline design
 
-- **Part 0:** 16 of 24 matched systems have complete response-only aggregates
-  over 24 archived English source requests crossed with English, Simplified
-  Chinese, and Russian response-language instructions. The eight unavailable
-  systems are `anthropic/claude-haiku-4-5`,
-  `anthropic/claude-opus-4-5`, `anthropic/claude-opus-4-6`,
-  `anthropic/claude-sonnet-4-5`, `minimaxai/minimax-m2.7`,
-  `openai/gpt-5`, `openai/gpt-5.2`, and `openai/gpt-5.4`. The exact translated
-  inputs from the April pilot were not retained, there are no benign controls,
-  and human judge validation is incomplete. These aggregates are exploratory.
-- **Part 1:** 75 of 81 frozen targets are reportable: 73 completed balanced
-  n=96 schedules, Qwen3.5 397B completed a balanced n=12 schedule, and GLM 5.1
-  completed n=384. Execution subjects `anthropic/claude-opus-4-5`,
-  `minimaxai/minimax-m2.7`, and `minimaxai/minimax-m3` are operationally
-  unavailable; `moonshotai/kimi-k2.5`, `moonshotai/kimi-k2.6`, and
-  `zai-org/glm-5.2` were unavailable before execution. The scopes are never
-  pooled. The bank lacks independent content approval, so results are
-  exploratory.
-- **Part 2:** 22 of the 24 matched systems execute eight independent,
+- **Part 0:** 22 exact model routes are scheduled on 48 archived English
+  harmful-request roots crossed with English, Simplified Chinese, and Russian
+  response-language instructions (144 responses per route). One fixed judge is
+  disjoint from every evaluated subject. First-attempt invalids remain in the
+  scheduled-response denominator. Because the bank has no benign controls and
+  human judge validation is incomplete, these estimates are exploratory.
+- **Part 1:** 75 exact model routes are scheduled on the same balanced
+  384-root bank, stratified over 12 game-domain cells. First-attempt malformed
+  actions remain in the primary denominator as non-welfare-preserving choices.
+  The prompt bank lacks independent content approval, so these estimates are
+  exploratory. Four local open-weight controls use the same 384-root design
+  and are displayed separately rather than pooled with hosted routes.
+- **Part 2:** 19 exact model routes are scheduled for 12 independent,
   common-seed trajectories under the corrected five-agent, 12-step commons
-  engine, for 176 trajectories total. Twenty systems and 159 fully valid
-  trajectories support estimates; 17 trajectories containing an invalid
-  action are excluded, and two all-invalid executed systems are non-estimable.
-  `anthropic/claude-opus-4-6` and `minimaxai/minimax-m2.7` are unavailable. The
-  n=8 result remains below the paper's n=12 promotion gate and has no parameter
-  sensitivity analysis.
+  engine (228 trajectories total). Behavioral restraint retains every
+  scheduled agent-day in its denominator. Environmental AURC, AUPC, reserve
+  nondepletion, and population retention use only trajectories that are both
+  operationally eligible and environmentally estimable; semantic-invalid
+  trajectories are enumerated rather than silently imputed.
+- **Role calibration and sensitivity:** Six prespecified routes are evaluated
+  under three role frames over 384 Part 1 roots per frame. A separate
+  deadline-exploratory Part 2 design evaluates six sentinels in 16 fractional-
+  factorial cells under two independent common seeds. These artifacts diagnose
+  framing and environment sensitivity; they are not confirmatory promotions.
+- **Unavailable routes and invalid recovery:** Bounded availability retries and
+  semantic-invalid repairs are isolated supplemental artifacts. They never
+  substitute a different model, overwrite a primary response, alter a primary
+  denominator, or enter a cross-axis score. If an exact route remains
+  unavailable, it receives no behavioral estimate.
 
-The April 13-model pilot remains historical context. Its legacy Part 0 labels,
-legacy Part 2 rates, and legacy cross-axis correlations are not current result
-artifacts and are not distributed as evidence for the restored paper.
+All reportable counts in the Croissant metadata and paper tables are computed
+from the hash-bound definitive CSVs. The builders contain no legacy coverage
+constants such as 16/24, mixed Part 1 scopes, or eight-trajectory Part 2 runs.
 
-## Reproduction and release boundary
+## Reproduction and validation
 
-From the package root:
+From the extracted package root:
 
 ```bash
-uv sync
+uv sync --frozen
 uv run pytest -q
-uv run python -m analysis.build_final_results --help
-uv run python -m experiments.misc.inference_hub_retire_target --help
-uv run python -m analysis.finalize_inference_hub_part2_offline --help
-uv run python -m analysis.build_developer_descriptives --help
-uv run python -m analysis.build_paper_headlines --help
-uv run python -m analysis.build_croissant_metadata --help
-uv run python -m analysis.build_supplement
+uv run python -m analysis.build_provider_safe_v2_croissant_metadata --check
+uv run python -m analysis.build_supplement --require-definitive-artifacts
 ```
 
-`analysis.build_final_results` is the sole bridge from validated private panel
-evidence to paper-facing results. It accepts only complete manifests or
-fail-closed target-bound overlays, checks model identities, coverage,
-hash-bound journals, parser outcomes, replacements, and evidence gates, and
-writes a text-free immutable directory. Complete DeepSeek repair manifests use
-the same frozen identities and schedules; they are evidence replacements, not
-model substitutions. `analysis.build_paper_headlines` validates that
-sealed artifact and emits only within-axis, scope-separated manuscript values;
-it does not compute rankings, family effects, significance tests, or cross-axis
-associations. `analysis.build_developer_descriptives` separately emits
-alphabetical within-axis summaries for operational developer-route groups with
-at least two evaluated systems; it never pools Part 1 scopes or supports vendor
-effects. `analysis.build_croissant_metadata` accepts only the final-results
-directory and fails if the artifact is absent, incomplete, self-hash-invalid,
-privacy-unsafe, or inconsistent with the executed scopes.
+To regenerate the paper-facing tables and figures into a fresh directory while
+leaving the sealed packaged assets untouched:
 
-The supplement includes reviewed runner and offline-finalization code, tests,
-route-compatibility and rate-limit dependencies, documentation, and the sealed
-sanitized final aggregates. It excludes `.env` files, API keys, private manifests, harmful
-prompts, visible responses, reasoning, raw journals, interrupted runs, and
-deprecated legacy evidence. `SUPPLEMENT_MANIFEST.json` binds every packaged
-payload to its SHA-256 and records the exclusion policy.
+```bash
+release_tmp="$(mktemp -d)"
+uv run python -m analysis.build_provider_safe_v2_paper_assets \
+  --input-dir data/processed/provider-safe-v2-definitive-analysis \
+  --local-controls data/analysis/local_hf_part1_controls.json \
+  --output-dir "$release_tmp/provider-safe-v2-paper-assets"
+```
 
-This is aggregate-reproducible, not collection-reproducible: reviewers can
-validate the sealed graph and regenerate paper-facing tables, figures, and
-checks, but cannot independently rebuild that graph without the excluded
-private execution evidence. The packaged Croissant metadata intentionally has
-no dataset URL during anonymous review; no placeholder or identifying URL is
-claimed.
+`analysis.analyze_provider_safe_v2_definitive` is the sole bridge from the five
+completed private campaign manifests to the primary public aggregate graph. It
+validates complete self-hashed manifests and journals, exact response-model
+identity, fixed judge disjointness, expected schedules, parser outcomes,
+invalid-denominator policy, and source bindings before atomically publishing a
+text-free directory. Its public manifest uses portable basenames only and
+SHA-256-binds every nonmanifest output.
+
+`analysis.build_provider_safe_v2_paper_assets` accepts only that definitive
+manifest and the separately self-hashed local-control aggregate. It emits
+one-route-per-row Markdown and LaTeX tables, 20-pixel-equivalent outer table
+spacing, directional captions, raster PNG figures, and vector PDF figures. The
+supplement packages the PNG, Markdown, and LaTeX assets but omits redundant PDF
+copies; the submission PDF is uploaded separately.
+
+`analysis.build_provider_safe_v2_croissant_metadata` validates the complete
+analysis and paper-asset inventories, recomputes every SHA-256, recomputes all
+coverage counts from the definitive CSVs, rejects private fields and host paths,
+and emits Croissant 1.1 JSON-LD with portable relative `contentUrl` values. The
+metadata intentionally has no dataset URL during anonymous review.
+
+`analysis.build_supplement --require-definitive-artifacts` fails if the
+definitive analysis, paper assets, or Croissant metadata are missing, partial,
+tampered, privacy-unsafe, or mutually stale. The same gate validates any
+present availability-retry or semantic-repair directory and enforces its
+nonreplacement contract. `SUPPLEMENT_MANIFEST.json` then SHA-256-binds every
+payload in a deterministic, byte-reproducible ZIP.
+
+## Release boundary
+
+This package contains reviewed runner/finalization code, tests, frozen public
+design registries, documentation, text-free definitive aggregates, current
+paper tables and raster figures, Croissant metadata, and any completed isolated
+retry/repair summaries. It excludes `.env` files, API keys, private manifests,
+harmful prompts, visible responses, reasoning, raw journals, interrupted runs,
+legacy final-results directories, superseded conference figures, and all
+private execution evidence.
+
+The artifact is **aggregate-reproducible, not collection-reproducible**:
+reviewers can verify hashes and schemas and regenerate paper-facing assets from
+the released aggregates, but cannot recollect model responses or reconstruct
+the definitive aggregate graph without the deliberately withheld private
+execution evidence.

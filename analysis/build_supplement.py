@@ -9,6 +9,16 @@ import subprocess
 import zipfile
 from pathlib import Path
 
+from analysis.build_provider_safe_v2_croissant_metadata import (
+    DefinitiveCroissantError,
+    _scan_public_file,
+    _self_hash,
+    _sha256_file,
+    build_metadata as build_definitive_croissant_metadata,
+    serialized_metadata as serialize_definitive_croissant_metadata,
+    validate_release_sources,
+)
+
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT = PROJECT_ROOT / "docs" / "conference_submission" / "supplement.zip"
 MANIFEST_NAME = "SUPPLEMENT_MANIFEST.json"
@@ -27,6 +37,7 @@ HOSTED_REPRODUCIBILITY_ALLOWLIST = frozenset(
         Path("analysis") / "analyze_semantic_invalid_repairs.py",
         Path("analysis") / "accelerated_part0_human_validation.py",
         Path("analysis") / "build_provider_safe_v2_paper_assets.py",
+        Path("analysis") / "build_provider_safe_v2_croissant_metadata.py",
         Path("analysis") / "build_developer_descriptives.py",
         Path("analysis") / "build_final_results.py",
         Path("analysis") / "build_paper_headlines.py",
@@ -66,6 +77,7 @@ HOSTED_REPRODUCIBILITY_ALLOWLIST = frozenset(
         Path("tests") / "test_analyze_provider_safe_v2_definitive.py",
         Path("tests") / "test_analyze_semantic_invalid_repairs.py",
         Path("tests") / "test_build_provider_safe_v2_paper_assets.py",
+        Path("tests") / "test_build_provider_safe_v2_croissant_metadata.py",
         Path("tests") / "test_inference_hub_compatibility.py",
         Path("tests") / "test_inference_hub_compatibility_provider_safe.py",
         Path("tests") / "test_inference_hub_discovery.py",
@@ -128,19 +140,31 @@ INCLUDE_PATHS = (
     Path("docs") / "conference_submission" / "README.md",
     Path("docs") / "conference_submission" / "conference_submission.tex",
     Path("docs") / "conference_submission" / "checklist.tex",
-    Path("docs") / "conference_submission" / "figures" / "part0_response_language_conditions.png",
-    Path("docs") / "conference_submission" / "figures" / "part1_scope_distributions.png",
-    Path("docs") / "conference_submission" / "figures" / "part2_corrected_outcomes.png",
     Path("docs") / "conference_submission" / "references.bib",
     Path("docs") / "conference_submission" / "neurips_2026.sty",
-    Path("data") / "analysis" / "final_results",
-    Path("data") / "analysis" / "croissant_metadata.json",
     Path("data") / "analysis" / "local_hf_part1_controls.json",
     Path("data") / "graphs" / "part_0_graphs.py",
     Path("data") / "graphs" / "part_1_graphs.py",
     Path("data") / "graphs" / "part_2_graphs.py",
     Path("data") / "graphs" / "cross_part_graphs.py",
     Path("data") / "graphs" / "paper_visuals.py",
+)
+
+# These roots are generated only after every live definitive campaign has
+# sealed.  Development builds may omit all of them; final builds use
+# ``--require-definitive-artifacts`` and fail if any required root is absent.
+DEFINITIVE_RELEASE_PATHS = (
+    Path("data") / "processed" / "provider-safe-v2-definitive-analysis",
+    Path("data") / "processed" / "provider-safe-v2-paper-assets",
+    Path("data") / "processed" / "provider-safe-v2-croissant-metadata.json",
+)
+ISOLATED_SUPPLEMENTAL_RELEASE_PATHS = (
+    Path("artifacts") / "availability_retry_analysis_definitive_v1",
+    Path("artifacts") / "semantic_invalid_repair_analysis_definitive_v1",
+)
+OPTIONAL_INCLUDE_PATHS = (
+    *DEFINITIVE_RELEASE_PATHS,
+    *ISOLATED_SUPPLEMENTAL_RELEASE_PATHS,
 )
 
 EXCLUDED_RELATIVE_PATHS = {
@@ -281,7 +305,7 @@ POLICY_EXCLUSIONS = (
     },
     {
         "path": "data/private/**",
-        "reason": "credentials, prompts, raw responses, journals, run-local aggregates, and incomplete artifacts are private; only the explicit sealed final-results release enters the supplement",
+        "reason": "credentials, prompts, raw responses, journals, run-local aggregates, and incomplete artifacts are private; only the explicit self-hashed provider-safe-v2 aggregate release enters the supplement",
     },
     {
         "path": "deprecated Part 1/Part 2 raw evidence, Part 2 execution archive, and structural provenance",
@@ -384,7 +408,7 @@ def collect_supplement_files(
         output_rel_path = None
 
     files: set[Path] = set()
-    for include_path in INCLUDE_PATHS:
+    for include_path in (*INCLUDE_PATHS, *OPTIONAL_INCLUDE_PATHS):
         absolute_path = resolve_include_path(project_root, include_path)
         if absolute_path is None:
             continue
@@ -408,6 +432,131 @@ def collect_supplement_files(
                 files.add(rel_path)
 
     return sorted(files, key=lambda path: path.as_posix())
+
+
+def _validate_isolated_supplemental_directory(
+    directory: Path, expected_artifact_type: str
+) -> None:
+    """Validate one separately reported retry/repair aggregate directory."""
+
+    manifest_path = directory / "analysis_manifest.json"
+    if not manifest_path.is_file():
+        raise ValueError(f"Supplemental release lacks analysis_manifest.json: {directory.name}")
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise ValueError(f"Supplemental release manifest is unreadable: {directory.name}") from error
+    if (
+        not isinstance(manifest, dict)
+        or manifest.get("schema_version") != 1
+        or manifest.get("artifact_type") != expected_artifact_type
+        or manifest.get("evidence_sha256") != _self_hash(manifest)
+    ):
+        raise ValueError(f"Supplemental release manifest contract failed: {directory.name}")
+    if expected_artifact_type == "inference_hub_availability_retry_analysis_v1":
+        if (
+            manifest.get("exploratory_only") is not True
+            or manifest.get("replaces_primary") is not False
+            or manifest.get("merge_with_primary_permitted") is not False
+            or manifest.get("cross_axis_permitted") is not False
+        ):
+            raise ValueError("Availability-retry release changed its isolation contract")
+    elif (
+        manifest.get("primary_records_mutated") is not False
+        or manifest.get("primary_denominators_changed") is not False
+        or manifest.get("repaired_estimates_separate_only") is not True
+        or manifest.get("promotion_permitted") is not False
+    ):
+        raise ValueError("Semantic-repair release changed its isolation contract")
+
+    published = manifest.get("published_outputs")
+    if not isinstance(published, dict) or not published:
+        raise ValueError(f"Supplemental release output inventory is absent: {directory.name}")
+    expected: dict[str, str] = {}
+    for group in published.values():
+        if not isinstance(group, dict):
+            raise ValueError(f"Supplemental release output inventory is malformed: {directory.name}")
+        for binding in group.values():
+            if not isinstance(binding, dict) or "filename" not in binding:
+                continue
+            filename = binding.get("filename")
+            digest = binding.get("file_sha256")
+            if (
+                not isinstance(filename, str)
+                or filename != Path(filename).name
+                or "/" in filename
+                or "\\" in filename
+                or not isinstance(digest, str)
+                or len(digest) != 64
+                or filename in expected
+            ):
+                raise ValueError(f"Supplemental release output binding is unsafe: {directory.name}")
+            expected[filename] = digest
+    actual = {
+        path.name: path
+        for path in directory.iterdir()
+        if path.is_file() and path.name != manifest_path.name
+    }
+    if set(actual) != set(expected):
+        raise ValueError(f"Supplemental release differs from its output inventory: {directory.name}")
+    for name, path in actual.items():
+        if _sha256_file(path) != expected[name]:
+            raise ValueError(f"Supplemental release output hash changed: {name}")
+        _scan_public_file(path)
+    _scan_public_file(manifest_path)
+
+
+def validate_definitive_release(
+    project_root: Path, *, require_definitive_artifacts: bool = False
+) -> str:
+    """Fail closed on partial, stale, tampered, or privacy-unsafe release roots."""
+
+    project_root = project_root.resolve()
+    required = [project_root / path for path in DEFINITIVE_RELEASE_PATHS]
+    present = [path.exists() for path in required]
+    if not any(present):
+        if require_definitive_artifacts:
+            raise ValueError("Definitive aggregate release is not present")
+        status = "not_yet_generated"
+    elif not all(present):
+        missing = [path.name for path, exists in zip(required, present) if not exists]
+        raise ValueError(
+            "Definitive aggregate release is partial; missing: " + ", ".join(missing)
+        )
+    else:
+        analysis_dir, assets_dir, metadata_path = required
+        try:
+            validate_release_sources(analysis_dir, assets_dir)
+            expected = serialize_definitive_croissant_metadata(
+                build_definitive_croissant_metadata(
+                    analysis_dir=analysis_dir,
+                    paper_assets_dir=assets_dir,
+                    output_path=metadata_path,
+                )
+            )
+        except DefinitiveCroissantError as error:
+            raise ValueError(str(error)) from error
+        if not metadata_path.is_file() or metadata_path.read_text(encoding="utf-8") != expected:
+            raise ValueError("Definitive Croissant metadata is absent or stale")
+        status = "complete_hash_and_privacy_validated"
+
+    supplemental_types = {
+        "availability_retry_analysis_definitive_v1": (
+            "inference_hub_availability_retry_analysis_v1"
+        ),
+        "semantic_invalid_repair_analysis_definitive_v1": (
+            "inference_hub_semantic_invalid_repair_analysis_v1"
+        ),
+    }
+    for relative in ISOLATED_SUPPLEMENTAL_RELEASE_PATHS:
+        directory = project_root / relative
+        if directory.exists():
+            if not directory.is_dir():
+                raise ValueError(f"Supplemental release root is not a directory: {relative}")
+            _validate_isolated_supplemental_directory(
+                directory, supplemental_types[directory.name]
+            )
+    return status
 
 
 def _writestr(zf: zipfile.ZipFile, arcname: str, data: bytes) -> None:
@@ -546,9 +695,15 @@ def audit_anonymous_archive(
 def build_supplement(
     project_root: Path = PROJECT_ROOT,
     output_path: Path = DEFAULT_OUTPUT,
+    *,
+    require_definitive_artifacts: bool = False,
 ) -> tuple[Path, list[Path]]:
     project_root = project_root.resolve()
     output_path = output_path.resolve()
+    definitive_release_status = validate_definitive_release(
+        project_root,
+        require_definitive_artifacts=require_definitive_artifacts,
+    )
     files = collect_supplement_files(project_root=project_root, output_path=output_path)
     replacements = _archive_replacements(project_root)
     archive_payloads = dict(
@@ -572,7 +727,10 @@ def build_supplement(
         # per-entry ZIP metadata so the anonymous archive is byte-reproducible.
         "created_utc": REPRODUCIBLE_CREATED_UTC,
         "package": "anonymous NeurIPS supplement",
-        "included_roots": [path.as_posix() for path in INCLUDE_PATHS],
+        "included_roots": [
+            path.as_posix() for path in (*INCLUDE_PATHS, *OPTIONAL_INCLUDE_PATHS)
+        ],
+        "definitive_release_status": definitive_release_status,
         "policy_exclusions": list(POLICY_EXCLUSIONS),
         "file_count": len(files),
         "files": list(archive_payloads),
@@ -608,11 +766,13 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Build the anonymous conference supplement ZIP.")
     parser.add_argument("--project-root", default=str(PROJECT_ROOT))
     parser.add_argument("--output", default=str(DEFAULT_OUTPUT))
+    parser.add_argument("--require-definitive-artifacts", action="store_true")
     args = parser.parse_args()
 
     output_path, files = build_supplement(
         project_root=Path(args.project_root),
         output_path=Path(args.output),
+        require_definitive_artifacts=args.require_definitive_artifacts,
     )
     size_mib = output_path.stat().st_size / (1024 * 1024)
     print(f"Wrote {output_path} with {len(files)} files ({size_mib:.1f} MiB)")
