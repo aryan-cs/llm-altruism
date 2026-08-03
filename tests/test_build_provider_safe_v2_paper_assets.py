@@ -17,10 +17,25 @@ from analysis.build_provider_safe_v2_paper_assets import (
     PaperAssetsError,
     SENSITIVITY_FACTORS,
     SENSITIVITY_LEVELS,
+    _load_and_validate,
     _self_hash,
     _validate_local_controls,
+    _write_headlines,
     build_paper_assets,
 )
+
+
+_HEADLINE_MACRO = re.compile(
+    r"^\\newcommand\{\\([A-Za-z]+)\}\{([^{}]*)\}$", re.MULTILINE
+)
+
+
+def _headline_macros(path: Path) -> dict[str, str]:
+    text = path.read_text(encoding="utf-8")
+    pairs = _HEADLINE_MACRO.findall(text)
+    assert pairs
+    assert len(pairs) == len({name for name, _ in pairs})
+    return dict(pairs)
 
 
 def _write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
@@ -172,8 +187,8 @@ def _source_payload() -> tuple[dict[str, list[dict[str, Any]]], dict[str, Any]]:
                 "target_id": target,
                 "upstream_provider": provider,
                 "model": model,
-                "trajectory_count": 192,
-                "scheduled_agent_days": 11520,
+                "trajectory_count": 32,
+                "scheduled_agent_days": 2880,
                 "first_attempt_invalid_count": model_index,
                 "repaired_invalid_count": 0,
                 "inference_scope": "deadline_exploratory",
@@ -206,7 +221,7 @@ def _source_payload() -> tuple[dict[str, list[dict[str, Any]]], dict[str, Any]]:
                     "within_sentinel_max_t_adjusted_p": 0.08,
                     "cell_count": 16,
                     "common_seed_count": 2,
-                    "permutation_count": 4096,
+                    "permutation_count": 4,
                     "design": "2^(5-1)_resolution_V_I=ABCDE",
                     "analysis_unit": "environment_seed_block",
                     "holm_family": "30_prespecified_sentinel_by_factor_main_effects",
@@ -327,7 +342,7 @@ def test_builds_full_production_shaped_vector_png_and_latex_assets(tmp_path: Pat
     assert result["confirmatory_or_paper_promotion_permitted"] is False
     assert result["table_outer_spacing_pt"] == 15
     assert result["route_and_model_ids_preserved_exactly"] is True
-    assert len(result["assets"]) == 18
+    assert len(result["assets"]) == 19
     assert result["local_controls_pooled_with_hosted_routes"] is False
     assert {path.suffix for path in output.iterdir()} >= {".pdf", ".png", ".tex", ".json"}
 
@@ -356,6 +371,89 @@ def test_builds_full_production_shaped_vector_png_and_latex_assets(tmp_path: Pat
     for row in manifest["assets"]:
         digest = hashlib.sha256((output / row["name"]).read_bytes()).hexdigest()
         assert row["file_sha256"] == digest
+    headline_asset = next(row for row in manifest["assets"] if row["name"] == "paper_headlines.tex")
+    assert headline_asset["kind"] == "latex_macros"
+
+
+def test_deterministic_headline_macros_match_full_production_fixture_exactly(
+    tmp_path: Path,
+) -> None:
+    source = _write_source(tmp_path)
+    local_path = tmp_path / "local_controls.json"
+    data = _load_and_validate(source)
+    _, local_rows = _validate_local_controls(local_path)
+    data["local_controls"] = local_rows
+    first = tmp_path / "headlines-first"
+    second = tmp_path / "headlines-second"
+    first.mkdir()
+    second.mkdir()
+    first_path = _write_headlines(data, first)
+    second_path = _write_headlines(data, second)
+    assert first_path.read_bytes() == second_path.read_bytes()
+    assert first_path.read_bytes().endswith(b"\n")
+
+    assert _headline_macros(first_path) == {
+        "ProviderSafePartZeroModelCount": "22",
+        "ProviderSafePartZeroScheduledResponseCount": "3168",
+        "ProviderSafePartZeroRefusalCount": "1203",
+        "ProviderSafePartZeroComplianceCount": "1833",
+        "ProviderSafePartZeroUnclearCount": "66",
+        "ProviderSafePartZeroInvalidCount": "66",
+        "ProviderSafePartZeroModelRefusalRatePctMinimum": "31.2",
+        "ProviderSafePartZeroModelRefusalRatePctMedian": "37.5",
+        "ProviderSafePartZeroModelRefusalRatePctMaximum": "45.8",
+        "ProviderSafePartOneModelCount": "75",
+        "ProviderSafePartOneScheduledUnitCount": "28800",
+        "ProviderSafePartOneWelfarePreservingCount": "16835",
+        "ProviderSafePartOneInvalidCount": "495",
+        "ProviderSafePartOneModelWelfareRatePctMinimum": "0.0",
+        "ProviderSafePartOneModelWelfareRatePctMedian": "59.1",
+        "ProviderSafePartOneModelWelfareRatePctMaximum": "68.8",
+        "ProviderSafePartTwoModelCount": "19",
+        "ProviderSafePartTwoTrajectoryCount": "228",
+        "ProviderSafePartTwoOperationallyEligibleTrajectoryCount": "216",
+        "ProviderSafePartTwoOperationallyIneligibleTrajectoryCount": "12",
+        "ProviderSafePartTwoScheduledAgentDayCount": "2280",
+        "ProviderSafePartTwoValidAgentDayCount": "2142",
+        "ProviderSafePartTwoInvalidAgentDayCount": "138",
+        "ProviderSafePartTwoNonestimableModelCount": "1",
+        "ProviderSafePartTwoModelNormalizedAURCMinimum": "0.335",
+        "ProviderSafePartTwoModelNormalizedAURCMedian": "0.548",
+        "ProviderSafePartTwoModelNormalizedAURCMaximum": "0.760",
+        "ProviderSafePartTwoModelRestraintRatePctMinimum": "0.0",
+        "ProviderSafePartTwoModelRestraintRatePctMedian": "55.8",
+        "ProviderSafePartTwoModelRestraintRatePctMaximum": "63.3",
+        "ProviderSafeRoleAdviceModelCount": "6",
+        "ProviderSafeRoleAdviceWelfareRatePctMinimum": "0.0",
+        "ProviderSafeRoleAdviceWelfareRatePctMedian": "49.5",
+        "ProviderSafeRoleAdviceWelfareRatePctMaximum": "57.3",
+        "ProviderSafeRoleAdviceValidCoveragePctMinimum": "0.0",
+        "ProviderSafeRoleAdviceValidCoveragePctMedian": "99.7",
+        "ProviderSafeRoleAdviceValidCoveragePctMaximum": "100.0",
+        "ProviderSafeRoleObserverEvaluationModelCount": "6",
+        "ProviderSafeRoleObserverEvaluationWelfareRatePctMinimum": "44.0",
+        "ProviderSafeRoleObserverEvaluationWelfareRatePctMedian": "51.8",
+        "ProviderSafeRoleObserverEvaluationWelfareRatePctMaximum": "59.6",
+        "ProviderSafeRoleObserverEvaluationValidCoveragePctMinimum": "99.5",
+        "ProviderSafeRoleObserverEvaluationValidCoveragePctMedian": "99.6",
+        "ProviderSafeRoleObserverEvaluationValidCoveragePctMaximum": "99.7",
+        "ProviderSafeRolePredictionModelCount": "6",
+        "ProviderSafeRolePredictionWelfareRatePctMinimum": "46.4",
+        "ProviderSafeRolePredictionWelfareRatePctMedian": "54.2",
+        "ProviderSafeRolePredictionWelfareRatePctMaximum": "62.0",
+        "ProviderSafeRolePredictionValidCoveragePctMinimum": "99.2",
+        "ProviderSafeRolePredictionValidCoveragePctMedian": "99.3",
+        "ProviderSafeRolePredictionValidCoveragePctMaximum": "99.5",
+        "ProviderSafeSensitivitySentinelCount": "6",
+        "ProviderSafeSensitivityTrajectoryCount": "192",
+        "ProviderSafeSensitivityCommonSeedCount": "2",
+        "ProviderSafeSensitivityEffectCount": "30",
+        "ProviderSafeSensitivityMaximumAbsoluteEffect": "0.0410",
+        "ProviderSafeSensitivityHolmSignificantCount": "4",
+    }
+    text = first_path.read_text(encoding="utf-8")
+    assert "no cross-axis aggregate or promotion is defined" in text
+    assert "CrossAxis" not in text and "Composite" not in text
 
 
 def test_latex_tables_preserve_ids_define_directions_and_space_every_float(tmp_path: Path) -> None:

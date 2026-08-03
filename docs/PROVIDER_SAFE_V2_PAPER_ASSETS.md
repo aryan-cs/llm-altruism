@@ -85,6 +85,43 @@ outputs remain exploratory, generate no human labels, preserve exact route and
 model IDs, keep local controls separate from hosted routes, and do not permit
 confirmatory or paper promotion.
 
+## Deterministic headline macros
+
+The same validated inputs also produce `paper_headlines.tex`. It contains only
+deterministic scalar `\newcommand` definitions; it has no timestamp, model
+labels, prose claims, cross-axis composite, ranking, or promotion macro. Macro
+names contain TeX command letters only. `Pct` values omit the percent sign so
+the consuming prose controls typography.
+
+The macro families are:
+
+- `ProviderSafePartZero...`: exact model, scheduled-response, refusal,
+  compliance, unclear, and invalid totals, plus minimum/median/maximum model
+  refusal percentages. All rates retain all scheduled responses.
+- `ProviderSafePartOne...`: exact model, scheduled-unit, welfare-preserving,
+  and invalid totals, plus minimum/median/maximum model welfare percentages.
+  Invalid first attempts remain scheduled nonsuccesses.
+- `ProviderSafePartTwo...`: model and trajectory totals; operationally eligible
+  and ineligible trajectory totals; scheduled, valid, and invalid agent-day
+  totals; nonestimable-model count; and model minimum/median/maximum normalized
+  AURC and restraint percentage. Valid/invalid macros explicitly count
+  scheduled agent-days. AURC summaries use estimable model means only; if no
+  model is estimable, the three AURC macros emit `NE` rather than changing the
+  denominator or inventing a value.
+- `ProviderSafeRoleAdvice...`, `ProviderSafeRoleObserverEvaluation...`, and
+  `ProviderSafeRolePrediction...`: separate per-frame model counts and
+  minimum/median/maximum welfare and valid-coverage percentages. Frames are
+  never pooled.
+- `ProviderSafeSensitivity...`: sentinel count, total trajectory count, common
+  seed count, effect count, maximum absolute high-minus-low normalized-AURC
+  effect, and count with global Holm-adjusted p at most 0.05. These remain
+  deadline-exploratory descriptors.
+
+The macro file is hashed as a `latex_macros` asset in
+`paper_assets_manifest.json`. The generator intentionally emits no headline
+macros for combining Part 0, Part 1, Part 2, role, sensitivity, hosted routes,
+or local controls.
+
 ## Verification
 
 ```bash
@@ -93,8 +130,12 @@ UV_CACHE_DIR=/tmp/llm-altruism-uv-cache \
 ```
 
 The tests construct the full production-shaped sanitized matrix, render all
-six PDF/PNG/TeX families, verify that the PDFs contain vector marks rather than
+six PDF/PNG/TeX families plus the deterministic headline macro fragment, verify
+that the PDFs contain vector marks rather than
 embedded raster charts, validate PNG resolution and output hashes, count all 75
 and 19 hosted model rows plus four local-control rows, check the 15-point spacing around every table block, and
 exercise missing-row, missing-field, duplicate-ID, factor/Holm, identity,
-local-control, manifest-tamper, and no-overwrite failures.
+local-control, manifest-tamper, and no-overwrite failures. The production-shaped
+headline test parses every emitted macro and compares all 57 names and values
+exactly, including one nonestimable Part 2 model and the frozen sensitivity
+seed/Holm counts; a second write must be byte-for-byte identical.

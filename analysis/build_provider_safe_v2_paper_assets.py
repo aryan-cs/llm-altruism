@@ -15,6 +15,7 @@ import json
 import math
 import os
 import shutil
+import statistics
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -465,9 +466,13 @@ def _validate_sensitivity(
             ),
             label,
         )
-        if _integer(row, "trajectory_count", label) != 192:
-            raise PaperAssetsError(f"{label} does not contain 16 cells x 12 seeds.")
+        if _integer(row, "trajectory_count", label) != 32:
+            raise PaperAssetsError(f"{label} does not contain 16 cells x 2 seeds.")
         scheduled = _integer(row, "scheduled_agent_days", label, minimum=1)
+        if scheduled != 2880:
+            raise PaperAssetsError(
+                f"{label} does not contain the frozen 2,880 scheduled agent-days."
+            )
         invalid = _integer(row, "first_attempt_invalid_count", label)
         if invalid > scheduled or _integer(row, "repaired_invalid_count", label) != 0:
             raise PaperAssetsError(f"{label} has invalid sensitivity coverage accounting.")
@@ -512,7 +517,7 @@ def _validate_sensitivity(
         if (
             _integer(row, "cell_count", label) != 16
             or _integer(row, "common_seed_count", label) != 2
-            or _integer(row, "permutation_count", label) != 4096
+            or _integer(row, "permutation_count", label) != 4
             or row.get("design") != "2^(5-1)_resolution_V_I=ABCDE"
             or row.get("analysis_unit") != "environment_seed_block"
             or row.get("holm_family") != "30_prespecified_sentinel_by_factor_main_effects"
@@ -1222,6 +1227,207 @@ def _write_tables(data: Mapping[str, Any], directory: Path) -> list[Path]:
     return output
 
 
+def _summary(values: Sequence[float]) -> tuple[float, float, float] | None:
+    numeric = [float(value) for value in values]
+    if not numeric:
+        return None
+    if any(not math.isfinite(value) for value in numeric):
+        raise PaperAssetsError("Headline summary received a nonfinite value.")
+    return min(numeric), float(statistics.median(numeric)), max(numeric)
+
+
+def _percent_headline(value: float) -> str:
+    return f"{100.0 * value:.1f}"
+
+
+def _decimal_headline(value: float, places: int) -> str:
+    return f"{value:.{places}f}"
+
+
+def _summary_macros(
+    values: Sequence[float],
+    *,
+    prefix: str,
+    formatter,
+) -> list[tuple[str, str]]:
+    summary = _summary(values)
+    if summary is None:
+        return [
+            (f"{prefix}Minimum", "NE"),
+            (f"{prefix}Median", "NE"),
+            (f"{prefix}Maximum", "NE"),
+        ]
+    minimum, median, maximum = summary
+    return [
+        (f"{prefix}Minimum", formatter(minimum)),
+        (f"{prefix}Median", formatter(median)),
+        (f"{prefix}Maximum", formatter(maximum)),
+    ]
+
+
+def _headline_values(data: Mapping[str, Any]) -> list[tuple[str, str]]:
+    """Return deterministic, within-task TeX macro names and scalar values."""
+
+    part0 = data["part0"]
+    part1 = data["part1"]
+    part2 = data["part2"]
+    role_targets = data["role_targets"]
+    role = data["role"]
+    sensitivity_models = data["sensitivity_models"]
+    sensitivity = data["sensitivity"]
+
+    part0_scheduled = sum(int(row["scheduled_units"]) for row in part0)
+    part0_refusal = sum(int(row["refusal_count"]) for row in part0)
+    part0_compliance = sum(int(row["compliance_count"]) for row in part0)
+    part0_unclear = sum(int(row["unclear_count"]) for row in part0)
+    part0_invalid = sum(int(row["first_attempt_invalid_count"]) for row in part0)
+    if part0_refusal + part0_compliance + part0_unclear + part0_invalid != part0_scheduled:
+        raise PaperAssetsError("Part 0 headline totals do not reconcile to scheduled responses.")
+
+    part1_scheduled = sum(int(row["scheduled_units"]) for row in part1)
+    part1_welfare = sum(int(row["welfare_preserving_count_first_attempt"]) for row in part1)
+    part1_invalid = sum(int(row["first_attempt_invalid_count"]) for row in part1)
+    if part1_welfare > part1_scheduled - part1_invalid:
+        raise PaperAssetsError("Part 1 headline welfare count exceeds valid scheduled units.")
+
+    part2_trajectories = sum(int(row["trajectory_count"]) for row in part2)
+    part2_eligible_trajectories = sum(
+        int(row["operationally_eligible_trajectory_count"]) for row in part2
+    )
+    part2_scheduled_agent_days = sum(int(row["scheduled_agent_days"]) for row in part2)
+    part2_invalid_agent_days = sum(int(row["first_attempt_invalid_count"]) for row in part2)
+    part2_valid_agent_days = part2_scheduled_agent_days - part2_invalid_agent_days
+    part2_nonestimable = sum(row["mean_aurc_eligible"] is None for row in part2)
+    if part2_eligible_trajectories > part2_trajectories or part2_valid_agent_days < 0:
+        raise PaperAssetsError("Part 2 headline trajectory/agent-day totals do not reconcile.")
+    part2_aurc = [
+        float(row["mean_aurc_eligible"])
+        for row in part2
+        if row["mean_aurc_eligible"] is not None
+    ]
+
+    values: list[tuple[str, str]] = [
+        ("ProviderSafePartZeroModelCount", str(len(part0))),
+        ("ProviderSafePartZeroScheduledResponseCount", str(part0_scheduled)),
+        ("ProviderSafePartZeroRefusalCount", str(part0_refusal)),
+        ("ProviderSafePartZeroComplianceCount", str(part0_compliance)),
+        ("ProviderSafePartZeroUnclearCount", str(part0_unclear)),
+        ("ProviderSafePartZeroInvalidCount", str(part0_invalid)),
+        *_summary_macros(
+            [float(row["refusal_rate_all_scheduled"]) for row in part0],
+            prefix="ProviderSafePartZeroModelRefusalRatePct",
+            formatter=_percent_headline,
+        ),
+        ("ProviderSafePartOneModelCount", str(len(part1))),
+        ("ProviderSafePartOneScheduledUnitCount", str(part1_scheduled)),
+        ("ProviderSafePartOneWelfarePreservingCount", str(part1_welfare)),
+        ("ProviderSafePartOneInvalidCount", str(part1_invalid)),
+        *_summary_macros(
+            [float(row["welfare_preserving_rate_all_scheduled"]) for row in part1],
+            prefix="ProviderSafePartOneModelWelfareRatePct",
+            formatter=_percent_headline,
+        ),
+        ("ProviderSafePartTwoModelCount", str(len(part2))),
+        ("ProviderSafePartTwoTrajectoryCount", str(part2_trajectories)),
+        ("ProviderSafePartTwoOperationallyEligibleTrajectoryCount", str(part2_eligible_trajectories)),
+        ("ProviderSafePartTwoOperationallyIneligibleTrajectoryCount", str(part2_trajectories - part2_eligible_trajectories)),
+        ("ProviderSafePartTwoScheduledAgentDayCount", str(part2_scheduled_agent_days)),
+        ("ProviderSafePartTwoValidAgentDayCount", str(part2_valid_agent_days)),
+        ("ProviderSafePartTwoInvalidAgentDayCount", str(part2_invalid_agent_days)),
+        ("ProviderSafePartTwoNonestimableModelCount", str(part2_nonestimable)),
+        *_summary_macros(
+            part2_aurc,
+            prefix="ProviderSafePartTwoModelNormalizedAURC",
+            formatter=lambda value: _decimal_headline(value, 3),
+        ),
+        *_summary_macros(
+            [float(row["restraint_rate_all_scheduled"]) for row in part2],
+            prefix="ProviderSafePartTwoModelRestraintRatePct",
+            formatter=_percent_headline,
+        ),
+    ]
+
+    frame_macro_names = {
+        "advice": "Advice",
+        "observer_evaluation": "ObserverEvaluation",
+        "prediction": "Prediction",
+    }
+    for frame in ROLE_FRAMES:
+        rows = [role[(target, frame)] for target in role_targets]
+        frame_name = frame_macro_names[frame]
+        valid_coverage = [
+            1.0 - int(row["first_attempt_invalid_count"]) / int(row["scheduled_draws"])
+            for row in rows
+        ]
+        values.append((f"ProviderSafeRole{frame_name}ModelCount", str(len(rows))))
+        values.extend(
+            _summary_macros(
+                [float(row["welfare_preserving_rate_all_scheduled"]) for row in rows],
+                prefix=f"ProviderSafeRole{frame_name}WelfareRatePct",
+                formatter=_percent_headline,
+            )
+        )
+        values.extend(
+            _summary_macros(
+                valid_coverage,
+                prefix=f"ProviderSafeRole{frame_name}ValidCoveragePct",
+                formatter=_percent_headline,
+            )
+        )
+
+    sensitivity_rows = [
+        sensitivity[(target, factor)]
+        for target in data["sensitivity_targets"]
+        for factor in SENSITIVITY_FACTORS
+    ]
+    sensitivity_seed_counts = {int(row["common_seed_count"]) for row in sensitivity_rows}
+    if len(sensitivity_seed_counts) != 1:
+        raise PaperAssetsError("Sensitivity headline rows disagree on common-seed count.")
+    [sensitivity_seed_count] = sensitivity_seed_counts
+    values.extend(
+        [
+            ("ProviderSafeSensitivitySentinelCount", str(len(sensitivity_models))),
+            (
+                "ProviderSafeSensitivityTrajectoryCount",
+                str(sum(int(row["trajectory_count"]) for row in sensitivity_models.values())),
+            ),
+            ("ProviderSafeSensitivityCommonSeedCount", str(sensitivity_seed_count)),
+            ("ProviderSafeSensitivityEffectCount", str(len(sensitivity_rows))),
+            (
+                "ProviderSafeSensitivityMaximumAbsoluteEffect",
+                _decimal_headline(
+                    max(abs(float(row["effect_high_minus_low"])) for row in sensitivity_rows),
+                    4,
+                ),
+            ),
+            (
+                "ProviderSafeSensitivityHolmSignificantCount",
+                str(sum(float(row["holm_adjusted_p"]) <= 0.05 for row in sensitivity_rows)),
+            ),
+        ]
+    )
+    names = [name for name, _ in values]
+    if len(names) != len(set(names)) or any(not name.isalpha() for name in names):
+        raise PaperAssetsError("Headline macro names are duplicated or not TeX-safe letters.")
+    return values
+
+
+def _write_headlines(data: Mapping[str, Any], directory: Path) -> Path:
+    values = _headline_values(data)
+    lines = [
+        "% Generated by analysis.build_provider_safe_v2_paper_assets; do not edit.",
+        "% Counts preserve the validated scheduled-unit denominators.",
+        "% Pct macros omit the percent sign; AURC/effect macros use normalized units.",
+        "% Part 2 valid/invalid macros count scheduled agent-days; NE excludes only nonestimable model AURC from its model summary.",
+        "% Role frames remain separate; sensitivity remains deadline-exploratory; no cross-axis aggregate or promotion is defined.",
+        *(f"\\newcommand{{\\{name}}}{{{value}}}" for name, value in values),
+        "",
+    ]
+    path = directory / "paper_headlines.tex"
+    path.write_text("\n".join(lines), encoding="utf-8")
+    return path
+
+
 def build_paper_assets(
     input_dir: Path,
     output_dir: Path,
@@ -1250,12 +1456,15 @@ def build_paper_assets(
         assets.extend(_plot_sensitivity(data, temporary))
         assets.extend(_plot_local_controls(data, temporary))
         assets.extend(_write_tables(data, temporary))
+        assets.append(_write_headlines(data, temporary))
         asset_rows = [
             {
                 "name": path.name,
                 "kind": (
                     "vector_pdf" if path.suffix == ".pdf" else
-                    "raster_png" if path.suffix == ".png" else "latex_table"
+                    "raster_png" if path.suffix == ".png" else
+                    "latex_macros" if path.name == "paper_headlines.tex" else
+                    "latex_table"
                 ),
                 "file_sha256": _sha256_file(path),
                 "byte_count": path.stat().st_size,
