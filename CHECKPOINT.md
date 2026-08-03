@@ -19,7 +19,7 @@ Updated: 2026-08-03 (America/Los_Angeles)
 ## Current source state
 
 - Branch: `master` (no additional branch or tag).
-- Latest pushed source commit at this checkpoint: `17fc8bb`.
+- Latest pushed source commit at this checkpoint: `044fb21`.
 - Important preceding commits:
   - `d11c739`: deterministic, privacy-safe clean-room supplement;
   - `b94e65a`: deterministic paper headline macros and six asset families;
@@ -195,13 +195,14 @@ campaigns have priority over supplemental retries.
 3. Resume and complete deadline sensitivity, then resume the three availability
    retry panels; periodically re-probe still-unavailable MiniMax M2.7 and Kimi
    K2.5.
-4. Run `analysis.analyze_provider_safe_v2_definitive`, build the six figure
+4. Run `analysis.analyze_provider_safe_v2_definitive`, build the seven figure
    families, six within-panel tables, nonpooled model-by-phase matrix, and
    headline macros, then run the separate availability-retry and bounded
    semantic-repair analyzers.
-5. Replace stale n=24/n=96/n=8 prose and artifacts in the manuscript with only
-   the completed generated n=48/n=384/n=12 evidence. Keep role and sensitivity
-   exploratory and keep cross-axis output gated.
+5. Replace any residual superseded deadline-scope prose and artifacts in the
+   manuscript with only completed generated 48-root, 384-root, and
+   12-trajectory evidence. Keep role and sensitivity exploratory and keep
+   cross-axis output gated.
 6. Compile with bundled Tectonic, render every PDF page, verify exact title,
    anonymity, main-body page limit, table spacing/captions, figure legibility,
    citations, and numeric consistency.

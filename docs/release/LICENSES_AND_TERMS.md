@@ -8,7 +8,9 @@ This document summarizes license and release handling for the anonymous paper ar
   tables, and figures are released under the repository MIT license unless
   another file states otherwise.
 - The repository license is stored at `LICENSE`.
-- The paper-facing Croissant metadata is stored at `data/analysis/croissant_metadata.json`.
+- The paper-facing Croissant metadata is stored at
+  `data/processed/provider-safe-v2-croissant-metadata.json` after the
+  definitive analysis and paper assets pass their completion gates.
 
 ## External Part 0 Sources
 
@@ -40,18 +42,19 @@ The supplement excludes legacy Part 0 tables and every dependent legacy
 cross-part output, as well as harmful prompt text and completions. Current
 hosted Part 0 raw prompts, responses, reasoning, judge payloads, and journals
 also remain private. The same exclusion applies to all private Part 1 and Part
-2 manifests, routes, journals, prompts, responses, and reasoning, including the
-incomplete source artifacts used by validated fail-closed overlays. Only
-text-free aggregates and target-bound availability records produced by the
-final result builder may enter the package. Any future raw release requires
-separate safety, privacy, and upstream-license review.
+2 manifests, routes, journals, prompts, responses, and reasoning. Only
+text-free aggregates from complete definitive source manifests and separately
+labeled, validated availability or semantic-repair summaries may enter the
+package. No retry artifact may replace a primary observation or denominator.
+Any future raw release requires separate safety, privacy, and upstream-license
+review.
 
 ## Supplement Package
 
 Build the anonymous supplement with:
 
 ```bash
-uv run python -m analysis.build_supplement
+uv run python -m analysis.build_supplement --require-definitive-artifacts
 ```
 
 The script writes `docs/conference_submission/supplement.zip` and adds `SUPPLEMENT_MANIFEST.json` inside the archive. The manifest lists included files and records the policy exclusions above.

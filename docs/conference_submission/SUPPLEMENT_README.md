@@ -7,29 +7,36 @@ one-shot dilemmas, and preservation of a shared resource in repeated
 simulations. It does not construct an altruism, morality, deployment-safety,
 or cross-axis composite score.
 
-## Definitive deadline design
+## Definitive design and source status
 
 - **Part 0:** 22 exact model routes are scheduled on 48 archived English
   harmful-request roots crossed with English, Simplified Chinese, and Russian
   response-language instructions (144 responses per route). One fixed judge is
   disjoint from every evaluated subject. First-attempt invalids remain in the
   scheduled-response denominator. Because the bank has no benign controls and
-  human judge validation is incomplete, these estimates are exploratory.
+  human judge validation is incomplete, these estimates are exploratory. The
+  source manifest was still running at the documentation checkpoint, so the
+  schedule is not presented as completed coverage.
 - **Part 1:** 75 exact model routes are scheduled on the same balanced
   384-root bank, stratified over 12 game-domain cells. First-attempt malformed
   actions remain in the primary denominator as non-welfare-preserving choices.
   The prompt bank lacks independent content approval, so these estimates are
   exploratory. Four local open-weight controls use the same 384-root design
-  and are displayed separately rather than pooled with hosted routes.
+  and are displayed separately rather than pooled with hosted routes. The
+  hosted source manifest was still running at the documentation checkpoint.
 - **Part 2:** 19 exact model routes are scheduled for 12 independent,
   common-seed trajectories under the corrected five-agent, 12-step commons
   engine (228 trajectories total). Behavioral restraint retains every
   scheduled agent-day in its denominator. Environmental AURC, AUPC, reserve
   nondepletion, and population retention use only trajectories that are both
   operationally eligible and environmentally estimable; semantic-invalid
-  trajectories are enumerated rather than silently imputed.
-- **Role calibration and sensitivity:** Six prespecified routes are evaluated
-  under three role frames over 384 Part 1 roots per frame. A separate
+  trajectories are enumerated rather than silently imputed. This source
+  manifest is complete at 228 trajectories and 13,495 scheduled agent-days;
+  four invalid actions occur across three trajectories, leaving 225
+  environmentally estimable trajectories.
+- **Role calibration and sensitivity:** Six prespecified routes are scheduled
+  under three role frames over 96 roots with four counterbalances per frame
+  (384 units per route/frame). A separate
   deadline-exploratory Part 2 design evaluates six sentinels in 16 fractional-
   factorial cells under two independent common seeds. These artifacts diagnose
   framing and environment sensitivity; they are not confirmatory promotions.
@@ -66,7 +73,8 @@ uv run python -m analysis.build_provider_safe_v2_paper_assets \
 ```
 
 `analysis.analyze_provider_safe_v2_definitive` is the sole bridge from the five
-completed private campaign manifests to the primary public aggregate graph. It
+private campaign manifests to the primary public aggregate graph, and it runs
+only after all five are complete. It
 validates complete self-hashed manifests and journals, exact response-model
 identity, fixed judge disjointness, expected schedules, parser outcomes,
 invalid-denominator policy, and source bindings before atomically publishing a

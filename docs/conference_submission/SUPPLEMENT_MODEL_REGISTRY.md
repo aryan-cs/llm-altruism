@@ -1,13 +1,15 @@
 # Prosocial Readiness Bench Model Registry
 
-The current paper uses two explicitly separate coverage sets.
+The current paper uses separate phase-specific primary rosters. A shared
+planning roster does not imply that an unavailable route was observed.
 
-## Matched 24-system panel
+## Planning roster and primary overlap
 
-The same 24 authenticated systems form the frozen Parts 0 and 2 roster and
-define the only permitted cross-axis overlap. The frozen identifiers are stored in
-`experiments/sota_cross_axis_panel.json`. They span GPT, Claude Haiku, Sonnet,
-and Opus, Gemini, Llama, DeepSeek, Qwen, Nemotron, MiniMax, and GLM families.
+`experiments/sota_cross_axis_panel.json` stores a 24-system planning roster
+spanning GPT, Claude Haiku, Sonnet, and Opus, Gemini, Llama, DeepSeek, Qwen,
+Nemotron, MiniMax, and GLM families. The definitive Part 0 manifest selects 22
+exact routes; the definitive Part 2 manifest selects 19. Their 19-route overlap
+is the only current three-primary-phase overlap.
 
 Every included target is bound to an exact compatibility-selected route and a
 successful identity probe. Unavailable, deprecated, identity-mismatched,
@@ -15,27 +17,33 @@ non-chat, embedding, reranking, image, and guard-only routes are not silently
 substituted. One NVIDIA Evals Nemotron route is reserved as the fixed Part 0
 judge and cannot also be a subject.
 
-Part 0 reports 16 systems and marks eight unavailable:
-`anthropic/claude-haiku-4-5`, `anthropic/claude-opus-4-5`,
-`anthropic/claude-opus-4-6`, `anthropic/claude-sonnet-4-5`,
-`minimaxai/minimax-m2.7`, `openai/gpt-5`, `openai/gpt-5.2`, and
-`openai/gpt-5.4`. Part 2 executes 22 systems and 176 trajectories. Twenty
-systems and 159 fully valid trajectories support estimates; 17 trajectories
-are protocol-invalid, and two all-invalid executed systems are non-estimable.
-The two unavailable targets are `anthropic/claude-opus-4-6` and
-`minimaxai/minimax-m2.7`.
+Part 0 schedules 48 archived request roots under three response-language
+instructions for each selected route (144 responses per route). Its planning-
+roster exclusions are `anthropic/claude-opus-4-5` and
+`minimaxai/minimax-m2.7`. Its source manifest remains incomplete, so final
+reportable coverage is not yet claimed.
+
+Part 2 is complete at 12 common-seed trajectories for each of 19 exact routes
+(228 total). It records zero transport or identity failures and four invalid
+actions across three trajectories; 225 trajectories contain no invalid action
+and support environmental estimates. The five planning-roster routes outside
+the primary Part 2 manifest receive no primary estimate.
 
 ## Expanded Part 1 coverage
 
-Part 1 is broader but does not enlarge the matched cross-axis sample. Seventy-
-three routes report the balanced 96-root schedule, Qwen3.5 397B reports the
-balanced 12-root schedule, and GLM 5.1 reports the 384-root schedule. Thus 75 of
-81 frozen targets are reportable. `anthropic/claude-opus-4-5`,
-`minimaxai/minimax-m2.7`, and `minimaxai/minimax-m3` have target-bound
-operational failures; `moonshotai/kimi-k2.5`, `moonshotai/kimi-k2.6`, and
-`zai-org/glm-5.2` were unavailable before execution. No unavailable target is
-substituted. The n=12, n=96, and n=384 estimates have different support and are
-never pooled or ranked as if they shared one design.
+Part 1 is broader but does not enlarge the current primary overlap. Its
+definitive manifest selects 75 exact routes, each on the same balanced 384-root
+direct self-choice bank. `anthropic/claude-opus-4-5`,
+`minimaxai/minimax-m2.7`, `minimaxai/minimax-m3`,
+`moonshotai/kimi-k2.5`, `moonshotai/kimi-k2.6`, and `zai-org/glm-5.2` are
+frozen registry exclusions. No unavailable target is substituted. The source
+manifest remains incomplete, so the 75-route schedule is not yet described as
+75 reportable estimates.
+
+Six role-calibration sentinels use three distinct frames over 96 roots with
+four counterbalances per frame. Four pinned local open-weight controls use the
+384-root Part 1 bank but remain a separate execution-scale panel rather than
+hosted-route substitutes.
 
 ## Evidence status and identity limits
 

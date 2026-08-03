@@ -1,11 +1,12 @@
 # Model Registry
 
-## Executed matched panel
+## Frozen planning roster and definitive subsets
 
-Parts 0 and 2 use the same frozen 24-system panel. These are stable study target
-IDs, not provider request routes. The private compatibility artifact binds each
-ID to the exact authenticated route that passed the request-shape and response-
-identity probe.
+`experiments/sota_cross_axis_panel.json` preserves the 24-system planning
+roster below. These are stable study target IDs, not provider request routes.
+Each definitive private manifest binds its selected subset to the exact
+authenticated route that passed request-shape and response-identity checks.
+Planning-roster membership alone never creates an observation.
 
 | Developer family | Study target ID |
 | --- | --- |
@@ -34,47 +35,43 @@ identity probe.
 | MiniMax | `minimaxai/minimax-m2.7` |
 | Z.ai | `zai-org/glm-5.1` |
 
-The matched panel is defined in `experiments/sota_cross_axis_panel.json`. The
-file also records intended limits of 48 Part 0 roots per response-language
-condition and 12 Part 2 trajectories. Deadline execution used lower explicit
-CLI limits: 24 roots and eight trajectories. Final public metadata derives
-included and operationally unavailable counts from sanitized manifest bindings
-rather than treating planning defaults or scheduled systems as completed work.
+The definitive Part 0 manifest selects 22 exact routes and schedules 48 roots
+under each of three response-language instructions (144 responses per route).
+`anthropic/claude-opus-4-5` and `minimaxai/minimax-m2.7` are explicit
+planning-roster exclusions. The manifest remains incomplete; reportable model
+coverage must therefore be computed only after it seals.
 
-Part 0 includes 16 systems. Its eight unavailable IDs are
-`anthropic/claude-haiku-4-5`, `anthropic/claude-opus-4-5`,
-`anthropic/claude-opus-4-6`, `anthropic/claude-sonnet-4-5`,
-`minimaxai/minimax-m2.7`, `openai/gpt-5`, `openai/gpt-5.2`, and
-`openai/gpt-5.4`. Part 2 executes 22 systems and 176 trajectories. Twenty
-systems and 159 fully valid trajectories support estimates; 17 trajectories
-are protocol-invalid, and two all-invalid executed systems are non-estimable.
-The two unavailable IDs are `anthropic/claude-opus-4-6` and
-`minimaxai/minimax-m2.7`.
+The definitive Part 2 manifest selects 19 exact routes and is complete at 12
+independent common-seed trajectories per route (228 total). It records zero
+transport or identity failures and four invalid actions across three
+trajectories; 225 trajectories contain no invalid action and support
+environmental estimates. The five planning-roster routes outside the primary
+Part 2 manifest are `anthropic/claude-opus-4-5`,
+`deepseek-ai/deepseek-v4-flash`, `nvidia/nemotron-3-ultra`,
+`minimaxai/minimax-m2.7`, and `zai-org/glm-5.1`. They receive no primary Part 2
+estimate, and any bounded availability retry remains separate.
 
 ## Part 1 expansion
 
-Part 1 has a wider frozen execution roster. The sealed result contains 75
-reportable targets: 73 at balanced n=96, `qwen/qwen3-5-397b-a17b` at balanced
-n=12, and `zai-org/glm-5.1` at n=384. The three operationally unavailable
-execution subjects are `anthropic/claude-opus-4-5`,
-`minimaxai/minimax-m2.7`, and `minimaxai/minimax-m3`. The three additional
-pre-execution unavailable targets are `moonshotai/kimi-k2.5`,
-`moonshotai/kimi-k2.6`, and `zai-org/glm-5.2`; they were never manifest
-subjects. Together these account for all 81 frozen Part 1 targets.
+Part 1 has a wider frozen registry. Its definitive primary manifest selects 75
+exact routes, each on the same balanced 384-root direct self-choice bank. The
+six registry exclusions are `anthropic/claude-opus-4-5`,
+`minimaxai/minimax-m2.7`, `minimaxai/minimax-m3`,
+`moonshotai/kimi-k2.5`, `moonshotai/kimi-k2.6`, and `zai-org/glm-5.2`. No
+excluded target is substituted. The primary manifest remains incomplete, so
+the 75-route schedule is not yet described as 75 reportable estimates.
 
-Two complete n=96 DeepSeek repair artifacts reproduce the same frozen study
-IDs and schedules as their failed primary slices. They are exact evidence
-replacements, not model substitutions. Every included Part 1 row is released
-with explicit `scope` and `root_count`
-fields. Operationally unavailable execution-roster targets are retained only
-as sanitized, target-bound provenance and receive no estimate. The 12-root,
-96-root, and 384-root estimates are not pooled. The larger Part 1 target set
-does not change the frozen 24-system matched cross-axis cohort.
+First-attempt malformed outputs remain in every route's 384-unit primary
+denominator. Periodic semantic-invalid repair uses the exact same route and
+frozen work ID, but its artifact is isolated and cannot overwrite the primary
+response, change that denominator, or enter the primary rate. The wider Part 1
+registry does not enlarge the 19-route overlap shared by all three current
+primary phases.
 
 ## Fixed judge
 
 `judge.nvidia-evals-nemotron-3-30b-a3b` is the sole Part 0 judge target. It is
-not one of the 24 subjects. Route selection rejects target-ID, exact-route, and
+not one of the 22 Part 0 subjects. Route selection rejects target-ID, exact-route, and
 upstream-model overlap with every subject. Judge batches contain only the
 request and visible subject response, never subject identity or hidden
 reasoning.

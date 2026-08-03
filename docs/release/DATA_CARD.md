@@ -9,32 +9,33 @@ dilemmas, and preservation of a shared resource in repeated simulations.
 
 ## Frozen schedules and included data
 
-The current deadline collection has three distinct scopes:
+The definitive provider-safe-v2 collection has three distinct primary scopes:
 
-| Part | Frozen schedule | Evidence status |
-| --- | --- | --- |
-| Part 0 | 16 included of 24 matched systems; 24 English source roots × 3 response-language instructions per included system | Exploratory. Eight systems are unavailable; there are no benign controls and no completed human validation of the fixed judge. |
-| Part 1 | 75 reportable of 81 frozen targets: 73 × balanced n=96, one × balanced n=12, one GLM 5.1 × n=384 | Exploratory. Three execution subjects and three pre-execution registry targets are unavailable. The bank lacks independent content approval; scopes are not pooled. |
-| Part 2 | 22 executed of 24 matched systems; 8 independent common-seed trajectories each (176 total) | 20 systems and 159 fully valid trajectories are estimable. Seventeen protocol-invalid trajectories are excluded from behavioral/environmental metrics; two all-invalid systems are non-estimable and two systems are unavailable. |
+| Part | Frozen primary schedule | Evidence status |
+| :--- | :--- | :--- |
+| Part 0 | 22 exact routes × 48 archived English roots × 3 requested response languages = 3,168 scheduled subject responses | Collection is in progress. The fixed judge is disjoint from every subject. Results remain exploratory because the task has no benign controls and the judge lacks completed human validation. |
+| Part 1 | 75 exact routes × the same balanced 384-root direct self-choice bank = 28,800 scheduled choices | Collection is in progress. Six additional frozen registry targets are operationally excluded without substitution. The bank lacks independent content approval, so results remain exploratory. |
+| Part 2 | 19 exact routes × 12 independent common-seed trajectories = 228 completed trajectories | Complete source manifest. It records 13,495 scheduled agent-days, zero transport or identity failures, and four invalid actions across three trajectories. The 225 trajectories without an invalid action support environmental estimates. |
 
-`experiments/sota_cross_axis_panel.json` preserves the larger intended deadline
-configuration of 48 Part 0 roots per condition and 12 Part 2 trajectories. The
-private execution manifests are authoritative for the lower CLI limits used:
-24 roots and eight trajectories. Sanitized bindings are authoritative for
-included versus operationally unavailable systems. Metadata and reports must
-never substitute intended or scheduled counts for observed counts.
+The authoritative private source manifests are
+`definitive-part0-large-n48-main22-deadline-v6`,
+`definitive-part1-large-n384-main75-deadline-v5`, and
+`definitive-part2-n12-main19-v3` under `data/private/inference_hub/`.
+Metadata and reports must never substitute scheduled counts for completed
+counts while a manifest remains incomplete.
 
-Exact unavailable IDs are:
+Exact primary exclusions are:
 
-- Part 0: `anthropic/claude-haiku-4-5`, `anthropic/claude-opus-4-5`,
-  `anthropic/claude-opus-4-6`, `anthropic/claude-sonnet-4-5`,
-  `minimaxai/minimax-m2.7`, `openai/gpt-5`, `openai/gpt-5.2`, and
-  `openai/gpt-5.4`.
-- Part 1 operational: `anthropic/claude-opus-4-5`,
-  `minimaxai/minimax-m2.7`, and `minimaxai/minimax-m3`; Part 1
-  pre-execution: `moonshotai/kimi-k2.5`, `moonshotai/kimi-k2.6`, and
-  `zai-org/glm-5.2`.
-- Part 2: `anthropic/claude-opus-4-6` and `minimaxai/minimax-m2.7`.
+- Part 0 planning-roster exclusions: `anthropic/claude-opus-4-5` and
+  `minimaxai/minimax-m2.7`.
+- Part 1 frozen-registry exclusions: `anthropic/claude-opus-4-5`,
+  `minimaxai/minimax-m2.7`, `minimaxai/minimax-m3`,
+  `moonshotai/kimi-k2.5`, `moonshotai/kimi-k2.6`, and `zai-org/glm-5.2`.
+- Part 2 primary execution contains 19 routes. The five planning-roster routes
+  outside that primary manifest are `anthropic/claude-opus-4-5`,
+  `deepseek-ai/deepseek-v4-flash`, `nvidia/nemotron-3-ultra`,
+  `minimaxai/minimax-m2.7`, and `zai-org/glm-5.1`. They receive no primary
+  Part 2 estimate; bounded availability retries remain separate evidence.
 
 The April 13-model local pilot is historical provenance. Its legacy Part 0
 labels, legacy Part 2 estimates, and dependent cross-part correlations are
@@ -48,24 +49,22 @@ usage, retry decisions, parser status, and hashes. Part 0 additionally retains
 the visible subject response and fixed-judge result. Private records may contain
 harmful prompts or unsafe model output.
 
-`analysis.build_final_results` validates complete private manifests or
-fail-closed overlays backed by target-bound operational/identity failure
-evidence, and emits a new immutable directory containing only:
+`analysis.analyze_provider_safe_v2_definitive` accepts the five definitive
+source manifests only after each is complete, self-hash-valid, source-bound,
+and journal-valid. It atomically emits text-free model tables for Parts 0-2,
+role calibration, and sensitivity plus a self-hashed analysis manifest. The
+paper-asset builder then emits hash-bound tables, headline macros, and seven
+figure families. No active builder reads the superseded deadline
+`data/analysis/final_results` graph.
 
-- `final_results.json`, a self-hashed text-free result and evidence-status graph;
-- `part0_model_rates.csv`;
-- `part1_model_rates.csv`;
-- `part2_model_metrics.csv`;
-- `cross_axis_spearman.csv` only if every cross-axis gate passes;
-- generated paper rows, macros, and figures bound by the result graph.
-
-The final builder retains every scheduled invalid or unclear Part 0/Part 1
-outcome as a nonsuccess. For Part 2, the simulator's zero state effect for an
-invalid action preserves transition continuity but is not restraint evidence;
-any trajectory containing an invalid action is excluded from all behavioral and
-environmental estimates. The builder uses prompt roots for Part 0 uncertainty,
-game-domain stratified root resampling for Part 1, and fully valid independent
-trajectories for Part 2.
+The definitive analyzer retains every scheduled invalid or unclear Part 0 or
+Part 1 outcome as a nonsuccess. Separate semantic-repair artifacts never alter
+the primary response or denominator. For Part 2, an invalid action remains a
+nonrestraint/zero-effect observation for behavioral continuity, while a
+trajectory containing any invalid action is excluded from environmental
+estimates. The analyzer uses root-cluster finite-bank sensitivity intervals for
+Part 0, stratified root resampling for Part 1, and independent trajectories for
+Part 2.
 
 ## Release policy
 
@@ -79,18 +78,18 @@ sanitized final aggregates only. It excludes:
 - private incomplete, interrupted, identity-mismatched, or hash-invalid runs;
 - deprecated legacy evidence and withdrawn derived outputs.
 
-Consequently, the anonymous artifact supports verification of the sealed
+Consequently, the anonymous artifact supports verification of the definitive
 aggregate graph and regeneration of its tables and figures, but not independent
 regeneration of the graph from raw hosted calls. Its Croissant JSON-LD has no
 dataset URL during anonymous review. Public hosting and external Croissant
 validation require a real post-review landing page and are not claimed here.
 
-Fail-closed overlays may contribute only sanitized aggregates from retained
-complete units plus target-bound availability evidence; the underlying private
-artifacts remain excluded. Croissant metadata is generated only after the
-sanitized final-results directory exists and passes schema, self-hash, privacy,
-output-hash, and exact coverage checks. The sealed result self-hash is
-`a9f961dd3a52fa082c9ed3ccab5c745c2fae7e2b303d9b1f08b3d0920517ecb1`.
+Availability and semantic-repair summaries may contribute only as separately
+labeled, nonreplacement artifacts; the underlying private evidence remains
+excluded. Croissant metadata is generated only after the definitive analysis
+and paper-asset directories exist and pass schema, self-hash, privacy,
+output-hash, and exact coverage checks. No final definitive self-hash is
+claimed while any required source manifest remains incomplete.
 
 ## Limitations
 
@@ -98,12 +97,13 @@ output-hash, and exact coverage checks. The sealed result self-hash is
   instructions, not recovered translated prompts. The task has no benign
   controls and one generation per root-condition cell.
 - The Part 0 judge has not completed quantitative human validation.
-- The Part 1 draft bank lacks independent content approval. The one n=12
-  route, 73 n=96 routes, and one n=384 route have different support.
+- The Part 1 draft bank lacks independent content approval. All 75 primary
+  routes use the same 384-root bank, but completion is not claimed until the
+  manifest seals.
 - Part 2 uses homogeneous five-agent populations, 12 steps, one parameter
-  setting, no communication or memory, and eight attempted trajectories per
-  executed system. Only 159 of 176 trajectories are valid for behavioral
-  estimation; two executed systems have no valid trajectory.
+  setting, and no communication or memory. It completed 12 trajectories per
+  route; 225 of 228 contain no invalid action and support environmental
+  estimation.
 - Related routes are not independent samples of developers or model families.
 - The benchmark evaluates artificial task outputs, not intent, moral status,
   altruism, or general deployment safety.

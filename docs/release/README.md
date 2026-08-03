@@ -4,10 +4,10 @@ This folder documents the paper-facing artifact for **Safety Beyond Refusal**
 and its three-axis **Prosocial Readiness Bench**:
 
 - `DATA_CARD.md`: dataset contents, collection process, validation, and safety policy.
-- `MODEL_REGISTRY.md`: frozen matched 24-system coverage and the 81-target Part
-  1 registry, distinguishing 75 reportable targets, three operationally
-  unavailable execution subjects, and three pre-execution unavailable targets,
-  while preserving explicit n=12, n=96, and n=384 scopes.
+- `MODEL_REGISTRY.md`: definitive primary scopes (22 Part 0 routes, 75 Part 1
+  routes, and 19 Part 2 routes), exact exclusions without substitution, the
+  fixed Part 0 judge, and the separate role, sensitivity, and local-control
+  panels.
 - `REPRODUCIBILITY.md`: commands for tests, validation, table generation, figures, and paper builds.
 - `COMPUTE.md`: hosted execution controls, rate limits, and legacy local compute
   context.
@@ -18,8 +18,9 @@ and its three-axis **Prosocial Readiness Bench**:
 
 ## Anonymous-review boundary
 
-The anonymous supplement supports validation of the sealed sanitized result
-graph and regeneration of paper-facing tables, figures, and checks. It does not
+The anonymous supplement supports validation of the definitive sanitized
+aggregate graph and regeneration of paper-facing tables, figures, and checks.
+It does not
 include the private prompts, responses, reasoning, authenticated routes,
 manifests, or journals needed to independently regenerate that result graph.
 Croissant metadata is packaged without a dataset URL during anonymous review;

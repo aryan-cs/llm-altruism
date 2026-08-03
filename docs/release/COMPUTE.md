@@ -2,7 +2,7 @@
 
 ## Current hosted execution
 
-The deadline Part 0, Part 1, and Part 2 panels were served through authenticated
+The definitive Part 0, Part 1, and Part 2 panels are served through authenticated
 InferenceHub-compatible chat endpoints. Provider-side accelerator type,
 quantization, batching, and serving topology are not exposed to this artifact
 and must not be inferred from a model label.
@@ -22,28 +22,28 @@ operational safeguards, not model hyperparameters.
 
 ## Frozen workload and availability accounting
 
-- Part 0: 24 systems were targeted at 24 roots × 3 response-language
-  conditions. Sixteen systems are included; eight are operationally
-  unavailable. Fixed-judge batches contain at most eight visible responses.
-- Part 1: 75 systems are reportable: 73 × n=96, one × n=12, and one × n=384.
-  Three execution subjects are operationally unavailable and three additional
-  registry targets were unavailable before execution.
-- Part 2: 22 systems execute 8 independent trajectories × 12 steps × up to 5
-  active participants per step, for 176 total trajectories. Twenty systems and
-  159 fully valid trajectories support behavioral estimates. Seventeen
-  protocol-invalid trajectories are excluded; two all-invalid systems are
-  non-estimable, and two other matched-panel systems are operationally
-  unavailable.
+- Part 0: 22 exact routes are scheduled at 48 roots × 3 response-language
+  instructions (3,168 subject responses). Two planning-roster routes are
+  excluded without substitution. Fixed-judge batches contain at most eight
+  visible responses. The source manifest remains incomplete.
+- Part 1: 75 exact routes are scheduled on the same balanced 384-root bank
+  (28,800 direct choices). Six additional frozen registry targets are excluded
+  without substitution. The source manifest remains incomplete.
+- Part 2: 19 exact routes completed 12 independent trajectories × 12 steps × up
+  to 5 active participants per step, for 228 trajectories and 13,495 scheduled
+  agent-days. The complete manifest records zero transport or identity failures
+  and four invalid actions across three trajectories; 225 trajectories contain
+  no invalid action and support environmental estimates.
 
 Final compute totals must be calculated from the executed rows and sanitized
 availability bindings. A target-bound operationally unavailable system is
 counted in frozen coverage but contributes no scored units; scheduled maxima
 must not be reported as completed calls.
 
-The raw Part 2 audit contains 961 invalid agent-days among 10,413 scheduled
-agent-days. Their zero simulator effect permits deterministic continuation but
-does not count as restraint. Any affected trajectory is excluded wholesale
-from behavioral and environmental metrics.
+The definitive Part 2 aggregate contains four invalid actions among 13,495
+scheduled agent-days. Their zero simulator effect permits deterministic
+continuation and they count as nonrestraint; affected trajectories are excluded
+from environmental estimates.
 
 Retries are transport-only and bounded. Invalid structured output is retained
 and is not regenerated. Durable reservation and append-only journal records
@@ -52,10 +52,10 @@ as a new independent observation.
 
 ## Planning versus execution
 
-The matched panel JSON retains intended settings of 48 Part 0 roots per
-condition and 12 Part 2 trajectories. The deadline artifacts used explicit CLI
-limits of 24 and eight. The sealed final aggregate coverage, rather than
-scheduled maxima, is authoritative for compute accounting.
+The planning-roster JSON retains settings of 48 Part 0 roots per condition and
+12 Part 2 trajectories. The definitive manifests implement those settings for
+their exact selected subsets. Completed manifests and retained-unit counts,
+rather than scheduled maxima, are authoritative for compute accounting.
 
 ## Historical local environment
 

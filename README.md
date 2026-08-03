@@ -6,21 +6,26 @@ social dilemmas, and restraint in a corrected repeated commons simulation. The
 benchmark reports the axes separately; it does not infer intrinsic altruism,
 moral character, or a single deployment-readiness score.
 
-The sealed deadline artifact contains:
+The definitive provider-safe-v2 design is:
 
-- **Part 0:** exploratory response-only refusal results for 16 of 24 matched
-  systems. Eight systems are axis-specifically unavailable, and no failed route
-  is silently replaced. The archived inputs are English harmful-request roots
-  crossed with three requested response languages, not translated inputs.
-- **Part 1:** exploratory direct-choice results for 75 of 81 frozen targets: 73
-  systems at 96 balanced roots, one at 12 balanced roots, and one at 384 roots.
-  Three execution-roster targets and three pre-execution registry targets are
-  unavailable. The three scopes are never pooled.
-- **Part 2:** 22 of 24 matched systems execute eight independent common-seed
-  trajectories (176 total). Twenty systems and 159 fully valid trajectories
-  support corrected commons estimates; 17 protocol-invalid trajectories are
-  excluded, two executed systems are wholly non-estimable, and two systems are
-  axis-specifically unavailable.
+- **Part 0:** 22 exact subject routes, each scheduled on 48 archived English
+  harmful-request roots crossed with three requested response languages (144
+  responses per route). One fixed judge is disjoint from every subject at the
+  target, route, and served-identity levels. Two exact planning-roster routes
+  are operationally excluded without substitution. Collection is still in
+  progress, so this repository does not yet claim final Part 0 coverage or
+  rates. The inputs are English requests with response-language instructions,
+  not translated request banks.
+- **Part 1:** 75 exact subject routes, each scheduled on the same balanced
+  384-root direct self-choice bank. Six additional frozen registry targets are
+  operationally excluded without substitution. Collection is still in
+  progress, and malformed first responses remain scheduled nonsuccesses.
+- **Part 2:** 19 exact subject routes completed 12 independent common-seed
+  trajectories each (228 total) under the corrected five-agent, 12-step
+  commons engine. The sealed source manifest records 13,495 scheduled
+  agent-days, zero transport or identity failures, four invalid actions across
+  three trajectories, and 225 trajectories eligible for environmental
+  estimates under the no-invalid-action rule.
 
 The April pilot remains historical provenance. Its audit led to the corrected
 response-only judge, balanced Part 1 bank, repeated-commons engine, provenance
@@ -48,11 +53,13 @@ tests/                        Unit and integration tests
 ```
 
 Parts 3-5 are roadmap placeholders. Parts 0-2 are the implemented benchmark
-scope. The current sanitized result graph is
-`data/analysis/final_results/final_results.json`, whose self-hash is
-`a9f961dd3a52fa082c9ed3ccab5c745c2fae7e2b303d9b1f08b3d0920517ecb1`.
-Part 0 and Part 1 remain exploratory because their external validation gates
-are incomplete; Part 2 remains below its intended n=12 promotion threshold.
+scope. The definitive public aggregate will be written to
+`data/processed/provider-safe-v2-definitive-analysis` only after all five
+source manifests (Parts 0-2, role calibration, and sensitivity) are complete
+and pass the fail-closed analyzer. The prior
+`data/analysis/final_results/final_results.json` is a superseded deadline
+artifact and is not a current paper input. Part 0 and Part 1 remain exploratory
+because their external validation gates are incomplete.
 
 ## Setup
 
@@ -132,86 +139,47 @@ Interrupted runs can be resumed with `--resume`. Result CSVs are written increme
 
 ## Reproducing The Paper Artifacts
 
-The graph-independent pipeline validates raw traces, builds derived tables, and writes a manifest:
+After all five definitive source manifests are complete, build the text-free
+aggregate graph, paper assets, Croissant metadata, and strict supplement:
 
 ```bash
 uv run pytest -q
-uv run python -m analysis.build_legacy_part2_provenance --check
-uv run python -m analysis.validation --strict
-uv run python -m analysis.summarize_results
-uv run python -m analysis.build_manifest
-uv run python -m analysis.build_croissant_metadata
+uv run python -m analysis.analyze_provider_safe_v2_definitive \
+  --part0 data/private/inference_hub/definitive-part0-large-n48-main22-deadline-v6 \
+  --part1 data/private/inference_hub/definitive-part1-large-n384-main75-deadline-v5 \
+  --part2 data/private/inference_hub/definitive-part2-n12-main19-v3 \
+  --role-calibration data/private/inference_hub/definitive-part1-role-calibration-v3 \
+  --sensitivity data/private/inference_hub/definitive-part2-sensitivity-deadline-fast-v8 \
+  --output-dir data/processed/provider-safe-v2-definitive-analysis
+uv run python -m analysis.build_provider_safe_v2_paper_assets \
+  --input-dir data/processed/provider-safe-v2-definitive-analysis \
+  --local-controls data/analysis/local_hf_part1_controls.json \
+  --output-dir data/processed/provider-safe-v2-paper-assets
+uv run python -m analysis.build_provider_safe_v2_croissant_metadata
+uv run python -m analysis.build_provider_safe_v2_croissant_metadata --check
+uv run python -m analysis.build_supplement --require-definitive-artifacts
 ```
 
-By default, summary generation omits the withdrawn Part 0 model-level and
-Part 0-dependent cross-part tables. The explicit forensic-only flag
-`--include-withdrawn-part0` can recreate those deprecated artifacts, but they
-are not valid paper results.
+The analyzer intentionally fails while any source manifest is incomplete. It
+checks source and policy hashes, exact schedules, journals, response identity,
+judge separation, invalid-denominator policy, and privacy before writing an
+output directory. The paper-asset builder emits one-route-per-row tables,
+headline macros, and seven visual families. Detailed commands and the clean-
+extraction verification procedure are in
+`docs/release/REPRODUCIBILITY.md`.
 
-The provenance check binds the untouched April Part 2 CSVs and sidecars to the
-archived execution source and replays every population transition under the
-recorded divisor-of-five collapse rule. It does not insert the current runtime
-default into legacy metadata.
+The April pilot pipeline remains in the repository for historical forensic
+replay, but its legacy labels, broken commons mechanics, tables, and plots are
+not inputs to the definitive analyzer, Croissant metadata, or supplement.
 
-The reconstructed Part 1 sidecars originally derived model identities from
-lossy filename slugs. Their exact identities are repaired from the unique
-provider/model values present in every CSV row, while preserving the original
-reconstruction provenance:
-
-```bash
-uv run python -m analysis.backfill_metadata --repair-part1-identities
-```
-
-`build_croissant_metadata` deterministically refreshes distribution hashes,
-sizes, schemas, and record sets after tables or manifests change. Once an
-anonymous reviewer-accessible landing page exists, pass its real URL with
-`--dataset-url https://...`; the generator rejects placeholders. The URL may be
-a private preview during review but must be public by camera ready.
-
-The current validation report is written to:
-
-```text
-data/analysis/validation/validation_report.json
-```
-
-The main derived tables are written under:
-
-```text
-data/analysis/tables/
-```
-
-Important supported table outputs include:
-
-- `part1_model_summary.csv`
-- `part1_dimension_summary.csv`
-- `part1_frame_effects.csv`
-- `part1_prompt_sensitivity.csv`
-- `part1_factor_decomposition.csv`
-- `part2_model_summary.csv`
-- `part2_run_summary.csv`
-
-The generator retains deprecated Part 0 and dependent cross-part tables in the
-working tree for forensic replay. Every row is marked invalid/deprecated, and
-those tables and their dependent plots are excluded from Croissant metadata and
-the anonymous supplement.
-
-The legacy campaign remains available only for reproducing historical pilot
-workflows:
-
-```bash
-uv run python -m experiments.campaign \
-  --cohort current_sota \
-  --phase smoke --phase part0 --phase part1 --phase part2 \
-  --dry-run
-```
-
-The paper-facing deadline campaign uses the frozen 24-system matched panel in
-`experiments/sota_cross_axis_panel.json` and the broader 81-target Part 1
-registry. Exact authenticated routes were compatibility-probed before dispatch;
-study target IDs, returned identities, requests, and response hashes remain
-bound in private journals. The final public artifact includes only validated,
-text-free aggregates and explicit availability records. Exact finalization and
-overlay commands are in `docs/release/REPRODUCIBILITY.md`.
+The paper-facing definitive campaign uses the planning roster in
+`experiments/sota_cross_axis_panel.json`, then freezes the exact executable
+subsets in its source manifests: 22 Part 0 routes, 75 Part 1 routes, and 19
+Part 2 routes. Exact authenticated routes were compatibility-probed before
+dispatch; study target IDs, returned identities, requests, and response hashes
+remain bound in private journals. The final public artifact includes only
+validated, text-free aggregates and explicit availability records. Exact
+finalization commands are in `docs/release/REPRODUCIBILITY.md`.
 
 After setting the exact InferenceHub base URL and credential, verify the full
 current-plus-historical panel in one fail-closed batch:
@@ -282,7 +250,7 @@ that the exact route returned visible chat content; those conditions remain
 fatal in the stricter confirmatory smoke.
 
 These discovery commands are retained for a new collection. They do not alter
-the sealed deadline results or convert unavailable systems into observations.
+definitive primary evidence or convert unavailable systems into observations.
 
 Legacy Part 0 exports can be rejudged without exposing stored rationale text to
 the judge:
@@ -297,24 +265,23 @@ uv run python -m analysis.rejudge_part0 \
 See `docs/JUDGE_AUDIT.md` for the separate blinded human-audit workflow. The
 repository never substitutes synthetic annotations for missing human labels.
 
-Regenerate the figures used by the paper and sync them into the LaTeX figure directory:
+Regenerate the definitive tables and figures from the text-free aggregate:
 
 ```bash
-uv run python data/graphs/paper_visuals.py
-uv run python data/graphs/cross_part_graphs.py
-uv run python -m analysis.sync_conference_figures
+uv run python -m analysis.build_provider_safe_v2_paper_assets \
+  --input-dir data/processed/provider-safe-v2-definitive-analysis \
+  --local-controls data/analysis/local_hf_part1_controls.json \
+  --output-dir data/processed/provider-safe-v2-paper-assets
 ```
 
-The first two commands render figures under `data/graphs/`. The sync command copies the paper-used PNGs into:
-
-```text
-docs/conference_submission/figures/
-```
+The LaTeX paper imports the generated asset macros, tables, and vector figures.
+The asset manifest SHA-256-binds every output; superseded graphs under
+`data/graphs/` are not paper inputs.
 
 Build the anonymous supplement:
 
 ```bash
-uv run python -m analysis.build_supplement
+uv run python -m analysis.build_supplement --require-definitive-artifacts
 ```
 
 The output is:
@@ -335,23 +302,21 @@ pdflatex -interaction=nonstopmode conference_submission.tex
 pdflatex -interaction=nonstopmode conference_submission.tex
 ```
 
-The LaTeX source intentionally uses local paths under `figures/` so the
-conference submission directory is self-contained. If you regenerate plots
-under `data/graphs/`, run `uv run python -m analysis.sync_conference_figures`
-from the repository root before compiling the paper.
+The final build must use the current definitive paper-asset directory and pass
+the format test before the PDF is released.
 
 ## Validation Philosophy
 
-Validation is separate from plotting. `analysis.validation` checks artifact structure and transition consistency before figures are rendered:
+Validation is separate from plotting. The definitive analyzer checks source
+manifests and journals before figures are rendered, including:
 
-- CSV headers and required fields
-- duplicate rows
-- valid Part 1 and Part 2 actions
-- Part 1 prompt-matrix coverage
-- Part 2 day continuity
-- incomplete days
-- reserve/population transition consistency
-- interrupted versus complete run status
+- complete, self-hash-valid source manifests;
+- exact work-ID coverage without duplicate independent units;
+- source, route, served-identity, and rate-policy bindings;
+- Part 0 judge/subject disjointness and explicit unjudged states;
+- Part 1 root/cell coverage and primary invalid denominators;
+- Part 2 trajectory continuity and reserve/population transitions; and
+- privacy-safe, text-free output schemas and hashes.
 
 This validation does not prove that the automated Part 0 judge is semantically correct. It verifies that the recorded artifacts are internally consistent and suitable for downstream analysis.
 
@@ -361,14 +326,15 @@ Part 0 uses harmful-request prompts and model completions for safety evaluation.
 Do not republish raw harmful prompts or completions. The anonymous supplement
 excludes all private manifests, journals, prompts, responses, reasoning, routes,
 credentials, interrupted artifacts, and deprecated legacy outputs. It includes
-only reviewed code, documentation, tests, and the sealed text-free aggregates.
+only reviewed code, documentation, tests, and validated text-free definitive
+aggregates.
 
 The current results are task-specific descriptive evidence, not a leaderboard.
-Part 2 uses the corrected five-agent, 12-step engine and executes 176
-independent trajectories across 22 systems. Its estimates use only the 159
-trajectories with no invalid action; simulator continuation after an invalid
-action is not treated as restraint evidence. It does not reuse the mismatched
-April pilot trajectories.
+Part 2 uses the corrected five-agent, 12-step engine and completed 228
+independent trajectories across 19 exact routes. Environmental estimates use
+the 225 trajectories with no invalid action; simulator continuation after an
+invalid action is not treated as environmental evidence. It does not reuse the
+mismatched April pilot trajectories.
 
 ## Useful Release Documents
 
@@ -382,9 +348,13 @@ April pilot trajectories.
 
 Before using new results in a paper or release:
 
-1. `uv run pytest -q` passes.
-2. `uv run python -m analysis.validation --strict` passes, or exceptions are documented.
-3. Every paper-used CSV has a metadata sidecar and manifest entry.
-4. Every central paper claim traces to a table, validation report, figure, or documented source file.
-5. Paper figures are regenerated and synced with `analysis.sync_conference_figures`.
-6. The supplement builds with `uv run python -m analysis.build_supplement`.
+1. All five definitive source manifests are complete and pass the fail-closed
+   analyzer.
+2. `uv run pytest -q` passes.
+3. Every paper-used table, macro, and figure is bound by the definitive analysis
+   and paper-asset manifests.
+4. Every central paper claim traces to a generated table, macro, figure, or
+   documented source file.
+5. Croissant `--check` and the strict supplement build pass.
+6. A clean extracted supplement rebuilds without a Git object store, and the
+   compiled PDF passes format, anonymity, citation, and visual inspection.
