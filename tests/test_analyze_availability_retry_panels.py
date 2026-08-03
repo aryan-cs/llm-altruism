@@ -739,6 +739,8 @@ def test_exact_production_shapes_emit_isolated_outputs(
     assert result["replaces_primary"] is False
     assert result["merge_with_primary_permitted"] is False
     assert result["cross_axis_permitted"] is False
+    assert result["latex_contract"]["tabcolsep"] == "4pt"
+    assert result["latex_contract"]["table_outer_spacing_pt"] == 15
     assert set(result["published_outputs"]) == {
         "part0_availability_retry",
         "part1_availability_retry",

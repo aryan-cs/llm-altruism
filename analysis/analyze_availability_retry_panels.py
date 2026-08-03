@@ -1844,7 +1844,8 @@ def analyze(
             },
             "published_outputs": published_outputs,
             "latex_contract": {
-                "tabcolsep": "15pt",
+                "tabcolsep": "4pt",
+                "table_outer_spacing_pt": 15,
                 "caption_defines_all_columns":
                     True,
                 "caption_defines_direction":

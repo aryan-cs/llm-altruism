@@ -376,6 +376,17 @@ Figures~\ref{fig:part0-model-language}--\ref{fig:part1-local-controls} are the s
 \endgroup
 \end{landscape}
 
+\subsection{Supplemental Exact-Route Availability Retries}
+The following panels report exact routes that were unavailable or operationally excluded from a primary axis but later passed a fresh authenticated compatibility check. They remain separate from the primary rows and denominators: a retry result neither replaces an unavailable primary cell nor enters the cross-phase matrix. Routes that remain unavailable after repeated exact-route checks receive no behavioral estimate and are documented as unavailable rather than silently substituted.
+
+\begin{landscape}
+\input{../../artifacts/availability_retry_analysis_definitive_v1/part0_availability_retry.tex}
+\clearpage
+\input{../../artifacts/availability_retry_analysis_definitive_v1/part1_availability_retry.tex}
+\clearpage
+\input{../../artifacts/availability_retry_analysis_definitive_v1/part2_availability_retry.tex}
+\end{landscape}
+
 \section{Corrections to the Legacy Pilot}
 \label{app:legacy-evidence}
 The April archive contains 56,382 stored rows, but that number is not an inferential sample size: its repeated languages, prompt renderings, and agent-days are clustered. Part~0 model rates are withdrawn because the legacy judge prompt used hidden reasoning as well as the visible response, failed adjudications defaulted to a binary label, and no quantitative multilingual human validation was completed. Exact translated prompts and route-level failure provenance were also not retained sufficiently for an identical replay. Part~2 model rates are withdrawn because the prompt described private and group scores that the engine never computed or returned to agents, while each model supplied only one trajectory. Agent-day rows from that trajectory cannot support a run-level interval. All legacy cross-part statistics and figures are consequently withdrawn.

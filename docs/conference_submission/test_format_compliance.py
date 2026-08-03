@@ -122,6 +122,13 @@ class ConferenceSubmissionFormatTest(unittest.TestCase):
         tables = tuple(name.replace(".pdf", "_table.tex") for name in figures)
         for name in (*figures, *tables, "all_models_cross_phase_table.tex", "paper_headlines.tex"):
             self.assertEqual(source.count(asset_root + name), 1, name)
+        retry_root = "../../artifacts/availability_retry_analysis_definitive_v1/"
+        for name in (
+            "part0_availability_retry.tex",
+            "part1_availability_retry.tex",
+            "part2_availability_retry.tex",
+        ):
+            self.assertEqual(source.count(retry_root + name), 1, name)
 
     def test_rendered_main_text_boundary_when_extractor_is_available(self) -> None:
         extractor = _find_pdftotext()
