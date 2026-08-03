@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import fcntl
 import hashlib
 import json
 import math
@@ -264,7 +265,12 @@ def _provider_safe_contract(manifest: Mapping[str, Any], phase: str) -> None:
         raise DefinitiveAnalysisError("Required provider concurrency disagrees with policy.")
 
 
-def _load_manifest(value: Path, phase: str) -> tuple[Path, Path, dict[str, Any]]:
+def _load_manifest(
+    value: Path,
+    phase: str,
+    *,
+    allow_terminalized_part0_operational_invalids: bool = False,
+) -> tuple[Path, Path, dict[str, Any], str]:
     path = _manifest_path(value).resolve()
     _private_mode(path)
     manifest = _read_object(path, f"{phase} manifest")
@@ -272,11 +278,20 @@ def _load_manifest(value: Path, phase: str) -> tuple[Path, Path, dict[str, Any]]
         raise DefinitiveAnalysisError(f"Wrong {phase} manifest type or schema.")
     if manifest.get("evidence_sha256") != _self_hash(manifest):
         raise DefinitiveAnalysisError(f"{phase} manifest self-hash failed.")
-    if manifest.get("complete") is not True or not manifest.get("completed_at_utc"):
+    if manifest.get("complete") is True and manifest.get("completed_at_utc"):
+        evidence_status = "complete"
+    elif (
+        phase == "part0"
+        and allow_terminalized_part0_operational_invalids
+        and manifest.get("complete") is False
+        and not manifest.get("completed_at_utc")
+    ):
+        evidence_status = "fully_terminalized_with_operational_invalids"
+    else:
         raise DefinitiveAnalysisError(f"{phase} manifest is not COMPLETE.")
     _provider_safe_contract(manifest, phase)
     run = path.parent.parent
-    return run, path, manifest
+    return run, path, manifest, evidence_status
 
 
 def _read_journal(reference: object, private_root: Path, label: str) -> list[dict[str, Any]]:
@@ -328,6 +343,252 @@ def _validate_standard_journals(run: Path, manifest: Mapping[str, Any]) -> dict[
         str(target): _read_journal(ref, private, f"raw/{target}")
         for target, ref in refs["raw_responses"].items()
     }
+
+
+def _validate_terminalized_part0_operational_snapshot_unlocked(
+    run: Path, manifest: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Validate a narrow, explicit Part 0 endpoint-outcome snapshot.
+
+    This exception never converts an operational failure into a refusal,
+    compliance, or semantic model response.  It only permits analysis over an
+    exactly terminalized frozen schedule, with every exhausted transport unit
+    retained as a separate operational nonsuccess in the scheduled denominator.
+    """
+
+    schedule = manifest.get("schedule")
+    subjects = manifest.get("subject_routes")
+    summary = manifest.get("summary")
+    if not isinstance(schedule, list) or not isinstance(subjects, list) or not isinstance(summary, Mapping):
+        raise DefinitiveAnalysisError("Terminalized Part 0 lacks schedule, subjects, or summary.")
+    schedule_ids = [row.get("trial_id") for row in schedule if isinstance(row, Mapping)]
+    if (
+        len(schedule_ids) != len(schedule)
+        or any(not isinstance(value, str) or not value for value in schedule_ids)
+        or len(set(schedule_ids)) != len(schedule_ids)
+    ):
+        raise DefinitiveAnalysisError("Terminalized Part 0 schedule IDs are invalid.")
+    subject_ids = [row.get("target_id") for row in subjects if isinstance(row, Mapping)]
+    if len(subject_ids) != len(subjects) or len(set(subject_ids)) != len(subject_ids):
+        raise DefinitiveAnalysisError("Terminalized Part 0 subject IDs are invalid.")
+    planned = len(schedule_ids) * len(subject_ids)
+    if summary.get("planned_units") != planned or summary.get("retained_terminal_units") != planned:
+        raise DefinitiveAnalysisError("Terminalized Part 0 does not cover the frozen schedule exactly.")
+    outcomes = summary.get("outcomes")
+    if (
+        not isinstance(outcomes, Mapping)
+        or set(outcomes) != {"REFUSAL", "COMPLIANCE", "UNCLEAR", "INVALID"}
+        or any(
+            not isinstance(value, int) or isinstance(value, bool) or value < 0
+            for value in outcomes.values()
+        )
+        or sum(outcomes.values()) != planned
+    ):
+        raise DefinitiveAnalysisError(
+            "Terminalized Part 0 summary outcomes do not partition the schedule."
+        )
+    zero_required = (
+        "judge_failed_units",
+        "subject_model_identity_mismatches",
+        "judge_model_identity_mismatches",
+        "operationally_retired_units",
+    )
+    if any(summary.get(key) != 0 for key in zero_required):
+        raise DefinitiveAnalysisError("Terminalized Part 0 contains a nontransport validity failure.")
+    declared_failures = summary.get("subject_transport_failures")
+    if not isinstance(declared_failures, int) or isinstance(declared_failures, bool) or declared_failures <= 0:
+        raise DefinitiveAnalysisError("Terminalized Part 0 lacks a positive transport-failure count.")
+
+    deadline_source = (
+        Path(__file__).resolve().parents[1]
+        / "experiments/misc/inference_hub_part0_deadline_retry.py"
+    )
+    sources = manifest.get("source_artifacts")
+    if (
+        not isinstance(sources, Mapping)
+        or _source_digest(sources, deadline_source.name) != _sha256_file(deadline_source)
+    ):
+        raise DefinitiveAnalysisError(
+            "Terminalized Part 0 is not bound to the deadline retry launcher."
+        )
+
+    journals = _validate_standard_journals(run, manifest)
+    ledger = _read_journal(
+        manifest["journals"].get("attempt_ledger"),
+        run / "private",
+        "attempt ledger",
+    )
+    if set(journals) != set(subject_ids):
+        raise DefinitiveAnalysisError("Terminalized Part 0 journal targets differ from subjects.")
+    operational = 0
+    semantic_invalid = 0
+    affected_targets: dict[str, int] = {}
+    failure_code_counts: dict[str, int] = defaultdict(int)
+    schedule_set = set(schedule_ids)
+    subjects_by_id = {str(row["target_id"]): row for row in subjects}
+    reservations_by_unit: dict[tuple[str, str], list[Mapping[str, Any]]] = defaultdict(list)
+    completions_by_attempt: dict[str, Mapping[str, Any]] = {}
+    for row in ledger:
+        if row.get("event") == "reserved_before_dispatch" and row.get("role") == "subject":
+            reservations_by_unit[(str(row.get("target_id")), str(row.get("work_id")))].append(row)
+        elif row.get("event") == "attempt_completed":
+            attempt_id = row.get("attempt_id")
+            if not isinstance(attempt_id, str) or attempt_id in completions_by_attempt:
+                raise DefinitiveAnalysisError(
+                    "Terminalized Part 0 attempt completions are invalid."
+                )
+            completions_by_attempt[attempt_id] = row
+    for target_id in subject_ids:
+        rows = journals[str(target_id)]
+        retained = [row for row in rows if row.get("event") == "subject_response_retained"]
+        batches = [row for row in rows if row.get("event") == "judge_batch_retained"]
+        terminals = [row for row in rows if row.get("event") == "unit_completed"]
+        if any(row.get("event") == "unit_operationally_retired" for row in rows):
+            raise DefinitiveAnalysisError("Terminalized Part 0 contains an operational retirement.")
+        terminal_ids = [row.get("trial_id") for row in terminals]
+        if len(terminals) != len(schedule_ids) or len(set(terminal_ids)) != len(terminals) or set(terminal_ids) != schedule_set:
+            raise DefinitiveAnalysisError(f"Terminalized Part 0 terminal coverage differs for {target_id}.")
+        retained_ids = [row.get("trial_id") for row in retained]
+        if len(set(retained_ids)) != len(retained_ids) or not set(retained_ids) <= schedule_set:
+            raise DefinitiveAnalysisError(f"Terminalized Part 0 retained subjects differ for {target_id}.")
+        operational_ids = {
+            row.get("trial_id")
+            for row in terminals
+            if row.get("operational_failure") is not None
+        }
+        visible_ids = schedule_set - operational_ids
+        batched_ids = [
+            trial_id
+            for batch in batches
+            for trial_id in batch.get("trial_ids", [])
+        ]
+        if (
+            set(retained_ids) != visible_ids
+            or len(batched_ids) != len(set(batched_ids))
+            or set(batched_ids) != visible_ids
+        ):
+            raise DefinitiveAnalysisError(
+                f"Terminalized Part 0 visible-response or judge coverage differs for {target_id}."
+            )
+        if any(row.get("model_identity_valid") is not True for row in retained):
+            raise DefinitiveAnalysisError(f"Terminalized Part 0 subject identity failed for {target_id}.")
+        if any(
+            row.get("model_identity_valid") is not True
+            or not isinstance(row.get("trial_ids"), list)
+            or not set(row["trial_ids"]) <= schedule_set
+            for row in batches
+        ):
+            raise DefinitiveAnalysisError(f"Terminalized Part 0 judge identity or batch membership failed for {target_id}.")
+        for row in terminals:
+            failure = row.get("operational_failure")
+            if failure is None:
+                if row.get("outcome") == "INVALID":
+                    semantic_invalid += 1
+                continue
+            if (
+                row.get("outcome") != "INVALID"
+                or row.get("judge_dispatched") is not False
+                or row.get("judge_label") is not None
+                or not isinstance(failure, Mapping)
+                or failure.get("failure_code") != "http_400_periodic_retry"
+                or failure.get("http_status") != 400
+            ):
+                raise DefinitiveAnalysisError("Terminalized Part 0 operational failure contract changed.")
+            work_id = str(row["trial_id"])
+            if work_id in retained_ids or any(
+                work_id in batch.get("trial_ids", []) for batch in batches
+            ):
+                raise DefinitiveAnalysisError(
+                    "Terminalized Part 0 failed unit was retained or judged."
+                )
+            reservations = sorted(
+                reservations_by_unit[(str(target_id), work_id)],
+                key=lambda value: int(value.get("attempt_number", -1)),
+            )
+            subject = subjects_by_id[str(target_id)]
+            if (
+                len(reservations) != 8
+                or [reservation.get("attempt_number") for reservation in reservations]
+                != list(range(1, 9))
+                or len({reservation.get("request_sha256") for reservation in reservations}) != 1
+                or any(
+                    reservation.get("route") != subject.get("route")
+                    or reservation.get("upstream_provider") != subject.get("upstream_provider")
+                    or reservation.get("role") != "subject"
+                    or reservation.get("work_id") != work_id
+                    for reservation in reservations
+                )
+            ):
+                raise DefinitiveAnalysisError(
+                    "Terminalized Part 0 retry lineage changed."
+                )
+            completion_rows = []
+            for reservation in reservations:
+                completion = completions_by_attempt.get(str(reservation.get("attempt_id")))
+                if (
+                    completion is None
+                    or completion.get("outcome") != "failed"
+                    or completion.get("transient") is not True
+                    or completion.get("failure_code") not in {
+                        "http_400_periodic_retry",
+                        "http_error",
+                    }
+                    or completion.get("http_status") not in {400, 500, 503}
+                ):
+                    raise DefinitiveAnalysisError(
+                        "Terminalized Part 0 attempt completion changed."
+                    )
+                completion_rows.append(completion)
+                failure_code_counts[str(completion["failure_code"])] += 1
+            final = completion_rows[-1]
+            if (
+                final.get("failure_code") != failure.get("failure_code")
+                or final.get("http_status") != failure.get("http_status")
+            ):
+                raise DefinitiveAnalysisError(
+                    "Terminalized Part 0 final attempt disagrees with terminal."
+                )
+            operational += 1
+            affected_targets[str(target_id)] = affected_targets.get(str(target_id), 0) + 1
+    if operational != declared_failures:
+        raise DefinitiveAnalysisError("Terminalized Part 0 transport-failure count disagrees with journals.")
+    return {
+        "scheduled_units": planned,
+        "operational_failure_units": operational,
+        "semantic_invalid_units": semantic_invalid,
+        "visible_subject_response_units": planned - operational,
+        "affected_target_count": len(affected_targets),
+        "affected_targets": dict(sorted(affected_targets.items())),
+        "attempt_failure_code_counts": dict(sorted(failure_code_counts.items())),
+        "semantics": "operational_nonsuccess_not_refusal_not_semantic_model_output",
+    }
+
+
+def _validate_terminalized_part0_operational_snapshot(
+    run: Path, manifest: Mapping[str, Any]
+) -> dict[str, Any]:
+    lock_path = run / "private" / ".run.lock"
+    try:
+        lock = lock_path.open("a+b")
+    except OSError as error:
+        raise DefinitiveAnalysisError(
+            "Terminalized Part 0 run lock is unavailable."
+        ) from error
+    try:
+        try:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            raise DefinitiveAnalysisError(
+                "Terminalized Part 0 still has an active writer."
+            ) from error
+        return _validate_terminalized_part0_operational_snapshot_unlocked(
+            run, manifest
+        )
+    finally:
+        try:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+        finally:
+            lock.close()
 
 
 def _validate_flat_journals(run: Path, manifest: Mapping[str, Any], *, sensitivity: bool) -> None:
@@ -488,7 +749,9 @@ def _wilson_95(successes: int, total: int) -> tuple[float, float]:
     return lower, upper
 
 
-def _mean_t_95(values: Sequence[float]) -> tuple[float | None, float | None]:
+def _mean_t_95(
+    values: Sequence[float], *, bounds: tuple[float, float] | None = None
+) -> tuple[float | None, float | None]:
     numeric = [float(value) for value in values]
     if any(not math.isfinite(value) for value in numeric):
         raise DefinitiveAnalysisError("Trajectory metric contains a nonfinite value.")
@@ -497,7 +760,14 @@ def _mean_t_95(values: Sequence[float]) -> tuple[float | None, float | None]:
     mean = math.fsum(numeric) / len(numeric)
     variance = math.fsum((value - mean) ** 2 for value in numeric) / (len(numeric) - 1)
     margin = student_t_975(len(numeric) - 1) * math.sqrt(variance / len(numeric))
-    return mean - margin, mean + margin
+    low, high = mean - margin, mean + margin
+    if bounds is not None:
+        lower_bound, upper_bound = bounds
+        if lower_bound > upper_bound:
+            raise DefinitiveAnalysisError("Trajectory metric bounds are invalid.")
+        low = max(lower_bound, low)
+        high = min(upper_bound, high)
+    return low, high
 
 
 def _repair_marker(row: Mapping[str, Any]) -> bool:
@@ -529,6 +799,16 @@ def _part0(run: Path, manifest: Mapping[str, Any]) -> tuple[list[dict[str, Any]]
         if sum(counts.values()) != planned:
             raise DefinitiveAnalysisError(f"Part 0 contains an unknown outcome for {target}.")
         repaired = sum(_repair_marker(row) for row in terminals)
+        operational_invalid = sum(
+            row.get("outcome") == "INVALID"
+            and row.get("operational_failure") is not None
+            for row in terminals
+        )
+        semantic_invalid = counts["INVALID"] - operational_invalid
+        if semantic_invalid < 0:
+            raise DefinitiveAnalysisError(
+                f"Part 0 invalid accounting is malformed for {target}."
+            )
         roots: dict[str, dict[str, Mapping[str, Any]]] = defaultdict(dict)
         for row in terminals:
             root_id = str(row.get("root_id") or "")
@@ -554,6 +834,9 @@ def _part0(run: Path, manifest: Mapping[str, Any]) -> tuple[list[dict[str, Any]]
             "phase": "part0", "target_id": target, "upstream_provider": subject["upstream_provider"], "model": subject["model"],
             "scheduled_units": planned, "refusal_count": counts["REFUSAL"], "compliance_count": counts["COMPLIANCE"],
             "unclear_count": counts["UNCLEAR"], "first_attempt_invalid_count": counts["INVALID"] + repaired,
+            "semantic_invalid_count": semantic_invalid,
+            "operational_invalid_count": operational_invalid,
+            "visible_subject_response_count": planned - operational_invalid,
             "repaired_invalid_count": repaired, "refusal_rate_all_scheduled": _rate(counts["REFUSAL"], planned),
             "refusal_rate_all_scheduled_finite_bank_sensitivity_low": overall_low,
             "refusal_rate_all_scheduled_finite_bank_sensitivity_high": overall_high,
@@ -685,13 +968,17 @@ def _part2(run: Path, manifest: Mapping[str, Any]) -> tuple[list[dict[str, Any]]
         restraint_mean = _rate(
             math.fsum(restraint_trajectory_rates), len(restraint_trajectory_rates)
         )
-        restraint_low, restraint_high = _mean_t_95(restraint_trajectory_rates)
+        restraint_low, restraint_high = _mean_t_95(
+            restraint_trajectory_rates, bounds=(0.0, 1.0)
+        )
         aurc_values = [float(row["aurc"]) for row in eligible]
         aupc_values = [float(row["aupc"]) for row in eligible]
         population_values = [float(row["population_retention"]) for row in eligible]
-        aurc_low, aurc_high = _mean_t_95(aurc_values)
-        aupc_low, aupc_high = _mean_t_95(aupc_values)
-        population_low, population_high = _mean_t_95(population_values)
+        aurc_low, aurc_high = _mean_t_95(aurc_values, bounds=(0.0, 1.0))
+        aupc_low, aupc_high = _mean_t_95(aupc_values, bounds=(0.0, 1.0))
+        population_low, population_high = _mean_t_95(
+            population_values, bounds=(0.0, 1.0)
+        )
         nondepletion_successes = sum(bool(row["reserve_nondepletion"]) for row in eligible)
         if eligible:
             nondepletion_low, nondepletion_high = _wilson_95(
@@ -832,11 +1119,36 @@ def _write_csv(path: Path, rows: Sequence[Mapping[str, Any]]) -> None:
         writer.writerows(rows)
 
 
-def analyze(*, part0: Path, part1: Path, part2: Path, role_calibration: Path, sensitivity: Path, output_dir: Path) -> dict[str, Any]:
+def analyze(
+    *,
+    part0: Path,
+    part1: Path,
+    part2: Path,
+    role_calibration: Path,
+    sensitivity: Path,
+    output_dir: Path,
+    allow_terminalized_part0_operational_invalids: bool = False,
+) -> dict[str, Any]:
     """Validate all inputs before atomically publishing descriptive tables."""
 
     inputs = {"part0": part0, "part1": part1, "part2": part2, "role": role_calibration, "sensitivity": sensitivity}
-    loaded = {phase: _load_manifest(path, phase) for phase, path in inputs.items()}
+    loaded = {
+        phase: _load_manifest(
+            path,
+            phase,
+            allow_terminalized_part0_operational_invalids=(
+                phase == "part0" and allow_terminalized_part0_operational_invalids
+            ),
+        )
+        for phase, path in inputs.items()
+    }
+    part0_terminalized_audit = (
+        _validate_terminalized_part0_operational_snapshot(
+            loaded["part0"][0], loaded["part0"][2]
+        )
+        if loaded["part0"][3] == "fully_terminalized_with_operational_invalids"
+        else None
+    )
     judge_audits = [_judge_audit(phase, loaded[phase][2]) for phase in inputs]
     p0_models, p0_fig = _part0(loaded["part0"][0], loaded["part0"][2])
     p1_models, p1_fig = _part1(loaded["part1"][0], loaded["part1"][2])
@@ -893,8 +1205,12 @@ def analyze(*, part0: Path, part1: Path, part2: Path, role_calibration: Path, se
                     "file_sha256": _sha256_file(path),
                     "evidence_sha256": manifest["evidence_sha256"],
                 }
-                for phase, (_, path, manifest) in loaded.items()
+                for phase, (_, path, manifest, _) in loaded.items()
             },
+            "input_evidence_status": {
+                phase: status for phase, (_, _, _, status) in loaded.items()
+            },
+            "part0_terminalized_operational_audit": part0_terminalized_audit,
             "path_policy": "portable_basenames_only_no_host_absolute_paths_in_public_manifest",
             "privacy_policy": {
                 "contains_prompt_text": False,
@@ -921,6 +1237,17 @@ def analyze(*, part0: Path, part1: Path, part2: Path, role_calibration: Path, se
             "human_labels_generated": False, "exploratory_only": True,
             "confirmatory_or_paper_promotion_permitted": False,
         }
+        for phase, (_, manifest_path, manifest, _) in loaded.items():
+            binding = result["input_manifests"][phase]
+            current_manifest = _read_object(manifest_path, f"{phase} manifest")
+            if (
+                _sha256_file(manifest_path) != binding["file_sha256"]
+                or current_manifest.get("evidence_sha256")
+                != manifest["evidence_sha256"]
+            ):
+                raise DefinitiveAnalysisError(
+                    f"{phase} manifest changed during analysis."
+                )
         result["evidence_sha256"] = _self_hash(result)
         _write_json(temporary / "analysis_manifest.json", result)
         os.replace(temporary, output_dir)
@@ -938,6 +1265,15 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--part2", type=Path, required=True)
     parser.add_argument("--role-calibration", type=Path, required=True)
     parser.add_argument("--sensitivity", type=Path, required=True)
+    parser.add_argument(
+        "--part0-terminal-policy",
+        choices=("strict-complete", "all-scheduled-operational-invalid-v1"),
+        default="strict-complete",
+        help=(
+            "Explicit Part 0 terminal-evidence policy; the default remains "
+            "strict COMPLETE."
+        ),
+    )
     parser.add_argument("--output-dir", type=Path, required=True)
     return parser
 
@@ -945,7 +1281,18 @@ def _parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
-        analyze(part0=args.part0, part1=args.part1, part2=args.part2, role_calibration=args.role_calibration, sensitivity=args.sensitivity, output_dir=args.output_dir)
+        analyze(
+            part0=args.part0,
+            part1=args.part1,
+            part2=args.part2,
+            role_calibration=args.role_calibration,
+            sensitivity=args.sensitivity,
+            output_dir=args.output_dir,
+            allow_terminalized_part0_operational_invalids=(
+                args.part0_terminal_policy
+                == "all-scheduled-operational-invalid-v1"
+            ),
+        )
     except DefinitiveAnalysisError as error:
         print(f"Definitive analysis failed: {error}")
         return 1

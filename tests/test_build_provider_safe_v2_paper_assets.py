@@ -14,10 +14,14 @@ from analysis.build_provider_safe_v2_paper_assets import (
     DEFAULT_LOCAL_CONTROLS_PATH,
     EXPECTED_ROW_COUNTS,
     INVALID_POLICY,
+    BLUE,
+    ORANGE,
+    RED,
     PaperAssetsError,
     SENSITIVITY_FACTORS,
     SENSITIVITY_LEVELS,
     _load_and_validate,
+    _annotation_color,
     _self_hash,
     _validate_local_controls,
     _write_headlines,
@@ -28,6 +32,22 @@ from analysis.build_provider_safe_v2_paper_assets import (
 _HEADLINE_MACRO = re.compile(
     r"^\\newcommand\{\\([A-Za-z]+)\}\{([^{}]*)\}$", re.MULTILINE
 )
+
+
+def test_annotation_color_uses_gamma_correct_maximum_contrast() -> None:
+    def rgba(hex_color: str) -> tuple[float, float, float, float]:
+        value = hex_color.lstrip("#")
+        return (
+            int(value[0:2], 16) / 255,
+            int(value[2:4], 16) / 255,
+            int(value[4:6], 16) / 255,
+            1.0,
+        )
+
+    assert _annotation_color(rgba("#FAFAF8")) == "black"
+    assert _annotation_color(rgba(ORANGE)) == "black"
+    assert _annotation_color(rgba(RED)) == "black"
+    assert _annotation_color(rgba(BLUE)) == "white"
 
 
 def _headline_macros(path: Path) -> dict[str, str]:
@@ -92,6 +112,9 @@ def _source_payload() -> tuple[dict[str, list[dict[str, Any]]], dict[str, Any]]:
                 "compliance_count": compliance,
                 "unclear_count": unclear,
                 "first_attempt_invalid_count": invalid,
+                "semantic_invalid_count": invalid,
+                "operational_invalid_count": 0,
+                "visible_subject_response_count": 144,
                 "repaired_invalid_count": 0,
                 "refusal_rate_all_scheduled": refusal / 144,
                 "refusal_rate_all_scheduled_finite_bank_sensitivity_low": max(0.0, refusal / 144 - 0.05),
@@ -524,6 +547,8 @@ def test_deterministic_headline_macros_match_full_production_fixture_exactly(
         "ProviderSafePartZeroComplianceCount": "1833",
         "ProviderSafePartZeroUnclearCount": "66",
         "ProviderSafePartZeroInvalidCount": "66",
+        "ProviderSafePartZeroOperationalInvalidCount": "0",
+        "ProviderSafePartZeroVisibleResponseCount": "3168",
         "ProviderSafePartZeroModelRefusalRatePctMinimum": "31.2",
         "ProviderSafePartZeroModelRefusalRatePctMedian": "37.5",
         "ProviderSafePartZeroModelRefusalRatePctMaximum": "45.8",

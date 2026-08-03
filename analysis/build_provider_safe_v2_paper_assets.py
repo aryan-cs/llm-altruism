@@ -75,6 +75,25 @@ P0_CMAP = LinearSegmentedColormap.from_list("part0_original_blue", ("#F7FBFF", B
 P1_CMAP = LinearSegmentedColormap.from_list("part1_original_orange", ("#FFF9E8", ORANGE))
 SIGNED_CMAP = LinearSegmentedColormap.from_list("signed_original", (BLUE, "#FAFAF8", RED))
 
+
+def _relative_luminance(rgb: Sequence[float]) -> float:
+    linear = [
+        channel / 12.92
+        if channel <= 0.04045
+        else ((channel + 0.055) / 1.055) ** 2.4
+        for channel in rgb[:3]
+    ]
+    return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+
+
+def _annotation_color(rgba: Sequence[float]) -> str:
+    """Choose black or white by WCAG contrast against the rendered cell."""
+
+    background = _relative_luminance(rgba)
+    contrast_black = (background + 0.05) / 0.05
+    contrast_white = 1.05 / (background + 0.05)
+    return "black" if contrast_black >= contrast_white else "white"
+
 # The NeurIPS template sets ptm (Times) as its Roman default.  Times New Roman
 # is the installed metric-compatible plotting font on the submission host.
 plt.rcParams.update(
@@ -362,6 +381,8 @@ def _validate_part0(
             (
                 "scheduled_units", "refusal_count", "compliance_count", "unclear_count",
                 "first_attempt_invalid_count", "repaired_invalid_count",
+                "semantic_invalid_count", "operational_invalid_count",
+                "visible_subject_response_count",
                 "refusal_rate_all_scheduled", "primary_denominator", "exploratory_only",
                 "refusal_rate_all_scheduled_finite_bank_sensitivity_low",
                 "refusal_rate_all_scheduled_finite_bank_sensitivity_high",
@@ -382,6 +403,16 @@ def _validate_part0(
         ]
         if _integer(row, "repaired_invalid_count", label) != 0:
             raise PaperAssetsError("Part 0 repaired outcomes are outside this frozen asset contract.")
+        semantic_invalid = _integer(row, "semantic_invalid_count", label)
+        operational_invalid = _integer(row, "operational_invalid_count", label)
+        visible = _integer(row, "visible_subject_response_count", label)
+        if (
+            semantic_invalid + operational_invalid != counts[3]
+            or visible + operational_invalid != scheduled
+        ):
+            raise PaperAssetsError(
+                f"{label} semantic/operational invalid accounting does not reconcile."
+            )
         refusal_rate = _rate(row, "refusal_rate_all_scheduled", label)
         if sum(counts) != scheduled or not _same_rate(refusal_rate, counts[0], scheduled):
             raise PaperAssetsError(f"{label} counts or scheduled-unit refusal rate do not reconcile.")
@@ -1054,7 +1085,7 @@ def _heatmap(
     ax.set_xticks([index + 0.5 for index in range(len(xlabels))], labels=xlabels)
     ax.set_yticks([index + 0.5 for index in range(len(ylabels))], labels=ylabels)
     ax.tick_params(axis="x", labelrotation=25, labelsize=7)
-    ax.tick_params(axis="y", labelsize=6)
+    ax.tick_params(axis="y", labelsize=7.2)
     ax.set_title(title, fontsize=10, fontweight="bold", loc="left")
     for row_index, values in enumerate(matrix):
         for column_index, value in enumerate(values):
@@ -1067,12 +1098,10 @@ def _heatmap(
             # intentionally near-white at their low end, where white labels
             # would disappear in print.
             normalized = 0.5 if vmax == vmin else min(1.0, max(0.0, (value - vmin) / (vmax - vmin)))
-            red, green, blue, _ = cmap(normalized)
-            luminance = 0.2126 * red + 0.7152 * green + 0.0722 * blue
-            color = "white" if luminance < 0.48 else INK
+            color = _annotation_color(cmap(normalized))
             ax.text(
                 column_index + 0.5, row_index + 0.5, label,
-                ha="center", va="center", fontsize=5.1 if intervals is not None else 6,
+                ha="center", va="center", fontsize=6.8 if intervals is not None else 7.2,
                 color=color, linespacing=0.9,
             )
     colorbar = ax.figure.colorbar(mesh, ax=ax, fraction=0.035, pad=0.02)
@@ -1090,7 +1119,7 @@ def _heatmap(
 def _plot_part0(data: Mapping[str, Any], directory: Path) -> list[Path]:
     rows = data["part0"]
     by_key = data["part0_matrix"]
-    labels = [_label(row) for row in rows]
+    labels = [str(row["target_id"]) for row in rows]
     refusal = [
         [float(by_key[(row["target_id"], language)]["refusal_rate_all_scheduled"]) for language in PART0_LANGUAGES]
         for row in rows
@@ -1107,17 +1136,17 @@ def _plot_part0(data: Mapping[str, Any], directory: Path) -> list[Path]:
     ]
     # Match the physical landscape insertion aspect so Times annotations are
     # not silently reduced to 2--3 pt by LaTeX's height constraint.
-    fig, ax = plt.subplots(figsize=(12.0, 7.2))
+    fig, ax = plt.subplots(figsize=(10.2, 7.0))
     fig.patch.set_facecolor("white")
     fig.suptitle("Part 0 response-language outcomes by exact model route", x=0.08, ha="left", fontsize=15, fontweight="bold", color=INK)
-    fig.text(0.08, 0.955, "Each cell uses 48 scheduled harmful-request roots; rows are ordered by overall within-task refusal rate.", fontsize=9, color=MUTED)
+    fig.text(0.08, 0.93, "Each cell uses 48 scheduled harmful-request roots; rows are ordered by overall within-task refusal rate.", fontsize=9, color=MUTED)
     _heatmap(
         ax, refusal, PART0_LANGUAGES, labels,
         title="Refusal rate [Wilson 95%] / 48 roots", cmap=P0_CMAP,
         vmin=0.0, vmax=1.0, intervals=refusal_intervals,
     )
     fig.text(0.08, 0.018, "Brackets are condition-specific Wilson 95% intervals over 48 roots. Higher refusal means less assistance on this harmful-request task. Invalid outputs remain in the scheduled denominator but are reported in the reproducibility artifacts rather than as a separate argument-facing column.", fontsize=8, color=MUTED)
-    fig.tight_layout(rect=(0.06, 0.045, 0.99, 0.94))
+    fig.tight_layout(rect=(0.06, 0.045, 0.99, 0.90))
     return _save_figure(fig, directory, "part0_model_language", "Part 0 model by language outcomes")
 
 
@@ -1158,10 +1187,10 @@ def _lollipop_panel(
     ax.invert_yaxis()
     if show_labels:
         ax.set_yticks(positions, labels=labels)
-        ax.tick_params(axis="y", labelsize=5.6, length=0, labelleft=True)
+        ax.tick_params(axis="y", labelsize=7.0, length=0, labelleft=True)
     else:
         ax.set_yticks(positions)
-        ax.tick_params(axis="y", labelsize=5.6, length=0, labelleft=False)
+        ax.tick_params(axis="y", labelsize=7.0, length=0, labelleft=False)
     ax.xaxis.set_major_formatter(PercentFormatter(1.0))
     ax.grid(axis="x", color=GRID, linewidth=0.6)
     ax.set_axisbelow(True)
@@ -1169,9 +1198,9 @@ def _lollipop_panel(
     for position, value in zip(positions, values, strict=True):
         if value is None:
             ax.scatter([0.015], [position], marker="x", s=17, color=MUTED, linewidth=0.8, zorder=2)
-            ax.text(0.03, position, "NE", va="center", ha="left", fontsize=5.4, color=MUTED)
+            ax.text(0.03, position, "NE", va="center", ha="left", fontsize=6.6, color=MUTED)
         else:
-            ax.text(min(value + 0.012, 0.985), position, f"{value:.1%}", va="center", ha="left" if value < 0.95 else "right", fontsize=5.4, color=INK)
+            ax.text(min(value + 0.012, 0.985), position, f"{value:.1%}", va="center", ha="left" if value < 0.95 else "right", fontsize=6.6, color=INK)
     _style_axes(ax)
 
 
@@ -1222,7 +1251,7 @@ def _plot_cross_phase_outcome_profile(
             x=0.07, y=0.995, ha="left", fontsize=15, fontweight="bold", color=INK,
         )
         fig.text(
-            0.07, 0.968,
+            0.07, 0.93,
             "One row per authenticated exact route; panels retain separate tasks and denominators.",
             fontsize=9, color=MUTED,
         )
@@ -1300,7 +1329,7 @@ def _plot_cross_phase_outcome_profile(
             "Green circles are refusal, welfare-preserving choice, and restraint; red diamonds are compliance, focal-advantage choice, and overuse. Positions use 144 Part 0 responses, 384 Part 1 roots, or Part 2 scheduled agent-days. Unclear or invalid outputs stay in denominators but are omitted as visual bookkeeping. Panels are not pooled.",
             fontsize=8, color=MUTED, wrap=True,
         )
-        fig.tight_layout(rect=(0.045, 0.075, 0.995, 0.95), w_pad=1.2)
+        fig.tight_layout(rect=(0.045, 0.075, 0.995, 0.90), w_pad=1.2)
         output.extend(
             _save_figure(
                 fig, directory,
@@ -1338,7 +1367,7 @@ def _plot_part1(data: Mapping[str, Any], directory: Path) -> list[Path]:
             x=0.08, y=0.995, ha="left", fontsize=15, fontweight="bold", color=INK,
         )
         fig.text(
-            0.08, 0.968,
+            0.08, 0.93,
             "One row per exact route; 384 scheduled roots per route; global within-task display order.",
             fontsize=9, color=MUTED,
         )
@@ -1350,7 +1379,7 @@ def _plot_part1(data: Mapping[str, Any], directory: Path) -> list[Path]:
         )
         ax.tick_params(axis="y", labelsize=6.5)
         fig.text(0.08, 0.018, "Bars are welfare-preserving first attempts over all 384 roots; whiskers are frozen-root-bank sensitivity intervals, not population CIs. Higher values mean fewer counterpart costs in this task.", fontsize=8, color=MUTED)
-        fig.tight_layout(rect=(0.055, 0.04, 0.995, 0.95))
+        fig.tight_layout(rect=(0.055, 0.04, 0.995, 0.90))
         output.extend(
             _save_figure(
                 fig, directory, f"part1_all_models_block{block_index + 1}",
@@ -1362,7 +1391,7 @@ def _plot_part1(data: Mapping[str, Any], directory: Path) -> list[Path]:
 
 def _plot_part2(data: Mapping[str, Any], directory: Path) -> list[Path]:
     rows = data["part2"]
-    labels = [_label(row) for row in rows]
+    labels = [str(row["target_id"]) for row in rows]
     restraint = [
         float(row["mean_trajectory_restraint_rate_all_scheduled"]) for row in rows
     ]
@@ -1394,7 +1423,7 @@ def _plot_part2(data: Mapping[str, Any], directory: Path) -> list[Path]:
         )
         for row in rows
     ]
-    fig, axes = plt.subplots(1, 3, figsize=(14.8, 9.2), sharey=False)
+    fig, axes = plt.subplots(1, 3, figsize=(10.5, 6.8), sharey=False)
     fig.patch.set_facecolor("white")
     fig.suptitle("Part 2 commons outcomes for 19 exact model routes", x=0.075, y=0.995, ha="left", fontsize=15, fontweight="bold", color=INK)
     fig.text(0.075, 0.953, "One row per route; 12 trajectories per route; ordered by within-task restraint rate.", fontsize=9, color=MUTED)
@@ -1448,7 +1477,8 @@ def _plot_sensitivity(data: Mapping[str, Any], directory: Path) -> list[Path]:
             effect = effects[(target, factor)]
             value = float(effect["effect_high_minus_low"])
             status = "H" if float(effect["holm_adjusted_p"]) <= 0.05 else "n.s."
-            color = "white" if abs(value) > limit * 0.58 else INK
+            norm = TwoSlopeNorm(vmin=-limit, vcenter=0.0, vmax=limit)
+            color = _annotation_color(SIGNED_CMAP(norm(value)))
             ax.text(column_index + 0.5, row_index + 0.5, f"{value:+.3f}\n{status}", ha="center", va="center", fontsize=7, color=color)
     colorbar = fig.colorbar(mesh, ax=ax, fraction=0.027, pad=0.025)
     if colorbar.solids is not None:
@@ -1463,9 +1493,9 @@ def _plot_sensitivity(data: Mapping[str, Any], directory: Path) -> list[Path]:
 
 def _plot_local_controls(data: Mapping[str, Any], directory: Path) -> list[Path]:
     rows = data["local_controls"]
-    labels = [f"{row['model_id']} | {row['parameter_scale']}" for row in rows]
+    labels = [f"{str(row['model_id']).rsplit('/', 1)[-1]} | {row['parameter_scale']}" for row in rows]
     welfare = [float(row["welfare_rate"]) for row in rows]
-    fig, ax = plt.subplots(figsize=(9.2, 4.8))
+    fig, ax = plt.subplots(figsize=(7.0, 4.8))
     fig.patch.set_facecolor("white")
     fig.suptitle(
         "Part 1 exploratory local execution-scale controls", x=0.085, y=0.99,
@@ -1926,8 +1956,14 @@ def _headline_values(data: Mapping[str, Any]) -> list[tuple[str, str]]:
     part0_compliance = sum(int(row["compliance_count"]) for row in part0)
     part0_unclear = sum(int(row["unclear_count"]) for row in part0)
     part0_invalid = sum(int(row["first_attempt_invalid_count"]) for row in part0)
+    part0_operational_invalid = sum(
+        int(row["operational_invalid_count"]) for row in part0
+    )
+    part0_visible = sum(int(row["visible_subject_response_count"]) for row in part0)
     if part0_refusal + part0_compliance + part0_unclear + part0_invalid != part0_scheduled:
         raise PaperAssetsError("Part 0 headline totals do not reconcile to scheduled responses.")
+    if part0_visible + part0_operational_invalid != part0_scheduled:
+        raise PaperAssetsError("Part 0 visible/operational headline totals do not reconcile.")
 
     part1_scheduled = sum(int(row["scheduled_units"]) for row in part1)
     part1_welfare = sum(int(row["welfare_preserving_count_first_attempt"]) for row in part1)
@@ -1987,6 +2023,8 @@ def _headline_values(data: Mapping[str, Any]) -> list[tuple[str, str]]:
         ("ProviderSafePartZeroComplianceCount", str(part0_compliance)),
         ("ProviderSafePartZeroUnclearCount", str(part0_unclear)),
         ("ProviderSafePartZeroInvalidCount", str(part0_invalid)),
+        ("ProviderSafePartZeroOperationalInvalidCount", str(part0_operational_invalid)),
+        ("ProviderSafePartZeroVisibleResponseCount", str(part0_visible)),
         *_summary_macros(
             [float(row["refusal_rate_all_scheduled"]) for row in part0],
             prefix="ProviderSafePartZeroModelRefusalRatePct",

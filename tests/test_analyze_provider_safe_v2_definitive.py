@@ -12,6 +12,7 @@ import pytest
 from analysis.analyze_provider_safe_v2_definitive import (
     DefinitiveAnalysisError,
     _provider_safe_contract,
+    _mean_t_95,
     _root_cluster_bootstrap_95,
     _self_hash,
     _stratified_root_bootstrap_95,
@@ -275,6 +276,161 @@ def _run(bundle: Mapping[str, Path], output: Path) -> dict[str, Any]:
     )
 
 
+def _terminalized_part0_run(root: Path, *, drift_request_hash: bool = False) -> Path:
+    run = root / "terminalized-part0"
+    subjects = [_route(index, "p0") for index in range(22)]
+    manifest = _base_manifest(
+        "inference_hub_part0_accelerated_private_panel", subjects
+    )
+    manifest["judge"] = manifest.pop("judge_reservation")
+    manifest["complete"] = False
+    manifest.pop("completed_at_utc", None)
+    manifest["schedule"] = [
+        {
+            "trial_id": f"trial-{root_index}-{language}",
+            "root_id": f"root-{root_index}",
+            "language": language,
+        }
+        for root_index in range(48)
+        for language in ("english", "chinese", "russian")
+    ]
+    safe = ROOT / "experiments/misc/inference_hub_provider_safe_v2.py"
+    deadline = ROOT / "experiments/misc/inference_hub_part0_deadline_retry.py"
+    manifest["source_artifacts"] = {
+        str(safe): _sha_file(safe),
+        str(deadline): _sha_file(deadline),
+    }
+    shared = {
+        "schema_version": 2,
+        "algorithm": "cross_process_provider_aware_leaky_bucket_with_leases_all_http_5xx_full_throttle_cooldown",
+        "global_concurrency": 16,
+        "provider_concurrency": 3,
+        "global_requests_per_second": 10.0,
+        "provider_requests_per_second": 2.0,
+        "lease_seconds": 900.0,
+        "poll_seconds": 0.05,
+        "throttle_cooldown_seconds": 30.0,
+        "transient_cooldown_seconds": 5.0,
+    }
+    shared["policy_sha256"] = hashlib.sha256(
+        json.dumps(shared, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    manifest["execution_contract"] = {
+        "shared_rate_limit": shared,
+        "max_attempts_per_request": 8,
+    }
+
+    failure_counts = (3, 4, 9, 3, 2, 9, 6, 5)
+    raw_refs = {}
+    ledger_rows = []
+    outcomes = {"REFUSAL": 0, "COMPLIANCE": 0, "UNCLEAR": 0, "INVALID": 0}
+    for subject_index, subject in enumerate(subjects):
+        failed_count = failure_counts[subject_index] if subject_index < 8 else 0
+        rows = []
+        visible_ids = []
+        for unit, scheduled in enumerate(manifest["schedule"]):
+            trial_id = scheduled["trial_id"]
+            if unit < failed_count:
+                for attempt_number in range(1, 9):
+                    attempt_id = f"attempt-{subject_index}-{unit}-{attempt_number}"
+                    request_hash = (
+                        f"{'b' if drift_request_hash and subject_index == 0 and unit == 0 and attempt_number == 8 else 'a'}"
+                        * 64
+                    )
+                    ledger_rows.extend(
+                        [
+                            {
+                                "event": "reserved_before_dispatch",
+                                "attempt_id": attempt_id,
+                                "attempt_number": attempt_number,
+                                "request_sha256": request_hash,
+                                "role": "subject",
+                                "route": subject["route"],
+                                "upstream_provider": subject["upstream_provider"],
+                                "target_id": subject["target_id"],
+                                "work_id": trial_id,
+                            },
+                            {
+                                "event": "attempt_completed",
+                                "attempt_id": attempt_id,
+                                "outcome": "failed",
+                                "transient": True,
+                                "failure_code": "http_400_periodic_retry",
+                                "http_status": 400,
+                            },
+                        ]
+                    )
+                rows.append(
+                    {
+                        "event": "unit_completed",
+                        "target_id": subject["target_id"],
+                        "trial_id": trial_id,
+                        "root_id": scheduled["root_id"],
+                        "language": scheduled["language"],
+                        "outcome": "INVALID",
+                        "judge_label": None,
+                        "judge_dispatched": False,
+                        "operational_failure": {
+                            "failure_code": "http_400_periodic_retry",
+                            "http_status": 400,
+                        },
+                    }
+                )
+                outcomes["INVALID"] += 1
+                continue
+            visible_ids.append(trial_id)
+            rows.append(
+                {
+                    "event": "subject_response_retained",
+                    "target_id": subject["target_id"],
+                    "trial_id": trial_id,
+                    "model_identity_valid": True,
+                }
+            )
+            outcome = "REFUSAL" if unit % 2 else "COMPLIANCE"
+            rows.append(
+                {
+                    "event": "unit_completed",
+                    "target_id": subject["target_id"],
+                    "trial_id": trial_id,
+                    "root_id": scheduled["root_id"],
+                    "language": scheduled["language"],
+                    "outcome": outcome,
+                }
+            )
+            outcomes[outcome] += 1
+        for start in range(0, len(visible_ids), 8):
+            rows.append(
+                {
+                    "event": "judge_batch_retained",
+                    "target_id": subject["target_id"],
+                    "trial_ids": visible_ids[start : start + 8],
+                    "model_identity_valid": True,
+                }
+            )
+        raw_refs[subject["target_id"]] = _journal(
+            run / "private/raw" / f"{subject_index}.jsonl", rows
+        )
+    manifest["journals"] = {
+        "attempt_ledger": _journal(run / "private/attempts.jsonl", ledger_rows),
+        "raw_responses": raw_refs,
+    }
+    manifest["summary"] = {
+        "planned_units": 22 * 144,
+        "retained_terminal_units": 22 * 144,
+        "outcomes": outcomes,
+        "subject_transport_failures": 41,
+        "judge_failed_units": 0,
+        "subject_model_identity_mismatches": 0,
+        "judge_model_identity_mismatches": 0,
+        "operationally_retired_units": 0,
+    }
+    (run / "private/.run.lock").touch()
+    path = run / "private/manifest.json"
+    _write_json(path, _seal(manifest), private=True)
+    return path
+
+
 def test_uncertainty_helpers_are_deterministic_and_use_independent_units() -> None:
     clusters = [0.0, 1.0 / 3.0, 2.0 / 3.0, 1.0] * 12
     first = _root_cluster_bootstrap_95(
@@ -296,6 +452,11 @@ def test_uncertainty_helpers_are_deterministic_and_use_independent_units() -> No
     full_low, full_high = _wilson_95(48, 48)
     assert zero_low == 0.0 < zero_high < 1.0
     assert 0.0 < full_low < full_high == 1.0
+    bounded_low, bounded_high = _mean_t_95(
+        [1.0, 1.0, 1.0, 0.95], bounds=(0.0, 1.0)
+    )
+    assert bounded_low is not None and 0.0 <= bounded_low <= 1.0
+    assert bounded_high == 1.0
 
 
 def test_full_production_shaped_analysis_and_invalid_denominators(
@@ -359,6 +520,58 @@ def test_incomplete_manifest_fails_before_output(tmp_path: Path) -> None:
     with pytest.raises(DefinitiveAnalysisError, match="not COMPLETE"):
         analyze(part0=incomplete, part1=incomplete, part2=incomplete, role_calibration=incomplete, sensitivity=incomplete, output_dir=output)
     assert not output.exists()
+
+
+def test_terminalized_part0_policy_is_explicit_ledger_bound_and_all_scheduled(
+    production_bundle: Mapping[str, Path], tmp_path: Path,
+) -> None:
+    terminalized = _terminalized_part0_run(tmp_path / "valid")
+    changed = dict(production_bundle)
+    changed["part0"] = terminalized
+    with pytest.raises(DefinitiveAnalysisError, match="not COMPLETE"):
+        _run(changed, tmp_path / "strict-out")
+
+    result = analyze(
+        part0=terminalized,
+        part1=changed["part1"],
+        part2=changed["part2"],
+        role_calibration=changed["role"],
+        sensitivity=changed["sensitivity"],
+        output_dir=tmp_path / "terminalized-out",
+        allow_terminalized_part0_operational_invalids=True,
+    )
+    audit = result["part0_terminalized_operational_audit"]
+    assert audit["scheduled_units"] == 3_168
+    assert audit["operational_failure_units"] == 41
+    assert audit["visible_subject_response_units"] == 3_127
+    assert audit["affected_target_count"] == 8
+    assert audit["semantics"] == (
+        "operational_nonsuccess_not_refusal_not_semantic_model_output"
+    )
+    rows = [
+        json.loads(line)
+        for line in (tmp_path / "terminalized-out/part0_models.jsonl")
+        .read_text()
+        .splitlines()
+    ]
+    assert len(rows) == 22
+    assert sum(row["scheduled_units"] for row in rows) == 3_168
+    assert sum(row["operational_invalid_count"] for row in rows) == 41
+    assert sum(row["visible_subject_response_count"] for row in rows) == 3_127
+
+    drifted = _terminalized_part0_run(
+        tmp_path / "drifted", drift_request_hash=True
+    )
+    with pytest.raises(DefinitiveAnalysisError, match="retry lineage changed"):
+        analyze(
+            part0=drifted,
+            part1=changed["part1"],
+            part2=changed["part2"],
+            role_calibration=changed["role"],
+            sensitivity=changed["sensitivity"],
+            output_dir=tmp_path / "drifted-out",
+            allow_terminalized_part0_operational_invalids=True,
+        )
 
 
 def test_hash_tamper_and_judge_overlap_fail_closed(

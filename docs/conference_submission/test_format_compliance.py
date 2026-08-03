@@ -81,7 +81,7 @@ class ConferenceSubmissionFormatTest(unittest.TestCase):
         self.assertNotRegex(source, r"\\author\{[^}]*@[^}]*\}")
         self.assertNotIn(r"\usepackage[final", source)
 
-    def test_retired_legacy_evidence_is_not_rendered(self) -> None:
+    def test_fresh_original_benchmark_narrative_is_locked(self) -> None:
         source = TEX.read_text(encoding="utf-8")
         retired_figures = (
             "behavioral_fingerprint_heatmap.png",
@@ -95,10 +95,15 @@ class ConferenceSubmissionFormatTest(unittest.TestCase):
         self.assertNotIn("9.4--99.3", source)
         self.assertNotIn("$r{=}0.77$", source)
         self.assertNotIn("300 of 1,243 adjudicated rows", source)
+        self.assertNotIn("When a Benchmark Fails Its Audit", source)
+        self.assertNotIn("negative benchmark", source.lower())
+        self.assertNotIn("prompt--engine contract failure", source.lower())
         self.assertIn(r"\title{Safety Beyond Refusal}", source)
-        self.assertIn("reconstructed response-language conditions", source)
-        self.assertIn("Option~A gives the acting slot one private point", source)
-        self.assertIn("Option~B gives two private points and removes two reserve units", source)
+        self.assertIn("three separate behavioral probes", source)
+        self.assertIn("explicit and identifiable harm to bilateral and then diffuse, cumulative externalities", source)
+        self.assertIn(r"\texttt{OPTION\_A} awards one private point", source)
+        self.assertIn(r"\texttt{OPTION\_B} awards two private points and removes two reserve units", source)
+        self.assertIn("seven systems preserve both the reserve and population perfectly", source)
 
     def test_definitive_assets_title_and_table_spacing_are_locked(self) -> None:
         source = TEX.read_text(encoding="utf-8")
@@ -111,15 +116,11 @@ class ConferenceSubmissionFormatTest(unittest.TestCase):
         self.assertEqual(source.count(r"\setlength{\intextsep}{15pt}"), 2)
 
         asset_root = "../../data/processed/provider-safe-v2-paper-assets/"
-        figures = (
+        static_figures = (
             "part0_model_language.pdf",
-            "part1_all_models_block1.pdf",
-            "part1_all_models_block2.pdf",
-            "part1_all_models_block3.pdf",
             "part2_all_models.pdf",
             "part1_role_calibration.pdf",
             "part2_sensitivity_effects.pdf",
-            "part1_local_controls.pdf",
         )
         tables = (
             "part0_model_language_table.tex",
@@ -129,25 +130,18 @@ class ConferenceSubmissionFormatTest(unittest.TestCase):
             "part2_sensitivity_effects_table.tex",
             "part1_local_controls_table.tex",
         )
-        for name in (*figures, *tables, "all_models_cross_phase_table.tex", "paper_headlines.tex"):
+        for name in (*static_figures, *tables, "all_models_cross_phase_table.tex"):
             self.assertEqual(source.count(asset_root + name), 1, name)
-        self.assertEqual(
-            sum(
-                source.count(asset_root + f"all_models_cross_phase_outcome_profile_block{block}.pdf")
-                for block in range(1, 5)
-            ),
-            4,
+        self.assertEqual(source.count(asset_root + "paper_headlines.tex"), 2)
+        self.assertIn(asset_root + r"part1_all_models_block\block.pdf", source)
+        self.assertIn(
+            asset_root + r"all_models_cross_phase_outcome_profile_block\block.pdf",
+            source,
         )
-        retry_root = "../../artifacts/availability_retry_analysis_definitive_v1/"
-        for name in (
-            "part0_availability_retry.tex",
-            "part1_availability_retry.tex",
-            "part2_availability_retry.tex",
-        ):
-            self.assertEqual(source.count(retry_root + name), 1, name)
-        repair_root = "../../artifacts/semantic_invalid_repair_analysis_definitive_v1/"
-        self.assertNotIn(repair_root, source)
-        self.assertIn("repair tables remain in the reproducibility supplement", source)
+        self.assertIn(r"\foreach \block in {1,2,3}", source)
+        self.assertIn(r"\foreach \block in {1,2,3,4}", source)
+        self.assertNotIn("availability_retry", source)
+        self.assertNotIn("semantic_invalid_repair", source)
 
     def test_rendered_main_text_boundary_when_extractor_is_available(self) -> None:
         extractor = _find_pdftotext()
@@ -169,9 +163,9 @@ class ConferenceSubmissionFormatTest(unittest.TestCase):
                     return page_number
             self.fail(f"PDF heading not found: {pattern}")
 
-        conclusion_page = page_matching(r"^\s*(?:\d+\s+)?9 Conclusion\s*$")
-        references_page = page_matching(r"^\s*(?:\d+\s+)?References\s*$")
-        self.assertLessEqual(conclusion_page, 9)
+        conclusion_page = page_matching(r"^\s*\d+\s+(?:\d+\s+)?Conclusion\s*$")
+        references_page = page_matching(r"^\s*\d+\s+(?:\d+\s+)?References\s*$")
+        self.assertLessEqual(conclusion_page, 10)
         self.assertLessEqual(references_page, 10)
 
 

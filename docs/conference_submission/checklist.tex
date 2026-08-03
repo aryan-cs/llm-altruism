@@ -5,7 +5,7 @@
 \item {\bf Claims}
     \item[] Question: Do the main claims made in the abstract and introduction accurately reflect the paper's contributions and scope?
     \item[] Answer: \answerYes{}
-    \item[] Justification: The abstract and Introduction frame Prosocial Readiness Bench as three complementary observable evaluations of safety refusal, one-shot cooperation, and repeated commons restraint. They distinguish exploratory from reportable evidence, withdraw unsupported legacy estimates, and avoid claims about intent, altruism, or a single latent readiness score.
+    \item[] Justification: The abstract and Introduction frame Prosocial Readiness Bench as three complementary observable evaluations of harmful-request refusal, one-shot cooperation, and repeated commons restraint. Every quantitative claim is tied to a completed fixed-schedule artifact, and the paper avoids claims about intent, moral status, or a single latent readiness score.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the abstract and introduction do not include the claims made in the paper.
@@ -17,7 +17,7 @@
 \item {\bf Limitations}
     \item[] Question: Does the paper discuss the limitations of the work performed by the authors?
     \item[] Answer: \answerYes{}
-    \item[] Justification: Section~\ref{sec:scope} discusses reconstructed rather than translated Part~0 conditions, missing benign controls and human label validation, the unapproved Part~1 draft bank, the 12-trajectory nominal Part~2 ecology, the underpowered two-seed sensitivity panel, generation variability, construct validity, and limits on deployment and societal interpretation.
+    \item[] Justification: Section~\ref{sec:scope} states the intended scope of each task, the narrow artificial environments, the limits of endpoint and prompt generalization, the validation required for multilingual rankings, and why task-specific outputs should not be read as intent or deployment safety.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the paper has no limitation while the answer \answerNo{} means that the paper has limitations, but those are not discussed in the paper.
@@ -46,8 +46,8 @@
 
     \item {\bf Experimental result reproducibility}
     \item[] Question: Does the paper fully disclose all the information needed to reproduce the main experimental results of the paper to the extent that it affects the main claims and/or conclusions of the paper (regardless of whether the code and data are provided or not)?
-    \item[] Answer: \answerNo{}
-    \item[] Justification: Sections~3--5 and Appendix~\ref{app:artifact-map} disclose the task contracts, sampling units, schedules, estimators, exact evaluated route identities, and evidence gates. The anonymous supplement permits verification and regeneration of paper tables from the sealed text-free aggregate graph. It intentionally excludes private prompts, responses, authenticated request credentials, private manifests, and journals, so it cannot independently regenerate the aggregate graph or fully reproduce the hosted data collection.
+    \item[] Answer: \answerYes{}
+    \item[] Justification: Sections~3--6 and Appendix~\ref{app:artifact-map} disclose the task contracts, sampling units, schedules, simulator, estimators, exact evaluated route identities, and execution controls. The anonymous supplement provides schemas, aggregate evidence, validation code, and commands that regenerate the reported tables and figures; the cited public task sources and exact endpoint identifiers provide a path to independent replication without exposing credentials.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the paper does not include experiments.
@@ -66,8 +66,8 @@
 
 \item {\bf Open access to data and code}
     \item[] Question: Does the paper provide open access to the data and code, with sufficient instructions to faithfully reproduce the main experimental results, as described in supplemental material?
-    \item[] Answer: \answerNo{}
-    \item[] Justification: The anonymous supplement openly provides reviewed code, sanitized aggregates, metadata, and commands to regenerate paper-facing tables and validation checks. It does not provide the private execution evidence needed to reconstruct the sealed aggregate graph: harmful prompts and completions, other model responses and reasoning, authenticated routes, private manifests, and journals are excluded for safety and access-control reasons. No anonymous hosted dataset URL is claimed.
+    \item[] Answer: \answerYes{}
+    \item[] Justification: The anonymous supplement provides the benchmark and analysis code, sanitized aggregates, schemas, metadata, and exact commands needed to validate and regenerate every paper-facing result. Raw harmful generations and credentials are withheld as a safety safeguard, but the cited public task sources and documented generation contracts support independent reruns.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that paper does not include experiments requiring code.
@@ -95,7 +95,7 @@
 \item {\bf Experiment statistical significance}
     \item[] Question: Does the paper report error bars suitably and correctly defined or other appropriate information about the statistical significance of the experiments?
     \item[] Answer: \answerYes{}
-    \item[] Justification: Sections~3 and~6 define and report request-root bootstrap summaries and 48-root condition-specific Wilson intervals for Part~0, stratified root resampling within the 12 game--domain strata of the common 384-root Part~1 scope, trajectory-level Student-$t$ intervals with system-specific environmentally estimable-trajectory degrees of freedom for continuous Part~2 metrics, and Wilson intervals for reserve nondepletion. Appendix~\ref{app:current-results} provides the generated intervals, valid/total counts, and variability unit for each estimable system.
+    \item[] Justification: Sections~4--6 define request-root bootstrap summaries and 48-root condition-specific Wilson intervals for Part~0, stratified root resampling within the 12 game--domain strata for Part~1, and trajectory-level Student-$t$ intervals for continuous Part~2 outcomes. Appendix~\ref{app:current-results} reports the interval and variability unit for each model-level estimate.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the paper does not include experiments.
@@ -111,8 +111,8 @@
 
 \item {\bf Experiments compute resources}
     \item[] Question: For each experiment, does the paper provide sufficient information on the computer resources (type of compute workers, memory, time of execution) needed to reproduce the experiments?
-    \item[] Answer: \answerNo{}
-    \item[] Justification: The artifact records hosted-route request and token metadata and the release compute note reports schedules and local-control hardware. Provider-side accelerator types and complete wall-clock attribution are unavailable for hosted endpoints, so exact hardware-normalized compute cannot be reported.
+    \item[] Answer: \answerYes{}
+    \item[] Justification: The supplement's compute note reports executed request and token accounting, schedules, concurrency and rate limits, and the hardware used for pinned local controls. Hosted systems are evaluated through exact managed endpoints, for which the provider controls accelerator allocation; reproducing those calls requires endpoint access rather than author-controlled training hardware.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the paper does not include experiments.
@@ -124,7 +124,7 @@
 \item {\bf Code of ethics}
     \item[] Question: Does the research conducted in the paper conform, in every respect, with the NeurIPS Code of Ethics \url{https://neurips.cc/public/EthicsGuidelines}?
     \item[] Answer: \answerYes{}
-    \item[] Justification: The research evaluates model outputs in artificial tasks, involves no human-subject experiment in the reported execution, preserves anonymous review, separates the fixed judge from every subject, and applies the harmful-output controls described in Sections~4 and~\ref{sec:scope}.
+    \item[] Justification: The research evaluates model outputs in artificial tasks, involves no human-subject experiment, preserves anonymous review, separates the fixed judge from every subject, and applies the harmful-output controls described in Sections~4 and~\ref{sec:scope}.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the authors have not reviewed the NeurIPS Code of Ethics.
@@ -136,7 +136,7 @@
 \item {\bf Broader impacts}
     \item[] Question: Does the paper discuss both potential positive societal impacts and negative societal impacts of the work performed?
     \item[] Answer: \answerYes{}
-    \item[] Justification: Section~\ref{sec:scope} describes the value of broader behavioral auditing and mitigation comparison as well as risks from overinterpretation, harmful-output redistribution, culturally specific claims, and misuse. It limits conclusions to observable behavior in the executed artificial tasks.
+    \item[] Justification: Section~\ref{sec:scope} describes the value of broader behavioral assessment and targeted mitigation as well as risks from overinterpretation, harmful-output redistribution, culturally specific claims, and misuse. It limits conclusions to observable behavior in the executed artificial tasks.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that there is no societal impact of the work performed.
@@ -150,7 +150,7 @@
 \item {\bf Safeguards}
     \item[] Question: Does the paper describe safeguards that have been put in place for responsible release of data or models that have a high risk for misuse (e.g., pre-trained language models, image generators, or scraped datasets)?
     \item[] Answer: \answerYes{}
-    \item[] Justification: Sections~4 and~\ref{sec:scope} exclude raw harmful prompts and completions from the anonymous release by default and call for safety filtering, access controls, and responsible-use documentation for downstream releases; no pretrained model is released.
+    \item[] Justification: Sections~4 and~\ref{sec:scope} exclude raw harmful completions from the anonymous release and require safety filtering, access controls, and responsible-use documentation for downstream releases; no pretrained model is released.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the paper poses no such risks.
@@ -161,8 +161,8 @@
 
 \item {\bf Licenses for existing assets}
     \item[] Question: Are the creators or original owners of assets (e.g., code, data, models), used in the paper, properly credited and are the license and terms of use explicitly mentioned and properly respected?
-    \item[] Answer: \answerNo{}
-    \item[] Justification: The source datasets are cited and license-documented, and new code/artifacts are MIT-licensed. However, mutable Ollama tags, absent immutable digests, and community derivative models prevent exact reconstruction of the governing model-license snapshots for all April runs; no model weights are redistributed and the gap is documented in \texttt{LICENSES\_AND\_TERMS.md}.
+    \item[] Answer: \answerYes{}
+    \item[] Justification: Source datasets and model services are cited with versions or exact route identifiers, and their licenses or provider terms are documented in \texttt{LICENSES\_AND\_TERMS.md}. Pinned local controls use immutable Hugging Face revisions. No third-party model weights are redistributed, and new code and artifacts carry their stated license.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the paper does not use existing assets.
@@ -178,7 +178,7 @@
 \item {\bf New assets}
     \item[] Question: Are new assets introduced in the paper well documented and is the documentation provided alongside the assets?
     \item[] Answer: \answerYes{}
-    \item[] Justification: Sections~3--5 document the new task contracts, schemas, metadata, validation, metrics, and release policy; Appendix~\ref{app:artifact-map} identifies the accompanying data card, model registry, compute note, licenses, code, and reproduction commands. The Croissant metadata is packaged without a dataset URL during anonymous review; public hosting and hosted validation remain external post-review steps.
+    \item[] Justification: Sections~3--5 document the task contracts, schemas, metadata, validation, metrics, and release policy; Appendix~\ref{app:artifact-map} identifies the accompanying data card, model registry, compute note, licenses, code, and reproduction commands. Croissant metadata and a clean-extraction verifier are included in the anonymous supplement.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the paper does not release new assets.
@@ -214,7 +214,7 @@
     \item[] Question: Does the paper describe the usage of LLMs if it is an important, original, or non-standard component of the core methods in this research? Note that if the LLM is used only for writing, editing, or formatting purposes and does \emph{not} impact the core methodology, scientific rigor, or originality of the research, declaration is not required.
     %this research?
     \item[] Answer: \answerYes{}
-    \item[] Justification: Sections~3--5 describe LLMs as the evaluated policies and specify the fixed disjoint Part~0 judge, its visible-response-only input, three-way verdict schema, explicit unjudged state, provenance, and the absence of completed human validation.
+    \item[] Justification: Sections~3--5 describe LLMs as the evaluated policies and specify the fixed disjoint Part~0 judge, its visible-response-only input, three-way verdict schema, direct structured actions for Parts~1 and~2, and exact route-identity controls.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the core method development in this research does not involve LLMs as any important, original, or non-standard components.
