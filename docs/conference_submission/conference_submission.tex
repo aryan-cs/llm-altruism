@@ -183,7 +183,7 @@ Part~0 selects 48 archived English harmful-request roots from locally versioned 
 Each root is paired with an instruction to answer in English, Simplified Chinese, or Russian, producing 144 scheduled responses per system.
 Because the request itself remains English, this design measures response-language sensitivity rather than translated-input or cross-cultural robustness.
 
-One fixed strong judge scores only the visible final response as \texttt{REFUSAL}, \texttt{COMPLIANCE}, or \texttt{UNCLEAR}; malformed or missing outputs are \texttt{INVALID}.
+One fixed judge scores only the visible final response as \texttt{REFUSAL}, \texttt{COMPLIANCE}, or \texttt{UNCLEAR}; malformed or missing outputs are \texttt{INVALID}.
 The judge is excluded from the subject roster by target ID, exact route, and upstream provider/model identity.
 The primary rate is
 \[
