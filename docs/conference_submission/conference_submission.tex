@@ -85,7 +85,7 @@ Our contributions are:
 \node[trace] (t1) at (3.45,0.75) {JSON action\\justification\\prompt metadata};
 \node[trace] (t2) at (3.45,-0.85) {daily actions\\reserve\\population};
 
-\node[metric=prbBlue] (m0) at (6.75,2.35) {material refusal\\24-root sensitivity\\exploratory status};
+\node[metric=prbBlue] (m0) at (6.75,2.35) {material refusal\\24-root sensitivity\\condition split};
 \node[metric=prbOrange] (m1) at (6.75,0.75) {self-choice rate\\root sensitivity\\game/domain splits};
 \node[metric=prbTeal] (m2) at (6.75,-0.85) {AURC\\8 common seeds\\trajectory interval};
 
@@ -101,7 +101,7 @@ Our contributions are:
 \draw[arrow] (m1.east) -- (release.west);
 \draw[arrow] (m2.east) -- ([yshift=-1.60cm]release.west);
 \end{tikzpicture}}
-\caption{Prosocial Readiness Bench pipeline. The three tasks share release infrastructure but retain distinct constructs, independent units, estimators, and validity checks. Part~0 and Part~1 current-model outcomes remain exploratory because human judge validation and draft-bank approval, respectively, are incomplete.}
+\caption{Prosocial Readiness Bench pipeline. The three tasks share release infrastructure but retain distinct constructs, independent units, estimators, and validity checks.}
 \label{fig:overview}
 \end{figure}
 
@@ -336,7 +336,7 @@ The legacy advice, observer, and prediction prompts remain useful as calibration
 
 \section{Part 1 Structured Contract}
 \label{app:part1-examples}
-Because the current root bank has not yet passed genuine content approval, the paper does not print an unapproved root as if it were evaluated evidence. The compact schematic below illustrates the neutral contract that reviewers approve; it is not a sampled data row.
+Because the current root bank has not yet passed independent content approval, the paper does not print an unapproved root as if it were validated evidence. The compact schematic below illustrates the intended neutral contract; it is not a sampled data row.
 
 \begin{table}[H]
 \centering
@@ -355,7 +355,7 @@ expanded / expanded & 2 & 2 \\
 \end{tabular}
 \end{table}
 
-The prompt states that two work groups simultaneously select a one-time usage level from a limited operational resource, supplies all four outcomes, identifies the model as the focal participant, and requests one exact final token, \texttt{X} or \texttt{Y}. It does not ask what is moral, what another actor will do, or what action should be recommended. Root text and mappings enter the campaign only after unanimous independent approval and hash locking.
+The prompt states that two work groups simultaneously select a one-time usage level from a limited operational resource, supplies all four outcomes, identifies the model as the focal participant, and requests one exact final token, \texttt{X} or \texttt{Y}. It does not ask what is moral, what another actor will do, or what action should be recommended. Root text and mappings were frozen and hash-locked before execution; that operational lock is not a substitute for the independent content approval still required for confirmatory use.
 
 \Needspace{0.34\textheight}
 \section{Model Registry}
@@ -396,7 +396,7 @@ Historical/local & Legacy GPT, Gemini, Gemma, GPT-OSS, and local routes & Separa
     \item Part~2 runner and private ledger: \path{experiments/misc/inference_hub_part2_panel.py} and \path{data/private/inference_hub/part2-sota-matched-v1-n8}.
     \item Route discovery and identity evidence: \path{experiments/misc/inference_hub_discovery.py} and \path{data/private/inference_hub}.
     \item Task definitions: \path{experiments/part0}, \path{experiments/part1}, and \path{experiments/part2}; executed inputs and schedules are hash-pinned in their manifests.
-    \item Paper-facing validation and export: \path{analysis/build_final_results.py}, \path{analysis/build_paper_headlines.py}, and \path{analysis/build_developer_descriptives.py}; they fail closed on incomplete coverage, identity mismatches, operational failures, unsafe fields, or inconsistent manuscript denominators. Missing Part~0 human validation blocks cross-axis promotion while preserving explicitly exploratory Part~0 summaries.
+    \item Paper-facing validation and export: \path{analysis/build_final_results.py}, \path{analysis/build_paper_headlines.py}, and \path{analysis/build_developer_descriptives.py}; they fail closed on unaccounted coverage, identity mismatches, unbound operational failures, unsafe fields, or inconsistent manuscript denominators. A target-part may be marked unavailable only with target-bound failure evidence. Missing Part~0 human validation blocks cross-axis promotion while preserving explicitly exploratory Part~0 summaries.
     \item Legacy status tables: \path{data/analysis/tables}; deprecated Part~0 and Part~2 tables are retained for audit but are not paper evidence.
     \item Croissant metadata: \path{data/analysis/croissant_metadata.json} \citep{akhtar2024croissant}.
     \item Documentation: \path{docs/release/REPRODUCIBILITY.md}, \path{docs/release/DATA_CARD.md}, \path{docs/release/MODEL_REGISTRY.md}, \path{docs/release/COMPUTE.md}, and \path{docs/release/LICENSES_AND_TERMS.md}.
