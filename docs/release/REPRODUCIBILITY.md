@@ -110,6 +110,12 @@ all live or generated retry-analysis outputs are not. See
 `docs/PART1_ROLE_CALIBRATION_V1.md`, and `docs/PART2_SENSITIVITY_V1.md` for the
 exact gates and claim boundaries.
 
+The deadline launchers for the definitive Part 0 and Part 1 matrices are also
+included by exact path. They preserve the same prompt, parser, identity,
+journal, and scheduled-denominator contracts while using source-bound bounded
+parallelism. The Part 0 launcher additionally records bounded same-payload
+HTTP-400 retries in the append-only attempt ledger and complete manifest.
+
 ## Fail-closed offline finalization
 
 Offline administration runs only after a writer has stopped and its run lock
