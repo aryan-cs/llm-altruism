@@ -19,7 +19,7 @@ Updated: 2026-08-03 (America/Los_Angeles)
 ## Current source state
 
 - Branch: `master` (no additional branch or tag).
-- Latest pushed source commit at this checkpoint: `044fb21`.
+- Latest pushed source commit at this checkpoint: `fd44ae8`.
 - Important preceding commits:
   - `d11c739`: deterministic, privacy-safe clean-room supplement;
   - `b94e65a`: deterministic paper headline macros and six asset families;
@@ -27,6 +27,10 @@ Updated: 2026-08-03 (America/Los_Angeles)
   - `a75e6b9`: bounded two-seed deadline sensitivity and Part 1 invalid repair.
 - The exact title remains in
   `docs/conference_submission/conference_submission.tex`.
+- The concession-heavy draft was deleted and rewritten from a blank manuscript
+  around the original three-stage scientific question. The single current
+  review artifact is `docs/conference_submission/conference_submission.pdf`;
+  there is no second working-draft PDF.
 - `.env` is ignored, mode `0600`, and never enters Git or release artifacts.
 
 ## Active definitive campaigns
@@ -37,7 +41,7 @@ fail-closed resume. The fixed Part 0 judge is
 `judge.nvidia-evals-nemotron-3-30b-a3b`; it is disjoint from every subject at
 target ID, exact route, and upstream provider/model identity.
 
-### Primary main scope (currently running)
+### Primary main scope
 
 - Part 0: `data/private/inference_hub/definitive-part0-large-n48-main22-deadline-v6`
   - 22 exact systems;
@@ -49,7 +53,14 @@ target ID, exact route, and upstream provider/model identity.
     every failed attempt and the retry policy remain manifest-bound. Its local
     executor has 64 slots so work waiting on the stricter process-local
     one-request-per-upstream-provider lock cannot starve unrelated providers;
-    this does not raise the global or provider network ceilings. The
+    this does not raise the global or provider network ceilings. The campaign
+    has terminalized all 3,168 scheduled units: 3,127 visible subject
+    responses, 73 semantic-invalid responses, 41 exhausted exact-route subject
+    calls, and 16 visible responses whose two judge batches exhausted the
+    eight-attempt connection-retry budget. The 57 operational nonsuccesses are
+    retained in the all-scheduled denominator but are never interpreted as
+    refusal, compliance, or semantic model behavior. The fixed judge output is
+    descriptive pending the prespecified human-validation gate. The
     superseded v3/v4/v5 partial runs remain preserved but are not paper inputs.
 - Part 1: `data/private/inference_hub/definitive-part1-large-n384-main75-deadline-v5`
   - 75 exact routes, each on the same balanced 384-root self-choice bank;
@@ -64,8 +75,9 @@ target ID, exact route, and upstream provider/model identity.
 - Part 2: `data/private/inference_hub/definitive-part2-n12-main19-v3`
   - 19 exact systems, 12 independent common-seed trajectories/system;
   - five agents, 12 days, corrected prompt--engine incentives;
-  - invalid actions retain zero state effect for continuity but invalidate the
-    affected matched-panel trajectory for behavioral/environmental estimates;
+  - invalid actions retain zero state effect and count as nonrestraint in the
+    all-scheduled behavioral rate; affected trajectories are excluded only
+    from environmental outcomes;
   - host process resumed with the exact frozen arguments and an eight-hour
     wrapper after the original one-hour shell timeout.
 
@@ -188,14 +200,17 @@ campaigns have priority over supplemental retries.
 
 ## Exact next steps
 
-1. Let primary Part 0/1/2 and role calibration reach COMPLETE manifests; if an
-   eight-hour host wrapper expires, resume with byte-identical arguments.
+1. Let primary Part 1 and role calibration reach COMPLETE manifests and finish
+   the active Part 2 sensitivity schedule; if a host wrapper expires, resume
+   with byte-identical arguments. Part 0 and nominal Part 2 are terminal.
 2. Run the two separate semantic-invalid repair campaigns and retain original
    denominators.
 3. Resume and complete deadline sensitivity, then resume the three availability
    retry panels; periodically re-probe still-unavailable MiniMax M2.7 and Kimi
    K2.5.
-4. Run `analysis.analyze_provider_safe_v2_definitive`, build the seven figure
+4. The automatic completion watcher now accepts only the explicit
+   all-scheduled Part 0 terminal policy, then runs
+   `analysis.analyze_provider_safe_v2_definitive` and builds the seven figure
    families, six within-panel tables, nonpooled model-by-phase matrix, and
    headline macros, then run the separate availability-retry and bounded
    semantic-repair analyzers.
