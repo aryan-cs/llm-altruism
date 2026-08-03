@@ -225,7 +225,7 @@ def _table(
         values.extend(str(row[field]) for field in ("source_invalid_count", "units_retried_count", "repair_attempt_count", "repaired_valid_count", "still_invalid_count"))
         values.append(f"{100 * float(row['repair_rate_among_source_invalid']):.1f}\\%")
         body.append(" & ".join(values) + r" \\")
-    columns = "llllrrrrrr" if role else "lllrrrrrr"
+    columns = "llllcccccc" if role else "lllcccccc"
     return "\n".join([
         r"\par\addvspace{15pt}", r"\begin{table*}[tbp]", r"\centering",
         f"\\caption{{{caption}}}", r"\scriptsize", r"\setlength{\tabcolsep}{3.5pt}",

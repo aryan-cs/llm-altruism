@@ -1609,96 +1609,72 @@ def _latex_table(
     if phase == "part0":
         caption = (
             "Part 0 supplemental availability-retry evidence. Each row is one exact "
-            "target route. All is the 144 scheduled harmful-request responses (48 "
-            "English roots crossed with English, Chinese, and Russian response "
-            "instructions); Refusal, Compliance, Unclear, and Invalid are the fixed "
-            "disjoint judge counts over that same denominator. Higher refusal is "
+            "target route. Refusal is the percentage of the 144 scheduled harmful-request "
+            "responses (48 English roots crossed with English, Chinese, and Russian "
+            "response instructions) assigned REFUSAL by the fixed disjoint judge. "
+            "The result column is centered. Higher refusal is "
             "preferable on this harmful-only task because it means less material "
-            "assistance; higher compliance is worse, while higher unclear or invalid "
-            "counts are operationally worse because they reduce interpretable "
-            "coverage. This exploratory retry row never merges with or replaces the "
-            "primary panel and supports no cross-axis inference."
+            "assistance; lower refusal means more compliance. Invalid and unclear counts "
+            "remain in the released reproducibility record rather than separate result "
+            "columns. This exploratory retry row never merges with or replaces the "
+            "primary panel and is not a general safety score."
         )
         columns = (
-            r"lrrrrrl",
-            (
-                "Model & All & Refusal $\\uparrow$ & "
-                "Compliance & Unclear & Invalid & Direction \\\\"
-            ),
+            r"lc",
+            "Model & Refusal $\\uparrow$ \\\\",
         )
         body = [
             (
                 f"{_latex_escape(row['target_id'])} & "
-                f"{row['all_scheduled_units']} & "
-                f"{_percent(row['refusal_rate_all_scheduled'])} & "
-                f"{row['compliance_count']} & "
-                f"{row['unclear_count']} & "
-                f"{row['invalid_count']} & higher \\\\"
+                f"{_percent(row['refusal_rate_all_scheduled'])} \\\\"
             )
             for row in rows
         ]
     elif phase == "part1":
         caption = (
             "Part 1 supplemental availability-retry evidence. Each row is one exact "
-            "target route; All is the 384 scheduled self-choice dilemma roots, "
-            "Welfare-preserving is the percentage choosing the action that avoids "
+            "target route; Welfare-preserving is the centered percentage of the 384 "
+            "scheduled self-choice roots choosing the action that avoids "
             "shifting cost to the counterpart with malformed outputs retained as "
-            "nonsuccesses, and Invalid is the malformed-output count over the same "
-            "denominator. Higher welfare preservation is preferable within this "
-            "dyadic task, while fewer invalids are operationally preferable. These "
+            "nonsuccesses. Higher welfare preservation is preferable within this "
+            "dyadic task; lower values mean more focal-advantage choices. Invalid "
+            "counts remain in the reproducibility record rather than a result column. These "
             "exploratory retry rows never merge with or replace the primary panel and "
-            "support no cross-axis inference."
+            "are not general safety scores."
         )
         columns = (
-            r"lrrrl",
-            (
-                "Model & All & Welfare-preserving "
-                "$\\uparrow$ & Invalid & Direction \\\\"
-            ),
+            r"lc",
+            "Model & Welfare-preserving $\\uparrow$ \\\\",
         )
         body = [
             (
                 f"{_latex_escape(row['target_id'])} & "
-                f"{row['all_scheduled_units']} & "
-                f"{_percent(row['welfare_preserving_rate_all_scheduled'])} & "
-                f"{row['format_invalid_count']} & higher \\\\"
+                f"{_percent(row['welfare_preserving_rate_all_scheduled'])} \\\\"
             )
             for row in rows
         ]
     else:
         caption = (
             "Part 2 supplemental availability-retry evidence. Each row is one exact "
-            "target route; All is the scheduled agent-day denominator, Traj. is the "
-            "12 independent trajectories, Restraint is the lower-use action rate over "
-            "all scheduled agent-days, Invalid counts malformed retained actions, "
-            "AURC is normalized area under the reserve curve, and AUPC is normalized "
-            "area under the population curve. Higher restraint, AURC, and AUPC are "
+            "target route with 12 independent trajectories. The three centered result "
+            "columns are Restraint over all scheduled agent-days, normalized reserve "
+            "area (AURC), and normalized population area (AUPC). Higher values are "
             "preferable only within this simulator because they indicate less use, "
-            "greater reserve preservation, and greater population retention; fewer "
-            "invalids are operationally preferable. NE means no valid trajectory "
+            "greater reserve preservation, and greater population retention. NE means no valid trajectory "
             "supports an estimate and is not a zero score. These exploratory retry "
             "rows never merge with or replace the primary panel and support no "
             "cross-axis inference."
         )
         columns = (
-            r"lrrrrrrl",
-            (
-                "Model & All & Traj. & Restraint "
-                "$\\uparrow$ & Invalid & AURC "
-                "$\\uparrow$ & AUPC $\\uparrow$ & "
-                "Direction/NE \\\\"
-            ),
+            r"lccc",
+            "Model & Restraint $\\uparrow$ & AURC $\\uparrow$ & AUPC $\\uparrow$ \\\\",
         )
         body = [
             (
                 f"{_latex_escape(row['target_id'])} & "
-                f"{row['all_scheduled_agent_days']} & "
-                f"{row['trajectory_count']} & "
                 f"{_percent(row['restraint_rate_all_scheduled'])} & "
-                f"{row['invalid_count']} & "
                 f"{_percent(row['mean_aurc'])} & "
-                f"{_percent(row['mean_aupc'])} & "
-                f"{row['not_estimable'] or 'higher'} \\\\"
+                f"{_percent(row['mean_aupc'])} \\\\"
             )
             for row in rows
         ]

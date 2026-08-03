@@ -771,12 +771,19 @@ def test_exact_production_shapes_emit_isolated_outputs(
         )
         assert r"\setlength{\tabcolsep}{4pt}" in latex
         assert latex.count(r"\par\addvspace{15pt}") == 2
-        for word in (
-            "availability-retry", "never merge", "All",
-            "Direction", "Invalid",
-        ):
+        for word in ("availability-retry", "never merge", "centered"):
             assert word in latex
+        assert "& Invalid" not in latex
+        assert "& Direction" not in latex
+        if phase == "part0":
+            assert r"\begin{tabular}{lc}" in latex
+            assert "Refusal" in latex
+        elif phase == "part1":
+            assert r"\begin{tabular}{lc}" in latex
+            assert "Welfare-preserving" in latex
         if phase == "part2":
+            assert r"\begin{tabular}{lccc}" in latex
+            assert "Restraint" in latex and "AURC" in latex and "AUPC" in latex
             assert "NE" in latex
 
 

@@ -119,6 +119,8 @@ def test_full_repair_analysis_publishes_separate_reconciled_tables(tmp_path: Pat
         assert "Each row is one exact target route" in latex
         assert "Source invalid" in latex and "Still invalid" in latex and "Repair rate" in latex
         assert "general safety" in latex
+        expected_columns = "llllcccccc" if "role" in stem else "lllcccccc"
+        assert f"\\begin{{tabular}}{{{expected_columns}}}" in latex
     assert (output / "analysis_manifest.json").is_file()
 
 
