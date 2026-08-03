@@ -25,6 +25,7 @@ from analysis.build_final_results import (
     build_final_results,
 )
 from experiments.part1.confirmatory_design import DOMAINS, GAMES
+from experiments.misc.inference_hub_part1_panel import _SOURCE_PATHS as PART1_SOURCE_PATHS
 
 
 TARGET = "subject.alpha"
@@ -43,6 +44,29 @@ JUDGE = {"target_id": "judge.route", "upstream_provider": "judge", "model": "jud
 def _seal(value: dict[str, Any]) -> dict[str, Any]:
     value["evidence_sha256"] = _sha256_json(value)
     return value
+
+
+def _retirement_audit(
+    *, target_id: str, migration_path: str, prior: str, resumed: str,
+    retirement_id: str = "retire_test",
+) -> dict[str, Any]:
+    audit: dict[str, Any] = {
+        "schema_version": 1,
+        "artifact_type": "inference_hub_offline_target_retirement",
+        "part": "part1",
+        "target_id": target_id,
+        "retirement_id": retirement_id,
+        "provenance": "offline_target_bound_operational_retirement",
+        "network_dispatch_performed_by_tool": False,
+        "behavioral_outcomes_assigned_by_tool": False,
+        "source_artifact_hash_migrations": [{
+            "path": migration_path,
+            "prior_sha256": prior,
+            "resumed_runner_sha256": resumed,
+        }],
+    }
+    audit["record_sha256"] = _sha256_json(audit)
+    return audit
 
 
 def _write_json(path: Path, value: dict[str, Any]) -> None:
@@ -1025,6 +1049,99 @@ def test_overlay_contract_ignores_only_operational_repair_fields() -> None:
     assert _overlay_contract(p2_primary, part="part2") != _overlay_contract(
         p2_repair, part="part2"
     )
+
+
+def test_part1_overlay_normalizes_only_signed_retirement_runner_migration(
+    tmp_path: Path,
+) -> None:
+    primary_path = _part1_fixture(
+        tmp_path, count=12, name="retired-stratified-primary",
+        subjects=(SUBJECT, SECOND_SUBJECT), complete=False,
+        operational_failure_targets=(SECOND_TARGET,),
+    )
+    replacement_path = _part1_fixture(
+        tmp_path, count=12, name="old-complete-deepseek-replacement",
+        subjects=(SUBJECT,),
+    )
+    wrapper_path = (
+        Path(__file__).parents[1]
+        / "experiments/misc/inference_hub_part1_stratified_panel.py"
+    ).resolve()
+    runner_path = Path(PART1_SOURCE_PATHS[0]).resolve()
+    current_sources = {
+        str(path.resolve()): _sha256_file(path.resolve())
+        for path in (*PART1_SOURCE_PATHS, wrapper_path)
+    }
+    prior_runner_hash = "a" * 64
+
+    primary = json.loads(primary_path.read_text(encoding="utf-8"))
+    primary["source_artifacts"] = dict(current_sources)
+    primary["target_retirements"] = [_retirement_audit(
+        target_id=SECOND_TARGET, migration_path=str(runner_path),
+        prior=prior_runner_hash, resumed=current_sources[str(runner_path)],
+    )]
+    primary.pop("evidence_sha256")
+    _write_json(primary_path, _seal(primary))
+
+    replacement = json.loads(replacement_path.read_text(encoding="utf-8"))
+    replacement["source_artifacts"] = {
+        **current_sources, str(runner_path): prior_runner_hash,
+    }
+    replacement.pop("evidence_sha256")
+    _write_json(replacement_path, _seal(replacement))
+
+    rows, _identities, bindings = _combine_part1_overlay(
+        [], [primary_path], [replacement_path], bootstrap_seed=3,
+        unavailable_target_ids=[SECOND_TARGET],
+    )
+    assert [row["target_id"] for row in rows] == [TARGET]
+    assert bindings[0]["replaced_target_ids"] == [TARGET]
+    assert bindings[0]["unavailable_target_ids"] == [SECOND_TARGET]
+
+    replacement = json.loads(replacement_path.read_text(encoding="utf-8"))
+    unrelated_path = str(Path(PART1_SOURCE_PATHS[1]).resolve())
+    replacement["source_artifacts"][unrelated_path] = "b" * 64
+    replacement.pop("evidence_sha256")
+    _write_json(replacement_path, _seal(replacement))
+    with pytest.raises(FinalResultsError, match="must match exactly one primary"):
+        _combine_part1_overlay(
+            [], [primary_path], [replacement_path], bootstrap_seed=3,
+            unavailable_target_ids=[SECOND_TARGET],
+        )
+
+
+def test_overlay_rejects_chained_or_inconsistent_retirement_migrations(
+    tmp_path: Path,
+) -> None:
+    runner_path = Path(PART1_SOURCE_PATHS[0]).resolve()
+    current_hash = _sha256_file(runner_path)
+    manifest = {
+        "complete": False,
+        "source_artifacts": {
+            str(path.resolve()): _sha256_file(path.resolve())
+            for path in PART1_SOURCE_PATHS
+        },
+        "target_retirements": [
+            _retirement_audit(
+                target_id=TARGET, migration_path=str(runner_path),
+                prior="a" * 64, resumed=current_hash, retirement_id="retire_one",
+            ),
+            _retirement_audit(
+                target_id=SECOND_TARGET, migration_path=str(runner_path),
+                prior="b" * 64, resumed=current_hash, retirement_id="retire_two",
+            ),
+        ],
+    }
+    with pytest.raises(FinalResultsError, match="chained or inconsistent"):
+        _overlay_contract(manifest, part="part1")
+
+    unrelated = Path(PART1_SOURCE_PATHS[1]).resolve()
+    manifest["target_retirements"] = [_retirement_audit(
+        target_id=TARGET, migration_path=str(unrelated),
+        prior="a" * 64, resumed=_sha256_file(unrelated),
+    )]
+    with pytest.raises(FinalResultsError, match="chained or inconsistent"):
+        _overlay_contract(manifest, part="part1")
 
 
 def test_forbidden_text_fields_are_rejected_recursively() -> None:

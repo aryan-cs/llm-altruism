@@ -46,6 +46,17 @@ _FORBIDDEN_PUBLIC_KEYS = {
     "visible_content", "reasoning", "raw_response", "request_body", "requested_route",
     "route",
 }
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+_RETIREMENT_MIGRATABLE_SOURCES = {
+    "part0": {
+        str((_REPO_ROOT / "experiments/misc/inference_hub_part0_panel.py").resolve()),
+        str((_REPO_ROOT / "experiments/misc/inference_hub_part1_panel.py").resolve()),
+    },
+    "part1": {
+        str((_REPO_ROOT / "experiments/misc/inference_hub_part1_panel.py").resolve()),
+    },
+}
+_HEX_DIGITS = frozenset("0123456789abcdef")
 
 
 class FinalResultsError(RuntimeError):
@@ -135,6 +146,9 @@ def _overlay_contract(
     except KeyError as error:
         raise FinalResultsError(f"Unknown overlay part: {part}.") from error
     contract = {key: manifest.get(key) for key in keys}
+    contract["source_artifacts"] = _overlay_source_artifacts(
+        manifest, part=part,
+    )
     if isinstance(contract["execution_contract"], Mapping):
         # Replacement runs may increase transport resilience or reduce worker
         # fan-out.  These fields affect availability and wall-clock time, not
@@ -167,6 +181,91 @@ def _overlay_contract(
         input_artifacts.pop("cross_axis_panel", None)
         contract["input_artifacts"] = input_artifacts
     return contract
+
+
+def _overlay_source_artifacts(
+    manifest: Mapping[str, Any], *, part: str,
+) -> object:
+    """Project signed runner migrations back only for overlay comparison."""
+    sources = manifest.get("source_artifacts")
+    retirements = manifest.get("target_retirements")
+    if retirements is None:
+        return sources
+    if (
+        part not in _RETIREMENT_MIGRATABLE_SOURCES
+        or manifest.get("complete") is True
+        or not isinstance(retirements, list)
+        or not retirements
+        or not isinstance(sources, Mapping)
+        or not all(isinstance(path, str) and isinstance(digest, str) for path, digest in sources.items())
+    ):
+        raise FinalResultsError("Operational-retirement source history is malformed.")
+    normalized = dict(sources)
+    for path, digest in sources.items():
+        source_path = Path(path)
+        if (
+            not source_path.is_absolute()
+            or len(digest) != 64
+            or set(digest) - _HEX_DIGITS
+            or not source_path.is_file()
+            or _sha256_file(source_path) != digest
+        ):
+            raise FinalResultsError(
+                "Operationally retired manifest current source hash is invalid."
+            )
+
+    seen_retirement_ids: set[str] = set()
+    migrated_paths: set[str] = set()
+    allowed_paths = _RETIREMENT_MIGRATABLE_SOURCES[part]
+    for audit in retirements:
+        if not isinstance(audit, Mapping):
+            raise FinalResultsError("Operational-retirement audit record is malformed.")
+        retirement_id = audit.get("retirement_id")
+        recorded_hash = audit.get("record_sha256")
+        unsigned = {key: value for key, value in audit.items() if key != "record_sha256"}
+        migrations = audit.get("source_artifact_hash_migrations")
+        if (
+            audit.get("schema_version") != 1
+            or audit.get("artifact_type") != "inference_hub_offline_target_retirement"
+            or audit.get("part") != part
+            or audit.get("provenance") != "offline_target_bound_operational_retirement"
+            or audit.get("network_dispatch_performed_by_tool") is not False
+            or audit.get("behavioral_outcomes_assigned_by_tool") is not False
+            or not isinstance(retirement_id, str)
+            or not retirement_id
+            or retirement_id in seen_retirement_ids
+            or recorded_hash != _sha256_json(unsigned)
+            or not isinstance(migrations, list)
+        ):
+            raise FinalResultsError("Operational-retirement audit signature is invalid.")
+        seen_retirement_ids.add(retirement_id)
+        for migration in migrations:
+            if not isinstance(migration, Mapping) or set(migration) != {
+                "path", "prior_sha256", "resumed_runner_sha256",
+            }:
+                raise FinalResultsError("Runner source migration record is malformed.")
+            path = migration.get("path")
+            prior = migration.get("prior_sha256")
+            resumed = migration.get("resumed_runner_sha256")
+            if (
+                not isinstance(path, str)
+                or path not in allowed_paths
+                or path in migrated_paths
+                or not isinstance(prior, str)
+                or not isinstance(resumed, str)
+                or len(prior) != 64
+                or len(resumed) != 64
+                or set(prior) - _HEX_DIGITS
+                or set(resumed) - _HEX_DIGITS
+                or prior == resumed
+                or sources.get(path) != resumed
+            ):
+                raise FinalResultsError(
+                    "Runner source migration history is chained or inconsistent."
+                )
+            migrated_paths.add(path)
+            normalized[path] = prior
+    return normalized
 
 
 def _validate_replacement_manifest(
