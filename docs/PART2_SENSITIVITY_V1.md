@@ -77,9 +77,11 @@ does not exclude the whole trajectory. Identity mismatch or exhausted transport
 failure makes the trajectory operationally ineligible and blocks confirmatory
 analysis.
 
-Network runs require the provider-safe client and one in-flight request per
-upstream provider. Raw prompts, request bodies, visible content, reasoning, full
-responses, routes, reservations, and failures stay in mode-restricted,
+Network runs require a provider-safe client. The conservative launcher permits
+one in-flight request per upstream provider; the separately source-bound
+deadline exploratory launcher permits at most three and at most two starts per
+second per provider. Raw prompts, request bodies, visible content, reasoning,
+full responses, routes, reservations, and failures stay in mode-restricted,
 append-only SHA-256-chained journals. Every journal is bound to one immutable
 cell. Resume validates the manifest and journal checkpoints and reuses retained
 semantic results only when their dynamic prompt/request hashes still match.

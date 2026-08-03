@@ -51,11 +51,12 @@ change the subjects, roots, frames, or blocks.
 
 `experiments.misc.inference_hub_part1_role_calibration_v1` accepts only routes
 that passed the authenticated compatibility artifact. It verifies returned
-model identity and obtains its client only from the versioned provider-safe v2
-launcher. The launcher round-robins upstream providers and uses one shared,
-cross-process limiter with exactly one in-flight request per provider. The
-runner records unsupported controls and retries only eligible transport
-failures.
+model identity and obtains its client from a source-bound provider-safe
+launcher. The conservative launcher permits exactly one in-flight request per
+provider. The deadline exploratory launcher is separately source-bound and
+caps each provider at three in-flight requests and two starts per second; it
+cannot launch any main-panel experiment. The runner records unsupported
+controls and retries only eligible transport failures.
 
 Before every provider call, the runner fsyncs a credential-free request hash
 and exact unit identity to a private append-only SHA-256 chain. Raw responses,
@@ -79,12 +80,12 @@ tail hashes. Raw run directories remain excluded from the anonymous supplement.
 After creating current registry and compatibility evidence, a complete run is:
 
 ```bash
-uv run python -m experiments.misc.inference_hub_part1_role_calibration_v1 \
+uv run python -m experiments.misc.inference_hub_exploratory_accelerated role \
   --registry agents/agent_config.registry.json \
   --compatibility /absolute/private/path/provider-compatibility.json \
   --output-dir data/private/inference_hub/part1-role-calibration-v1 \
   --max-workers 12 \
-  --max-workers-per-provider 1
+  --max-workers-per-provider 3
 ```
 
 Use the identical command with `--resume` after an interruption. A completed

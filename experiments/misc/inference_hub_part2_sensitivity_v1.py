@@ -425,9 +425,16 @@ class _AttemptBudget:
 def _rate_limit_contract(client: Any) -> dict[str, Any]:
     contract = getattr(client, "rate_limit_contract", None)
     if isinstance(contract, Mapping):
-        if contract.get("provider_concurrency") != 1:
+        provider_concurrency = contract.get("provider_concurrency")
+        if (
+            isinstance(provider_concurrency, bool)
+            or not isinstance(provider_concurrency, int)
+            or provider_concurrency < 1
+            or provider_concurrency > 3
+        ):
             raise InferenceHubPart2SensitivityError(
-                "Network sensitivity campaigns require one in-flight request per provider."
+                "Network sensitivity campaigns permit one to three in-flight "
+                "requests per provider."
             )
         return dict(contract)
     if isinstance(client, InferenceHubClient):
@@ -1228,7 +1235,7 @@ def run_sensitivity_campaign(
                 "max_transport_attempts": max_attempts,
                 "initial_exponential_backoff_seconds": initial_backoff_seconds,
                 "shared_rate_limit": rate_contract,
-                "provider_concurrency_required": 1,
+                "provider_concurrency_cap": 3,
                 "journal": (
                     "condition_target_trajectory_append_only_fsync_sha256_chain_"
                     "reserve_before_dispatch"

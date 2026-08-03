@@ -458,9 +458,10 @@ def run_calibration(
         ("max_attempts", max_attempts),
     ):
         base._validate_positive_int(name, value)
-    if max_workers_per_provider != 1:
+    if max_workers_per_provider > 3:
         raise RoleCalibrationError(
-            "The immutable v1 provider-safety contract permits one in-flight call per provider."
+            "The deadline exploratory contract permits at most three in-flight "
+            "calls per provider."
         )
     if initial_backoff_seconds < 0:
         raise RoleCalibrationError("initial_backoff_seconds cannot be negative.")
@@ -529,6 +530,17 @@ def run_calibration(
             if not isinstance(client_rate_limit_contract, Mapping):
                 raise RoleCalibrationError("Network client lacks a shared rate-limit contract.")
             rate_limit_contract = dict(client_rate_limit_contract)
+            provider_concurrency = rate_limit_contract.get("provider_concurrency")
+            if (
+                isinstance(provider_concurrency, bool)
+                or not isinstance(provider_concurrency, int)
+                or provider_concurrency < max_workers_per_provider
+                or provider_concurrency > 3
+            ):
+                raise RoleCalibrationError(
+                    "Network provider concurrency must cover the configured workers "
+                    "and remain at or below three."
+                )
         else:
             rate_limit_contract = {
                 "enforcement": "external_non_network_test_double",

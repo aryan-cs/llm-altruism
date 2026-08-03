@@ -146,6 +146,8 @@ def test_deadline_design_is_separate_exploratory_and_24_hour_sized() -> None:
 
 
 def test_sentinels_select_exact_routes_from_combined_registry() -> None:
+    if not DEFAULT_REGISTRY.is_file() or not DEFAULT_COMPATIBILITY.is_file():
+        pytest.skip("Private combined route evidence is intentionally not distributed.")
     design, _ = load_sensitivity_design(DEFAULT_EXPLORATORY_DESIGN)
     sentinel_ids = [row["target_id"] for row in design["sentinels"]]
     panel, _ = _load_panel(DEFAULT_PANEL)
@@ -456,11 +458,11 @@ def test_development_subset_emits_no_confirmatory_pvalues(
 
 def test_unsafe_provider_concurrency_fails_closed() -> None:
     class UnsafeClient:
-        rate_limit_contract = {"provider_concurrency": 2}
+        rate_limit_contract = {"provider_concurrency": 4}
 
     with pytest.raises(
         InferenceHubPart2SensitivityError,
-        match="one in-flight request per provider",
+        match="one to three in-flight requests per provider",
     ):
         _rate_limit_contract(UnsafeClient())
 

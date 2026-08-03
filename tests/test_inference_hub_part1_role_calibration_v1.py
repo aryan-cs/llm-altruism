@@ -274,16 +274,16 @@ def test_config_path_substitution_is_refused(tmp_path: Path) -> None:
         load_frozen_config(copied)
 
 
-def test_provider_safety_refuses_more_than_one_in_flight_call_per_provider(
+def test_provider_safety_refuses_more_than_three_in_flight_calls_per_provider(
     tmp_path: Path,
 ) -> None:
-    with pytest.raises(RoleCalibrationError, match="one in-flight"):
+    with pytest.raises(RoleCalibrationError, match="at most three"):
         run_calibration(
             registry_path=tmp_path / "unused-registry.json",
             compatibility_path=tmp_path / "unused-compatibility.json",
             output_dir=tmp_path / "unused-output",
             client=_FullFakeClient(),
-            max_workers_per_provider=2,
+            max_workers_per_provider=4,
         )
 
 
