@@ -128,10 +128,10 @@ Primary main campaigns have priority over supplemental retries.
   300-dpi PNG figure families, full model-row LaTeX tables, and 57 deterministic
   headline macros. It validates the two-seed sensitivity contract and generates
   no cross-axis composite.
-- The supplement at commit `d11c739` had 206 payload files plus manifest,
-  rebuilt byte-identically, and passed 774 clean-extraction tests with 16
+- The supplement at commit `c84a841` has 210 payload files plus manifest,
+  rebuilds byte-identically, and passes 781 clean-extraction tests with 16
   intentional skips plus Croissant, privacy, anonymity, and manifest checks.
-  It is being refreshed only to exact-allowlist the availability-retry analyzer;
+  It exact-allowlists the availability-retry analyzer and current checkpoint;
   private/live outputs remain excluded.
 
 ## Paper requirements that remain fixed

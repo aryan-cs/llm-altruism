@@ -59,11 +59,11 @@ be explicitly outside the Holm-30 family.
 
 ```bash
 uv run python -m analysis.analyze_provider_safe_v2_definitive \
-  --part0 data/private/inference_hub/provider-safe-v2-part0-large-n48-main22-v1 \
-  --part1 data/private/inference_hub/provider-safe-v2-part1-large-n384-main75-v1 \
-  --part2 data/private/inference_hub/provider-safe-v2-part2-n12-main19-v1 \
-  --role-calibration data/private/inference_hub/provider-safe-part1-role-calibration-v1 \
-  --sensitivity data/private/inference_hub/provider-safe-part2-sensitivity-deadline-v1 \
+  --part0 data/private/inference_hub/definitive-part0-large-n48-main22-v3 \
+  --part1 data/private/inference_hub/definitive-part1-large-n384-main75-v2 \
+  --part2 data/private/inference_hub/definitive-part2-n12-main19-v3 \
+  --role-calibration data/private/inference_hub/definitive-part1-role-calibration-v2 \
+  --sensitivity data/private/inference_hub/definitive-part2-sensitivity-deadline-v3 \
   --output-dir data/processed/provider-safe-v2-definitive-analysis
 ```
 
