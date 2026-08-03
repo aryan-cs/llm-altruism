@@ -388,7 +388,6 @@ def _validate_terminalized_part0_operational_snapshot_unlocked(
             "Terminalized Part 0 summary outcomes do not partition the schedule."
         )
     zero_required = (
-        "judge_failed_units",
         "subject_model_identity_mismatches",
         "judge_model_identity_mismatches",
         "operationally_retired_units",
@@ -398,6 +397,13 @@ def _validate_terminalized_part0_operational_snapshot_unlocked(
     declared_failures = summary.get("subject_transport_failures")
     if not isinstance(declared_failures, int) or isinstance(declared_failures, bool) or declared_failures <= 0:
         raise DefinitiveAnalysisError("Terminalized Part 0 lacks a positive transport-failure count.")
+    declared_judge_failures = summary.get("judge_failed_units")
+    if (
+        not isinstance(declared_judge_failures, int)
+        or isinstance(declared_judge_failures, bool)
+        or declared_judge_failures < 0
+    ):
+        raise DefinitiveAnalysisError("Terminalized Part 0 judge-failure count is invalid.")
 
     deadline_source = (
         Path(__file__).resolve().parents[1]
@@ -420,17 +426,20 @@ def _validate_terminalized_part0_operational_snapshot_unlocked(
     )
     if set(journals) != set(subject_ids):
         raise DefinitiveAnalysisError("Terminalized Part 0 journal targets differ from subjects.")
-    operational = 0
+    subject_operational = 0
+    judge_operational = 0
     semantic_invalid = 0
     affected_targets: dict[str, int] = {}
     failure_code_counts: dict[str, int] = defaultdict(int)
     schedule_set = set(schedule_ids)
     subjects_by_id = {str(row["target_id"]): row for row in subjects}
-    reservations_by_unit: dict[tuple[str, str], list[Mapping[str, Any]]] = defaultdict(list)
+    reservations_by_unit: dict[tuple[str, str, str], list[Mapping[str, Any]]] = defaultdict(list)
     completions_by_attempt: dict[str, Mapping[str, Any]] = {}
     for row in ledger:
-        if row.get("event") == "reserved_before_dispatch" and row.get("role") == "subject":
-            reservations_by_unit[(str(row.get("target_id")), str(row.get("work_id")))].append(row)
+        if row.get("event") == "reserved_before_dispatch" and row.get("role") in {"subject", "judge"}:
+            reservations_by_unit[
+                (str(row.get("role")), str(row.get("target_id")), str(row.get("work_id")))
+            ].append(row)
         elif row.get("event") == "attempt_completed":
             attempt_id = row.get("attempt_id")
             if not isinstance(attempt_id, str) or attempt_id in completions_by_attempt:
@@ -457,6 +466,35 @@ def _validate_terminalized_part0_operational_snapshot_unlocked(
             if row.get("operational_failure") is not None
         }
         visible_ids = schedule_set - operational_ids
+        judge_failure_rows = [
+            row for row in terminals if row.get("judge_failure") is not None
+        ]
+        judge_failure_ids = {row.get("trial_id") for row in judge_failure_rows}
+        if len(judge_failure_ids) != len(judge_failure_rows) or not judge_failure_ids <= visible_ids:
+            raise DefinitiveAnalysisError(
+                f"Terminalized Part 0 judge-failure membership differs for {target_id}."
+            )
+        semantic_unjudged_rows = [
+            row
+            for row in terminals
+            if row.get("outcome") == "INVALID"
+            and row.get("operational_failure") is None
+            and row.get("judge_failure") is None
+            and row.get("judge_dispatched") is False
+        ]
+        semantic_unjudged_ids = {row.get("trial_id") for row in semantic_unjudged_rows}
+        if (
+            len(semantic_unjudged_ids) != len(semantic_unjudged_rows)
+            or not semantic_unjudged_ids <= visible_ids
+            or any(
+                row.get("judge_label") is not None
+                or row.get("judge_format_valid") is not None
+                for row in semantic_unjudged_rows
+            )
+        ):
+            raise DefinitiveAnalysisError(
+                f"Terminalized Part 0 semantic-invalid membership differs for {target_id}."
+            )
         batched_ids = [
             trial_id
             for batch in batches
@@ -465,7 +503,8 @@ def _validate_terminalized_part0_operational_snapshot_unlocked(
         if (
             set(retained_ids) != visible_ids
             or len(batched_ids) != len(set(batched_ids))
-            or set(batched_ids) != visible_ids
+            or set(batched_ids)
+            != visible_ids - judge_failure_ids - semantic_unjudged_ids
         ):
             raise DefinitiveAnalysisError(
                 f"Terminalized Part 0 visible-response or judge coverage differs for {target_id}."
@@ -502,7 +541,7 @@ def _validate_terminalized_part0_operational_snapshot_unlocked(
                     "Terminalized Part 0 failed unit was retained or judged."
                 )
             reservations = sorted(
-                reservations_by_unit[(str(target_id), work_id)],
+                reservations_by_unit[("subject", str(target_id), work_id)],
                 key=lambda value: int(value.get("attempt_number", -1)),
             )
             subject = subjects_by_id[str(target_id)]
@@ -548,15 +587,90 @@ def _validate_terminalized_part0_operational_snapshot_unlocked(
                 raise DefinitiveAnalysisError(
                     "Terminalized Part 0 final attempt disagrees with terminal."
                 )
-            operational += 1
+            subject_operational += 1
             affected_targets[str(target_id)] = affected_targets.get(str(target_id), 0) + 1
-    if operational != declared_failures:
+        failed_batches: dict[str, list[Mapping[str, Any]]] = defaultdict(list)
+        for row in judge_failure_rows:
+            batch_id = row.get("judge_batch_id")
+            failure = row.get("judge_failure")
+            if (
+                not isinstance(batch_id, str)
+                or not batch_id
+                or row.get("outcome") != "UNCLEAR"
+                or row.get("judge_dispatched") is not True
+                or row.get("judge_label") != "UNCLEAR"
+                or row.get("judge_format_valid") is not False
+                or not isinstance(failure, Mapping)
+                or failure.get("failure_code") not in {"connection_error", "connection_timeout"}
+                or failure.get("http_status") is not None
+            ):
+                raise DefinitiveAnalysisError(
+                    "Terminalized Part 0 judge operational failure contract changed."
+                )
+            failed_batches[batch_id].append(row)
+        judge = manifest.get("judge")
+        if failed_batches and not isinstance(judge, Mapping):
+            raise DefinitiveAnalysisError("Terminalized Part 0 lacks judge identity metadata.")
+        for batch_id, failed_rows in failed_batches.items():
+            if not 1 <= len(failed_rows) <= 8:
+                raise DefinitiveAnalysisError(
+                    "Terminalized Part 0 judge-failure batch size changed."
+                )
+            reservations = sorted(
+                reservations_by_unit[("judge", str(target_id), batch_id)],
+                key=lambda value: int(value.get("attempt_number", -1)),
+            )
+            if (
+                len(reservations) != 8
+                or [reservation.get("attempt_number") for reservation in reservations]
+                != list(range(1, 9))
+                or len({reservation.get("request_sha256") for reservation in reservations}) != 1
+                or any(
+                    reservation.get("route") != judge.get("route")
+                    or reservation.get("upstream_provider") != judge.get("upstream_provider")
+                    or reservation.get("role") != "judge"
+                    or reservation.get("target_id") != target_id
+                    or reservation.get("work_id") != batch_id
+                    for reservation in reservations
+                )
+            ):
+                raise DefinitiveAnalysisError(
+                    "Terminalized Part 0 judge retry lineage changed."
+                )
+            completion_rows = []
+            for reservation in reservations:
+                completion = completions_by_attempt.get(str(reservation.get("attempt_id")))
+                if (
+                    completion is None
+                    or completion.get("outcome") != "failed"
+                    or completion.get("transient") is not True
+                    or completion.get("failure_code")
+                    not in {"connection_error", "connection_timeout"}
+                    or completion.get("http_status") is not None
+                ):
+                    raise DefinitiveAnalysisError(
+                        "Terminalized Part 0 judge attempt completion changed."
+                    )
+                completion_rows.append(completion)
+                failure_code_counts[f"judge_{completion['failure_code']}"] += 1
+            final_failure = failed_rows[0]["judge_failure"]
+            if completion_rows[-1].get("failure_code") != final_failure.get("failure_code"):
+                raise DefinitiveAnalysisError(
+                    "Terminalized Part 0 final judge attempt disagrees with terminals."
+                )
+            judge_operational += len(failed_rows)
+    if subject_operational != declared_failures:
         raise DefinitiveAnalysisError("Terminalized Part 0 transport-failure count disagrees with journals.")
+    if judge_operational != declared_judge_failures:
+        raise DefinitiveAnalysisError("Terminalized Part 0 judge-failure count disagrees with journals.")
+    operational = subject_operational + judge_operational
     return {
         "scheduled_units": planned,
         "operational_failure_units": operational,
+        "subject_transport_failure_units": subject_operational,
+        "judge_transport_failure_units": judge_operational,
         "semantic_invalid_units": semantic_invalid,
-        "visible_subject_response_units": planned - operational,
+        "visible_subject_response_units": planned - subject_operational,
         "affected_target_count": len(affected_targets),
         "affected_targets": dict(sorted(affected_targets.items())),
         "attempt_failure_code_counts": dict(sorted(failure_code_counts.items())),
@@ -799,12 +913,14 @@ def _part0(run: Path, manifest: Mapping[str, Any]) -> tuple[list[dict[str, Any]]
         if sum(counts.values()) != planned:
             raise DefinitiveAnalysisError(f"Part 0 contains an unknown outcome for {target}.")
         repaired = sum(_repair_marker(row) for row in terminals)
-        operational_invalid = sum(
+        subject_operational_invalid = sum(
             row.get("outcome") == "INVALID"
             and row.get("operational_failure") is not None
             for row in terminals
         )
-        semantic_invalid = counts["INVALID"] - operational_invalid
+        judge_operational_invalid = sum(row.get("judge_failure") is not None for row in terminals)
+        operational_invalid = subject_operational_invalid + judge_operational_invalid
+        semantic_invalid = counts["INVALID"] - subject_operational_invalid
         if semantic_invalid < 0:
             raise DefinitiveAnalysisError(
                 f"Part 0 invalid accounting is malformed for {target}."
@@ -836,7 +952,7 @@ def _part0(run: Path, manifest: Mapping[str, Any]) -> tuple[list[dict[str, Any]]
             "unclear_count": counts["UNCLEAR"], "first_attempt_invalid_count": counts["INVALID"] + repaired,
             "semantic_invalid_count": semantic_invalid,
             "operational_invalid_count": operational_invalid,
-            "visible_subject_response_count": planned - operational_invalid,
+            "visible_subject_response_count": planned - subject_operational_invalid,
             "repaired_invalid_count": repaired, "refusal_rate_all_scheduled": _rate(counts["REFUSAL"], planned),
             "refusal_rate_all_scheduled_finite_bank_sensitivity_low": overall_low,
             "refusal_rate_all_scheduled_finite_bank_sensitivity_high": overall_high,

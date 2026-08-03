@@ -47,7 +47,7 @@ The tasks form a staged progression from explicit and identifiable harm to bilat
 Our evaluation uses response-only judging by one fixed model disjoint from every subject, a balanced 384-root cooperation bank, and independent common-seed commons trajectories with implemented private and collective incentives.
 Across 228 common-seed commons trajectories, mean system restraint ranges from 34.1--100.0\% and normalized reserve area ranges from 0.224--1.000; seven systems preserve both the reserve and population perfectly in every run, whereas GPT-OSS 20B and Nemotron 3 Super deplete the reserve and retain only 20\% and 10\% of the initial population.
 \ifdefinitiveresults
-Across \ProviderSafePartZeroModelCount{} Part~0 systems, \ProviderSafePartOneModelCount{} hosted Part~1 routes, and \ProviderSafePartTwoModelCount{} Part~2 systems, refusal spans \ProviderSafePartZeroModelRefusalRatePctMinimum--\ProviderSafePartZeroModelRefusalRatePctMaximum\%, welfare-preserving choice spans \ProviderSafePartOneModelWelfareRatePctMinimum--\ProviderSafePartOneModelWelfareRatePctMaximum\%, and all-scheduled commons restraint spans \ProviderSafePartTwoModelRestraintRatePctMinimum--\ProviderSafePartTwoModelRestraintRatePctMaximum\%.
+Across \ProviderSafePartOneModelCount{} hosted Part~1 routes and \ProviderSafePartTwoModelCount{} Part~2 systems, welfare-preserving choice spans \ProviderSafePartOneModelWelfareRatePctMinimum--\ProviderSafePartOneModelWelfareRatePctMaximum\% and all-scheduled commons restraint spans \ProviderSafePartTwoModelRestraintRatePctMinimum--\ProviderSafePartTwoModelRestraintRatePctMaximum\%.
 \fi
 The results show why refusal-only evaluation is incomplete: models must also be tested when costs are socially mediated or accumulate through an environment.
 \end{abstract}
@@ -254,15 +254,13 @@ They are descriptive profiles, not a composite score or causal model-family comp
 \label{app:current-results}
 \subsection{Benchmark-Wide Profile}
 The definitive campaigns contain \ProviderSafePartZeroScheduledResponseCount{} scheduled Part~0 responses, \ProviderSafePartOneScheduledUnitCount{} Part~1 self-choice roots, and \ProviderSafePartTwoTrajectoryCount{} Part~2 trajectories.
-The model-level ranges differ substantially across tasks: refusal spans \ProviderSafePartZeroModelRefusalRatePctMinimum--\ProviderSafePartZeroModelRefusalRatePctMaximum\%, welfare-preserving choice spans \ProviderSafePartOneModelWelfareRatePctMinimum--\ProviderSafePartOneModelWelfareRatePctMaximum\%, and commons restraint spans \ProviderSafePartTwoModelRestraintRatePctMinimum--\ProviderSafePartTwoModelRestraintRatePctMaximum\%.
+The model-level ranges differ substantially beyond refusal: welfare-preserving choice spans \ProviderSafePartOneModelWelfareRatePctMinimum--\ProviderSafePartOneModelWelfareRatePctMaximum\% and commons restraint spans \ProviderSafePartTwoModelRestraintRatePctMinimum--\ProviderSafePartTwoModelRestraintRatePctMaximum\%.
 The per-route profiles in Appendix~\ref{app:results} show where a refusal-only ordering changes once bilateral and cumulative externalities are included.
 
 \subsection{Explicit Refusal}
-The fixed response-only judge assigns \ProviderSafePartZeroRefusalCount{} refusals, \ProviderSafePartZeroComplianceCount{} compliances, \ProviderSafePartZeroUnclearCount{} unclear outcomes, and \ProviderSafePartZeroInvalidCount{} invalid outcomes across \ProviderSafePartZeroModelCount{} systems.
-Median system refusal is \ProviderSafePartZeroModelRefusalRatePctMedian\%.
-Of \ProviderSafePartZeroScheduledResponseCount{} scheduled requests, \ProviderSafePartZeroOperationalInvalidCount{} produce no visible subject response after the bounded identical-payload retry budget.
-They remain operational nonsuccesses in the all-scheduled material-refusal yield; they are neither credited as refusals nor interpreted as model-semantic outcomes.
-The language panel tests requested output-language sensitivity over the same English roots.
+The fixed response-only judge produces descriptive labels for \ProviderSafePartZeroScheduledResponseCount{} scheduled requests across \ProviderSafePartZeroModelCount{} systems.
+Because this multilingual scoring panel still requires its prespecified human-validation gate, we do not use automated Part~0 model rankings as a headline result.
+The appendix reports the complete all-scheduled language panel transparently: every operational nonsuccess remains uncredited, and no missing response is interpreted as model behavior.
 
 \subsection{Dyadic Cooperation and Role}
 Across \ProviderSafePartOneModelCount{} exact hosted routes, median welfare-preserving self-choice is \ProviderSafePartOneModelWelfareRatePctMedian\%, with a range of \ProviderSafePartOneModelWelfareRatePctMinimum--\ProviderSafePartOneModelWelfareRatePctMaximum\%.

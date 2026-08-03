@@ -543,6 +543,8 @@ def test_terminalized_part0_policy_is_explicit_ledger_bound_and_all_scheduled(
     audit = result["part0_terminalized_operational_audit"]
     assert audit["scheduled_units"] == 3_168
     assert audit["operational_failure_units"] == 41
+    assert audit["subject_transport_failure_units"] == 41
+    assert audit["judge_transport_failure_units"] == 0
     assert audit["visible_subject_response_units"] == 3_127
     assert audit["affected_target_count"] == 8
     assert audit["semantics"] == (
