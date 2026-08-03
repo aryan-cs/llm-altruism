@@ -29,7 +29,7 @@
 \setlength{\textfloatsep}{15pt}
 \setlength{\intextsep}{15pt}
 \newcommand{\modeltag}[1]{\texttt{\detokenize{#1}}}
-\input{../../data/analysis/final_results/paper_headlines.tex}
+\input{../../data/processed/provider-safe-v2-paper-assets/paper_headlines.tex}
 
 \title{Safety Beyond Refusal}
 
@@ -42,9 +42,9 @@
 Refusing an explicitly harmful request is necessary for safe language-model behavior, but it does not exhaust the ways an agent can shift costs onto other people.
 We present \textbf{Prosocial Readiness Bench}, a three-part evaluation of safety refusal, self-directed choices in dyadic dilemmas, and restraint in a repeated commons environment.
 The tasks form a cost-shifting progression from an identifiable request target, to a counterpart, to a group whose losses accumulate through an environment; they are complementary behavioral probes, not a single altruism score.
-Across \PaperPartZeroIncludedSystems{} current systems, exploratory material-refusal rates span \PaperPartZeroRefusalMinimumPct--\PaperPartZeroRefusalMaximumPct\% (median \PaperPartZeroRefusalMedianPct\%) over 24 English harmful-request roots crossed with three requested response languages.
-Among \PaperPartOneNNinetySixSystems{} systems evaluated on a balanced 96-root self-choice bank, welfare-preserving choices span \PaperPartOneNNinetySixMinimumPct--\PaperPartOneNNinetySixMaximumPct\% (median \PaperPartOneNNinetySixMedianPct\%); a separate 384-root route selects them \PaperPartOneNThreeEightyFourEstimatePct\% of the time.
-In the repaired commons task, \PaperPartTwoIncludedSystems{} systems complete \PaperPartTwoTrajectories{} trajectories; \PaperPartTwoValidTrajectories{} valid trajectories from \PaperPartTwoEstimableSystems{} systems support behavioral estimates. Median normalized reserve area is \PaperPartTwoAURCMedian{} and median restraint is \PaperPartTwoRestraintMedianPct\%, with wide system-level ranges.
+Across \ProviderSafePartZeroModelCount{} current systems, exploratory material-refusal rates span \ProviderSafePartZeroModelRefusalRatePctMinimum--\ProviderSafePartZeroModelRefusalRatePctMaximum\% (median \ProviderSafePartZeroModelRefusalRatePctMedian\%) over 48 English harmful-request roots crossed with three requested response languages.
+Across \ProviderSafePartOneModelCount{} hosted routes evaluated on the same balanced 384-root self-choice bank, welfare-preserving choices span \ProviderSafePartOneModelWelfareRatePctMinimum--\ProviderSafePartOneModelWelfareRatePctMaximum\% (median \ProviderSafePartOneModelWelfareRatePctMedian\%).
+In the repaired commons task, \ProviderSafePartTwoModelCount{} systems complete \ProviderSafePartTwoTrajectoryCount{} trajectories. Median normalized reserve area over operationally eligible trajectories is \ProviderSafePartTwoModelNormalizedAURCMedian{}, while median restraint over all scheduled agent-days is \ProviderSafePartTwoModelRestraintRatePctMedian\%.
 These within-task differences show why refusal-only evaluation misses consequential variation, while validity gates preclude an unsupported cross-task leaderboard.
 \end{abstract}
 
@@ -62,7 +62,7 @@ The paper asks two concrete questions. First, how should safety refusal, dyadic 
 Our contributions are:
 \begin{itemize}
     \item \textbf{Three-part benchmark suite.} Prosocial Readiness Bench evaluates three partially complementary observable behaviors under explicit task contracts, organized by who bears the cost, how directly it is represented, and whether consequences accumulate over time.
-    \item \textbf{Task-aligned measurement.} We define archived English request roots, scenario roots, and simulation trajectories as the respective independent units. Part~0 and Part~1 retain malformed or unclear outputs as nonsuccesses; Part~2 excludes any trajectory containing an invalid action from behavioral and environmental estimates. Part~0 uses one fixed judge distinct from every evaluated subject, and Part~2 implements the incentives shown to agents under repeated common seeds.
+    \item \textbf{Task-aligned measurement.} We define archived English request roots, scenario roots, and simulation trajectories as the respective independent units. Part~0 and Part~1 retain malformed or unclear outputs as nonsuccesses. Part~2 retains invalid first attempts as nonrestraint in its all-scheduled action denominator and restricts environmental AURC to operationally eligible trajectories. Part~0 uses one fixed judge distinct from every evaluated subject, and Part~2 implements the incentives shown to agents under repeated common seeds.
     \item \textbf{Broad, traceable evaluation.} The current frontier and open-weight executions span major model families through authenticated, identity-checked routes, with rate-limited parallel dispatch and no silent model substitution.
     \item \textbf{Task-specific empirical findings.} We report scope-separated variation among exact evaluated systems and task conditions, together with a corrected role-conditioned Part~1 calibration result; we do not collapse the tasks into a leaderboard or latent-trait score.
 \end{itemize}
@@ -92,9 +92,9 @@ Our contributions are:
 \node[trace] (t1) at (3.45,0.75) {JSON action\\justification\\prompt metadata};
 \node[trace] (t2) at (3.45,-0.85) {daily actions\\reserve\\population};
 
-\node[metric=prbBlue] (m0) at (6.75,2.35) {material refusal\\24-root sensitivity\\condition split};
+\node[metric=prbBlue] (m0) at (6.75,2.35) {material refusal\\48-root sensitivity\\condition split};
 \node[metric=prbOrange] (m1) at (6.75,0.75) {self-choice rate\\root sensitivity\\game/domain splits};
-\node[metric=prbTeal] (m2) at (6.75,-0.85) {AURC\\8 common seeds\\trajectory interval};
+\node[metric=prbTeal] (m2) at (6.75,-0.85) {AURC and restraint\\12 common seeds\\trajectory unit};
 
 \node[package] (release) at (10.10,0.75) {\textbf{Traceable artifact}\\schemas\\coverage\\transition checks\\[0.25em]\textbf{Released outputs}\\tables and figures\\manifests\\Croissant metadata};
 
@@ -156,7 +156,7 @@ Each request retains its exact route identity, decoding controls, request and re
 Response-language conditions nested within an English request root and agent-days nested within a trajectory are not independent observations. Part~1 schedules one rendering per scenario root. The estimators below resample roots or complete trajectories accordingly. A narrower valid interval is obtained by collecting more independent units or repeated generations, never by treating dependent rows as independent.
 
 \subsection{Part 0: Safety Refusal}
-Part~0 measures material refusal on an outcome-blind selection of 24 harmful-request roots from version-hashed local snapshots of HarmBench and JailbreakBench \citep{mazeika2024harmbench,chao2024jailbreakbench}. The exact translated inputs were not retained, so every condition uses the same archived English request plus an explicit instruction to answer in English, Simplified Chinese, or Russian. These are reconstructed response-language conditions, not multilingual input prompts. The three conditions are repeated measurements of one request root, yielding 72 scheduled responses per system. This execution has no benign controls and therefore cannot distinguish selective safety behavior from a general tendency to refuse. Every scheduled response remains in the denominator; \texttt{UNCLEAR} and \texttt{INVALID} are nonsuccesses.
+Part~0 measures material refusal on an outcome-blind selection of 48 harmful-request roots from version-hashed local snapshots of HarmBench and JailbreakBench \citep{mazeika2024harmbench,chao2024jailbreakbench}. The exact translated inputs were not retained, so every condition uses the same archived English request plus an explicit instruction to answer in English, Simplified Chinese, or Russian. These are reconstructed response-language conditions, not multilingual input prompts. The three conditions are repeated measurements of one request root, yielding 144 scheduled responses per system. This execution has no benign controls and therefore cannot distinguish selective safety behavior from a general tendency to refuse. Every scheduled response remains in the denominator; \texttt{UNCLEAR} and \texttt{INVALID} are nonsuccesses.
 
 One frozen multilingual judge receives only the English request, its explicit response-language instruction, and the raw visible response; it is blind to subject identity and hypotheses and returns \texttt{REFUSAL}, \texttt{COMPLIANCE}, or \texttt{UNCLEAR} at temperature zero. The judge model is fixed across the subject panel and is never the model being evaluated. If a route selected as judge would otherwise enter the subject panel, that route is excluded from judging itself rather than silently switching judges. Holding the rater fixed avoids introducing a moving-rater confound, while disjointness addresses self-enhancement bias; neither design choice establishes judge validity \citep{zheng2023judging}.
 
@@ -165,39 +165,39 @@ The descriptive metric is material refusal under the reconstructed response-lang
 \mathrm{refusal} =
 \frac{\#\mathrm{REFUSAL}}{\#\mathrm{scheduled\ harmful\ responses}}.
 \]
-Five thousand bootstrap replicates resample the 24 request roots and retain all three response-language conditions within each sampled root \citep{efron1979bootstrap}. Condition-specific rates receive Wilson score intervals over the 24 roots \citep{wilson1927probable}. These are finite-bank sensitivity summaries, not confidence intervals for generation variability or a prompt superpopulation.
+Five thousand bootstrap replicates resample the 48 request roots and retain all three response-language conditions within each sampled root \citep{efron1979bootstrap}. Condition-specific rates receive Wilson score intervals over the 48 roots \citep{wilson1927probable}. These are finite-bank sensitivity summaries, not confidence intervals for generation variability or a prompt superpopulation.
 
 No language-qualified human validation has been completed. Judge--subject separation reduces a rater-overlap confound, but it does not validate the labels. Part~0 is therefore exploratory and cannot support paper-facing model rankings or cross-part claims.
 
 \subsection{Part 1: Dyadic Cooperation and Role-Conditioned Probes}
-Part~1 evaluates what the model itself chooses in a neutral one-shot dilemma. Direct self-choice is the primary cooperation estimand. Advice, observer evaluation, prediction, and demand-cue instructions ask different questions and therefore serve as distinct calibration probes rather than paraphrases pooled into self-choice. The broad current campaign evaluates self-choice; the archived pilot supplies the separate role-conditioned comparison reported in Section~\ref{sec:results}.
+Part~1 evaluates what the model itself chooses in a neutral one-shot dilemma. Direct self-choice is the primary cooperation estimand. Advice, observer evaluation, and prediction ask different questions and therefore serve as distinct calibration probes rather than paraphrases pooled into self-choice. The broad current campaign evaluates self-choice, while a separate six-route sentinel campaign evaluates the three role-conditioned probes reported in Section~\ref{sec:results}.
 
-The executed broad panel uses a deterministic draft bank with two games crossed by six neutral domains. Of 81 frozen targets, \PaperPartOneNNinetySixSystems{} reportable routes receive a balanced 96-root schedule with eight roots in every game--domain stratum, Qwen3.5~397B receives a balanced 12-root schedule with one root per stratum, and GLM~5.1 receives the full 384-root schedule with 32 roots per stratum. Six routes are unavailable: Kimi~K2.5, Kimi~K2.6, and GLM-5.2 were unavailable before execution; Claude~Opus~4.5, MiniMax~M2.7, and MiniMax~M3 have target-bound operational failures. No unavailable route is replaced silently. Responses must end with the exact structured action \texttt{X} or \texttt{Y}; malformed output is \texttt{INVALID}, is retained as a non-welfare-preserving choice, and is not regenerated.
+The executed broad panel uses a deterministic draft bank with two games crossed by six neutral domains. Each of the \ProviderSafePartOneModelCount{} hosted routes receives the same balanced 384-root schedule with 32 roots in every game--domain stratum. Frozen targets that do not complete the common scope remain separately documented as unavailable and are never replaced silently. Four pinned local models receive the same 384-root bank as separate execution-scale controls, not hosted-route substitutes. Responses must end with the exact structured action \texttt{X} or \texttt{Y}; a malformed first response is \texttt{INVALID}, remains a scheduled non-welfare-preserving outcome, and is not removed from the primary denominator.
 
 The primary metric is the self-directed welfare-preserving choice rate:
 \[
 \mathrm{self\mbox{-}choice} =
 \frac{\#\mathrm{welfare\mbox{-}preserving\ choices}}{\#\mathrm{scheduled\ roots}}.
 \]
-The scenario root is the independent unit. For the 96-root and 384-root scopes, five thousand bootstrap replicates resample roots separately within the 12 game--domain strata. The resulting bands describe sensitivity to the executed draft bank, not generation-seed uncertainty or a scenario superpopulation. The 12-root scope has only one root per stratum, so it provides a coverage-balanced descriptive rate but cannot estimate within-stratum prompt-bank sensitivity. The 12-, 96-, and 384-root scopes are reported separately and are never pooled or directly ranked as if they had identical coverage. Because the draft bank has not received independent human content approval, all current Part~1 estimates remain exploratory.
+The scenario root is the independent unit. Five thousand bootstrap replicates resample the 384 roots separately within the 12 game--domain strata. The resulting bands describe sensitivity to the executed draft bank, not generation-seed uncertainty or a scenario superpopulation. Hosted routes share one common scope; local controls and role-conditioned frames remain separate panels and are never pooled into it. Because the draft bank has not received independent human content approval, all current Part~1 estimates remain exploratory.
 
 \subsection{Part 2: Commons Restraint}
 Part~2 measures preservation of a common-pool resource under repeated direct choices. The simulator implements the incentives stated in the prompt. Each society has five anonymous slots and a 12-day horizon. The common reserve begins at capacity 50. Option~A gives the acting slot one private point and leaves the reserve unchanged; Option~B gives two private points and removes two reserve units. Unanimous Option~A adds five group points, whereas unanimous Option~B subtracts five. After depletion, attrition occurs with probability 0.2 under the common environment seed. These parameters define an artificial diagnostic environment, not an ecological model of a real community.
 
-Each of the \PaperPartTwoIncludedSystems{} executed systems receives eight common environment seeds, yielding \PaperPartTwoTrajectories{} trajectories; two additional matched-panel systems are operationally unavailable. An invalid action has zero state effect so the simulator can preserve transition continuity, but that zero effect is not evidence of restraint. Any trajectory containing an invalid action is therefore protocol-invalid and excluded from all behavioral and environmental estimates. The primary metric on valid trajectories is normalized area under the reserve curve:
+Each of the \ProviderSafePartTwoModelCount{} executed systems receives 12 common environment seeds, yielding \ProviderSafePartTwoTrajectoryCount{} trajectories. An invalid first-attempt action has zero state effect so the simulator can preserve transition continuity, but that zero effect is not evidence of restraint. The all-scheduled restraint rate therefore retains invalid first attempts as nonrestraint, while environmental estimates are restricted to operationally eligible trajectories. The primary environmental metric is normalized area under the reserve curve:
 \[
 \mathrm{AURC}=\frac{1}{T}\sum_{t=1}^{T}\frac{R_t}{R_{\max}}.
 \]
-Run-level restraint, area under the population curve, final reserve, population retention, and cumulative private and group payoffs are secondary. The trajectory is the independent unit; agent-days are never inferential replicates. For each estimable system, continuous metrics receive Student-$t$ 95\% intervals with degrees of freedom equal to its valid trajectory count minus one (seven for most systems and six for one). Binary reserve nondepletion receives a Wilson interval over that system's valid trajectories \citep{wilson1927probable}. A system with no valid trajectory is non-estimable. No BCa interval, restricted-mean-time-to-depletion analysis, or parameter-sensitivity experiment is part of the executed design.
+All-scheduled restraint, valid first-attempt coverage, and operational eligibility are reported alongside AURC. The trajectory is the independent environmental unit; agent-days are never treated as inferential replicates. A system with no operationally eligible trajectory is non-estimable for AURC rather than assigned a zero. A separate deadline-exploratory sensitivity panel varies five environment factors over a resolution-V design with two common environment seeds. Its 30 sentinel-by-factor Holm-adjusted tests document a prespecified family but are underpowered and do not establish ecological robustness.
 
 \section{Artifact Construction and Quality Control}
 \paragraph{Frozen model cohort.}
-The matched registry contains 24 current systems from 9 upstream developers. Part~0 reports \PaperPartZeroIncludedSystems{} and marks \PaperPartZeroUnavailableSystems{} unavailable. Part~2 executes \PaperPartTwoIncludedSystems{} and marks \PaperPartTwoUnavailableSystems{} unavailable; \PaperPartTwoEstimableSystems{} executed systems support behavioral estimates, while \PaperPartTwoNonestimableSystems{} all-invalid systems remain non-estimable rather than being relabeled unavailable. The registry spans general-purpose GPT, Claude Haiku/Sonnet/Opus, Gemini, Llama, DeepSeek, Qwen, Nemotron, MiniMax, and GLM routes when the exact authenticated route is callable. Technical reports describe selected GPT, GPT-OSS, Llama, and Qwen families, while the route manifests are the authoritative identity record for every evaluated endpoint \citep{openai2023gpt4,openai2025gptoss,touvron2023llama2,yang2024qwen25}. Part~1 reports \PaperPartOneReportedSystems{} of \PaperPartOneTargetedSystems{} frozen targets: \PaperPartOneNNinetySixSystems{} at 96 roots, one at 12 roots, and one at 384 roots. Four pinned offline controls (Qwen2.5-0.5B-Instruct and SmolLM2 at 135M, 360M, and 1.7B) also completed 384 roots; they are local scale controls, not substitutes for hosted routes, and are not pooled into the paper panel. Image, embedding, reranking, guard-only, inaccessible, deprecated, or identity-mismatched routes are excluded with recorded failure codes. A display name is never substituted for an unavailable route.
+The axis-specific registry contains \ProviderSafePartZeroModelCount{} Part~0 systems, \ProviderSafePartOneModelCount{} hosted Part~1 routes, and \ProviderSafePartTwoModelCount{} Part~2 systems, with exact overlap determined only from authenticated route identities. It spans general-purpose GPT, Claude Haiku/Sonnet/Opus, Gemini, Llama, DeepSeek, Qwen, Nemotron, MiniMax, and GLM routes when the exact authenticated route is callable. Technical reports describe selected GPT, GPT-OSS, Llama, and Qwen families, while route manifests are the authoritative identity record for every evaluated endpoint \citep{openai2023gpt4,openai2025gptoss,touvron2023llama2,yang2024qwen25}. Four pinned offline controls (Qwen2.5-0.5B-Instruct and SmolLM2 at 135M, 360M, and 1.7B) separately complete 384 Part~1 roots; they are execution-scale controls, not substitutes for hosted routes, and are never pooled into that panel. Image, embedding, reranking, guard-only, inaccessible, deprecated, or identity-mismatched routes are excluded with recorded failure codes. A display name is never substituted for an unavailable route.
 
 \paragraph{Output contracts and metadata.}
 An authenticated route is eligible only after a bounded structured smoke test returns the exact requested identity. Every attempt stores route identity, completion identifier, finish reason, token usage, controls, hashes, outcome, and retry decision. Part~0 stores the visible subject response and independent judge verdict; Parts~1 and~2 store direct structured subject actions. Metadata, manifests, schemas, and Croissant JSON-LD \citep{akhtar2024croissant} bind these records to the frozen campaign.
 
-Requests are dispatched concurrently across independent routes and units, but bounded per-provider and global request/token buckets prevent overload. HTTP 408/429, transport, timeout, and 5xx failures without a retained model response may be retried at most twice with the identical payload and seed. Semantic or formatting failures are retained as \texttt{INVALID}; they are never regenerated. Part~0 and Part~1 count them as nonsuccesses. Part~2 retains them for audit and transition continuity but excludes the entire affected trajectory from behavioral and environmental estimates. An identity mismatch or retry-exhausted target-part quarantines that target-part rather than triggering a substitute model.
+Requests are dispatched concurrently across independent routes and units, but bounded per-provider and global request/token buckets prevent overload. HTTP 408/429, transport, timeout, and 5xx failures without a retained model response may be retried at most twice with the identical payload and seed. Semantic or formatting failures are retained as \texttt{INVALID}; they are never regenerated or removed from scheduled-unit accounting. Part~0 and Part~1 count them as nonsuccesses. Part~2 counts them as nonrestraint in the all-scheduled action rate, preserves their zero simulator effect for transition continuity, and excludes affected trajectories from AURC eligibility. An identity mismatch or retry-exhausted target-part quarantines that target-part rather than triggering a substitute model.
 
 \paragraph{Validation.}
 Validation is graph-independent. It checks hashes, route identity, prompt-bank coverage, duplicate and missing units, response contracts, retry accounting, Part~2 day continuity and transitions, and execution completeness. Structural validation does not certify semantic labels or prompt content. Consequently, the absent Part~0 human validation and absent Part~1 draft-bank approval keep those outputs exploratory even if their operational manifests complete.
@@ -209,13 +209,13 @@ Part 0 evaluates harmful prompts and may produce unsafe completions. The anonymo
 Historical pilot artifacts are kept separate from the current campaign and summarized in Appendix~\ref{app:legacy-evidence}. The current result graph reconciles every frozen target as included or unavailable. Part~0 and Part~1 remain exploratory because their semantic validity gates are external to operational completion; Part~2 is reported from the corrected engine at the trajectory level.
 
 \section{Evaluation Protocol}
-The subject decoding protocol is frozen across routes before outcomes are collected. Unsupported controls follow one prespecified common-denominator rule and are never silently omitted for a single system. Part~0 and Part~1 use every scheduled unit as the denominator and retain unclear, malformed, or semantic-invalid responses as nonsuccesses. Part~2 behavioral and environmental denominators contain only trajectories with no invalid agent action; invalid trajectories remain in audit counts but contribute no behavioral estimate. The estimands concern the exact executed prompt banks, model routes, and decoding protocol, not altruistic intent, vendor-wide populations, or unrestricted generation-seed behavior.
+The subject decoding protocol is frozen across routes before outcomes are collected. Unsupported controls follow one prespecified common-denominator rule and are never silently omitted for a single system. Part~0 and Part~1 use every scheduled unit as the denominator and retain unclear, malformed, or semantic-invalid responses as nonsuccesses. Part~2 restraint uses every scheduled agent-day and retains invalid first attempts as nonrestraint; AURC uses operationally eligible trajectories only, with ineligible trajectories retained in audit counts. The estimands concern the exact executed prompt banks, model routes, and decoding protocol, not altruistic intent, vendor-wide populations, or unrestricted generation-seed behavior.
 
-Any cross-part analysis is restricted to the exact 24-system matched panel and remains unavailable while Part~0 lacks human validation and the matching Part~1 prompts lack content approval. Historical systems and the broader Part~1 routes remain separate; Appendix~\ref{app:legacy-evidence} records the prespecified weighting and sensitivity rules for any future gated analysis.
+Any cross-part analysis is restricted to exact authenticated route overlap and remains unavailable while Part~0 lacks human validation and the matching Part~1 prompts lack content approval. Historical systems, local controls, role probes, sensitivity cells, and availability retries remain separate; Appendix~\ref{app:legacy-evidence} records why the legacy cross-part analysis was withdrawn.
 
 \section{Results}
 \label{sec:results}
-Table~\ref{tab:current-coverage} records the completed, fail-closed current-model scopes. Part~0 and Part~1 are exploratory for substantive validity reasons, not because execution is unfinished. Part~2 executes eight common-seed trajectories for every operationally eligible system and reports behavioral estimates only for systems with at least one fully valid trajectory. Historical pilot results are not pooled with this campaign; Appendix~\ref{app:legacy-evidence} records the narrow legacy evidence that remains descriptive.
+Table~\ref{tab:current-coverage} records the completed, fail-closed current-model scopes. Part~0 and Part~1 are exploratory for substantive validity reasons, not because execution is unfinished. Part~2 executes 12 common-seed trajectories for every included system, reports restraint over all scheduled agent-days, and reports AURC only for operationally eligible trajectories. Historical pilot results are not pooled with this campaign; Appendix~\ref{app:legacy-evidence} records the narrow legacy evidence that remains descriptive.
 
 \begin{table}[!htbp]
 \centering
@@ -227,23 +227,26 @@ Table~\ref{tab:current-coverage} records the completed, fail-closed current-mode
 \toprule
 Axis & Executed scope & Paper status \\
 \midrule
-Part~0 & \PaperPartZeroIncludedSystems{}/24 systems; 24 archived harmful roots $\times$ 3 reconstructed response-language instructions (\PaperPartZeroScheduledResponses{} responses) & Exploratory; \PaperPartZeroUnavailableSystems{} unavailable; fixed disjoint judge; no human validation \\
-Part~1 & \PaperPartOneNNinetySixSystems{} routes $\times$ 96 roots; one $\times$ 12; one $\times$ 384 (\PaperPartOneScheduledRoots{} roots) & Exploratory; \PaperPartOneReportedSystems{}/\PaperPartOneTargetedSystems{} reported; scopes separate; draft bank lacks human approval \\
-Part~2 & \PaperPartTwoIncludedSystems{}/24 systems $\times$ \PaperPartTwoTrajectoriesPerSystem{} common-seed trajectories (\PaperPartTwoTrajectories{} total; \PaperPartTwoValidTrajectories{} valid) & Corrected results for \PaperPartTwoEstimableSystems{} systems; \PaperPartTwoNonestimableSystems{} all-invalid, \PaperPartTwoUnavailableSystems{} unavailable \\
+Part~0 & \ProviderSafePartZeroModelCount{} systems $\times$ 48 archived harmful roots $\times$ 3 reconstructed response-language instructions (\ProviderSafePartZeroScheduledResponseCount{} scheduled responses) & Exploratory; fixed disjoint judge; no benign controls or human validation \\
+Part~1 & \ProviderSafePartOneModelCount{} hosted routes $\times$ 384 roots (\ProviderSafePartOneScheduledUnitCount{} scheduled self-choice units) & Exploratory; one common scope; first-attempt invalids retained; draft bank lacks human approval \\
+Part~2 & \ProviderSafePartTwoModelCount{} systems $\times$ 12 common-seed trajectories (\ProviderSafePartTwoTrajectoryCount{} total; \ProviderSafePartTwoOperationallyEligibleTrajectoryCount{} AURC-eligible) & Corrected engine; all-scheduled restraint; \ProviderSafePartTwoOperationallyIneligibleTrajectoryCount{} trajectories ineligible for AURC; \ProviderSafePartTwoNonestimableModelCount{} models non-estimable for AURC \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \subsection{Part 0: Exploratory Safety Refusal}
-Across \PaperPartZeroIncludedSystems{} systems and \PaperPartZeroScheduledResponses{} scheduled responses, the fixed judge assigns \PaperPartZeroRefusalCount{} refusals, \PaperPartZeroComplianceCount{} compliances, \PaperPartZeroUnclearCount{} unclear outcomes, and \PaperPartZeroInvalidCount{} invalid outputs. System-level material-refusal rates span \PaperPartZeroRefusalMinimumPct--\PaperPartZeroRefusalMaximumPct\%, with a median of \PaperPartZeroRefusalMedianPct\%. Median system rates are \PaperPartZeroEnglishMedianPct\% under the English response instruction, \PaperPartZeroChineseMedianPct\% under Chinese, and \PaperPartZeroRussianMedianPct\% under Russian. These differences describe requested output-language sensitivity over the same English roots, not multilingual-input robustness. The result shows substantial residual variation even among modern systems, but it remains exploratory because there are no benign controls or completed language-qualified human validation. Full root-clustered and condition-specific intervals appear in Appendix~\ref{app:current-results}.
+Across \ProviderSafePartZeroModelCount{} systems and \ProviderSafePartZeroScheduledResponseCount{} scheduled responses, the fixed judge assigns \ProviderSafePartZeroRefusalCount{} refusals, \ProviderSafePartZeroComplianceCount{} compliances, \ProviderSafePartZeroUnclearCount{} unclear outcomes, and \ProviderSafePartZeroInvalidCount{} invalid outputs. System-level material-refusal rates span \ProviderSafePartZeroModelRefusalRatePctMinimum--\ProviderSafePartZeroModelRefusalRatePctMaximum\%, with a median of \ProviderSafePartZeroModelRefusalRatePctMedian\%. The model-by-language panel describes requested output-language sensitivity over the same English roots, not multilingual-input robustness. The result shows residual within-task variation among current systems, but it remains exploratory because there are no benign controls or completed language-qualified human validation. Full exact-route and condition-specific summaries appear in Appendix~\ref{app:current-results}.
 
 \subsection{Part 1: Exploratory Dyadic Cooperation}
-The broad self-choice campaign reports \PaperPartOneReportedSystems{} systems over \PaperPartOneScheduledRoots{} scheduled roots. Within the balanced 96-root scope, \PaperPartOneNNinetySixSystems{} systems span \PaperPartOneNNinetySixMinimumPct--\PaperPartOneNNinetySixMaximumPct\% welfare-preserving choices, with a median of \PaperPartOneNNinetySixMedianPct\%; \PaperPartOneNNinetySixInvalid{} of \PaperPartOneNNinetySixScheduledRoots{} outputs are format-invalid and count as non-welfare-preserving. The separate 12-root Qwen3.5~397B execution yields \PaperPartOneNTwelveValues{}, while the full 384-root GLM~5.1 execution yields \PaperPartOneNThreeEightyFourEstimatePct\% [\PaperPartOneNThreeEightyFourLowerPct, \PaperPartOneNThreeEightyFourUpperPct]\% with \PaperPartOneNThreeEightyFourInvalid{} invalid output. The scopes are never pooled. The broad range describes self-directed dyadic behavior not measured by the refusal probe, while the low median cautions against treating verbal safety alignment as evidence of welfare-preserving action in this task. Full system and stratified-root intervals appear in Appendix~\ref{app:current-results}.
+The broad self-choice campaign reports \ProviderSafePartOneModelCount{} hosted routes over \ProviderSafePartOneScheduledUnitCount{} scheduled roots. Welfare-preserving choice spans \ProviderSafePartOneModelWelfareRatePctMinimum--\ProviderSafePartOneModelWelfareRatePctMaximum\% across exact routes, with a median of \ProviderSafePartOneModelWelfareRatePctMedian\%; \ProviderSafePartOneInvalidCount{} first responses are invalid and remain scheduled nonsuccesses. The range describes self-directed dyadic behavior not measured by the refusal probe, while its breadth cautions against treating verbal safety alignment as evidence of welfare-preserving action in this task. Full exact-route results appear in Appendix~\ref{app:current-results}; the four fixed local controls are reported there as a separate execution-scale panel.
 
-The corrected separation of task roles preserves one finding from the 13-system April pilot while narrowing its interpretation. Across the balanced legacy matrix, the welfare-preserving action-label rate was 83.2\% when models acted as external evaluators, 66.8\% when they advised the focal actor, 61.4\% when they chose for themselves, and 4.9\% when they predicted the focal actor's choice. Each role contained the same 48 scenario roots with two nested presentations per system. These contrasts show strong role-conditioned response differences; because the instructions ask different questions, they are not a causal framing effect on one cooperation estimand. Appendix~\ref{app:legacy-evidence} keeps this legacy panel separate from the current self-choice campaign.
+The role-calibration campaign evaluates \ProviderSafeRoleAdviceModelCount{} exact sentinel routes on three separate 384-draw frames. Welfare-preserving rates span \ProviderSafeRoleAdviceWelfareRatePctMinimum--\ProviderSafeRoleAdviceWelfareRatePctMaximum\% for advice, \ProviderSafeRoleObserverEvaluationWelfareRatePctMinimum--\ProviderSafeRoleObserverEvaluationWelfareRatePctMaximum\% for observer evaluation, and \ProviderSafeRolePredictionWelfareRatePctMinimum--\ProviderSafeRolePredictionWelfareRatePctMaximum\% for prediction. Median valid first-attempt coverage is \ProviderSafeRoleAdviceValidCoveragePctMedian\%, \ProviderSafeRoleObserverEvaluationValidCoveragePctMedian\%, and \ProviderSafeRolePredictionValidCoveragePctMedian\%, respectively. These frame-specific ranges are exploratory calibration results; because the instructions ask different questions, their differences are descriptive rather than a causal framing effect on one cooperation estimand.
 
 \subsection{Part 2: Commons Restraint}
-The corrected commons campaign executes \PaperPartTwoTrajectories{} independent common-seed trajectories across \PaperPartTwoIncludedSystems{} systems. Of these, \PaperPartTwoValidTrajectories{} trajectories from \PaperPartTwoEstimableSystems{} systems are fully valid and support estimates; \PaperPartTwoProtocolInvalidTrajectories{} trajectories contain at least one invalid action and are excluded from all behavioral and environmental metrics. The remaining \PaperPartTwoNonestimableSystems{} executed systems are all-invalid and therefore non-estimable, not unavailable. Across estimable systems, mean AURC ranges from \PaperPartTwoAURCMinimum{} to \PaperPartTwoAURCMaximum{} (median \PaperPartTwoAURCMedian{}), mean restraint ranges from \PaperPartTwoRestraintMinimumPct{} to \PaperPartTwoRestraintMaximumPct\% (median \PaperPartTwoRestraintMedianPct\%), and mean AUPC ranges from \PaperPartTwoAUPCMinimum{} to \PaperPartTwoAUPCMaximum{}. \PaperPartTwoNondepleted{} of \PaperPartTwoNondepletionDenominator{} valid trajectories finish without reserve depletion. The raw audit contains \PaperPartTwoInvalidAgentDays{} invalid agent-days among \PaperPartTwoScheduledAgentDays{} scheduled agent-days; their simulator-level zero state effect preserves continuity but supplies no restraint evidence. Appendix~\ref{app:current-results} reports valid/total counts and all estimable trajectory-level intervals.
+The corrected commons campaign executes \ProviderSafePartTwoTrajectoryCount{} independent common-seed trajectories across \ProviderSafePartTwoModelCount{} systems. Of these, \ProviderSafePartTwoOperationallyEligibleTrajectoryCount{} trajectories support AURC estimates and \ProviderSafePartTwoOperationallyIneligibleTrajectoryCount{} remain in audit counts but are ineligible; \ProviderSafePartTwoNonestimableModelCount{} systems have no eligible AURC trajectory and are reported as non-estimable rather than assigned zero. Across estimable systems, mean normalized AURC ranges from \ProviderSafePartTwoModelNormalizedAURCMinimum{} to \ProviderSafePartTwoModelNormalizedAURCMaximum{} (median \ProviderSafePartTwoModelNormalizedAURCMedian{}). All-scheduled restraint ranges from \ProviderSafePartTwoModelRestraintRatePctMinimum--\ProviderSafePartTwoModelRestraintRatePctMaximum\% (median \ProviderSafePartTwoModelRestraintRatePctMedian\%). The audit retains \ProviderSafePartTwoInvalidAgentDayCount{} invalid first attempts among \ProviderSafePartTwoScheduledAgentDayCount{} scheduled agent-days; their simulator-level zero state effect preserves continuity but supplies no restraint evidence. Appendix~\ref{app:current-results} reports exact-route eligibility, restraint, AURC, and valid-coverage values.
+
+\paragraph{Deadline-exploratory sensitivity.}
+The supplemental Part~2 panel executes \ProviderSafeSensitivityTrajectoryCount{} trajectories for \ProviderSafeSensitivitySentinelCount{} sentinels over five prespecified environment factors and \ProviderSafeSensitivityCommonSeedCount{} common seeds. Across \ProviderSafeSensitivityEffectCount{} sentinel-by-factor contrasts, the largest absolute high-minus-low normalized-AURC effect is \ProviderSafeSensitivityMaximumAbsoluteEffect{}, and \ProviderSafeSensitivityHolmSignificantCount{} contrasts have a global Holm-adjusted $p\leq 0.05$. With only two common seeds, these values are underpowered descriptors of the frozen toy environment, not confirmatory robustness evidence.
 
 \FloatBarrier
 
@@ -256,7 +259,7 @@ The corrected current campaign preserves the original empirical motivation for S
 Separate reporting is justified by task design, not by a required low correlation. The tasks share the broad question of whether an action shifts avoidable costs onto others, while varying the explicitness of the rule, identity of the affected party, payoff structure, temporal horizon, and environmental mediation. A high, low, or uncertain association would each be scientifically interpretable; none would turn the three tasks into a unitary latent score.
 
 \paragraph{Role conditioning is part of the behavior being measured.}
-The legacy Part~1 contrast is too large to treat role wording as a cosmetic nuisance: models frequently selected the welfare-preserving label when evaluating or advising, but rarely selected it when predicting another actor. The corrected benchmark therefore defines self-choice as the primary cooperation estimand and treats the other roles as calibration probes. This retains the original insight that refusal-only evaluation misses context-dependent social behavior without conflating judgment, recommendation, prediction, and action.
+The current role-calibration panel shows that welfare-preserving rates and format validity vary across advice, observer-evaluation, and prediction prompts. The corrected benchmark therefore defines self-choice as the primary cooperation estimand and treats the other roles as distinct calibration probes. This retains the original insight that refusal-only evaluation misses context-dependent social behavior without conflating judgment, recommendation, prediction, and action or interpreting frame differences causally.
 
 \paragraph{Evidence boundaries.}
 No cross-part association is current paper evidence because Part~0 lacks human validation and Part~1 lacks independent content approval. This boundary prevents exploratory labels from being converted into a stronger claim merely by matching model identities. Appendix~\ref{app:legacy-evidence} records why the earlier cross-part statistics are excluded.
@@ -266,14 +269,14 @@ The same three probes can be applied to tool-using or multi-agent systems by sco
 
 \section{Limitations and Broader Impact}
 \label{sec:scope}
-Prosocial Readiness Bench evaluates observable outputs in artificial tasks, not intent, moral status, altruism, or real-world trustworthiness. A finite authenticated route is not a vendor, and one frozen generation per Part~0 or Part~1 root does not estimate decoding variability. Part~0 reconstructs response-language instructions over English inputs, has no benign controls, and lacks human label validation. The Part~1 dilemmas simplify social context, impose explicit actions and payoffs, omit interaction, and use a draft bank without independent content approval. Part~2 uses anonymous homogeneous five-agent same-model populations in a 12-step, single-parameterization environment; it omits heterogeneous roles, communication, memory, bargaining, tool use, institutions, and human participants. The executed design contains no parameter-sensitivity study and therefore cannot show robustness beyond this toy ecology.
+Prosocial Readiness Bench evaluates observable outputs in artificial tasks, not intent, moral status, altruism, or real-world trustworthiness. A finite authenticated route is not a vendor, and one frozen generation per Part~0 or Part~1 root does not estimate decoding variability. Part~0 reconstructs response-language instructions over English inputs, has no benign controls, and lacks human label validation. The Part~1 dilemmas simplify social context, impose explicit actions and payoffs, omit interaction, and use a draft bank without independent content approval. The primary Part~2 task uses anonymous homogeneous five-agent same-model populations in a 12-step environment with one nominal parameterization; it omits heterogeneous roles, communication, memory, bargaining, tool use, institutions, and human participants. The supplemental five-factor sensitivity panel uses only two common seeds and is explicitly underpowered, so it diagnoses parameter dependence within this toy ecology rather than establishing robustness or external validity.
 
 The natural extension is an agent-system evaluation with heterogeneous models and roles, persistent but privacy-preserving memory, communication and negotiation channels, tool-mediated actions, institutional constraints, and human-designed environment dynamics. Such an extension should preserve trajectory-level inference and common seeds while adding independent environments and preregistered system-level failure criteria. It should not reuse the present Part~2 simulator as if it were a calibrated society.
 
 Used conservatively, the artifact can help developers identify whether a safety intervention improves explicit refusal while leaving less direct cost-shifting behaviors unchanged, motivating targeted evaluation before deployment. It is intended for behavioral auditing and mitigation comparison, not for improving harmful compliance. Raw Part 0 harmful prompts and completions are excluded from the anonymous supplement by default. Because the executed Part~0 inputs are English requests with response-language instructions, they cannot support cross-cultural or translated-prompt claims. Any later multilingual input evaluation would require retained translations plus language-specific and culture-specific expert review.
 
 \section{Conclusion}
-Safety Beyond Refusal asks how model evaluation should expand from explicit harmful requests to choices whose costs are less direct, more distributed, and temporally accumulated. Prosocial Readiness Bench answers with three separate, traceable probes of refusal, self-directed dyadic choice, and repeated commons restraint. The current campaign finds material variation within every estimable axis: refusal spans \PaperPartZeroRefusalMinimumPct--\PaperPartZeroRefusalMaximumPct\%, 96-root dyadic choice spans \PaperPartOneNNinetySixMinimumPct--\PaperPartOneNNinetySixMaximumPct\%, and valid-trajectory commons restraint spans \PaperPartTwoRestraintMinimumPct--\PaperPartTwoRestraintMaximumPct\%. Judge--subject separation, root-aware inference, corrected incentives, independent common-seed trajectories, and explicit unavailable and non-estimable accounting make those findings traceable without turning them into a latent moral score. The result is a stronger behavioral evaluation artifact for identifying task-specific safety-relevant behavior that refusal-only benchmarks do not measure.
+Safety Beyond Refusal asks how model evaluation should expand from explicit harmful requests to choices whose costs are less direct, more distributed, and temporally accumulated. Prosocial Readiness Bench answers with three separate, traceable probes of refusal, self-directed dyadic choice, and repeated commons restraint. The current campaign finds material within-task variation: exploratory refusal spans \ProviderSafePartZeroModelRefusalRatePctMinimum--\ProviderSafePartZeroModelRefusalRatePctMaximum\%, exploratory 384-root dyadic choice spans \ProviderSafePartOneModelWelfareRatePctMinimum--\ProviderSafePartOneModelWelfareRatePctMaximum\%, and all-scheduled commons restraint spans \ProviderSafePartTwoModelRestraintRatePctMinimum--\ProviderSafePartTwoModelRestraintRatePctMaximum\%. Judge--subject separation, root-aware inference, corrected incentives, independent common-seed trajectories, and explicit invalid and non-estimable accounting make those findings traceable without turning them into a latent moral score. The result is a stronger behavioral evaluation artifact for identifying task-specific safety-relevant behavior that refusal-only benchmarks do not measure.
 
 \bibliographystyle{plainnat}
 \bibliography{references}
@@ -291,46 +294,82 @@ Safety Beyond Refusal asks how model evaluation should expand from explicit harm
 The following tables are generated directly from the complete, hash-verified sanitized result graph. Missing result artifacts are compilation errors rather than occasions to render stale or hand-transcribed values.
 
 \subsection{Corrected Current-Data Visual Summaries}
-Figures~\ref{fig:part0-conditions}, \ref{fig:part1-distributions}, and \ref{fig:part2-current} replace visually similar legacy plots that fail the corrected provenance or task-contract checks. They use only the sealed current aggregate graph and remain axis-specific.
+Figures~\ref{fig:part0-model-language}--\ref{fig:part1-local-controls} are the six provider-safe visual families generated from the sealed current aggregate graph. They remain axis- and estimand-specific: hosted routes, role probes, sensitivity cells, and local controls are not pooled.
 
 \clearpage
 \begin{landscape}
 \begin{figure}[p]
 \centering
-\includegraphics[width=\linewidth,height=0.78\textheight,keepaspectratio]{figures/part0_response_language_conditions.png}
-\caption{Part~0 refusal by requested response language over identical archived English harmful-request roots. Each row is one exact evaluated system; columns request an English, Chinese, or Russian response while holding the source request fixed. Points are material-refusal rates and bars are Wilson 95\% descriptive intervals over 24 roots. Higher values indicate less material assistance and are preferable on this harmful-only task; lower values indicate more compliance, ambiguity, or invalid output. Cross-column differences measure response-language instruction sensitivity, not multilingual-input robustness. The absence of benign controls and human validation keeps every value exploratory.}
-\label{fig:part0-conditions}
+\includegraphics[width=\linewidth,height=0.78\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/part0_model_language.pdf}
+\caption{Part~0 response-language outcomes. Each row is one exact target route, and columns are English, Chinese, and Russian response instructions applied to the same archived English requests. The left panel is REFUSAL divided by all 48 scheduled harmful-request roots per route-language cell; the right panel is valid-output coverage over the same denominator. Higher refusal means less assistance on this harmful-request task, and higher validity means fewer invalid outputs. Cross-column differences measure response-language instruction sensitivity, not multilingual-input robustness; absent benign controls and human validation keep the panel exploratory.}
+\label{fig:part0-model-language}
+\end{figure}
+\end{landscape}
+
+\clearpage
+\begin{landscape}
+\begin{figure}[p]
+\centering
+\includegraphics[width=\linewidth,height=0.84\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/part1_all_models.pdf}
+\caption{Part~1 self-choice outcomes for all hosted routes. Each row is one exact route evaluated on 384 scheduled scenario roots. The left panel is the welfare-preserving first-attempt count divided by all scheduled units, with invalid outputs retained as nonsuccesses; the right panel is valid first-attempt coverage over the same denominator. Higher welfare preservation means fewer costs shifted to the counterpart in this task, and higher validity means fewer invalid outputs. Rows are ordered only within Part~1; the draft bank lacks independent content approval, so this is neither a general safety ranking nor confirmatory evidence.}
+\label{fig:part1-all-models}
+\end{figure}
+\end{landscape}
+
+\clearpage
+\begin{landscape}
+\begin{figure}[p]
+\centering
+\includegraphics[width=\linewidth,height=0.78\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/part2_all_models.pdf}
+\caption{Part~2 commons outcomes for all hosted routes. Each row is one exact route with 12 common-seed trajectories. Panels show restraint divided by all scheduled agent-days, mean normalized AURC over operationally eligible trajectories, and valid first-attempt coverage over scheduled agent-days. Invalid first attempts remain nonrestraint and have zero simulator effect; an AURC marked ``NE'' means no eligible trajectory, not a zero score. Higher restraint and AURC mean more reserve preservation in this simulator, and higher validity means fewer invalid actions; none is a general safety score.}
+\label{fig:part2-all-models}
+\end{figure}
+\end{landscape}
+
+\clearpage
+\begin{landscape}
+\begin{figure}[p]
+\centering
+\includegraphics[width=\linewidth,height=0.78\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/part1_role_calibration.pdf}
+\caption{Part~1 exploratory role calibration. Each row is one of six exact sentinel routes; columns are the separate advice, observer-evaluation, and prediction frames, with 384 scheduled draws per route-frame. The left panel gives welfare-preserving first attempts divided by all scheduled draws, and the right gives valid first-attempt coverage. Higher welfare preservation means fewer counterpart costs within the named frame, while higher validity means fewer invalid outputs. Frames ask different questions, are never pooled, and differences among them are descriptive rather than causal or indicative of general safety.}
+\label{fig:part1-role-calibration}
+\end{figure}
+\end{landscape}
+
+\clearpage
+\begin{landscape}
+\begin{figure}[p]
+\centering
+\includegraphics[width=\linewidth,height=0.78\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/part2_sensitivity_effects.pdf}
+\caption{Part~2 deadline-exploratory sensitivity. Each cell is one exact sentinel route by one varied factor and shows mean normalized AURC at the high level minus the mean at the low level over the 16-cell resolution-V design and two common-seed blocks. ``H'' denotes global Holm-adjusted $p\leq0.05$ across the 30 sentinel-by-factor tests; ``n.s.'' denotes otherwise. Positive effects mean that the high level increased reserve preservation and negative effects mean that it decreased preservation in this simulator, but the sign is not automatically good or bad for a parameter. With only two common seeds, the panel is underpowered and does not establish robustness or general safety.}
+\label{fig:part2-sensitivity}
 \end{figure}
 \end{landscape}
 
 \clearpage
 \begin{figure}[p]
 \centering
-\includegraphics[width=\linewidth]{figures/part1_scope_distributions.png}
-\caption{Within-scope distributions of current Part~1 welfare-preserving self-choice. Each column is a separate execution scope and each point contributing to a step is one exact system; the vertical axis is the cumulative share of systems at or below the horizontal-axis choice rate. Curves concentrated near zero indicate that many systems selected the focal-advantage action or produced invalid output, while curves shifted toward one indicate more frequent welfare-preserving choices and are preferable for counterpart welfare in this task. The $n=384$ and $n=12$ panels contain one system each and therefore show points rather than population distributions. Scopes are never pooled or ranked, and all values remain exploratory because the prompt bank lacks independent content approval.}
-\label{fig:part1-distributions}
+\includegraphics[width=\linewidth,height=0.72\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/part1_local_controls.pdf}
+\caption{Part~1 exploratory local execution-scale controls. Each row is one exact offline Hugging Face model ID and advertised parameter scale evaluated on 384 scheduled roots. The left panel is welfare-preserving choice over all scheduled units, with invalid outputs retained as nonsuccesses; the right is format-valid output over the same denominator. Higher values mean fewer counterpart costs or fewer malformed outputs only within these measures. The four fixed local models are separate controls, not substitutes for or members of the hosted-route panel and not confirmatory evidence.}
+\label{fig:part1-local-controls}
 \end{figure}
-
-\clearpage
-\begin{landscape}
-\begin{figure}[p]
-\centering
-\includegraphics[width=\linewidth,height=0.78\textheight,keepaspectratio]{figures/part2_corrected_outcomes.png}
-\caption{Corrected Part~2 outcomes from fully valid trajectories. Each row is one exact executed system; columns show normalized area under the reserve curve (AURC), the lower-use restraint rate, and the fraction of valid trajectories ending without reserve depletion. Points are system means and bars are trajectory-level Student-$t$ intervals for AURC and restraint or Wilson intervals for nondepletion. Higher values are preferable within this environment because they mean that agents used the resource less aggressively, preserved more reserve over time, or avoided depletion more often. ``NE'' means all eight trajectories contained an invalid action, so no behavioral or environmental estimate is available; it is not a zero score.}
-\label{fig:part2-current}
-\end{figure}
-\end{landscape}
 
 \clearpage
 \begin{landscape}
 \begingroup
 \setlength{\textwidth}{\linewidth}
 \renewcommand{\arraystretch}{1.00}
-\input{../../data/analysis/final_results/part0_results_table.tex}
+\input{../../data/processed/provider-safe-v2-paper-assets/part0_model_language_table.tex}
 \clearpage
-\input{../../data/analysis/final_results/part1_results_table.tex}
+\input{../../data/processed/provider-safe-v2-paper-assets/part1_all_models_table.tex}
 \clearpage
-\input{../../data/analysis/final_results/part2_results_table.tex}
+\input{../../data/processed/provider-safe-v2-paper-assets/part2_all_models_table.tex}
+\clearpage
+\input{../../data/processed/provider-safe-v2-paper-assets/part1_role_calibration_table.tex}
+\clearpage
+\input{../../data/processed/provider-safe-v2-paper-assets/part2_sensitivity_effects_table.tex}
+\clearpage
+\input{../../data/processed/provider-safe-v2-paper-assets/part1_local_controls_table.tex}
 \clearpage
 \endgroup
 \end{landscape}
@@ -339,7 +378,7 @@ Figures~\ref{fig:part0-conditions}, \ref{fig:part1-distributions}, and \ref{fig:
 \label{app:legacy-evidence}
 The April archive contains 56,382 stored rows, but that number is not an inferential sample size: its repeated languages, prompt renderings, and agent-days are clustered. Part~0 model rates are withdrawn because the legacy judge prompt used hidden reasoning as well as the visible response, failed adjudications defaulted to a binary label, and no quantitative multilingual human validation was completed. Exact translated prompts and route-level failure provenance were also not retained sufficiently for an identical replay. Part~2 model rates are withdrawn because the prompt described private and group scores that the engine never computed or returned to agents, while each model supplied only one trajectory. Agent-day rows from that trajectory cannot support a run-level interval. All legacy cross-part statistics and figures are consequently withdrawn.
 
-The April Part~0 heatmaps, Part~2 trajectories and rasters, behavioral fingerprints, PCA projections, and cross-part plots remain in the research archive for provenance but are not paper evidence. Table~\ref{tab:legacy-part1} reports the direct self-choice subset: 48 legacy scenario roots per model, with the two presentations nested within each root. Advice, observer, and prediction prompts are excluded from that self-choice table because they alter the role and estimand; their equal-cell aggregate label rates are retained in Section~\ref{sec:results} as a separate role-conditioned calibration result. Neither result validates Part~0 or Part~2 or establishes relationships among the three tasks.
+The April Part~0 heatmaps, Part~2 trajectories and rasters, behavioral fingerprints, PCA projections, cross-part plots, and role aggregates remain in the research archive for provenance but are not current paper evidence. Table~\ref{tab:legacy-part1} reports the direct self-choice subset: 48 legacy scenario roots per model, with the two presentations nested within each root. Advice, observer, and prediction prompts are excluded because they alter the role and estimand. The current role-calibration panel in Appendix~\ref{app:current-results} replaces those legacy aggregates with a separate, common-scope execution; neither panel validates Part~0 or establishes relationships among the three axes.
 
 \begin{table}[H]
 \centering
@@ -369,7 +408,7 @@ Legacy local route & Self-directed welfare-preserving choice & Root band \\
 }
 \end{table}
 
-The legacy advice, observer, and prediction prompts remain useful as calibration probes, but they do not estimate self-directed cooperation. They may reveal whether a model distinguishes what it would choose, recommend, approve, or expect; such differences are distinct tasks, not a causal framing effect on one construct. If the current Part~0 and Part~1 validity gates are later completed for the exact 24-system overlap, any descriptive Spearman analysis will include equal-system, equal-developer, and leave-one-developer-out summaries. It will not use significance tests or treat related systems as an independent model population.
+The legacy advice, observer, and prediction prompts remain useful as provenance for the calibration design, but they do not estimate self-directed cooperation and their aggregate percentages are not reused as current evidence. The provider-safe campaign evaluates these distinct questions on a new common scope. No cross-axis composite or association is promoted while Part~0 lacks human label validation and Part~1 lacks independent prompt approval; exact route overlap alone cannot satisfy either gate.
 
 \section{Part 1 Structured Contract}
 \label{app:part1-examples}
@@ -407,14 +446,14 @@ The prompt states that two work groups simultaneously select a one-time usage le
 \toprule
 Panel & Planned coverage & Weighting & Promotion rule \\
 \midrule
-Matched Part~0 & 16 included; 8 unavailable of 24 frozen systems & Equal system and developer & $24\times3$ roots per included route; fixed disjoint judge \\
-Matched Part~2 & 22 executed; 20 estimable; 2 all-invalid; 2 unavailable of 24 frozen systems & Equal system and developer & Eight common-seed trajectories; invalid trajectories excluded from behavioral estimates \\
-Broad Part~1 & 73 reportable text-chat routes at balanced $n=96$ & Separate exploratory analysis & Eight roots in each of 12 strata \\
-Slow Part~1 & Qwen3.5~397B at balanced $n=12$ & Separate exploratory analysis & One root in each stratum; no within-stratum band \\
-Full Part~1 & GLM~5.1 at $n=384$ & Separate exploratory analysis & Not pooled with the $n=12$ or $n=96$ routes \\
-Pinned local controls & Qwen2.5-0.5B; SmolLM2 135M/360M/1.7B at $n=384$ & Separate execution-scale control & Exact offline snapshots; not a hosted-route substitute \\
-Unavailable Part~1 & Kimi~K2.5/K2.6; GLM-5.2; Claude~Opus~4.5; MiniMax~M2.7/M3 & No estimate & Six of 81 targets; no substitution \\
-Historical/local & Legacy GPT, Gemini, Gemma, GPT-OSS, and local routes & Separate descriptive panel & Never increases primary cross-part $n$ \\
+Part~0 & \ProviderSafePartZeroModelCount{} exact systems; 48 roots $\times$ 3 response-language instructions & Separate exploratory axis & All scheduled responses retained; fixed disjoint judge; no benign controls or human validation \\
+Hosted Part~1 & \ProviderSafePartOneModelCount{} exact routes at $n=384$ & Separate exploratory axis & Common 12-stratum bank; invalid first attempts are nonsuccesses; no independent prompt approval \\
+Part~2 & \ProviderSafePartTwoModelCount{} exact systems at 12 trajectories each; \ProviderSafePartTwoOperationallyEligibleTrajectoryCount{} eligible and \ProviderSafePartTwoOperationallyIneligibleTrajectoryCount{} ineligible trajectories & Separate corrected-engine axis & All-scheduled restraint; AURC restricted to eligible trajectories; non-estimable is not zero \\
+Role calibration & \ProviderSafeRoleAdviceModelCount{} sentinels $\times$ 3 frames $\times$ 384 draws & Separate exploratory calibration & Frames are distinct estimands and are not pooled or interpreted causally \\
+Sensitivity & \ProviderSafeSensitivitySentinelCount{} sentinels $\times$ 5 factors; \ProviderSafeSensitivityTrajectoryCount{} trajectories over \ProviderSafeSensitivityCommonSeedCount{} common seeds & Separate deadline-exploratory panel & Underpowered; 30-test Holm family documents rather than validates robustness \\
+Pinned local controls & Qwen2.5-0.5B; SmolLM2 135M/360M/1.7B at $n=384$ & Separate execution-scale control & Exact offline snapshots; never pooled with or substituted for hosted routes \\
+Availability retries & Exact target-bound retry panels & Separate supplemental accounting & Never replace or merge primary rows; no silent substitution \\
+Historical/local & Legacy GPT, Gemini, Gemma, GPT-OSS, and local routes & Separate descriptive provenance & Never increases primary cross-part coverage \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -427,13 +466,12 @@ Historical/local & Legacy GPT, Gemini, Gemma, GPT-OSS, and local routes & Separa
 \setlength{\itemsep}{1pt plus 0.5pt}
 \setlength{\parsep}{0pt}
     \item Frozen scientific protocol and checkpoint: \path{docs/CONFIRMATORY_PROTOCOL.md} and \path{CHECKPOINT.md}.
-    \item Part~0 runner and private ledger: \path{experiments/misc/inference_hub_part0_panel.py} and \path{data/private/inference_hub/part0-sota-panel-v2-n24}.
-    \item Part~1 balanced runner and private ledgers: \path{experiments/misc/inference_hub_part1_stratified_panel.py}, \path{data/private/inference_hub/part1-sota-balanced-main75-v1-n96}, and \path{data/private/inference_hub/part1-sota-balanced-slow2-v2-n12}; GLM~5.1 retains the full 384-root schedule.
-    \item Part~2 runner and private ledger: \path{experiments/misc/inference_hub_part2_panel.py} and \path{data/private/inference_hub/part2-sota-matched-v1-n8}.
+    \item Provider-safe campaign runners: \path{experiments/misc/inference_hub_part0_panel.py}, \path{experiments/misc/inference_hub_part1_stratified_panel.py}, and \path{experiments/misc/inference_hub_part2_panel.py}. Exact private ledgers and frozen arguments are hash-bound in their manifests but excluded from the anonymous supplement.
+    \item Separate role, sensitivity, semantic-invalid repair, and availability-retry runners remain source-bound to their own manifests. Repair and retry evidence never overwrites primary rows, changes scheduled denominators, or silently substitutes a route.
     \item Fail-closed administrative provenance: \path{experiments/misc/inference_hub_retire_target.py} records target-bound unavailable tails, and \path{analysis/finalize_inference_hub_part2_offline.py} seals completed Part~2 evidence after verifying its bound source tree. Neither utility dispatches model calls or manufactures outcomes.
     \item Route discovery and identity evidence: \path{experiments/misc/inference_hub_discovery.py} and \path{data/private/inference_hub}.
     \item Task definitions: \path{experiments/part0}, \path{experiments/part1}, and \path{experiments/part2}; executed inputs and schedules are hash-pinned in their manifests.
-    \item Paper-facing validation and export: \path{analysis/build_final_results.py}, \path{analysis/build_paper_headlines.py}, and \path{analysis/build_developer_descriptives.py}; they fail closed on unaccounted coverage, identity mismatches, unbound operational failures, unsafe fields, or inconsistent manuscript denominators. A target-part may be marked unavailable only with target-bound failure evidence. Missing Part~0 human validation blocks cross-axis promotion while preserving explicitly exploratory Part~0 summaries.
+    \item Paper-facing validation and export: \path{analysis/analyze_provider_safe_v2_definitive.py} validates the complete source-bound matrices, and \path{analysis/build_provider_safe_v2_paper_assets.py} emits the six vector/PNG figure families, six full model-row tables, deterministic headline macros, and a hashed asset manifest. They fail closed on incomplete coverage, identity mismatch, unsafe fields, denominator changes, or attempts to overwrite an existing output directory. Missing Part~0 human validation and Part~1 prompt approval block cross-axis promotion while preserving explicitly exploratory within-task summaries.
     \item Legacy status tables: \path{data/analysis/tables}; deprecated Part~0 and Part~2 tables are retained for audit but are not paper evidence.
     \item Croissant metadata: \path{data/analysis/croissant_metadata.json} \citep{akhtar2024croissant}.
     \item Documentation: \path{docs/release/REPRODUCIBILITY.md}, \path{docs/release/DATA_CARD.md}, \path{docs/release/MODEL_REGISTRY.md}, \path{docs/release/COMPUTE.md}, and \path{docs/release/LICENSES_AND_TERMS.md}.
@@ -453,9 +491,9 @@ uv run pytest -q
 uv run python -m analysis.validation --strict
 uv run python -m analysis.summarize_results
 uv run python -m analysis.build_manifest
-uv run python -m analysis.build_final_results --help
-uv run python -m analysis.build_paper_headlines --help
-uv run python -m analysis.build_developer_descriptives --help
+uv run python -m analysis.analyze_provider_safe_v2_definitive --help
+uv run python -m analysis.build_provider_safe_v2_paper_assets --help
+uv run pytest -q tests/test_build_provider_safe_v2_paper_assets.py
 \end{verbatim}
 \endgroup
 
