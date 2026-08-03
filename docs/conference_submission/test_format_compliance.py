@@ -118,7 +118,6 @@ class ConferenceSubmissionFormatTest(unittest.TestCase):
         asset_root = "../../data/processed/provider-safe-v2-paper-assets/"
         static_figures = (
             "part0_model_language.pdf",
-            "part2_all_models.pdf",
             "part1_role_calibration.pdf",
             "part2_sensitivity_effects.pdf",
         )
@@ -133,6 +132,7 @@ class ConferenceSubmissionFormatTest(unittest.TestCase):
         for name in (*static_figures, *tables, "all_models_cross_phase_table.tex"):
             self.assertEqual(source.count(asset_root + name), 1, name)
         self.assertEqual(source.count(asset_root + "paper_headlines.tex"), 2)
+        self.assertEqual(source.count("figures/part2_all_models.pdf"), 1)
         self.assertIn(asset_root + r"part1_all_models_block\block.pdf", source)
         self.assertIn(
             asset_root + r"all_models_cross_phase_outcome_profile_block\block.pdf",

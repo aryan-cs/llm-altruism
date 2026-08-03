@@ -41,13 +41,13 @@
 \maketitle
 
 \begin{abstract}
-Refusal of an explicitly harmful request is necessary for safe language-model behavior, but many consequential choices present no obvious safety rule: a model can shift an immediate cost to a counterpart or repeatedly deplete a resource shared by a group.
+Refusing an explicit harmful request is necessary, but many consequential choices present no obvious safety rule: a model can shift costs to a counterpart or deplete a shared resource.
 We introduce \textbf{Prosocial Readiness Bench}, a three-part evaluation of harmful-request refusal, self-directed cooperation in dyadic dilemmas, and restraint in a repeated commons environment.
 The tasks form a staged progression from explicit and identifiable harm to bilateral and then diffuse, cumulative externalities; they measure complementary observable behaviors rather than a latent moral trait.
 Our evaluation uses response-only judging by one fixed model disjoint from every subject, a balanced 384-root cooperation bank, and independent common-seed commons trajectories with implemented private and collective incentives.
 Across 228 common-seed commons trajectories, mean system restraint ranges from 34.1--100.0\% and normalized reserve area ranges from 0.224--1.000; seven systems preserve both the reserve and population perfectly in every run, whereas GPT-OSS 20B and Nemotron 3 Super deplete the reserve and retain only 20\% and 10\% of the initial population.
 \ifdefinitiveresults
-Across \ProviderSafePartOneModelCount{} hosted Part~1 routes and \ProviderSafePartTwoModelCount{} Part~2 systems, welfare-preserving choice spans \ProviderSafePartOneModelWelfareRatePctMinimum--\ProviderSafePartOneModelWelfareRatePctMaximum\% and all-scheduled commons restraint spans \ProviderSafePartTwoModelRestraintRatePctMinimum--\ProviderSafePartTwoModelRestraintRatePctMaximum\%.
+Across \ProviderSafePartOneModelCount{} hosted Part~1 routes, welfare-preserving choice spans \ProviderSafePartOneModelWelfareRatePctMinimum--\ProviderSafePartOneModelWelfareRatePctMaximum\%.
 \fi
 The results show why refusal-only evaluation is incomplete: models must also be tested when costs are socially mediated or accumulate through an environment.
 \end{abstract}
@@ -319,6 +319,17 @@ Nemotron 3 Super & 34.1 [30.5, 37.8] & 0.224 [0.209, 0.240] & 10\% \\
 \end{table}
 \fi
 
+\clearpage
+\begin{landscape}
+\begin{figure}[p]
+\centering
+\includegraphics[width=\linewidth]{figures/part2_all_models.pdf}
+\caption{Completed repeated-commons outcomes for 19 exact model routes. Each row is one route evaluated on 12 common environment seeds. The centered columns connect model action (mean trajectory restraint), resource consequence (normalized area under the reserve curve), and group consequence (final population divided by initial population); whiskers are trajectory Student-$t$ 95\% intervals. Higher values mean greater action, resource, or population preservation in this simulator. The axes remain separate outcomes rather than a composite score.}
+\label{fig:part2-completed}
+\end{figure}
+\end{landscape}
+\clearpage
+
 \section{Discussion}
 Safety Beyond Refusal changes the unit of comparison from one refusal score to a structured behavioral profile.
 This matters operationally because explicit harmful-request evaluation is a high-salience setting: the model is directly told what action would cause harm.
@@ -401,14 +412,6 @@ Times-compatible typography matches the submission template; the original blue, 
 \includegraphics[width=\linewidth,height=0.78\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/part1_all_models_block\block.pdf}
 \caption{\PartOneAppendixCaption{\block}}
 \end{figure}\end{landscape}}
-
-\clearpage
-\begin{landscape}
-\begin{figure}[p]\centering
-\includegraphics[width=\linewidth,height=0.78\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/part2_all_models.pdf}
-\caption{Part~2 outcomes for 19 exact routes. Columns connect action (restraint), resource consequence (normalized AURC), and group consequence (final divided by initial population). Whiskers are trajectory Student-$t$ 95\% intervals. Higher values mean more preservation in this simulator; NE means no environmentally estimable trajectory, not zero.}
-\end{figure}
-\end{landscape}
 
 \clearpage
 \begin{landscape}

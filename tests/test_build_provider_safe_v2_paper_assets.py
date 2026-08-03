@@ -487,7 +487,7 @@ def test_builds_full_production_shaped_vector_png_and_latex_assets(tmp_path: Pat
         assert len(content) > 8_000
     for path in output.glob("*.png"):
         with Image.open(path) as image:
-            assert image.width >= 3_000
+            assert image.width >= 1_800
             assert image.height >= 1_000
             assert image.mode in {"RGB", "RGBA"}
 

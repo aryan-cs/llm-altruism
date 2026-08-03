@@ -19,6 +19,7 @@ import os
 import shutil
 import statistics
 import tempfile
+import textwrap
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -1053,13 +1054,32 @@ def _save_figure(fig: plt.Figure, directory: Path, stem: str, title: str) -> lis
     fig.savefig(
         pdf,
         format="pdf",
-        bbox_inches="tight",
-        pad_inches=0.08,
         metadata={"Title": title, "Author": "Safety Beyond Refusal asset generator", "Creator": "Matplotlib"},
     )
-    fig.savefig(png, format="png", dpi=300, bbox_inches="tight", pad_inches=0.08)
+    fig.savefig(png, format="png", dpi=300)
     plt.close(fig)
     return [pdf, png]
+
+
+def _figure_footer(
+    fig: plt.Figure,
+    text: str,
+    *,
+    x: float = 0.08,
+    y: float = 0.018,
+    width: int = 145,
+) -> None:
+    """Place a bounded multi-line footer inside the physical figure canvas."""
+
+    fig.text(
+        x,
+        y,
+        textwrap.fill(text, width=width),
+        fontsize=8,
+        color=MUTED,
+        va="bottom",
+        linespacing=1.15,
+    )
 
 
 def _heatmap(
@@ -1145,8 +1165,8 @@ def _plot_part0(data: Mapping[str, Any], directory: Path) -> list[Path]:
         title="Refusal rate [Wilson 95%] / 48 roots", cmap=P0_CMAP,
         vmin=0.0, vmax=1.0, intervals=refusal_intervals,
     )
-    fig.text(0.08, 0.018, "Brackets are condition-specific Wilson 95% intervals over 48 roots. Higher refusal means less assistance on this harmful-request task. Invalid outputs remain in the scheduled denominator but are reported in the reproducibility artifacts rather than as a separate argument-facing column.", fontsize=8, color=MUTED)
-    fig.tight_layout(rect=(0.06, 0.045, 0.99, 0.90))
+    _figure_footer(fig, "Brackets are condition-specific Wilson 95% intervals over 48 roots. Higher refusal means less assistance on this harmful-request task. Invalid outputs remain in the scheduled denominator but are reported in the reproducibility artifacts rather than as a separate argument-facing column.")
+    fig.tight_layout(rect=(0.06, 0.085, 0.99, 0.90))
     return _save_figure(fig, directory, "part0_model_language", "Part 0 model by language outcomes")
 
 
@@ -1200,7 +1220,19 @@ def _lollipop_panel(
             ax.scatter([0.015], [position], marker="x", s=17, color=MUTED, linewidth=0.8, zorder=2)
             ax.text(0.03, position, "NE", va="center", ha="left", fontsize=6.6, color=MUTED)
         else:
-            ax.text(min(value + 0.012, 0.985), position, f"{value:.1%}", va="center", ha="left" if value < 0.95 else "right", fontsize=6.6, color=INK)
+            if value >= 0.82:
+                label_x, alignment = max(0.015, value - 0.015), "right"
+            else:
+                label_x, alignment = min(0.985, value + 0.015), "left"
+            ax.text(
+                label_x,
+                position,
+                f"{value:.1%}",
+                va="center",
+                ha=alignment,
+                fontsize=6.6,
+                color=INK,
+            )
     _style_axes(ax)
 
 
@@ -1324,12 +1356,14 @@ def _plot_cross_phase_outcome_profile(
             loc="lower center", bbox_to_anchor=(0.53, 0.018), ncol=3,
             frameon=False, fontsize=8,
         )
-        fig.text(
-            0.07, 0.046,
+        _figure_footer(
+            fig,
             "Green circles are refusal, welfare-preserving choice, and restraint; red diamonds are compliance, focal-advantage choice, and overuse. Positions use 144 Part 0 responses, 384 Part 1 roots, or Part 2 scheduled agent-days. Unclear or invalid outputs stay in denominators but are omitted as visual bookkeeping. Panels are not pooled.",
-            fontsize=8, color=MUTED, wrap=True,
+            x=0.07,
+            y=0.015,
+            width=165,
         )
-        fig.tight_layout(rect=(0.045, 0.075, 0.995, 0.90), w_pad=1.2)
+        fig.tight_layout(rect=(0.045, 0.12, 0.995, 0.90), w_pad=1.2)
         output.extend(
             _save_figure(
                 fig, directory,
@@ -1378,8 +1412,8 @@ def _plot_part1(data: Mapping[str, Any], directory: Path) -> list[Path]:
             intervals=welfare_intervals[start:stop],
         )
         ax.tick_params(axis="y", labelsize=6.5)
-        fig.text(0.08, 0.018, "Bars are welfare-preserving first attempts over all 384 roots; whiskers are frozen-root-bank sensitivity intervals, not population CIs. Higher values mean fewer counterpart costs in this task.", fontsize=8, color=MUTED)
-        fig.tight_layout(rect=(0.055, 0.04, 0.995, 0.90))
+        _figure_footer(fig, "Bars are welfare-preserving first attempts over all 384 roots; whiskers are frozen-root-bank sensitivity intervals, not population CIs. Higher values mean fewer counterpart costs in this task.")
+        fig.tight_layout(rect=(0.055, 0.07, 0.995, 0.90))
         output.extend(
             _save_figure(
                 fig, directory, f"part1_all_models_block{block_index + 1}",
@@ -1430,8 +1464,8 @@ def _plot_part2(data: Mapping[str, Any], directory: Path) -> list[Path]:
     _lollipop_panel(axes[0], restraint, labels, title="Mean trajectory restraint [t95]", color=GREEN, show_labels=True, intervals=restraint_intervals)
     _lollipop_panel(axes[1], aurc, labels, title="Mean AURC [t95] / env.", color=GREEN, show_labels=False, intervals=aurc_intervals)
     _lollipop_panel(axes[2], population, labels, title="Population retained [t95] / env.", color=GREEN, show_labels=False, intervals=population_intervals)
-    fig.text(0.075, 0.018, "The three centered bar columns connect model action (restraint), resource consequence (AURC), and group consequence (final population retained). Whiskers are trajectory-level Student-t 95% intervals. Higher values mean more preservation in this simulator. AUPC and nondepletion remain in the released diagnostics; invalid actions remain in denominators and eligibility checks rather than a separate argument-facing panel.", fontsize=8, color=MUTED)
-    fig.tight_layout(rect=(0.055, 0.045, 0.995, 0.94), w_pad=1.8)
+    _figure_footer(fig, "The three centered bar columns connect model action (restraint), resource consequence (AURC), and group consequence (final population retained). Whiskers are trajectory-level Student-t 95% intervals. Higher values mean more preservation in this simulator. AUPC and nondepletion remain in the released diagnostics; invalid actions remain in denominators and eligibility checks rather than a separate argument-facing panel.", x=0.075, width=155)
+    fig.tight_layout(rect=(0.055, 0.105, 0.995, 0.94), w_pad=1.8)
     return _save_figure(fig, directory, "part2_all_models", "Part 2 all-model outcomes")
 
 
@@ -1445,8 +1479,8 @@ def _plot_role(data: Mapping[str, Any], directory: Path) -> list[Path]:
     fig.suptitle("Part 1 role-calibration outcomes by exact sentinel route and frame", x=0.08, ha="left", fontsize=15, fontweight="bold", color=INK)
     fig.text(0.08, 0.91, "Six sentinels x three separate frames; 384 scheduled draws per route-frame; frames are not pooled.", fontsize=9, color=MUTED)
     _heatmap(ax, welfare, ROLE_FRAMES, labels, title="Welfare-preserving / all scheduled draws", cmap=P1_CMAP, vmin=0.0, vmax=1.0)
-    fig.text(0.08, 0.025, "Higher welfare preservation means fewer counterpart costs within that role-conditioned task. Frame differences are descriptive, not causal; invalid outputs remain in each scheduled denominator.", fontsize=8, color=MUTED)
-    fig.tight_layout(rect=(0.055, 0.07, 0.995, 0.87))
+    _figure_footer(fig, "Higher welfare preservation means fewer counterpart costs within that role-conditioned task. Frame differences are descriptive, not causal; invalid outputs remain in each scheduled denominator.", y=0.02)
+    fig.tight_layout(rect=(0.055, 0.09, 0.995, 0.87))
     return _save_figure(fig, directory, "part1_role_calibration", "Part 1 role-calibration outcomes")
 
 
@@ -1486,8 +1520,8 @@ def _plot_sensitivity(data: Mapping[str, Any], directory: Path) -> list[Path]:
     colorbar.set_label("High - low normalized AURC", fontsize=8, color=INK)
     colorbar.ax.tick_params(labelsize=7, colors=INK)
     _style_axes(ax)
-    fig.text(0.09, 0.025, "H: global Holm-adjusted p <= 0.05; n.s.: otherwise. Positive/negative indicates effect direction only and is not automatically good/bad for a parameter factor.", fontsize=8, color=MUTED)
-    fig.tight_layout(rect=(0.06, 0.075, 0.99, 0.87))
+    _figure_footer(fig, "H: global Holm-adjusted p <= 0.05; n.s.: otherwise. Positive/negative indicates effect direction only and is not automatically good/bad for a parameter factor.", x=0.09, y=0.02)
+    fig.tight_layout(rect=(0.06, 0.095, 0.99, 0.87))
     return _save_figure(fig, directory, "part2_sensitivity_effects", "Part 2 sensitivity main effects")
 
 
@@ -1510,12 +1544,14 @@ def _plot_local_controls(data: Mapping[str, Any], directory: Path) -> list[Path]
         ax, welfare, labels,
         title="Welfare-preserving / all 384 scheduled units", color=ORANGE, show_labels=True,
     )
-    fig.text(
-        0.085, 0.025,
+    _figure_footer(
+        fig,
         "Bars show welfare-preserving choice with invalid outputs retained as nonsuccesses. Higher values are preferable only within this task; these exploratory scale controls are separate from, and not substitutes for, hosted-route or confirmatory evidence.",
-        fontsize=8, color=MUTED,
+        x=0.085,
+        y=0.02,
+        width=110,
     )
-    fig.tight_layout(rect=(0.055, 0.095, 0.99, 0.84))
+    fig.tight_layout(rect=(0.055, 0.12, 0.99, 0.84))
     return _save_figure(
         fig, directory, "part1_local_controls", "Part 1 exploratory local execution-scale controls"
     )
