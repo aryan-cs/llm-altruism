@@ -1947,6 +1947,115 @@ def _summary(values: Sequence[float]) -> tuple[float, float, float] | None:
     return min(numeric), float(statistics.median(numeric)), max(numeric)
 
 
+def _average_ranks(values: Sequence[float]) -> list[float]:
+    """Return deterministic one-based average ranks, including exact ties."""
+
+    indexed = sorted(enumerate(float(value) for value in values), key=lambda item: item[1])
+    ranks = [0.0] * len(indexed)
+    start = 0
+    while start < len(indexed):
+        end = start + 1
+        while end < len(indexed) and indexed[end][1] == indexed[start][1]:
+            end += 1
+        average = ((start + 1) + end) / 2.0
+        for offset in range(start, end):
+            ranks[indexed[offset][0]] = average
+        start = end
+    return ranks
+
+
+def _pearson(values_x: Sequence[float], values_y: Sequence[float]) -> float | None:
+    if len(values_x) != len(values_y) or len(values_x) < 2:
+        return None
+    mean_x = math.fsum(float(value) for value in values_x) / len(values_x)
+    mean_y = math.fsum(float(value) for value in values_y) / len(values_y)
+    centered_x = [float(value) - mean_x for value in values_x]
+    centered_y = [float(value) - mean_y for value in values_y]
+    denominator = math.sqrt(
+        math.fsum(value * value for value in centered_x)
+        * math.fsum(value * value for value in centered_y)
+    )
+    if denominator == 0:
+        return None
+    return math.fsum(
+        value_x * value_y for value_x, value_y in zip(centered_x, centered_y)
+    ) / denominator
+
+
+def _spearman(values_x: Sequence[float], values_y: Sequence[float]) -> float | None:
+    return _pearson(_average_ranks(values_x), _average_ranks(values_y))
+
+
+def _kendall_tau_b(values_x: Sequence[float], values_y: Sequence[float]) -> float | None:
+    if len(values_x) != len(values_y) or len(values_x) < 2:
+        return None
+    concordant = discordant = tied_x = tied_y = 0
+    for left in range(len(values_x)):
+        for right in range(left + 1, len(values_x)):
+            delta_x = float(values_x[left]) - float(values_x[right])
+            delta_y = float(values_y[left]) - float(values_y[right])
+            if delta_x == 0 and delta_y == 0:
+                continue
+            if delta_x == 0:
+                tied_x += 1
+            elif delta_y == 0:
+                tied_y += 1
+            elif delta_x * delta_y > 0:
+                concordant += 1
+            else:
+                discordant += 1
+    denominator = math.sqrt(
+        (concordant + discordant + tied_x)
+        * (concordant + discordant + tied_y)
+    )
+    if denominator == 0:
+        return None
+    return (concordant - discordant) / denominator
+
+
+def _fixed_panel_pair_diagnostic(
+    left_rows: Sequence[Mapping[str, Any]],
+    right_rows: Sequence[Mapping[str, Any]],
+    left_field: str,
+    right_field: str,
+) -> dict[str, Any] | None:
+    """Describe rank preservation over matched exact routes without population inference."""
+
+    left = {str(row["target_id"]): float(row[left_field]) for row in left_rows}
+    right = {str(row["target_id"]): float(row[right_field]) for row in right_rows}
+    targets = sorted(set(left) & set(right))
+    if len(targets) < 3:
+        return None
+    values_x = [left[target] for target in targets]
+    values_y = [right[target] for target in targets]
+    spearman = _spearman(values_x, values_y)
+    kendall = _kendall_tau_b(values_x, values_y)
+    if spearman is None or kendall is None:
+        return None
+    ranks_x = _average_ranks(values_x)
+    ranks_y = _average_ranks(values_y)
+    shifts = [abs(rank_x - rank_y) for rank_x, rank_y in zip(ranks_x, ranks_y)]
+    leave_one_out = []
+    for omitted in range(len(targets)):
+        rho = _spearman(
+            [value for index, value in enumerate(values_x) if index != omitted],
+            [value for index, value in enumerate(values_y) if index != omitted],
+        )
+        if rho is not None:
+            leave_one_out.append(rho)
+    if not leave_one_out:
+        return None
+    return {
+        "matched_route_count": len(targets),
+        "spearman_rho": spearman,
+        "kendall_tau_b": kendall,
+        "leave_one_route_out_spearman_minimum": min(leave_one_out),
+        "leave_one_route_out_spearman_maximum": max(leave_one_out),
+        "maximum_absolute_rank_shift_positions": max(shifts),
+        "median_absolute_rank_shift_positions": float(statistics.median(shifts)),
+    }
+
+
 def _percent_headline(value: float) -> str:
     return f"{100.0 * value:.1f}"
 
@@ -2112,6 +2221,68 @@ def _headline_values(data: Mapping[str, Any]) -> list[tuple[str, str]]:
         ),
     ]
 
+    pairwise_specs = (
+        (
+            "PartZeroPartOne",
+            part0,
+            part1,
+            "refusal_rate_all_scheduled",
+            "welfare_preserving_rate_all_scheduled",
+        ),
+        (
+            "PartZeroPartTwo",
+            part0,
+            part2,
+            "refusal_rate_all_scheduled",
+            "restraint_rate_all_scheduled",
+        ),
+        (
+            "PartOnePartTwo",
+            part1,
+            part2,
+            "welfare_preserving_rate_all_scheduled",
+            "restraint_rate_all_scheduled",
+        ),
+    )
+    for pair_name, left_rows, right_rows, left_field, right_field in pairwise_specs:
+        diagnostic = _fixed_panel_pair_diagnostic(
+            left_rows, right_rows, left_field, right_field
+        )
+        if diagnostic is None:
+            continue
+        prefix = f"ProviderSafePairwise{pair_name}"
+        values.extend(
+            [
+                (f"{prefix}MatchedRouteCount", str(diagnostic["matched_route_count"])),
+                (f"{prefix}SpearmanRho", _decimal_headline(diagnostic["spearman_rho"], 3)),
+                (f"{prefix}KendallTauB", _decimal_headline(diagnostic["kendall_tau_b"], 3)),
+                (
+                    f"{prefix}LeaveOneOutSpearmanMinimum",
+                    _decimal_headline(
+                        diagnostic["leave_one_route_out_spearman_minimum"], 3
+                    ),
+                ),
+                (
+                    f"{prefix}LeaveOneOutSpearmanMaximum",
+                    _decimal_headline(
+                        diagnostic["leave_one_route_out_spearman_maximum"], 3
+                    ),
+                ),
+                (
+                    f"{prefix}MaximumAbsoluteRankShift",
+                    _decimal_headline(
+                        diagnostic["maximum_absolute_rank_shift_positions"], 1
+                    ),
+                ),
+                (
+                    f"{prefix}MedianAbsoluteRankShift",
+                    _decimal_headline(
+                        diagnostic["median_absolute_rank_shift_positions"], 1
+                    ),
+                ),
+            ]
+        )
+
     frame_macro_names = {
         "advice": "Advice",
         "observer_evaluation": "ObserverEvaluation",
@@ -2184,7 +2355,7 @@ def _write_headlines(data: Mapping[str, Any], directory: Path) -> Path:
         "% Counts preserve the validated scheduled-unit denominators.",
         "% Pct macros omit the percent sign; AURC/effect macros use normalized units.",
         "% Part 2 valid/invalid macros count scheduled agent-days; NE excludes only nonestimable model AURC from its model summary.",
-        "% Role frames remain separate; sensitivity remains deadline-exploratory; no cross-axis aggregate or promotion is defined.",
+        "% Pairwise fixed-panel rank diagnostics remain separate; no cross-axis aggregate, score, population inference, or promotion is defined.",
         *(f"\\newcommand{{\\{name}}}{{{value}}}" for name, value in values),
         "",
     ]

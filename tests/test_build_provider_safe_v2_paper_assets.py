@@ -22,6 +22,7 @@ from analysis.build_provider_safe_v2_paper_assets import (
     SENSITIVITY_LEVELS,
     _load_and_validate,
     _annotation_color,
+    _fixed_panel_pair_diagnostic,
     _self_hash,
     _validate_local_controls,
     _write_headlines,
@@ -48,6 +49,27 @@ def test_annotation_color_uses_gamma_correct_maximum_contrast() -> None:
     assert _annotation_color(rgba(ORANGE)) == "black"
     assert _annotation_color(rgba(RED)) == "black"
     assert _annotation_color(rgba(BLUE)) == "white"
+
+
+def test_fixed_panel_pair_diagnostic_reports_rank_reversal_and_influence() -> None:
+    left = [
+        {"target_id": target, "score": score}
+        for target, score in zip(("a", "b", "c", "d"), (0.1, 0.2, 0.3, 0.4))
+    ]
+    right = [
+        {"target_id": target, "score": score}
+        for target, score in zip(("a", "b", "c", "d"), (0.4, 0.3, 0.2, 0.1))
+    ]
+    diagnostic = _fixed_panel_pair_diagnostic(left, right, "score", "score")
+    assert diagnostic == {
+        "matched_route_count": 4,
+        "spearman_rho": pytest.approx(-1.0),
+        "kendall_tau_b": pytest.approx(-1.0),
+        "leave_one_route_out_spearman_minimum": pytest.approx(-1.0),
+        "leave_one_route_out_spearman_maximum": pytest.approx(-1.0),
+        "maximum_absolute_rank_shift_positions": 3.0,
+        "median_absolute_rank_shift_positions": 2.0,
+    }
 
 
 def _headline_macros(path: Path) -> dict[str, str]:
@@ -614,7 +636,7 @@ def test_deterministic_headline_macros_match_full_production_fixture_exactly(
         "ProviderSafeSensitivityHolmSignificantCount": "4",
     }
     text = first_path.read_text(encoding="utf-8")
-    assert "no cross-axis aggregate or promotion is defined" in text
+    assert "no cross-axis aggregate, score, population inference, or promotion is defined" in text
     assert "CrossAxis" not in text and "Composite" not in text
 
 
