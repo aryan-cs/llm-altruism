@@ -723,6 +723,46 @@ def _record_indexes(
             if trial_id not in trials or trial_id in terminals or row.get("outcome") not in (*LABELS, "INVALID"):
                 raise InferenceHubPart0PanelError("Terminal Part 0 outcome binding failed.")
             terminals[str(trial_id)] = row
+        elif event == "unit_operationally_retired":
+            trial_id = row.get("trial_id")
+            trial = trials.get(str(trial_id))
+            retirement = row.get("retirement")
+            retained_provenance = (
+                retirement.get("retained_subject_response")
+                if isinstance(retirement, Mapping) else None
+            )
+            retained_subject = subjects.get(str(trial_id))
+            if (
+                trial is None
+                or trial_id in terminals
+                or row.get("root_id") != trial.root_id
+                or row.get("language") != trial.language
+                or row.get("dispatched") is not False
+                or "outcome" in row
+                or not isinstance(retirement, Mapping)
+                or retirement.get("provenance")
+                != "offline_target_bound_operational_retirement"
+                or not isinstance(retirement.get("retirement_id"), str)
+                or not retirement.get("retirement_id")
+                or (
+                    retained_subject is not None
+                    and (
+                        not isinstance(retained_provenance, Mapping)
+                        or retained_provenance.get("record_sha256")
+                        != retained_subject.get("record_sha256")
+                        or retained_provenance.get("raw_response_sha256")
+                        != retained_subject.get("raw_response_sha256")
+                        or retained_provenance.get("attempt_id")
+                        != retained_subject.get("attempt_id")
+                        or retirement.get("judge_dispatch_performed") is not False
+                    )
+                )
+                or (retained_subject is None and retained_provenance is not None)
+            ):
+                raise InferenceHubPart0PanelError(
+                    "Operationally retired Part 0 unit binding failed."
+                )
+            terminals[str(trial_id)] = row
         else:
             raise InferenceHubPart0PanelError("Unknown private raw journal event.")
     return subjects, batches, terminals
@@ -739,6 +779,7 @@ def _manifest_bindings(manifest: Mapping[str, Any]) -> dict[str, Any]:
     mutable = {
         "created_at_utc", "last_updated_at_utc", "completed_at_utc", "complete",
         "summary", "journals", "evidence_sha256", "resume_count", "last_resumed_at_utc",
+        "target_retirements",
     }
     return {key: value for key, value in manifest.items() if key not in mutable}
 
@@ -1241,9 +1282,17 @@ def run_panel(
                 {
                     "target_id": target_id,
                     "retained_units": len(terminals),
+                    "operationally_retired_units": sum(
+                        row.get("event") == "unit_operationally_retired"
+                        for row in terminals.values()
+                    ),
                     "outcomes": {label: sum(row.get("outcome") == label for row in terminals.values()) for label in (*LABELS, "INVALID")},
                 }
             )
+        operationally_retired_units = sum(
+            row.get("event") == "unit_operationally_retired"
+            for row in terminal_rows
+        )
         manifest["summary"] = {
             "planned_units": planned,
             "retained_terminal_units": len(terminal_rows),
@@ -1254,6 +1303,7 @@ def run_panel(
             "judge_failed_units": judge_failures,
             "subject_model_identity_mismatches": subject_identity_mismatches,
             "judge_model_identity_mismatches": judge_identity_mismatches,
+            "operationally_retired_units": operationally_retired_units,
             "targets": target_summaries,
         }
         manifest["journals"] = {
@@ -1266,6 +1316,7 @@ def run_panel(
             and judge_failures == 0
             and subject_identity_mismatches == 0
             and judge_identity_mismatches == 0
+            and operationally_retired_units == 0
         )
         manifest["last_updated_at_utc"] = _utc_now()
         if manifest["complete"]:

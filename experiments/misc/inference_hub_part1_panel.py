@@ -817,6 +817,7 @@ def _manifest_bindings(manifest: Mapping[str, Any]) -> dict[str, Any]:
         "evidence_sha256",
         "resume_count",
         "last_resumed_at_utc",
+        "target_retirements",
     }
     return {key: value for key, value in manifest.items() if key not in mutable}
 
@@ -1276,7 +1277,14 @@ def run_panel(
     )
     planned = len(subjects) * len(trials)
     rows = list(retained.values())
-    manifest["summary"] = {
+    operationally_retired_without_dispatch = sum(
+        row.get("raw_response") is None
+        and isinstance(row.get("failure"), Mapping)
+        and row["failure"].get("failure_code") == "operational_target_retired"
+        and row["failure"].get("dispatched") is False
+        for row in rows
+    )
+    summary = {
         "planned_generations": planned,
         "retained_trial_records": len(rows),
         "responses_received": sum(row.get("raw_response") is not None for row in rows),
@@ -1292,6 +1300,11 @@ def run_panel(
             for row in rows
         ),
     }
+    if operationally_retired_without_dispatch or manifest.get("target_retirements"):
+        summary["operationally_retired_without_dispatch"] = (
+            operationally_retired_without_dispatch
+        )
+    manifest["summary"] = summary
     manifest["journals"] = {
         "attempt_ledger": ledger.reference(),
         "raw_responses": {
@@ -1302,6 +1315,7 @@ def run_panel(
         len(rows) == planned
         and manifest["summary"]["failed_without_response"] == 0
         and manifest["summary"]["response_model_identity_mismatches"] == 0
+        and operationally_retired_without_dispatch == 0
     )
     manifest["last_updated_at_utc"] = _utc_now()
     if manifest["complete"]:

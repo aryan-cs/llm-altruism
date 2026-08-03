@@ -504,7 +504,7 @@ def _part0_unavailable_failure(
     if not isinstance(judge, Mapping) or not isinstance(judge.get("route"), str):
         raise FinalResultsError("Part 0 judge identity is absent.")
     counts: dict[str, int] = defaultdict(int)
-    subject_trials: set[str] = set()
+    subject_trials: dict[str, Mapping[str, Any]] = {}
     judge_batches: set[str] = set()
     terminal_trials: set[str] = set()
     for row in _journal_rows(manifest, target_id):
@@ -530,7 +530,7 @@ def _part0_unavailable_failure(
                 or row.get("response_model") != raw.get("model")
             ):
                 raise FinalResultsError("Part 0 unavailable subject evidence is invalid.")
-            subject_trials.add(trial_id)
+            subject_trials[trial_id] = row
             if row.get("model_identity_valid") is not True:
                 counts["subject_model_identity_mismatch"] += 1
         elif event == "judge_batch_retained":
@@ -576,6 +576,45 @@ def _part0_unavailable_failure(
                 ):
                     raise FinalResultsError("Part 0 judge failure evidence is invalid.")
                 counts["judge_transport_failure"] += 1
+        elif event == "unit_operationally_retired":
+            trial = schedule_by_trial.get(row.get("trial_id"))
+            retirement = row.get("retirement")
+            retained_subject = subject_trials.get(str(row.get("trial_id")))
+            retained_provenance = (
+                retirement.get("retained_subject_response")
+                if isinstance(retirement, Mapping) else None
+            )
+            if (
+                trial is None
+                or row.get("trial_id") in terminal_trials
+                or row.get("root_id") != trial.get("root_id")
+                or row.get("language") != trial.get("language")
+                or row.get("dispatched") is not False
+                or "outcome" in row
+                or not isinstance(retirement, Mapping)
+                or retirement.get("provenance")
+                != "offline_target_bound_operational_retirement"
+                or not isinstance(retirement.get("retirement_id"), str)
+                or not retirement.get("retirement_id")
+                or (
+                    retained_subject is not None
+                    and (
+                        not isinstance(retained_provenance, Mapping)
+                        or retained_provenance.get("record_sha256")
+                        != retained_subject.get("record_sha256")
+                        or retained_provenance.get("raw_response_sha256")
+                        != retained_subject.get("raw_response_sha256")
+                        or retained_provenance.get("attempt_id")
+                        != retained_subject.get("attempt_id")
+                        or retirement.get("judge_dispatch_performed") is not False
+                    )
+                )
+                or (retained_subject is None and retained_provenance is not None)
+            ):
+                raise FinalResultsError(
+                    "Part 0 operational-retirement evidence is invalid."
+                )
+            terminal_trials.add(str(row["trial_id"]))
         else:
             raise FinalResultsError("Part 0 unavailable-target journal event is unknown.")
     _validate_failure_summary_bounds(
@@ -874,6 +913,21 @@ def _part1_unavailable_failure(
                 or not isinstance(failure.get("failure_code"), str)
             ):
                 raise FinalResultsError("Part 1 unavailable transport evidence is invalid.")
+            if failure.get("failure_code") == "operational_target_retired":
+                retirement = row.get("retirement")
+                if (
+                    failure.get("dispatched") is not False
+                    or not isinstance(retirement, Mapping)
+                    or retirement.get("provenance")
+                    != "offline_target_bound_operational_retirement"
+                    or not isinstance(retirement.get("retirement_id"), str)
+                    or not retirement.get("retirement_id")
+                    or "parsed_action" in row
+                ):
+                    raise FinalResultsError(
+                        "Part 1 operational-retirement evidence is invalid."
+                    )
+                continue
             counts["transport_failure_without_response"] += 1
             continue
         if (
