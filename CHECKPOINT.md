@@ -112,6 +112,13 @@ campaigns have priority over supplemental retries.
   MiniMax M2.7 again returned target-bound HTTP 503 and Kimi K2.5 target-bound
   HTTP 529 on their exact minimal routes; both remain unavailable without
   silent substitution and may be retried again later.
+- A fourth low-rate generic exact-candidate sweep was retained separately as
+  `sota-visible-compatibility-retry-evidence-20260803-v4.json`. It is
+  intentionally not a registry input because unrelated structured-schema
+  checks left the generic bundle incomplete. Its exact minimal calls still
+  provide supplemental availability evidence: MiniMax M2.7 returned HTTP 500
+  and Kimi K2.5 again returned HTTP 529. Neither route is promoted or
+  substituted.
 - Supplemental availability runs are private, separate, and currently paused so
   primary campaigns retain capacity:
   - Part 0 Opus 4.5:
