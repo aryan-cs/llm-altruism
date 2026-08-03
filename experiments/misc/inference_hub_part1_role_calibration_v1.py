@@ -739,6 +739,37 @@ def run_calibration(
                 if response is not None:
                     metadata = base._response_metadata(response)
                     response_sha256 = base._sha256_json(response)
+                    if metadata["response_model"] != subject["route"]:
+                        last_failure = {
+                            "failure_code": "response_model_identity_mismatch",
+                            "http_status": 200,
+                            "error_type": "ResponseModelIdentityMismatch",
+                        }
+                        ledger.append(
+                            {
+                                "schema_version": SCHEMA_VERSION,
+                                "artifact_type": "inference_hub_part1_role_calibration_attempt_v1",
+                                "event": "attempt_completed",
+                                "attempt_id": attempt_id,
+                                "outcome": "failed",
+                                "failure_code": "response_model_identity_mismatch",
+                                "transient": True,
+                                "http_status": 200,
+                                "request_id": metadata["request_id"],
+                                "response_model": metadata["response_model"],
+                                "response_payload_sha256": response_sha256,
+                                "response_text_sha256": metadata["response_text_sha256"],
+                                "completed_at_utc": base._utc_now(),
+                            }
+                        )
+                        if attempt_number < max_attempts:
+                            sleep_fn(
+                                initial_backoff_seconds
+                                * (2 ** (attempt_number - 1))
+                            )
+                            continue
+                        response = None
+                        break
                     expected_welfare_label = COUNTERBALANCE_BY_ID[
                         trial.counterbalance_id
                     ].label_for(WELFARE_PRESERVING)

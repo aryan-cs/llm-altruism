@@ -126,6 +126,20 @@ class _FullFakeClient:
         }
 
 
+class _OneIdentityDriftClient(_FullFakeClient):
+    def __init__(self) -> None:
+        super().__init__()
+        self.drift_emitted = False
+
+    def post(self, path: str, body: dict[str, Any]) -> dict[str, Any]:
+        response = super().post(path, body)
+        with self.lock:
+            if not self.drift_emitted:
+                response["model"] = "served/transient-wrong-route"
+                self.drift_emitted = True
+        return response
+
+
 def test_immutable_panel_and_full_role_schedule_are_exact() -> None:
     config = load_frozen_config()
     trials = build_frozen_trials(config)
@@ -265,6 +279,58 @@ def test_full_six_model_run_resume_sanitization_and_tamper_refusal(tmp_path: Pat
             initial_backoff_seconds=0,
             resume=True,
         )
+
+
+def test_response_identity_drift_is_retried_before_retention(
+    tmp_path: Path,
+) -> None:
+    registry_path, compatibility_path, _ = _registry_and_compatibility(
+        tmp_path
+    )
+    output_dir = tmp_path / "role-identity-retry"
+    client = _OneIdentityDriftClient()
+    manifest = run_calibration(
+        registry_path=registry_path,
+        compatibility_path=compatibility_path,
+        output_dir=output_dir,
+        client=client,
+        max_workers=12,
+        max_workers_per_provider=1,
+        max_attempts=3,
+        initial_backoff_seconds=0,
+    )
+    assert manifest["complete"] is True
+    assert manifest["summary"][
+        "response_model_identity_mismatches"
+    ] == 0
+    assert len(client.calls) == EXPECTED_SUBJECT_COUNT * (
+        EXPECTED_TRIALS_PER_SUBJECT
+    ) + 1
+    ledger = [
+        json.loads(line)
+        for line in (
+            output_dir / "private/attempt_ledger.jsonl"
+        ).read_text().splitlines()
+    ]
+    failures = [
+        row
+        for row in ledger
+        if row.get("failure_code")
+        == "response_model_identity_mismatch"
+    ]
+    assert len(failures) == 1
+    assert failures[0]["outcome"] == "failed"
+    raw_rows = []
+    for path in (
+        output_dir / "private/raw_responses"
+    ).glob("*.jsonl"):
+        raw_rows.extend(
+            json.loads(line) for line in path.read_text().splitlines()
+        )
+    assert len(raw_rows) == (
+        EXPECTED_SUBJECT_COUNT * EXPECTED_TRIALS_PER_SUBJECT
+    )
+    assert all(row["model_identity_valid"] is True for row in raw_rows)
 
 
 def test_config_path_substitution_is_refused(tmp_path: Path) -> None:
