@@ -83,7 +83,7 @@ For a completed source campaign:
       data/private/inference_hub/provider-safe-v2-part1-large-n384-main75-v1/private/manifest.json \
       --output-dir \
       data/private/inference_hub/provider-safe-v2-part1-semantic-repair-v1 \
-      --max-rounds 3 \
+      --max-rounds 8 \
       --max-workers 8 \
       --round-interval-seconds 30
 

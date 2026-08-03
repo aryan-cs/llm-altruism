@@ -12,7 +12,12 @@ from analysis.analyze_semantic_invalid_repairs import (
 )
 
 
-def _write_run(root: Path, *, role: bool) -> Path:
+def _write_run(
+    root: Path,
+    *,
+    role: bool,
+    max_rounds: int = 3,
+) -> Path:
     private = root / "private"
     sanitized = root / "sanitized"
     private.mkdir(parents=True)
@@ -26,7 +31,7 @@ def _write_run(root: Path, *, role: bool) -> Path:
             "model": "claude-opus-5",
             "trial_id": f"trial-{index}",
             "original_format_valid": False,
-            "rounds_reserved": 1 if valid else 3,
+            "rounds_reserved": 1 if valid else max_rounds,
             "rounds_with_retained_response": 1 if valid else 2,
             "repair_status": "repaired_valid_separate" if valid else "unrepaired_after_bounded_rounds",
             "repaired_format_valid": valid,
@@ -70,7 +75,7 @@ def _write_run(root: Path, *, role: bool) -> Path:
         ),
         "complete": True,
         "completed_at_utc": "2026-08-03T13:30:00Z",
-        "max_semantic_rounds": 3,
+        "max_semantic_rounds": max_rounds,
         "primary_records_mutated": False,
         "primary_denominators_changed": False,
         "promotion_permitted": False,
@@ -102,7 +107,7 @@ def test_full_repair_analysis_publishes_separate_reconciled_tables(tmp_path: Pat
             **rows[0],
             "source_invalid_count": 3,
             "units_retried_count": 3,
-            "repair_attempt_count": 5,
+            "repair_attempt_count": 2 + 3,
             "repaired_valid_count": 2,
             "still_invalid_count": 1,
             "repair_rate_among_source_invalid": 2 / 3,
@@ -115,6 +120,44 @@ def test_full_repair_analysis_publishes_separate_reconciled_tables(tmp_path: Pat
         assert "Source invalid" in latex and "Still invalid" in latex and "Repair rate" in latex
         assert "general safety" in latex
     assert (output / "analysis_manifest.json").is_file()
+
+
+def test_eight_round_campaign_is_supported(tmp_path: Path) -> None:
+    part1 = _write_run(
+        tmp_path / "part1",
+        role=False,
+        max_rounds=8,
+    )
+    role = _write_run(
+        tmp_path / "role",
+        role=True,
+        max_rounds=8,
+    )
+    output = tmp_path / "analysis"
+    result = analyze(part1=part1, role=role, output_dir=output)
+    assert result["max_semantic_rounds"] == {
+        "part1": 8,
+        "role": 8,
+    }
+    assert "within at most 8 rounds" in (
+        output / "part1_semantic_repair.tex"
+    ).read_text()
+
+
+def test_round_budget_above_eight_fails(tmp_path: Path) -> None:
+    part1 = _write_run(
+        tmp_path / "part1",
+        role=False,
+        max_rounds=9,
+    )
+    role = _write_run(tmp_path / "role", role=True)
+    output = tmp_path / "must-not-exist"
+    with pytest.raises(
+        SemanticRepairAnalysisError,
+        match="round budget",
+    ):
+        analyze(part1=part1, role=role, output_dir=output)
+    assert not output.exists()
 
 
 def test_tampered_repair_payload_fails_before_output(tmp_path: Path) -> None:

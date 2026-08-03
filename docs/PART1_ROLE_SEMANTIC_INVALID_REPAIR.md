@@ -79,7 +79,7 @@ not permitted.
       data/private/inference_hub/provider-safe-part1-role-calibration-v1/private/manifest.json \
       --output-dir \
       data/private/inference_hub/provider-safe-part1-role-repair-v1 \
-      --max-rounds 3 \
+      --max-rounds 8 \
       --max-workers 6 \
       --round-interval-seconds 30
 

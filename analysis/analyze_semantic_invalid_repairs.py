@@ -16,6 +16,7 @@ from typing import Any, Mapping, Sequence
 
 SCHEMA_VERSION = 1
 ARTIFACT_TYPE = "inference_hub_semantic_invalid_repair_analysis_v1"
+MAX_SEMANTIC_ROUNDS = 8
 KINDS = {
     "part1": {
         "manifest_type": "inference_hub_part1_semantic_invalid_repair_v1",
@@ -76,12 +77,20 @@ def _load(value: Path, kind: str) -> tuple[dict[str, Any], list[dict[str, Any]]]
         or manifest.get("evidence_sha256") != _self_hash(manifest)
         or manifest.get("complete") is not True
         or not manifest.get("completed_at_utc")
-        or manifest.get("max_semantic_rounds") != 3
         or manifest.get("primary_records_mutated") is not False
         or manifest.get("primary_denominators_changed") is not False
         or manifest.get("promotion_permitted") is not False
     ):
         raise SemanticRepairAnalysisError(f"{kind} repair manifest contract failed.")
+    max_rounds = manifest.get("max_semantic_rounds")
+    if (
+        isinstance(max_rounds, bool)
+        or not isinstance(max_rounds, int)
+        or not 1 <= max_rounds <= MAX_SEMANTIC_ROUNDS
+    ):
+        raise SemanticRepairAnalysisError(
+            f"{kind} repair round budget is invalid."
+        )
 
     summary = manifest.get("summary")
     if not isinstance(summary, Mapping):
@@ -145,7 +154,7 @@ def _load(value: Path, kind: str) -> tuple[dict[str, Any], list[dict[str, Any]]]
         retained = row["rounds_with_retained_response"]
         valid = row["repaired_format_valid"]
         if (
-            isinstance(reserved, bool) or not isinstance(reserved, int) or not 0 <= reserved <= 3
+            isinstance(reserved, bool) or not isinstance(reserved, int) or not 0 <= reserved <= max_rounds
             or isinstance(retained, bool) or not isinstance(retained, int) or not 0 <= retained <= reserved
             or not isinstance(valid, bool)
             or row.get("original_format_valid") is not False
@@ -196,11 +205,16 @@ def _escape(value: object) -> str:
     return "".join(replacements.get(character, character) for character in str(value))
 
 
-def _table(rows: Sequence[Mapping[str, Any]], *, role: bool) -> str:
+def _table(
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    role: bool,
+    max_rounds: int,
+) -> str:
     caption = (
-        "Bounded Part 1 role-frame semantic-repair diagnostics. Each row is one exact target route and one distinct role frame with at least one format-invalid source response; Source invalid is the original first-response invalid count, Units retried is the number receiving at least one repair dispatch, Attempts is the total bounded repair dispatch count, Repaired valid is the number producing a valid separate response within three rounds, Still invalid is the number without a valid repair, and Repair rate is Repaired valid divided by Source invalid. Higher repair rate and lower Still invalid indicate better recoverability of the output contract, not better cooperation or general safety. Source invalids remain nonsuccesses in primary denominators; frames and models are not pooled."
+        f"Bounded Part 1 role-frame semantic-repair diagnostics. Each row is one exact target route and one distinct role frame with at least one format-invalid source response; Source invalid is the original first-response invalid count, Units retried is the number receiving at least one repair dispatch, Attempts is the total bounded repair dispatch count, Repaired valid is the number producing a valid separate response within at most {max_rounds} rounds, Still invalid is the number without a valid repair, and Repair rate is Repaired valid divided by Source invalid. Higher repair rate and lower Still invalid indicate better recoverability of the output contract, not better cooperation or general safety. Source invalids remain nonsuccesses in primary denominators; frames and models are not pooled."
         if role else
-        "Bounded Part 1 semantic-repair diagnostics. Each row is one exact target route with at least one format-invalid source response; Source invalid is the original first-attempt invalid count, Units retried is the number receiving at least one repair dispatch, Attempts is the total bounded repair dispatch count, Repaired valid is the number producing a valid separate response within three rounds, Still invalid is the number without a valid repair, and Repair rate is Repaired valid divided by Source invalid. Higher repair rate and lower Still invalid indicate better recoverability of the output contract, not better welfare preservation or general safety. Source invalids remain nonsuccesses in the primary 384-root denominator and repaired responses never replace them."
+        f"Bounded Part 1 semantic-repair diagnostics. Each row is one exact target route with at least one format-invalid source response; Source invalid is the original first-attempt invalid count, Units retried is the number receiving at least one repair dispatch, Attempts is the total bounded repair dispatch count, Repaired valid is the number producing a valid separate response within at most {max_rounds} rounds, Still invalid is the number without a valid repair, and Repair rate is Repaired valid divided by Source invalid. Higher repair rate and lower Still invalid indicate better recoverability of the output contract, not better welfare preservation or general safety. Source invalids remain nonsuccesses in the primary 384-root denominator and repaired responses never replace them."
     )
     headers = ["Target route ID", "Provider", "Model ID"] + (["Frame"] if role else []) + ["Source invalid", "Units retried", "Attempts", "Repaired valid", "Still invalid", "Repair rate"]
     body = []
@@ -253,7 +267,16 @@ def analyze(*, part1: Path, role: Path, output_dir: Path) -> dict[str, Any]:
             tex = temporary / f"{stem}.tex"
             _write_jsonl(jsonl, rows)
             _write_csv(csv_path, rows)
-            tex.write_text(_table(rows, role=kind == "role"), encoding="utf-8")
+            tex.write_text(
+                _table(
+                    rows,
+                    role=kind == "role",
+                    max_rounds=int(
+                        manifests[kind]["max_semantic_rounds"]
+                    ),
+                ),
+                encoding="utf-8",
+            )
             assets[kind] = {
                 "row_count": len(rows),
                 "jsonl": {"filename": jsonl.name, "file_sha256": _sha_file(jsonl)},
@@ -270,6 +293,10 @@ def analyze(*, part1: Path, role: Path, output_dir: Path) -> dict[str, Any]:
             "primary_denominators_changed": False,
             "repaired_estimates_separate_only": True,
             "promotion_permitted": False,
+            "max_semantic_rounds": {
+                kind: manifest["max_semantic_rounds"]
+                for kind, manifest in manifests.items()
+            },
             "table_outer_spacing_pt": 15,
         }
         result["evidence_sha256"] = _self_hash(result)
