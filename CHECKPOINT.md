@@ -144,11 +144,18 @@ Updated: 2026-08-02 (America/Los_Angeles)
 - Manifests remain `complete: false` while execution is in progress. Paper-facing
   outcomes stay locked until every planned unit for the retained artifact is
   present and strict validation passes.
+- Read-only monitoring has identified fail-closed operational records in the
+  active Part 0, Part 1 main, and Part 2 artifacts. They are not behavioral
+  outcomes and make those primary manifests ineligible as-is. After their sole
+  writers exit, only the affected targets will be rerun over their complete
+  frozen schedules. A provenance-bound replacement layer must exclude a primary
+  target only when a complete identity- and schedule-matched replacement exists;
+  successful targets and all failed attempts remain immutable in the archive.
 
 ## Remaining critical path
 
-1. Let the five live jobs finish; diagnose and isolate any terminal route
-   failures without launching duplicate output owners.
+1. Let the five live jobs finish; launch complete-schedule repair artifacts only
+   for affected targets after the corresponding primary writer exits.
 2. Validate manifests, source/input hashes, identities, attempt chains, exact
    target coverage, balanced strata, and complete sampling units.
 3. Build final sanitized results, intervals, tables, and figures, then verify
