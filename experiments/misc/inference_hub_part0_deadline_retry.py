@@ -31,6 +31,12 @@ from experiments.misc.inference_hub_rate_limit import (
 
 
 POLICY_VERSION = 1
+PERIODIC_HTTP_400_RETRY_CONTRACT = {
+    "classification": "same_payload_http_400_operational_retry_v1",
+    "identical_request_bytes_required": True,
+    "bounded_by_max_attempts_per_request": True,
+    "failed_attempts_retained_in_ledger": True,
+}
 PART0_DEADLINE_POLICY = RateLimitPolicy(
     global_concurrency=16,
     provider_concurrency=3,
@@ -89,7 +95,24 @@ def cli(argv: Sequence[str] | None = None) -> int:
         return retryable, failure_code, http_status
 
     runner._transient = periodic_transient
-    return runner.cli(list(sys.argv[1:] if argv is None else argv))
+    arguments = list(sys.argv[1:] if argv is None else argv)
+    result = runner.cli(arguments)
+    if "--output-dir" in arguments:
+        output_index = arguments.index("--output-dir") + 1
+        if output_index < len(arguments):
+            manifest_path = Path(arguments[output_index]) / "private" / "manifest.json"
+            if manifest_path.is_file():
+                manifest = runner._read_json(manifest_path, "Part 0 deadline manifest")
+                if manifest.get("complete") is True:
+                    manifest["execution_contract"]["retry_policy"] = (
+                        "transport_plus_same_payload_http_400_periodic_retry"
+                    )
+                    manifest["execution_contract"]["http_400_periodic_retry"] = dict(
+                        PERIODIC_HTTP_400_RETRY_CONTRACT
+                    )
+                    runner._seal(manifest)
+                    runner._atomic_json(manifest_path, manifest)
+    return result
 
 
 if __name__ == "__main__":
