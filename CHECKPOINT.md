@@ -98,9 +98,10 @@ Updated: 2026-08-02 (America/Los_Angeles)
 
 ## Execution and provenance controls
 
-- All five production processes run concurrently with a single owner per output
-  directory. Resumption is allowed only when manifest, source, input, identity,
-  and journal bindings match.
+- The four unfinished primary processes run concurrently with a single owner per
+  output directory; the GLM-5.1 full-bank process is complete. Resumption is
+  allowed only when manifest, source, input, identity, and journal bindings
+  match.
 - The shared cross-process limiter enforces durable leases, heartbeats, provider
   and global concurrency and request-rate ceilings, `Retry-After`, and 30-second
   cooldowns for HTTP 429 and every HTTP 5xx response. SDK retries are disabled.
@@ -129,6 +130,10 @@ Updated: 2026-08-02 (America/Los_Angeles)
   CSV, publication-table LaTeX, and figure outputs under
   `data/analysis/final_results`. Cross-axis analysis remains withheld unless the
   human-validation and intended sample-size gates pass.
+- `analysis/build_paper_headlines.py` accepts only that sealed, privacy-safe
+  result graph and emits exact within-axis JSON and LaTeX manuscript slots. It
+  refuses rankings, family effects, significance tests, cross-axis associations,
+  and pooling of the 12-, 96-, and 384-root Part 1 scopes.
 - Release documentation and `analysis/build_croissant_metadata.py` are being
   aligned to the mixed Part 1 sample sizes. The checked-in Croissant file must
   be regenerated only after the final results artifact exists.
@@ -138,28 +143,32 @@ Updated: 2026-08-02 (America/Los_Angeles)
 
 ## Current execution status
 
-- Active process ownership was verified on 2026-08-02 for all five artifacts:
-  Part 0 n=24, Part 1 main n=96, Part 1 slow n=12, Part 1 GLM-5.1 n=384, and
-  Part 2 n=8.
+- Active process ownership was verified on 2026-08-02 for the four unfinished
+  artifacts: Part 0 n=24, Part 1 main n=96, Part 1 slow n=12, and Part 2 n=8.
+  The Part 1 GLM-5.1 n=384 artifact completed all 384 scheduled roots.
 - Manifests remain `complete: false` while execution is in progress. Paper-facing
   outcomes stay locked until every planned unit for the retained artifact is
   present and strict validation passes.
 - Read-only monitoring has identified fail-closed operational records in the
-  active Part 0, Part 1 main, and Part 2 artifacts. They are not behavioral
-  outcomes and make those primary manifests ineligible as-is. After their sole
-  writers exit, only the affected targets will be rerun over their complete
-  frozen schedules. A provenance-bound replacement layer must exclude a primary
-  target only when a complete identity- and schedule-matched replacement exists;
-  successful targets and all failed attempts remain immutable in the archive.
+  active Part 0, Part 1 main, Part 1 slow, and Part 2 artifacts. They are not
+  behavioral outcomes and make those target-part slices ineligible as-is. Two
+  complete Part 1 replacement artifacts already cover DeepSeek V4 Flash and V4
+  Pro over their full frozen 96-root schedules. The final-results builder may
+  bind a complete identity- and schedule-matched replacement, or explicitly
+  mark a target-part operationally unavailable when target-specific evidence
+  proves that it cannot be scored. Successful targets and every failed attempt
+  remain immutable in the archive.
 
 ## Remaining critical path
 
-1. Let the five live jobs finish; launch complete-schedule repair artifacts only
-   for affected targets after the corresponding primary writer exits.
+1. Let the four unfinished primary jobs finish; consider complete-schedule
+   repair artifacts only for transiently affected targets after the corresponding
+   primary writer exits, without delaying for reproducible route failures.
 2. Validate manifests, source/input hashes, identities, attempt chains, exact
    target coverage, balanced strata, and complete sampling units.
-3. Build final sanitized results, intervals, tables, and figures, then verify
-   every reported number directly against those outputs.
+3. Build final sanitized results, intervals, tables, and figures; derive the
+   manuscript headline slots mechanically; then verify every reported number
+   directly against those outputs.
 4. Insert only verified results into the abstract, results, discussion,
    limitations, and conclusion; compile and inspect the full PDF.
 5. Regenerate Croissant metadata and the anonymous supplement, reproduce from a

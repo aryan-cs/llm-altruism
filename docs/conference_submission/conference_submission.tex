@@ -391,7 +391,7 @@ Historical/local & Legacy GPT, Gemini, Gemma, GPT-OSS, and local routes & Separa
     \item Part~2 runner and private ledger: \path{experiments/misc/inference_hub_part2_panel.py} and \path{data/private/inference_hub/part2-sota-matched-v1-n8}.
     \item Route discovery and identity evidence: \path{experiments/misc/inference_hub_discovery.py} and \path{data/private/inference_hub}.
     \item Task definitions: \path{experiments/part0}, \path{experiments/part1}, and \path{experiments/part2}; executed inputs and schedules are hash-pinned in their manifests.
-    \item Paper-facing validation and export: \path{analysis/build_final_results.py}; it fails closed on incomplete coverage, identity mismatches, and operational failures. Missing Part~0 human validation blocks cross-axis promotion while preserving explicitly exploratory Part~0 summaries.
+    \item Paper-facing validation and export: \path{analysis/build_final_results.py} and \path{analysis/build_paper_headlines.py}; they fail closed on incomplete coverage, identity mismatches, operational failures, unsafe fields, or inconsistent manuscript denominators. Missing Part~0 human validation blocks cross-axis promotion while preserving explicitly exploratory Part~0 summaries.
     \item Legacy status tables: \path{data/analysis/tables}; deprecated Part~0 and Part~2 tables are retained for audit but are not paper evidence.
     \item Croissant metadata: \path{data/analysis/croissant_metadata.json} \citep{akhtar2024croissant}.
     \item Documentation: \path{docs/release/REPRODUCIBILITY.md}, \path{docs/release/DATA_CARD.md}, \path{docs/release/MODEL_REGISTRY.md}, \path{docs/release/COMPUTE.md}, and \path{docs/release/LICENSES_AND_TERMS.md}.
@@ -404,6 +404,8 @@ uv run pytest -q
 uv run python -m analysis.validation --strict
 uv run python -m analysis.summarize_results
 uv run python -m analysis.build_manifest
+uv run python -m analysis.build_final_results --help
+uv run python -m analysis.build_paper_headlines --help
 \end{verbatim}
 \endgroup
 
