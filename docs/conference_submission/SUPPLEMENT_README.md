@@ -41,6 +41,7 @@ From the package root:
 uv sync
 uv run pytest -q
 uv run python -m analysis.build_final_results --help
+uv run python -m analysis.build_paper_headlines --help
 uv run python -m analysis.build_croissant_metadata --help
 uv run python -m analysis.build_supplement
 ```
@@ -48,10 +49,12 @@ uv run python -m analysis.build_supplement
 `analysis.build_final_results` is the sole bridge from complete private panel
 manifests to paper-facing results. It checks model identities, coverage,
 hash-bound journals, parser outcomes, and evidence gates before writing a
-text-free immutable directory. `analysis.build_croissant_metadata` accepts only
-that directory. It fails if the final artifact is absent, incomplete,
-self-hash-invalid, privacy-unsafe, or inconsistent with the executed
-24-matched and 75×96 + 2×12 + 1×384 Part 1 design.
+text-free immutable directory. `analysis.build_paper_headlines` validates that
+sealed artifact and emits only within-axis, scope-separated manuscript values;
+it does not compute rankings, family effects, significance tests, or cross-axis
+associations. `analysis.build_croissant_metadata` accepts only the final-results
+directory and fails if the artifact is absent, incomplete, self-hash-invalid,
+privacy-unsafe, or inconsistent with the executed scopes.
 
 The supplement includes reviewed runner code, tests, route-compatibility and
 rate-limit dependencies, documentation, and sanitized final aggregates once

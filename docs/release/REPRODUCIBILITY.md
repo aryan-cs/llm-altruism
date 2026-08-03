@@ -64,6 +64,21 @@ text field. It preserves each Part 1 target's observed count and never pools the
 output is absent unless the exact 24-system overlap and every evidence gate
 pass.
 
+Convert the sealed result graph into the exact, scope-separated values used by
+the manuscript:
+
+```bash
+uv run python -m analysis.build_paper_headlines \
+  --input data/analysis/final_results/final_results.json \
+  --output-json data/analysis/final_results/paper_headlines.json \
+  --output-tex data/analysis/final_results/paper_headlines.tex
+```
+
+This command validates the final-results self-hash and privacy contract before
+emitting within-axis counts, medians, ranges, and LaTeX macros. It refuses to
+pool Part 1 scopes or compute model rankings, family effects, significance
+tests, or cross-axis associations.
+
 ## Build Croissant metadata
 
 ```bash
