@@ -39,13 +39,15 @@ target ID, exact route, and upstream provider/model identity.
 
 ### Primary main scope (currently running)
 
-- Part 0: `data/private/inference_hub/definitive-part0-large-n48-main22-v3`
+- Part 0: `data/private/inference_hub/definitive-part0-large-n48-main22-deadline-v4`
   - 22 exact systems;
   - 48 archived English harmful-request roots crossed with three requested
     response languages (144 scheduled subject responses/system);
   - one fixed disjoint judge for every subject response;
-  - host process resumed with an eight-hour wrapper after the original
-    one-hour shell timeout; journals were preserved.
+  - a bounded retry lane uses global concurrency 16 and provider concurrency 3
+    and retries identical HTTP-400 payloads within the eight-attempt budget;
+    every failed attempt remains in the ledger. The superseded v3 partial run
+    remains preserved but is not a paper input.
 - Part 1: `data/private/inference_hub/definitive-part1-large-n384-main75-deadline-v3`
   - 75 exact routes, each on the same balanced 384-root self-choice bank;
   - malformed first responses remain all-scheduled nonsuccesses;
@@ -62,9 +64,9 @@ target ID, exact route, and upstream provider/model identity.
   - host process resumed with the exact frozen arguments and an eight-hour
     wrapper after the original one-hour shell timeout.
 
-Part 0 and Part 2 retain the main accelerated policy at global concurrency 12,
-provider concurrency 2, global 8 starts/second, and provider 1.5 starts/second.
-Part 1 uses the separately source-bound deadline policy above. Primary main
+Part 2 retains the main accelerated policy at global concurrency 12, provider
+concurrency 2, global 8 starts/second, and provider 1.5 starts/second. Parts 0
+and 1 use the separately source-bound bounded deadline policies above. Primary
 campaigns have priority over supplemental retries.
 
 ### Role calibration (currently running)
