@@ -118,13 +118,17 @@ Updated: 2026-08-02 (America/Los_Angeles)
 - `docs/conference_submission/conference_submission.tex` has the exact title
   **Safety Beyond Refusal** and the restored three-axis motivation. Unsupported
   legacy Part 0, broken-engine Part 2, cross-part, pooled-role, and latent-trait
-  claims and figures have been removed.
+  claims and figures have been removed. The main paper now has explicit Results,
+  Discussion, and Limitations and Broader Impact sections; detailed legacy-audit
+  material is subordinate in the appendix, and the full official NeurIPS
+  checklist is included after the appendix.
 - `docs/conference_submission/working_draft.pdf` is an ignored link to the
   compiled submission PDF and must be refreshed after every paper-facing change.
 - `analysis/build_final_results.py` is the fail-closed paper-results builder. It
   validates complete manifests and their chains and emits only sanitized JSON,
-  CSV, LaTeX, and figure outputs. Cross-axis analysis remains withheld unless
-  the human-validation and intended sample-size gates pass.
+  CSV, publication-table LaTeX, and figure outputs under
+  `data/analysis/final_results`. Cross-axis analysis remains withheld unless the
+  human-validation and intended sample-size gates pass.
 - Release documentation and `analysis/build_croissant_metadata.py` are being
   aligned to the mixed Part 1 sample sizes. The checked-in Croissant file must
   be regenerated only after the final results artifact exists.

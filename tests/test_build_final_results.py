@@ -14,6 +14,7 @@ from analysis.build_final_results import (
     _parser,
     _preferred_part1,
     _reject_text_keys,
+    _select_figure_rows,
     _self_hash,
     _sha256_file,
     _sha256_json,
@@ -23,7 +24,10 @@ from experiments.part1.confirmatory_design import DOMAINS, GAMES
 
 
 TARGET = "subject.alpha"
-SUBJECT = {"target_id": TARGET, "upstream_provider": "alpha", "model": "alpha-model", "route": "region/alpha-model"}
+SUBJECT = {
+    "target_id": TARGET, "upstream_provider": "alpha_&_lab",
+    "model": "alpha_model%{v1}#", "route": "region/alpha-model",
+}
 JUDGE = {"target_id": "judge.route", "upstream_provider": "judge", "model": "judge-model", "route": "region/judge-model"}
 
 
@@ -142,22 +146,33 @@ def _part1_fixture(
 
 
 def _part2_fixture(root: Path, *, tamper: bool = False) -> Path:
+    trajectory_count = 8
     intervals = {
-        metric: {"mean": 0.8 if metric not in {"final_reserve", "cumulative_private_payoff", "cumulative_group_payoff"} else 10.0, "lower": 0.7, "upper": 0.9, "n": 2, "method": "trajectory_t_95"}
-        for metric in ("aurc", "aupc", "restraint_rate", "reserve_nondepletion", "final_reserve", "population_retention", "cumulative_private_payoff", "cumulative_group_payoff")
+        "aurc": {"mean": 0.625, "lower": 0.5, "upper": 0.75, "n": trajectory_count, "method": "trajectory_t_95"},
+        "aupc": {"mean": 0.875, "lower": 0.75, "upper": 1.0, "n": trajectory_count, "method": "trajectory_t_95"},
+        "restraint_rate": {"mean": 0.375, "lower": 0.25, "upper": 0.5, "n": trajectory_count, "method": "trajectory_t_95"},
+        "reserve_nondepletion": {
+            "mean": 0.5, "lower": 0.2152, "upper": 0.7848, "n": trajectory_count,
+            "successes": 4, "method": "trajectory_wilson_95",
+        },
+        "final_reserve": {"mean": 10.0, "lower": 8.0, "upper": 12.0, "n": trajectory_count, "method": "trajectory_t_95"},
+        "population_retention": {"mean": 0.8, "lower": 0.7, "upper": 0.9, "n": trajectory_count, "method": "trajectory_t_95"},
+        "cumulative_private_payoff": {"mean": 10.0, "lower": 8.0, "upper": 12.0, "n": trajectory_count, "method": "trajectory_t_95"},
+        "cumulative_group_payoff": {"mean": 10.0, "lower": 8.0, "upper": 12.0, "n": trajectory_count, "method": "trajectory_t_95"},
     }
     models = _seal({
         "schema_version": 1, "artifact_type": "inference_hub_part2_sanitized_model_metrics",
         "rows": [{
             "target_id": TARGET, "upstream_provider": SUBJECT["upstream_provider"],
-            "model": SUBJECT["model"], "trajectory_count": 2,
-            "eligible_trajectory_count": 2, "complete_matched_panel": True,
+            "model": SUBJECT["model"], "trajectory_count": trajectory_count,
+            "eligible_trajectory_count": trajectory_count, "complete_matched_panel": True,
+            "total_scheduled_agent_days": 73, "total_invalid_count": 3,
             "trajectory_level_95_percent_t_intervals": intervals,
         }],
     })
     trajectories = _seal({
         "schema_version": 1, "artifact_type": "inference_hub_part2_sanitized_trajectory_metrics",
-        "rows": [{"target_id": TARGET, "trajectory_index": index, "operationally_eligible": True} for index in range(2)],
+        "rows": [{"target_id": TARGET, "trajectory_index": index, "operationally_eligible": True} for index in range(trajectory_count)],
     })
     model_path = root / "part2/sanitized/model_metrics.json"
     trajectory_path = root / "part2/sanitized/trajectory_metrics.json"
@@ -167,7 +182,7 @@ def _part2_fixture(root: Path, *, tamper: bool = False) -> Path:
         "schema_version": 1, "artifact_type": "inference_hub_part2_corrected_matched_panel",
         "complete": True, "subject_routes": [SUBJECT],
         "part2_contract": {
-            "independent_trajectories": 2, "society_size": 5, "days": 12,
+            "independent_trajectories": trajectory_count, "society_size": 5, "days": 12,
             "resource_capacity": 50, "option_a_private_gain": 1,
             "option_b_private_gain": 2, "option_b_reserve_cost": 2,
         },
@@ -205,6 +220,24 @@ def test_builder_emits_sanitized_scoped_outputs_and_blocks_unready_cross_axis(tm
     assert artifact["cross_axis"]["status"] == "not_emitted_fail_closed"
     assert not (tmp_path / "final/cross_axis_spearman.csv").exists()
     assert (tmp_path / "final/figures/model_axis_summary.pdf").is_file()
+    expected_figure_paths = {
+        "figures/matched_panel_axis_summary.pdf",
+        "figures/matched_panel_axis_summary.png",
+        "figures/model_axis_summary.pdf",
+        "figures/model_axis_summary.png",
+        "figures/part1_scope_facets.pdf",
+        "figures/part1_scope_facets.png",
+    }
+    figure_references = {
+        reference["path"]: reference for reference in artifact["outputs"]["figures"]
+    }
+    assert set(figure_references) == expected_figure_paths
+    for relative, reference in figure_references.items():
+        assert reference["file_sha256"] == _sha256_file(tmp_path / "final" / relative)
+    for filename in (
+        "part0_results_table.tex", "part1_results_table.tex", "part2_results_table.tex",
+    ):
+        assert (tmp_path / "final" / filename).is_file()
     part1_csv = (tmp_path / "final/part1_model_rates.csv").read_text()
     assert "full_384" in part1_csv and "balanced_partial" in part1_csv
     assert artifact["parameters"]["part1_balanced_partial_root_counts"] == [12, 96]
@@ -217,6 +250,92 @@ def test_builder_emits_sanitized_scoped_outputs_and_blocks_unready_cross_axis(tm
     public = (tmp_path / "final/final_results.json").read_text()
     assert "I cannot help" not in public and '"raw_response"' not in public
     assert artifact["evidence_sha256"] == _self_hash(artifact)
+
+
+def test_publication_tables_are_exact_scoped_escaped_private_and_hash_bound(
+    tmp_path: Path,
+) -> None:
+    output = tmp_path / "publication"
+    artifact = build_final_results(
+        part0_manifest=_part0_fixture(tmp_path),
+        part1_full_manifests=[_part1_fixture(tmp_path, count=384, name="publication-full")],
+        part1_n96_manifests=[
+            _part1_fixture(tmp_path, count=96, name="publication-n96"),
+            _part1_fixture(tmp_path, count=12, name="publication-n12"),
+        ],
+        part2_manifest=_part2_fixture(tmp_path), panel_path=_panel(tmp_path),
+        output_dir=output, bootstrap_seed=19,
+    )
+
+    part0 = (output / "part0_results_table.tex").read_text(encoding="utf-8")
+    assert "reconstructed response-language conditions" in part0
+    assert "not translated-prompt" in part0
+    assert "no benign controls" in part0
+    assert "alpha\\_model\\%\\{v1\\}\\# & alpha\\_\\&\\_lab & 1" in part0
+    assert "100.0\\% [100.0, 100.0]" in part0
+    assert part0.count("100.0\\% [20.7, 100.0]") == 3
+    assert "0/0 & Exploratory" in part0
+
+    part1 = (output / "part1_results_table.tex").read_text(encoding="utf-8")
+    assert "are never pooled" in part1
+    assert part1.count("alpha\\_model\\%\\{v1\\}\\#") == 3
+    assert "Balanced partial & 12 & 12/12 (1/stratum) & 100.0\\% [--]" in part1
+    assert "Balanced partial & 96 & 12/12 (8/stratum) & 100.0\\% [100.0, 100.0]" in part1
+    assert "Full & 384 & 12/12 (32/stratum) & 100.0\\% [100.0, 100.0]" in part1
+    assert part1.count("384/384 (100.0\\%) & 0 & Exploratory") == 1
+
+    part2 = (output / "part2_results_table.tex").read_text(encoding="utf-8")
+    assert "95\\% $t_{7}$ intervals" in part2
+    assert "0.625 [0.500, 0.750]" in part2
+    assert "0.375 [0.250, 0.500]" in part2
+    assert "4/8 [21.5, 78.5]\\%" in part2
+    assert "0.875 [0.750, 1.000] & 3/73" in part2
+
+    combined = part0 + part1 + part2
+    for forbidden in (
+        "I cannot help", "region/alpha-model", "raw_response", "prompt_text",
+        "visible_response", "reasoning",
+    ):
+        assert forbidden not in combined
+    for key, filename in (
+        ("latex_part0_table", "part0_results_table.tex"),
+        ("latex_part1_table", "part1_results_table.tex"),
+        ("latex_part2_table", "part2_results_table.tex"),
+    ):
+        reference = artifact["outputs"][key]
+        assert reference["path"] == filename
+        assert reference["file_sha256"] == _sha256_file(output / filename)
+    assert artifact["evidence_sha256"] == _self_hash(artifact)
+
+
+def test_figure_selection_uses_p0_p2_intersection_and_keeps_all_part1_scopes() -> None:
+    def identity(target_id: str) -> dict[str, Any]:
+        return {
+            "target_id": target_id, "upstream_provider": f"provider-{target_id}",
+            "model": f"model-{target_id}",
+        }
+
+    part0 = [identity("p0-only"), identity("matched-b"), identity("matched-a")]
+    part2 = [identity("p2-only"), identity("matched-a"), identity("matched-b")]
+    part1 = [
+        {**identity("matched-a"), "scope": "balanced_partial", "root_count": 96},
+        {**identity("matched-b"), "scope": "balanced_partial", "root_count": 12},
+        {**identity("matched-b"), "scope": "full_384", "root_count": 384},
+        {**identity("part1-only"), "scope": "balanced_partial", "root_count": 96},
+    ]
+
+    matched, broad = _select_figure_rows(part0, part1, part2)
+    assert {row["target_id"] for row in matched} == {"matched-a", "matched-b"}
+    assert all(row["target_id"] not in {"p0-only", "p2-only"} for row in matched)
+    selected_b = next(row for row in matched if row["target_id"] == "matched-b")
+    assert selected_b["part1"]["scope"] == "full_384"
+    assert selected_b["part1"]["root_count"] == 384
+    assert [(row["target_id"], row["scope"], row["root_count"]) for row in broad] == [
+        ("matched-b", "balanced_partial", 12),
+        ("matched-a", "balanced_partial", 96),
+        ("part1-only", "balanced_partial", 96),
+        ("matched-b", "full_384", 384),
+    ]
 
 
 def test_part2_tampering_fails_closed(tmp_path: Path) -> None:

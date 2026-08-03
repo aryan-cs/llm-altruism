@@ -16,11 +16,11 @@ population effects. The primary claims are:
    rates can be reported separately for every route in the frozen panel;
 2. neutral, self-directed choices in one-shot dilemmas can be profiled over the
    frozen scenario bank;
-3. run-level resource preservation can be estimated for every route in one
+3. run-level commons restraint can be estimated for every route in one
    specified repeated commons; and
 4. these measurements form a profile rather than a readiness score.
 
-The current-SOTA cohort is primary. Historical routes are a separately labeled
+The current frontier and open-weight cohort is primary. Historical routes are a separately labeled
 descriptive cohort and never increase the primary cross-part sample size.
 Cross-part associations and between-route comparisons are descriptive
 finite-panel summaries. Marginal per-route intervals are not simultaneous
@@ -255,7 +255,7 @@ the 30-test family.
 
 ## Cross-part analysis
 
-Three Spearman associations are computed only over complete current-SOTA
+Three Spearman associations are computed only over the complete current frontier/open-weight
 systems. A nested finite-panel bootstrap resamples Part 0 semantic clusters,
 Part 1 scenario roots within the 12 game-by-domain strata, and Part 2 common
 seed indices. A unit is drawn once per replicate and its weight is applied to

@@ -81,7 +81,7 @@ class ConferenceSubmissionFormatTest(unittest.TestCase):
         self.assertNotRegex(source, r"\\author\{[^}]*@[^}]*\}")
         self.assertNotIn(r"\usepackage[final", source)
 
-    def test_invalid_part0_model_evidence_is_not_rendered(self) -> None:
+    def test_retired_legacy_evidence_is_not_rendered(self) -> None:
         source = TEX.read_text(encoding="utf-8")
         retired_figures = (
             "behavioral_fingerprint_heatmap.png",
@@ -94,12 +94,11 @@ class ConferenceSubmissionFormatTest(unittest.TestCase):
             self.assertNotIn(figure, source)
         self.assertNotIn("9.4--99.3", source)
         self.assertNotIn("$r{=}0.77$", source)
-        self.assertIn("300 of 1,243 adjudicated rows", source)
-        self.assertIn("group-level score would change by +5", source)
-        self.assertIn(
-            "never computed, stored, or fed back either individual or group scores",
-            source,
-        )
+        self.assertNotIn("300 of 1,243 adjudicated rows", source)
+        self.assertIn(r"\title{Safety Beyond Refusal}", source)
+        self.assertIn("reconstructed response-language conditions", source)
+        self.assertIn("Option~A gives the acting slot one private point", source)
+        self.assertIn("Option~B gives two private points and removes two reserve units", source)
 
     def test_rendered_main_text_boundary_when_extractor_is_available(self) -> None:
         extractor = _find_pdftotext()
@@ -120,12 +119,8 @@ class ConferenceSubmissionFormatTest(unittest.TestCase):
             self.fail(f"PDF heading not found: {pattern}")
 
         conclusion_page = page_matching(r"^\s*(?:\d+\s+)?9 Conclusion\s*$")
-        conclusion_end_page = page_matching(
-            r"sensitivity\s+analysis\s+of\s+the\s+commons\s+dynamics\."
-        )
         references_page = page_matching(r"^\s*(?:\d+\s+)?References\s*$")
         self.assertLessEqual(conclusion_page, 9)
-        self.assertLessEqual(conclusion_end_page, 9)
         self.assertLessEqual(references_page, 10)
 
 

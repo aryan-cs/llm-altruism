@@ -323,7 +323,7 @@ def build_metadata(
         "publisher": {"@type": "sc:Organization", "name": "Anonymous Authors"},
         "license": "https://opensource.org/license/mit", "sdLicense": "https://opensource.org/license/mit",
         "citeAs": "Anonymous Authors. Safety Beyond Refusal. Anonymous conference submission, 2026.",
-        "keywords": ["large language models", "safety refusal", "cooperation", "commons preservation", "behavioral evaluation"],
+        "keywords": ["large language models", "safety refusal", "dyadic cooperation", "commons restraint", "behavioral evaluation"],
         "isAccessibleForFree": True, "rai:hasSyntheticData": True,
         "prov:wasDerivedFrom": [{
             "@type": "sc:CreativeWork", "name": "Executed hosted Prosocial Readiness Bench panels",
@@ -358,7 +358,7 @@ def build_metadata(
         ],
         "rai:dataUseCases": [
             "Reproduce the paper's evidence-status-aware aggregate summaries.",
-            "Study task-specific refusal, self-choice, and commons preservation without treating them as a latent moral trait.",
+            "Study task-specific safety refusal, dyadic cooperation, and commons restraint without treating them as a latent moral trait.",
             "Not supported: training on harmful content, global prosocial rankings, or deployment safety certification.",
         ],
         "rai:dataLimitations": [
