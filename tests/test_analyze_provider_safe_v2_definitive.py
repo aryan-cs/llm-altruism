@@ -322,6 +322,7 @@ def test_campaign_specific_accelerated_launcher_and_policy_bindings() -> None:
     safe = ROOT / "experiments/misc/inference_hub_provider_safe_v2.py"
     main = ROOT / "experiments/misc/inference_hub_main_accelerated.py"
     deadline = ROOT / "experiments/misc/inference_hub_part1_deadline_accelerated.py"
+    part0_deadline = ROOT / "experiments/misc/inference_hub_part0_deadline_retry.py"
     exploratory = ROOT / "experiments/misc/inference_hub_exploratory_accelerated.py"
 
     def manifest(
@@ -353,13 +354,19 @@ def test_campaign_specific_accelerated_launcher_and_policy_bindings() -> None:
     deadline_manifest = manifest(
         deadline, 4, 2.5, global_concurrency=24, global_rps=12.0
     )
+    part0_deadline_manifest = manifest(
+        part0_deadline, 3, 2.0, global_concurrency=16, global_rps=10.0
+    )
     _provider_safe_contract(main_manifest, "part0")
     _provider_safe_contract(exploratory_manifest, "role")
     _provider_safe_contract(deadline_manifest, "part1")
+    _provider_safe_contract(part0_deadline_manifest, "part0")
     with pytest.raises(DefinitiveAnalysisError, match="Wrong accelerated launcher"):
         _provider_safe_contract(main_manifest, "sensitivity")
     with pytest.raises(DefinitiveAnalysisError, match="Wrong accelerated launcher"):
         _provider_safe_contract(deadline_manifest, "part0")
+    with pytest.raises(DefinitiveAnalysisError, match="Wrong accelerated launcher"):
+        _provider_safe_contract(part0_deadline_manifest, "part1")
     exploratory_manifest["execution_contract"]["shared_rate_limit"]["provider_requests_per_second"] = 2.1
     with pytest.raises(DefinitiveAnalysisError, match="policy hash failed"):
         _provider_safe_contract(exploratory_manifest, "sensitivity")
