@@ -27,7 +27,7 @@ import matplotlib
 matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt
-from matplotlib.colors import LinearSegmentedColormap, TwoSlopeNorm
+from matplotlib.colors import LinearSegmentedColormap, TwoSlopeNorm, to_hex
 from matplotlib.ticker import PercentFormatter
 
 
@@ -63,14 +63,20 @@ DEFAULT_LOCAL_CONTROLS_PATH = (
 INK = "#20252B"
 MUTED = "#66707A"
 GRID = "#D9DEE3"
-BLUE = "#2D5F8B"
-BLUE_LIGHT = "#DCE9F3"
-ORANGE = "#C46A2D"
-ORANGE_LIGHT = "#F5E2D5"
-RATE_CMAP = LinearSegmentedColormap.from_list("rate_blue", ("#F7FAFC", BLUE))
-VALID_CMAP = LinearSegmentedColormap.from_list("valid_orange", ("#FFF8F2", ORANGE))
+TURBO = matplotlib.colormaps["turbo"]
+BLUE = to_hex(TURBO(0.10))
+GREEN = to_hex(TURBO(0.42))
+RED = to_hex(TURBO(0.90))
+RATE_CMAP = LinearSegmentedColormap.from_list(
+    "rate_turbo",
+    tuple(TURBO(stop) for stop in (0.08, 0.20, 0.31, 0.42)),
+)
+VALID_CMAP = LinearSegmentedColormap.from_list(
+    "valid_turbo",
+    tuple(TURBO(stop) for stop in (0.08, 0.20, 0.31, 0.42)),
+)
 SIGNED_CMAP = LinearSegmentedColormap.from_list(
-    "signed_orange_blue", (ORANGE, "#FAFAF8", BLUE)
+    "signed_turbo", (BLUE, "#FAFAF8", RED)
 )
 
 
@@ -870,7 +876,7 @@ def _plot_part1(data: Mapping[str, Any], directory: Path) -> list[Path]:
     fig.suptitle("Part 1 self-choice outcomes for all 75 exact model routes", x=0.08, y=0.995, ha="left", fontsize=15, fontweight="bold", color=INK)
     fig.text(0.08, 0.973, "One row per route; 384 scheduled units per route; ordered by within-task welfare-preserving rate.", fontsize=9, color=MUTED)
     _lollipop_panel(axes[0], welfare, labels, title="Welfare-preserving / all scheduled units", color=BLUE, show_labels=True)
-    _lollipop_panel(axes[1], validity, labels, title="Valid first-attempt coverage", color=ORANGE, show_labels=False)
+    _lollipop_panel(axes[1], validity, labels, title="Valid first-attempt coverage", color=GREEN, show_labels=False)
     fig.text(0.08, 0.012, "Higher welfare preservation means fewer counterpart costs in this self-choice task; higher validity means fewer invalid outputs. Neither is a general safety ranking.", fontsize=8, color=MUTED)
     fig.tight_layout(rect=(0.055, 0.028, 0.99, 0.965), w_pad=2.0)
     return _save_figure(fig, directory, "part1_all_models", "Part 1 all-model outcomes")
@@ -891,7 +897,7 @@ def _plot_part2(data: Mapping[str, Any], directory: Path) -> list[Path]:
     fig.text(0.075, 0.953, "One row per route; 12 trajectories per route; ordered by within-task restraint rate.", fontsize=9, color=MUTED)
     _lollipop_panel(axes[0], restraint, labels, title="Restraint / scheduled agent-days", color=BLUE, show_labels=True)
     _lollipop_panel(axes[1], aurc, labels, title="Mean normalized AURC / eligible trajectories", color=BLUE, show_labels=False)
-    _lollipop_panel(axes[2], validity, labels, title="Valid first-attempt coverage", color=ORANGE, show_labels=False)
+    _lollipop_panel(axes[2], validity, labels, title="Valid first-attempt coverage", color=GREEN, show_labels=False)
     fig.text(0.075, 0.018, "Higher restraint and AURC mean more reserve preservation in this simulator; higher validity means fewer invalid actions. These are not general safety scores.", fontsize=8, color=MUTED)
     fig.tight_layout(rect=(0.055, 0.045, 0.995, 0.94), w_pad=1.8)
     return _save_figure(fig, directory, "part2_all_models", "Part 2 all-model outcomes")
@@ -977,7 +983,7 @@ def _plot_local_controls(data: Mapping[str, Any], directory: Path) -> list[Path]
     )
     _lollipop_panel(
         axes[1], validity, labels,
-        title="Format-valid / all 384 scheduled units", color=ORANGE, show_labels=False,
+        title="Format-valid / all 384 scheduled units", color=GREEN, show_labels=False,
     )
     fig.text(
         0.085, 0.025,
@@ -1557,6 +1563,10 @@ def build_paper_assets(
             "assets": asset_rows,
             "table_outer_spacing_pt": 15,
             "table_outer_spacing_approx_css_px_at_96dpi": 20,
+            "figure_palette": "matplotlib_turbo_sampled_0.08_to_0.90",
+            "figure_semantic_redundancy": (
+                "directional_caption_position_and_printed_values"
+            ),
             "invalid_policy": INVALID_POLICY,
             "exploratory_only": True,
             "confirmatory_or_paper_promotion_permitted": False,

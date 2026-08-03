@@ -342,6 +342,10 @@ def test_builds_full_production_shaped_vector_png_and_latex_assets(tmp_path: Pat
     assert result["cross_axis_aggregate_or_score_generated"] is False
     assert result["confirmatory_or_paper_promotion_permitted"] is False
     assert result["table_outer_spacing_pt"] == 15
+    assert result["figure_palette"].startswith("matplotlib_turbo")
+    assert result["figure_semantic_redundancy"] == (
+        "directional_caption_position_and_printed_values"
+    )
     assert result["route_and_model_ids_preserved_exactly"] is True
     assert len(result["assets"]) == 20
     assert result["local_controls_pooled_with_hosted_routes"] is False
