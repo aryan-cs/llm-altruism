@@ -321,14 +321,22 @@ def test_hash_tamper_and_judge_overlap_fail_closed(
 def test_campaign_specific_accelerated_launcher_and_policy_bindings() -> None:
     safe = ROOT / "experiments/misc/inference_hub_provider_safe_v2.py"
     main = ROOT / "experiments/misc/inference_hub_main_accelerated.py"
+    deadline = ROOT / "experiments/misc/inference_hub_part1_deadline_accelerated.py"
     exploratory = ROOT / "experiments/misc/inference_hub_exploratory_accelerated.py"
 
-    def manifest(launcher: Path, concurrency: int, rps: float) -> dict[str, Any]:
+    def manifest(
+        launcher: Path,
+        concurrency: int,
+        rps: float,
+        *,
+        global_concurrency: int = 12,
+        global_rps: float = 8.0,
+    ) -> dict[str, Any]:
         shared = {
             "schema_version": 2,
             "algorithm": "cross_process_provider_aware_leaky_bucket_with_leases_all_http_5xx_full_throttle_cooldown",
-            "global_concurrency": 12, "provider_concurrency": concurrency,
-            "global_requests_per_second": 8.0, "provider_requests_per_second": rps,
+            "global_concurrency": global_concurrency, "provider_concurrency": concurrency,
+            "global_requests_per_second": global_rps, "provider_requests_per_second": rps,
             "lease_seconds": 900.0, "poll_seconds": 0.05,
             "throttle_cooldown_seconds": 30.0, "transient_cooldown_seconds": 5.0,
         }
@@ -342,10 +350,16 @@ def test_campaign_specific_accelerated_launcher_and_policy_bindings() -> None:
 
     main_manifest = manifest(main, 2, 1.5)
     exploratory_manifest = manifest(exploratory, 3, 2.0)
+    deadline_manifest = manifest(
+        deadline, 4, 2.5, global_concurrency=24, global_rps=12.0
+    )
     _provider_safe_contract(main_manifest, "part0")
     _provider_safe_contract(exploratory_manifest, "role")
+    _provider_safe_contract(deadline_manifest, "part1")
     with pytest.raises(DefinitiveAnalysisError, match="Wrong accelerated launcher"):
         _provider_safe_contract(main_manifest, "sensitivity")
+    with pytest.raises(DefinitiveAnalysisError, match="Wrong accelerated launcher"):
+        _provider_safe_contract(deadline_manifest, "part0")
     exploratory_manifest["execution_contract"]["shared_rate_limit"]["provider_requests_per_second"] = 2.1
     with pytest.raises(DefinitiveAnalysisError, match="policy hash failed"):
         _provider_safe_contract(exploratory_manifest, "sensitivity")

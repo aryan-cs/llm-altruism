@@ -96,6 +96,12 @@ _MAIN_ACCELERATED_POLICY = {
     "global_requests_per_second": 8.0,
     "provider_requests_per_second": 1.5,
 }
+_PART1_DEADLINE_POLICY = {
+    "global_concurrency": 24,
+    "provider_concurrency": 4,
+    "global_requests_per_second": 12.0,
+    "provider_requests_per_second": 2.5,
+}
 _EXPLORATORY_ACCELERATED_POLICY = {
     "global_concurrency": 12,
     "provider_concurrency": 3,
@@ -132,13 +138,35 @@ def _provider_safe_contract(manifest: Mapping[str, Any], phase: str) -> None:
     ):
         raise DefinitiveAnalysisError("Shared rate-limit policy hash failed.")
     main_digest = _source_digest(sources, "inference_hub_main_accelerated.py")
+    part1_deadline_digest = _source_digest(
+        sources, "inference_hub_part1_deadline_accelerated.py"
+    )
     exploratory_digest = _source_digest(
         sources, "inference_hub_exploratory_accelerated.py"
     )
     repository = Path(__file__).resolve().parents[1]
-    if phase in {"part0", "part1", "part2"} and main_digest is not None:
+    if (
+        phase == "part1"
+        and part1_deadline_digest is not None
+        and main_digest is None
+        and exploratory_digest is None
+    ):
+        launcher = (
+            repository
+            / "experiments/misc/inference_hub_part1_deadline_accelerated.py"
+        )
+        if part1_deadline_digest != _sha256_file(launcher):
+            raise DefinitiveAnalysisError(
+                "Part 1 deadline launcher source binding failed."
+            )
+        expected_policy = _PART1_DEADLINE_POLICY
+    elif phase in {"part0", "part1", "part2"} and main_digest is not None:
         launcher = repository / "experiments/misc/inference_hub_main_accelerated.py"
-        if main_digest != _sha256_file(launcher) or exploratory_digest is not None:
+        if (
+            main_digest != _sha256_file(launcher)
+            or exploratory_digest is not None
+            or part1_deadline_digest is not None
+        ):
             raise DefinitiveAnalysisError("Main accelerated launcher source binding failed.")
         expected_policy = _MAIN_ACCELERATED_POLICY
     elif phase in {"role", "sensitivity"} and exploratory_digest is not None:
@@ -146,7 +174,11 @@ def _provider_safe_contract(manifest: Mapping[str, Any], phase: str) -> None:
         if exploratory_digest != _sha256_file(launcher) or main_digest is not None:
             raise DefinitiveAnalysisError("Exploratory accelerated launcher source binding failed.")
         expected_policy = _EXPLORATORY_ACCELERATED_POLICY
-    elif main_digest is None and exploratory_digest is None:
+    elif (
+        main_digest is None
+        and exploratory_digest is None
+        and part1_deadline_digest is None
+    ):
         expected_policy = _CONSERVATIVE_POLICY
     else:
         raise DefinitiveAnalysisError(f"Wrong accelerated launcher bound for {phase}.")

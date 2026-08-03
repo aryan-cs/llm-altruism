@@ -22,6 +22,11 @@ main Part 0--2 require `inference_hub_main_accelerated.py` with provider
 concurrency 2 and 1.5 starts/second, while role calibration and sensitivity
 require `inference_hub_exploratory_accelerated.py` with provider concurrency 3
 and 2 starts/second. A launcher in the wrong campaign class is rejected.
+For the deadline run only, Part 1 may instead bind
+`inference_hub_part1_deadline_accelerated.py`, whose still-bounded shared policy
+uses global concurrency 24, provider concurrency 4, 12 global starts/second,
+and 2.5 starts/second per provider. This exception is not accepted for any
+other phase.
 Private journal references must remain inside the run's
 `private/` directory, have mode `0600`, and match the full JSONL hash chain,
 record count, tail hash, and file hash. Sanitized Part 2 artifacts must remain
