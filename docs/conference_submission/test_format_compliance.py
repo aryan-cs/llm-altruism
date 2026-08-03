@@ -129,6 +129,9 @@ class ConferenceSubmissionFormatTest(unittest.TestCase):
             "part2_availability_retry.tex",
         ):
             self.assertEqual(source.count(retry_root + name), 1, name)
+        repair_root = "../../artifacts/semantic_invalid_repair_analysis_definitive_v1/"
+        for name in ("part1_semantic_repair.tex", "part1_role_semantic_repair.tex"):
+            self.assertEqual(source.count(repair_root + name), 1, name)
 
     def test_rendered_main_text_boundary_when_extractor_is_available(self) -> None:
         extractor = _find_pdftotext()

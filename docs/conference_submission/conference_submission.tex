@@ -387,6 +387,15 @@ The following panels report exact routes that were unavailable or operationally 
 \input{../../artifacts/availability_retry_analysis_definitive_v1/part2_availability_retry.tex}
 \end{landscape}
 
+\subsection{Bounded Semantic-Invalid Repair Diagnostics}
+Primary Part~1 and role-calibration rates continue to count every first-response invalid as a nonsuccess. The following diagnostics ask only whether the exact source unit later satisfies the output contract under at most three separately recorded rounds; they do not replace primary responses or denominators and do not promote repaired behavior as a primary estimate.
+
+\begin{landscape}
+\input{../../artifacts/semantic_invalid_repair_analysis_definitive_v1/part1_semantic_repair.tex}
+\clearpage
+\input{../../artifacts/semantic_invalid_repair_analysis_definitive_v1/part1_role_semantic_repair.tex}
+\end{landscape}
+
 \section{Corrections to the Legacy Pilot}
 \label{app:legacy-evidence}
 The April archive contains 56,382 stored rows, but that number is not an inferential sample size: its repeated languages, prompt renderings, and agent-days are clustered. Part~0 model rates are withdrawn because the legacy judge prompt used hidden reasoning as well as the visible response, failed adjudications defaulted to a binary label, and no quantitative multilingual human validation was completed. Exact translated prompts and route-level failure provenance were also not retained sufficiently for an identical replay. Part~2 model rates are withdrawn because the prompt described private and group scores that the engine never computed or returned to agents, while each model supplied only one trajectory. Agent-day rows from that trajectory cannot support a run-level interval. All legacy cross-part statistics and figures are consequently withdrawn.
