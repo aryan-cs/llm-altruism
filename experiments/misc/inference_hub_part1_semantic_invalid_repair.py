@@ -26,13 +26,26 @@ SCHEMA_VERSION = 1
 ARTIFACT_TYPE = "inference_hub_part1_semantic_invalid_repair_v1"
 SOURCE_ARTIFACT_TYPE = "inference_hub_part1_large_n_exploratory_panel"
 MAIN_LAUNCHER = Path(__file__).with_name("inference_hub_main_accelerated.py")
+DEADLINE_LAUNCHER = Path(__file__).with_name(
+    "inference_hub_part1_deadline_accelerated.py"
+)
 PROVIDER_SAFE_V2 = Path(__file__).with_name("inference_hub_provider_safe_v2.py")
-EXPECTED_POLICY = {
+MAIN_EXPECTED_POLICY = {
     "global_concurrency": 12,
     "provider_concurrency": 2,
     "global_requests_per_second": 8.0,
     "provider_requests_per_second": 1.5,
 }
+DEADLINE_EXPECTED_POLICY = {
+    "global_concurrency": 24,
+    "provider_concurrency": 4,
+    "global_requests_per_second": 12.0,
+    "provider_requests_per_second": 2.5,
+}
+SOURCE_EXECUTION_PROFILES = (
+    (MAIN_LAUNCHER, MAIN_EXPECTED_POLICY),
+    (DEADLINE_LAUNCHER, DEADLINE_EXPECTED_POLICY),
+)
 DEFAULT_MAX_ROUNDS = 3
 DEFAULT_MAX_WORKERS = 8
 DEFAULT_ROUND_INTERVAL_SECONDS = 30.0
@@ -100,24 +113,30 @@ def _validate_source_manifest(
         raise Part1SemanticInvalidRepairError(
             "Source provider-safe-v2 binding failed."
         )
-    if (
-        _source_digest(sources, MAIN_LAUNCHER.name)
-        != base._sha256_file(MAIN_LAUNCHER)
-    ):
-        raise Part1SemanticInvalidRepairError(
-            "Source main-accelerated launcher binding failed."
-        )
     contract = manifest.get("execution_contract")
     shared = (
         contract.get("shared_rate_limit")
         if isinstance(contract, Mapping) else None
     )
+    matched_profiles = [
+        (launcher, expected_policy)
+        for launcher, expected_policy in SOURCE_EXECUTION_PROFILES
+        if (
+            _source_digest(sources, launcher.name)
+            == base._sha256_file(launcher)
+        )
+    ]
+    if len(matched_profiles) != 1:
+        raise Part1SemanticInvalidRepairError(
+            "Source execution-launcher binding failed."
+        )
+    _, expected_policy = matched_profiles[0]
     if (
         not isinstance(shared, Mapping)
         or shared.get("policy_sha256") != _policy_hash(shared)
         or any(
             shared.get(key) != value
-            for key, value in EXPECTED_POLICY.items()
+            for key, value in expected_policy.items()
         )
     ):
         raise Part1SemanticInvalidRepairError(
@@ -322,6 +341,8 @@ def _manifest_bindings(
             str(this_file): base._sha256_file(this_file),
             str(MAIN_LAUNCHER.resolve()):
                 base._sha256_file(MAIN_LAUNCHER),
+            str(DEADLINE_LAUNCHER.resolve()):
+                base._sha256_file(DEADLINE_LAUNCHER),
         },
     }
 

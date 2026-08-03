@@ -11,6 +11,7 @@ import pytest
 
 from experiments.misc import inference_hub_part1_panel as base
 from experiments.misc.inference_hub_part1_semantic_invalid_repair import (
+    DEADLINE_LAUNCHER,
     MAIN_LAUNCHER,
     PROVIDER_SAFE_V2,
     Part1SemanticInvalidRepairError,
@@ -57,16 +58,16 @@ def _write_manifest(
     base._atomic_json(path, manifest)
 
 
-def _shared_policy() -> dict[str, Any]:
+def _shared_policy(*, deadline: bool = False) -> dict[str, Any]:
     shared = {
         "schema_version": 2,
         "algorithm":
             "cross_process_provider_aware_leaky_bucket_with_"
             "leases_all_http_5xx_full_throttle_cooldown",
-        "global_concurrency": 12,
-        "provider_concurrency": 2,
-        "global_requests_per_second": 8.0,
-        "provider_requests_per_second": 1.5,
+        "global_concurrency": 24 if deadline else 12,
+        "provider_concurrency": 4 if deadline else 2,
+        "global_requests_per_second": 12.0 if deadline else 8.0,
+        "provider_requests_per_second": 2.5 if deadline else 1.5,
         "lease_seconds": 900.0,
         "poll_seconds": 0.05,
         "throttle_cooldown_seconds": 30.0,
@@ -82,6 +83,7 @@ def _source(
     subject_count: int,
     trial_limit: int,
     invalids: Mapping[tuple[int, int], str],
+    deadline: bool = False,
 ) -> tuple[Path, dict[tuple[int, int], dict[str, Any]]]:
     private = root / "private"
     private.mkdir(parents=True)
@@ -194,13 +196,17 @@ def _source(
             "dispatch_permitted_in_this_runner": False,
         },
         "execution_contract": {
-            "shared_rate_limit": _shared_policy()
+            "shared_rate_limit": _shared_policy(deadline=deadline)
         },
         "source_artifacts": {
             str(PROVIDER_SAFE_V2.resolve()):
                 base._sha256_file(PROVIDER_SAFE_V2),
-            str(MAIN_LAUNCHER.resolve()):
-                base._sha256_file(MAIN_LAUNCHER),
+            str(
+                DEADLINE_LAUNCHER.resolve()
+                if deadline else MAIN_LAUNCHER.resolve()
+            ): base._sha256_file(
+                DEADLINE_LAUNCHER if deadline else MAIN_LAUNCHER
+            ),
         },
         "summary": {
             "retained_trial_records":
@@ -214,6 +220,35 @@ def _source(
     path = private / "manifest.json"
     _write_manifest(path, manifest)
     return path, indexed
+
+
+def test_accepts_definitive_deadline_source_contract(
+    tmp_path: Path,
+) -> None:
+    source, _ = _source(
+        tmp_path / "deadline-source",
+        subject_count=1,
+        trial_limit=2,
+        invalids={(0, 0): "length"},
+        deadline=True,
+    )
+    manifest = run_repair(
+        source_manifest_path=source,
+        output_dir=tmp_path / "deadline-output",
+        client=_Client(invalid_first_round=False),
+        max_rounds=2,
+        round_interval_seconds=0,
+    )
+    assert manifest["complete"] is True
+    assert manifest["summary"][
+        "source_first_attempt_invalid_count"
+    ] == 1
+    assert manifest["summary"][
+        "repaired_valid_separate_count"
+    ] == 1
+    assert manifest["summary"][
+        "unrepaired_after_bounded_rounds_count"
+    ] == 0
 
 
 class _Client:
