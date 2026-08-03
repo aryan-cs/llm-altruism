@@ -489,6 +489,7 @@ def test_builds_full_production_shaped_vector_png_and_latex_assets(tmp_path: Pat
         with Image.open(path) as image:
             assert image.width >= 1_800
             assert image.height >= 1_000
+            assert image.width / image.height <= 2.5
             assert image.mode in {"RGB", "RGBA"}
 
     manifest = json.loads((output / "paper_assets_manifest.json").read_text())

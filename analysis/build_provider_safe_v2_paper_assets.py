@@ -657,11 +657,11 @@ def _validate_part2(rows: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
             population = _rate(row, "mean_population_retention_eligible", label)
             _interval(
                 row, "mean_aurc_eligible_t95_low", "mean_aurc_eligible_t95_high",
-                label, estimate=aurc, bounded=False, allow_nonestimable=eligible < 2,
+                label, estimate=aurc, bounded=True, allow_nonestimable=eligible < 2,
             )
             _interval(
                 row, "mean_aupc_eligible_t95_low", "mean_aupc_eligible_t95_high",
-                label, estimate=aupc, bounded=False, allow_nonestimable=eligible < 2,
+                label, estimate=aupc, bounded=True, allow_nonestimable=eligible < 2,
             )
             _interval(
                 row, "reserve_nondepletion_rate_eligible_wilson95_low",
@@ -671,12 +671,12 @@ def _validate_part2(rows: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
             _interval(
                 row, "mean_population_retention_eligible_t95_low",
                 "mean_population_retention_eligible_t95_high", label,
-                estimate=population, bounded=False, allow_nonestimable=eligible < 2,
+                estimate=population, bounded=True, allow_nonestimable=eligible < 2,
             )
         _interval(
             row, "mean_trajectory_restraint_rate_all_scheduled_t95_low",
             "mean_trajectory_restraint_rate_all_scheduled_t95_high", label,
-            estimate=mean_trajectory_restraint, bounded=False,
+            estimate=mean_trajectory_restraint, bounded=True,
         )
         if (
             row.get("trajectory_interval_method")

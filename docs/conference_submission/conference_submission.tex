@@ -287,7 +287,7 @@ Parts~0 and 1, the role panel, and the environmental sensitivity panel enter the
 
 \begin{table}[!htbp]
 \centering
-\caption{Completed Part~2 results. Each row is one exact model route evaluated on 12 common environment seeds. ``Restraint'' is the mean share of scheduled agent-days choosing the resource-preserving action; ``AURC'' is normalized area under the reserve curve; ``final population'' is final divided by initial population. Brackets give trajectory Student-$t$ 95\% intervals. Higher values in every numeric column mean more action, resource, or group preservation in this simulator.}
+\caption{Completed Part~2 results. Each row is one exact model route evaluated on 12 common environment seeds. ``Restraint'' is the mean share of scheduled agent-days choosing the resource-preserving action; ``AURC'' is normalized area under the reserve curve; ``final population'' is final divided by initial population. Brackets give trajectory Student-$t$ 95\% intervals. Restraint uses all trajectories, while environmental intervals use the 225 trajectories with a complete valid transition trace. Higher values in every numeric column mean more action, resource, or group preservation in this simulator.}
 \label{tab:part2-current}
 \scriptsize
 \setlength{\tabcolsep}{3.7pt}
@@ -324,7 +324,7 @@ Nemotron 3 Super & 34.1 [30.5, 37.8] & 0.224 [0.209, 0.240] & 10\% \\
 \begin{figure}[p]
 \centering
 \includegraphics[width=\linewidth]{figures/part2_all_models.pdf}
-\caption{Completed repeated-commons outcomes for 19 exact model routes. Each row is one route evaluated on 12 common environment seeds. The centered columns connect model action (mean trajectory restraint), resource consequence (normalized area under the reserve curve), and group consequence (final population divided by initial population); whiskers are trajectory Student-$t$ 95\% intervals. Higher values mean greater action, resource, or population preservation in this simulator. The axes remain separate outcomes rather than a composite score.}
+\caption{Completed repeated-commons outcomes for 19 exact model routes. Each row is one route evaluated on 12 common environment seeds. The centered columns connect model action (mean trajectory restraint), resource consequence (normalized area under the reserve curve), and group consequence (final population divided by initial population); whiskers are trajectory Student-$t$ 95\% intervals. Restraint uses all trajectories, while environmental intervals use the 225 trajectories with a complete valid transition trace. Higher values mean greater action, resource, or population preservation in this simulator. The axes remain separate outcomes rather than a composite score.}
 \label{fig:part2-completed}
 \end{figure}
 \end{landscape}
