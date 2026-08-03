@@ -48,15 +48,14 @@ Prosocial Readiness Bench addresses this requirement through three observable ta
 
 The three measurements are partially complementary. They may share mechanisms such as instruction following, norm recognition, or sensitivity to others' welfare, but each also introduces task-specific demands. We therefore do not assume that they correlate, interpret disagreement as proof of independence, or collapse them into an overall prosociality score. Cross-part associations are secondary finite-panel descriptions that become reportable only after every part passes its validity gate.
 
-The original April pilot covered 13 related local/open-weight variants. An end-to-end audit showed that Part~0 used rationale-contaminated automated labels without quantitative human validation and that Part~2 described incentives the engine never implemented while providing only one trajectory per model. Those defects invalidate the corresponding model rates and every correlation using them. We remove those results rather than cosmetically changing their intervals. The surviving Part~1 self-choice summary is retained only as legacy descriptive context; the frozen current-model executions are outcome-independent and are not pooled with it.
+An audit invalidated the pilot's Part~0 and Part~2 model rates and every cross-axis statistic that used them; Appendix~\ref{app:legacy-evidence} documents those corrections. The current evaluation therefore uses newly separated judging, task-aligned inferential units, and an implemented prompt--environment contract, while keeping the surviving pilot Part~1 summary as separate descriptive context.
 
 The paper asks two concrete questions. First, how should safety refusal, dyadic cooperation, and commons restraint be measured in one traceable artifact while respecting their different independent units? Second, how do current frontier and open-weight systems vary across these probes, and which cross-axis comparisons survive the required validity gates? Figure~\ref{fig:overview} summarizes the design and its evidence boundaries.
 
 Our contributions are:
 \begin{itemize}
     \item \textbf{Cost-shifting task progression.} We motivate three partially complementary behavioral probes by who bears the cost, how directly it is represented, and whether consequences accumulate over time.
-    \item \textbf{Corrected measurement design.} We define archived English request roots, scenario roots, and complete simulation trajectories as the respective independent units; malformed and unclear outputs remain in denominators.
-    \item \textbf{Separated judging and repaired simulation.} Part~0 uses one fixed judge distinct from every evaluated subject, while its absent human validation is stated explicitly. Part~2 implements the incentives shown to agents and uses repeated common-seed trajectories.
+    \item \textbf{Task-aligned measurement.} We define archived English request roots, scenario roots, and complete simulation trajectories as the respective independent units; malformed and unclear outputs remain in denominators. Part~0 uses one fixed judge distinct from every evaluated subject, and Part~2 implements the incentives shown to agents under repeated common-seed trajectories.
     \item \textbf{Broad, traceable evaluation.} The current frontier and open-weight executions span major model families through authenticated, identity-checked routes, with rate-limited parallel dispatch and no silent model substitution.
     \item \textbf{Transparent evidence boundary.} We withdraw invalid legacy statistics, retain only defensible legacy Part~1 context, and label the executed current Part~0 and Part~1 panels exploratory rather than promoting them as confirmatory evidence.
 \end{itemize}
@@ -80,7 +79,7 @@ Our contributions are:
 
 \node[part=prbBlue] (p0) at (0,2.35) {\textbf{Part 0}\\Safety refusal\\{\footnotesize English requests; EN/ZH/RU replies}};
 \node[part=prbOrange] (p1) at (0,0.75) {\textbf{Part 1}\\Dyadic cooperation\\{\footnotesize dilemma choices}};
-\node[part=prbTeal] (p2) at (0,-0.85) {\textbf{Part 2}\\Commons preservation\\{\footnotesize repeated simulations}};
+\node[part=prbTeal] (p2) at (0,-0.85) {\textbf{Part 2}\\Commons restraint\\{\footnotesize repeated simulations}};
 
 \node[trace] (t0) at (3.45,2.35) {visible response\\route identity\\judge verdict};
 \node[trace] (t1) at (3.45,0.75) {JSON action\\justification\\prompt metadata};
@@ -113,7 +112,7 @@ Classical work on repeated cooperation and commons governance motivates the unde
 
 Broad evaluation suites and multi-dimensional trustworthiness studies motivate reporting separate behavioral dimensions rather than a single score \citep{hendrycks2021measuring,srivastava2023beyond,liang2023helm,wang2023decodingtrust}. Participatory feedback datasets expose preference variation \citep{kirk2024prism}, while output-diversity work shows that distinct models can still converge on homogeneous responses \citep{jiang2025artificialhivemind}. Dataset and model documentation standards motivate the artifact-facing emphasis on provenance, metadata, access conditions, and responsible-use notes \citep{bender2018datastatements,holland2018datasetnutrition,mitchell2019modelcards,gebru2021datasheets,pushkarna2022datacards,akhtar2024croissant}.
 
-We focus on combining safety refusal, self-directed dyadic cooperation, repeated commons restraint, and traceable release artifacts in one benchmark suite whose inferential units match its claims. Table~\ref{tab:positioning} summarizes this positioning. Unlike the original local-model pilot, the current execution targets frozen commercial and open-weight routes and treats historical routes as a separate descriptive cohort.
+We focus on combining safety refusal, self-directed dyadic cooperation, repeated commons restraint, and traceable release artifacts in one benchmark suite whose inferential units match its claims. Table~\ref{tab:positioning} summarizes this positioning. The evaluation spans a frozen panel of current commercial and open-weight routes, with exact identities and unavailable routes recorded rather than substituted.
 
 \begin{table}[!htbp]
 \centering
@@ -164,7 +163,7 @@ Five thousand bootstrap replicates resample the 24 request roots and retain all 
 No language-qualified human validation has been completed. Judge--subject separation reduces a rater-overlap confound, but it does not validate the labels. Part~0 is therefore exploratory and cannot support paper-facing model rankings or cross-part claims.
 
 \subsection{Part 1: Dyadic Cooperation}
-Part~1 evaluates what the model itself chooses in a neutral one-shot dilemma. Advice, observer evaluation, prediction, and demand-cue prompts are omitted from the self-choice construct because they ask different questions; they are not paraphrases of self-directed choice. This distinction resolves the ambiguity in the original pilot's pooled ``frame'' rate.
+Part~1 evaluates what the model itself chooses in a neutral one-shot dilemma. Advice, observer evaluation, prediction, and demand-cue prompts are omitted from the self-choice construct because they ask different questions; they are not paraphrases of self-directed choice.
 
 The executed broad panel uses a deterministic draft bank with two games crossed by six neutral domains. Seventy-five observed routes receive a balanced 96-root schedule with eight roots in every game--domain stratum. Two extreme-latency routes, MiniMax~M3 and Qwen3.5~397B, receive a balanced 12-root schedule with one root per stratum. GLM~5.1 receives the full 384-root schedule with 32 roots per stratum. The other three targets, Kimi~K2.5, Kimi~K2.6, and GLM-5.2, were unavailable and are reported as such rather than replaced. In total, 78 of 81 targeted routes were observed. Responses must end with the exact structured action \texttt{X} or \texttt{Y}; malformed output is \texttt{INVALID}, is retained as a non-welfare-preserving choice, and is not regenerated.
 
@@ -176,7 +175,7 @@ The primary metric is the self-directed welfare-preserving choice rate:
 The scenario root is the independent unit. For the 96-root and 384-root scopes, five thousand bootstrap replicates resample roots separately within the 12 game--domain strata. The resulting bands describe sensitivity to the executed draft bank, not generation-seed uncertainty or a scenario superpopulation. The 12-root scope has only one root per stratum, so it provides a coverage-balanced descriptive rate but cannot estimate within-stratum prompt-bank sensitivity. The 12-, 96-, and 384-root scopes are reported separately and are never pooled or directly ranked as if they had identical coverage. Because the draft bank has not received independent human content approval, all current Part~1 estimates remain exploratory.
 
 \subsection{Part 2: Commons Restraint}
-Part~2 measures preservation of a common-pool resource under repeated direct choices. The repaired simulator implements the incentives stated in the prompt. Each society has five anonymous slots and a 12-day horizon. The common reserve begins at capacity 50. Option~A gives the acting slot one private point and leaves the reserve unchanged; Option~B gives two private points and removes two reserve units. Unanimous Option~A adds five group points, whereas unanimous Option~B subtracts five. After depletion, attrition occurs with probability 0.2 under the common environment seed. These parameters define an artificial diagnostic environment, not an ecological model of a real community.
+Part~2 measures preservation of a common-pool resource under repeated direct choices. The simulator implements the incentives stated in the prompt. Each society has five anonymous slots and a 12-day horizon. The common reserve begins at capacity 50. Option~A gives the acting slot one private point and leaves the reserve unchanged; Option~B gives two private points and removes two reserve units. Unanimous Option~A adds five group points, whereas unanimous Option~B subtracts five. After depletion, attrition occurs with probability 0.2 under the common environment seed. These parameters define an artificial diagnostic environment, not an ecological model of a real community.
 
 Each of the 24 matched systems receives eight common environment seeds, and each file is one complete trajectory. Invalid actions have zero state effect and remain nonrestraints. The primary metric is normalized area under the reserve curve:
 \[
@@ -205,7 +204,7 @@ Historical pilot artifacts are kept separate from the current campaign and are s
 \section{Evaluation Protocol}
 The subject decoding protocol is frozen across routes before outcomes are collected. Unsupported controls follow one prespecified common-denominator rule and are never silently omitted for a single system. The denominator for each task is every scheduled unit; unclear, malformed, and semantic-invalid responses are retained as nonsuccesses. The estimands concern the exact executed prompt banks, model routes, and decoding protocol, not altruistic intent, vendor-wide populations, or unrestricted generation-seed behavior.
 
-Any cross-part analysis is restricted to the exact 24-system matched panel and remains unavailable while Part~0 lacks human validation and the matching Part~1 prompts lack content approval. If those gates are later completed, the paper will report descriptive Spearman coefficients with equal-system, equal-developer, and leave-one-developer-out summaries. It will not report significance tests or treat related systems as an independent model population. Historical systems and the broader Part~1 routes remain separate.
+Any cross-part analysis is restricted to the exact 24-system matched panel and remains unavailable while Part~0 lacks human validation and the matching Part~1 prompts lack content approval. Historical systems and the broader Part~1 routes remain separate; Appendix~\ref{app:legacy-evidence} records the prespecified weighting and sensitivity rules for any future gated analysis.
 
 \section{Results}
 \label{sec:results}
