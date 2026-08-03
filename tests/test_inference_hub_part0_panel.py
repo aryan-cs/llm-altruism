@@ -1,3 +1,4 @@
+import csv
 import hashlib
 import json
 import stat
@@ -9,7 +10,10 @@ import pytest
 
 from experiments.misc.inference_hub_discovery import InferenceHubDiscoveryError
 from experiments.misc.inference_hub_part0_panel import (
+    DEFAULT_HARMBENCH_CSV,
     DEFAULT_JUDGE_TARGET_ID,
+    DEFAULT_JBB_CSV,
+    DEFAULT_LEGACY_CSV,
     InferenceHubPart0PanelError,
     build_legacy_trials,
     parse_judge_batch,
@@ -19,6 +23,38 @@ from experiments.misc.inference_hub_part1_panel import _sha256_json
 
 
 ENDPOINT = "https://inference-api.nvidia.com/v1"
+
+
+def _write_synthetic_private_bank(tmp_path: Path) -> tuple[Path, Path, Path]:
+    """Write a schema-faithful 13-by-297 bank without shipping harmful text."""
+
+    prompts = [f"synthetic archived request {index:02d}" for index in range(99)]
+    legacy_path = tmp_path / "legacy.csv"
+    with legacy_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(
+            handle, fieldnames=("provider", "model", "language", "prompt")
+        )
+        writer.writeheader()
+        for model_index in range(13):
+            for prompt in prompts:
+                for language in ("english", "chinese", "russian"):
+                    writer.writerow({
+                        "provider": "synthetic",
+                        "model": f"synthetic-model-{model_index:02d}",
+                        "language": language,
+                        "prompt": prompt,
+                    })
+    harmbench_path = tmp_path / "harmbench.csv"
+    jbb_path = tmp_path / "jbb.csv"
+    for path, selected in (
+        (harmbench_path, prompts[:82]),  # 80 exclusive plus 2 shared
+        (jbb_path, prompts[:2] + prompts[82:]),  # 17 exclusive plus 2 shared
+    ):
+        with path.open("w", newline="", encoding="utf-8") as handle:
+            writer = csv.DictWriter(handle, fieldnames=("prompt",))
+            writer.writeheader()
+            writer.writerows({"prompt": prompt} for prompt in selected)
+    return legacy_path, harmbench_path, jbb_path
 
 
 def _registry() -> dict[str, Any]:
@@ -175,11 +211,15 @@ class _RetryOnceClient(_FakeClient):
 
 def _run(tmp_path: Path, client: _FakeClient, **overrides: Any) -> dict[str, Any]:
     registry_path, compatibility_path = _write_inputs(tmp_path)
+    legacy_path, harmbench_path, jbb_path = _write_synthetic_private_bank(tmp_path)
     arguments = {
         "registry_path": registry_path,
         "compatibility_path": compatibility_path,
         "output_dir": tmp_path / "panel",
         "client": client,
+        "legacy_csv": legacy_path,
+        "harmbench_csv": harmbench_path,
+        "jbb_csv": jbb_path,
         "selected_ids": ["subject.alpha"],
         "limit_per_language": 1,
         "max_workers": 8,
@@ -191,10 +231,18 @@ def _run(tmp_path: Path, client: _FakeClient, **overrides: Any) -> dict[str, Any
     return run_panel(**arguments)
 
 
-def test_archived_bank_is_exact_stratified_and_deterministic() -> None:
-    first = build_legacy_trials(limit_per_language=48)
-    second = build_legacy_trials(limit_per_language=48)
-    full = build_legacy_trials(limit_per_language=99)
+def test_archived_bank_contract_is_exact_stratified_and_deterministic(
+    tmp_path: Path,
+) -> None:
+    legacy_path, harmbench_path, jbb_path = _write_synthetic_private_bank(tmp_path)
+    inputs = {
+        "legacy_csv": legacy_path,
+        "harmbench_csv": harmbench_path,
+        "jbb_csv": jbb_path,
+    }
+    first = build_legacy_trials(limit_per_language=48, **inputs)
+    second = build_legacy_trials(limit_per_language=48, **inputs)
+    full = build_legacy_trials(limit_per_language=99, **inputs)
 
     assert len(first) == 144
     assert [trial.trial_id for trial in first] == [trial.trial_id for trial in second]
@@ -210,6 +258,15 @@ def test_archived_bank_is_exact_stratified_and_deterministic() -> None:
         for stratum in {trial.source_stratum for trial in first}
     }
     assert roots_by_stratum == {"harmbench": 39, "jbb": 8, "harmbench_and_jbb": 1}
+
+
+def test_repository_private_archive_matches_the_frozen_contract() -> None:
+    paths = (DEFAULT_LEGACY_CSV, DEFAULT_HARMBENCH_CSV, DEFAULT_JBB_CSV)
+    if not all(path.is_file() for path in paths):
+        pytest.skip("private harmful-request archive is intentionally absent")
+    trials = build_legacy_trials(limit_per_language=99)
+    assert len(trials) == 297
+    assert len({trial.root_id for trial in trials}) == 99
 
 
 def test_judge_batch_parser_is_fail_closed() -> None:
@@ -248,7 +305,11 @@ def test_full_collection_is_private_batched_visible_only_and_resumable(tmp_path:
     assert stat.S_IMODE(private.stat().st_mode) == 0o700
     assert stat.S_IMODE(raw.stat().st_mode) == 0o600
     manifest_text = manifest_path.read_text(encoding="utf-8")
-    first_prompt = build_legacy_trials(limit_per_language=1)[0].prompt_text
+    first_prompt = next(
+        json.loads(line)["prompt_text"]
+        for line in raw.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    )
     assert first_prompt not in manifest_text
     assert "I cannot assist with that request." not in manifest_text
     assert first_prompt in raw.read_text(encoding="utf-8")

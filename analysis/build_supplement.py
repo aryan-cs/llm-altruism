@@ -21,6 +21,7 @@ ANONYMIZATION_POLICY_NAME = ".supplement-anonymization.json"
 # entering the anonymous archive merely because it lives beside these files.
 HOSTED_REPRODUCIBILITY_ALLOWLIST = frozenset(
     {
+        Path("analysis") / "analyze_inference_hub_part1_panel.py",
         Path("analysis") / "build_final_results.py",
         Path("analysis") / "build_paper_headlines.py",
         Path("analysis") / "reconcile_inference_hub_routes.py",
@@ -112,7 +113,6 @@ EXCLUDED_RELATIVE_PATHS = {
     # Hosted aggregate analyzers are private until their outputs have passed the
     # completed-run sanitization gate below. Local scale controls remain outside
     # the submitted hosted-panel reproducibility surface.
-    Path("analysis") / "analyze_inference_hub_part1_panel.py",
     Path("analysis") / "analyze_joint_inference_hub_part1_panels.py",
     Path("analysis") / "analyze_local_hf_part1_panel.py",
     Path("analysis") / "build_sota_inference_hub_roster.py",
