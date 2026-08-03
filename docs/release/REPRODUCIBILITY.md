@@ -99,7 +99,13 @@ paper-asset generator accepts only complete, text-free definitive adapters and
 fails before publication on changed policy hashes, incomplete matrices, or
 denominator mismatches. Fresh availability snapshots can be merged with the
 dedicated judge only through the exact allowlisted merge utility and its
-identity/compatibility checks. See
+identity/compatibility checks. The separately packaged
+`analysis/analyze_availability_retry_panels.py` accepts only the frozen Part 0,
+Part 1, and Part 2 supplemental availability-retry designs, validates complete
+private manifests and journals fail-closed, and emits explicitly exploratory,
+nonreplacement, non-cross-axis descriptives. Its exact production-shaped test
+and `docs/AVAILABILITY_RETRY_ANALYSIS.md` are included; its private inputs and
+all live or generated retry-analysis outputs are not. See
 `docs/ACCELERATED_PART0_HUMAN_VALIDATION.md`,
 `docs/PART1_ROLE_CALIBRATION_V1.md`, and `docs/PART2_SENSITIVITY_V1.md` for the
 exact gates and claim boundaries.
@@ -286,7 +292,12 @@ and local execution runner remain excluded and it is never pooled with hosted
 systems.
 New hosted-route or availability-retry utilities do not enter through the
 broad source roots: they remain excluded until their exact paths are reviewed
-and added to the allowlist.
+and added to the allowlist. At source freeze `17fc8bb`, the sole admitted
+availability-retry surface is the exact analyzer, test, and documentation named
+above; no retry run directory or generated retry result is packaged.
+The current non-secret project checkpoint from `a949789` is included as
+`CHECKPOINT.md`; it documents the frozen workflow but does not admit any path
+under `data/private/` or any live/generated retry output.
 
 The builder fixes both ZIP entry timestamps and the manifest creation epoch.
 With unchanged inputs, two independent builds are byte-identical, including

@@ -21,6 +21,7 @@ REPRODUCIBLE_CREATED_UTC = "2026-01-01T00:00:00+00:00"
 # entering the anonymous archive merely because it lives beside these files.
 HOSTED_REPRODUCIBILITY_ALLOWLIST = frozenset(
     {
+        Path("analysis") / "analyze_availability_retry_panels.py",
         Path("analysis") / "analyze_inference_hub_part1_panel.py",
         Path("analysis") / "analyze_provider_safe_v2_definitive.py",
         Path("analysis") / "accelerated_part0_human_validation.py",
@@ -33,6 +34,7 @@ HOSTED_REPRODUCIBILITY_ALLOWLIST = frozenset(
         Path("analysis") / "merge_sota_compatibility_with_judge.py",
         Path("analysis") / "part2_confirmatory.py",
         Path("analysis") / "reconcile_inference_hub_routes.py",
+        Path("docs") / "AVAILABILITY_RETRY_ANALYSIS.md",
         Path("experiments") / "sota_cross_axis_panel.json",
         Path("experiments") / "part1" / "role_calibration_panel_v1.json",
         Path("experiments") / "part2" / "part2_sensitivity_v1.json",
@@ -56,6 +58,7 @@ HOSTED_REPRODUCIBILITY_ALLOWLIST = frozenset(
         Path("experiments") / "misc" / "inference_hub_retire_target.py",
         Path("experiments") / "misc" / "inference_hub_visible_compatibility.py",
         Path("tests") / "test_accelerated_part0_human_validation.py",
+        Path("tests") / "test_analyze_availability_retry_panels.py",
         Path("tests") / "test_analyze_provider_safe_v2_definitive.py",
         Path("tests") / "test_build_provider_safe_v2_paper_assets.py",
         Path("tests") / "test_inference_hub_compatibility.py",
@@ -93,6 +96,7 @@ INCLUDE_PATHS = (
     Path("docs") / "conference_submission" / "SUPPLEMENT_README.md",
     Path("docs") / "conference_submission" / "SUPPLEMENT_MODEL_REGISTRY.md",
     Path("LICENSE"),
+    Path("CHECKPOINT.md"),
     Path(".env.example"),
     Path("pyproject.toml"),
     Path("uv.lock"),
@@ -104,6 +108,7 @@ INCLUDE_PATHS = (
     Path("docs") / "JUDGE_AUDIT.md",
     Path("docs") / "CONFIRMATORY_PROTOCOL.md",
     Path("docs") / "ACCELERATED_PART0_HUMAN_VALIDATION.md",
+    Path("docs") / "AVAILABILITY_RETRY_ANALYSIS.md",
     Path("docs") / "PART1_ROLE_CALIBRATION_V1.md",
     Path("docs") / "PART1_SEMANTIC_INVALID_REPAIR.md",
     Path("docs") / "PART1_ROLE_SEMANTIC_INVALID_REPAIR.md",

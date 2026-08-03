@@ -131,6 +131,7 @@ def test_supplement_includes_exact_hosted_reproducibility_surface_only() -> None
     }
 
     assert expected <= names
+    assert "CHECKPOINT.md" in names
     assert "agents/agent_config.registry.json" in names
     assert "agents/local_control.registry.json" in names
     assert {
@@ -138,7 +139,9 @@ def test_supplement_includes_exact_hosted_reproducibility_surface_only() -> None
     } == {"data/analysis/local_hf_part1_controls.json"}
     assert "analysis/build_sota_probe_registry.py" not in names
     assert "analysis/build_sota_inference_hub_roster.py" not in names
-    assert "analysis/analyze_availability_retry_panels.py" not in names
+    assert "analysis/analyze_availability_retry_panels.py" in names
+    assert "tests/test_analyze_availability_retry_panels.py" in names
+    assert "docs/AVAILABILITY_RETRY_ANALYSIS.md" in names
     assert "analysis/merge_sota_compatibility_with_judge.py" in names
     assert "analysis/analyze_inference_hub_part1_panel.py" in names
     assert "analysis/finalize_inference_hub_part2_offline.py" in names
@@ -147,10 +150,12 @@ def test_supplement_includes_exact_hosted_reproducibility_surface_only() -> None
     assert "tests/test_inference_hub_retire_target.py" in names
     assert {
         "analysis/accelerated_part0_human_validation.py",
+        "analysis/analyze_availability_retry_panels.py",
         "analysis/analyze_provider_safe_v2_definitive.py",
         "analysis/build_provider_safe_v2_paper_assets.py",
         "analysis/part2_confirmatory.py",
         "docs/ACCELERATED_PART0_HUMAN_VALIDATION.md",
+        "docs/AVAILABILITY_RETRY_ANALYSIS.md",
         "docs/PART1_ROLE_CALIBRATION_V1.md",
         "docs/PART1_SEMANTIC_INVALID_REPAIR.md",
         "docs/PART1_ROLE_SEMANTIC_INVALID_REPAIR.md",
@@ -172,6 +177,7 @@ def test_supplement_includes_exact_hosted_reproducibility_surface_only() -> None
         "experiments/part2/part2_sensitivity_v1.json",
         "experiments/part2/part2_sensitivity_deadline_exploratory_v1.json",
         "tests/test_accelerated_part0_human_validation.py",
+        "tests/test_analyze_availability_retry_panels.py",
         "tests/test_analyze_provider_safe_v2_definitive.py",
         "tests/test_build_provider_safe_v2_paper_assets.py",
         "tests/test_inference_hub_compatibility_provider_safe.py",
@@ -201,7 +207,7 @@ def test_unreviewed_availability_retry_source_is_fail_closed(
     root = tmp_path / "repo"
     analysis_dir = root / "analysis"
     analysis_dir.mkdir(parents=True)
-    (analysis_dir / "analyze_availability_retry_panels.py").write_text(
+    (analysis_dir / "analyze_availability_retry_panels_v2.py").write_text(
         "# unreviewed hosted retry analyzer\n", encoding="utf-8"
     )
     (analysis_dir / "ordinary_release_helper.py").write_text(
@@ -216,7 +222,7 @@ def test_unreviewed_availability_retry_source_is_fail_closed(
         )
     }
 
-    assert "analysis/analyze_availability_retry_panels.py" not in names
+    assert "analysis/analyze_availability_retry_panels_v2.py" not in names
     assert "analysis/ordinary_release_helper.py" in names
 
 
@@ -226,6 +232,8 @@ def test_supplement_release_boundary_is_aggregate_only_and_current() -> None:
     }
 
     assert not any(name.startswith("data/raw/") for name in names)
+    assert not any(name.startswith("data/private/") for name in names)
+    assert not any(name.startswith("artifacts/availability_retry") for name in names)
     assert not any(name.startswith("data/analysis/tables/") for name in names)
     assert not any(name.startswith("data/analysis/validation/") for name in names)
     assert "data/analysis/part0_rejudge_audit_checkpoint.json" not in names
