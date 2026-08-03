@@ -220,8 +220,15 @@ def test_full_panel_is_bound_and_aggregated_without_private_text(tmp_path: Path)
         "all_selected_models_complete": True,
     }
     assert len(artifact["bindings"]["jsonl_files"]) == 2
+    assert artifact["bindings"]["path_policy"] == (
+        "portable_input_basename_only_no_host_absolute_paths"
+    )
+    assert artifact["bindings"]["panel_manifest_path"] == "manifest.json"
+    assert artifact["bindings"]["registry_path"] == registry_path.name
     for binding in artifact["bindings"]["jsonl_files"]:
-        evidence_path = Path(binding["path"])
+        assert binding["path_scope"] == "private_panel_directory_relative"
+        assert not Path(binding["path"]).is_absolute()
+        evidence_path = manifest_path.parent / binding["path"]
         assert binding["record_count"] == 384
         assert binding["file_sha256"] == _file_sha256(evidence_path)
         assert binding["file_sha256"] == binding["manifest_output_sha256"]

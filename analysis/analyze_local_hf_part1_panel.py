@@ -478,7 +478,8 @@ def _validate_model_rows(
         )
     binding = {
         "model_id": model_id,
-        "path": str(path),
+        "path": path.name,
+        "path_scope": "private_panel_directory_relative",
         "file_sha256": file_sha256,
         "record_count": len(rows),
         "manifest_output_file": result["output_file"],
@@ -756,10 +757,11 @@ def analyze_panel(
         },
         "schedule_binding": schedule_binding,
         "bindings": {
-            "panel_manifest_path": str(manifest_path),
+            "path_policy": "portable_input_basename_only_no_host_absolute_paths",
+            "panel_manifest_path": manifest_path.name,
             "panel_manifest_file_sha256": _sha256_file(manifest_path),
             "panel_manifest_evidence_sha256": manifest["evidence_sha256"],
-            "registry_path": str(registry_path),
+            "registry_path": registry_path.name,
             "registry_file_sha256": _sha256_file(registry_path),
             "registry_canonical_sha256": _sha256_json(registry),
             "jsonl_files": jsonl_bindings,
