@@ -48,16 +48,16 @@ Prosocial Readiness Bench addresses this requirement through three observable ta
 
 The three measurements are partially complementary. They may share mechanisms such as instruction following, norm recognition, or sensitivity to others' welfare, but each also introduces task-specific demands. We therefore do not assume that they correlate, interpret disagreement as proof of independence, or collapse them into an overall prosociality score. Cross-part associations are secondary finite-panel descriptions that become reportable only after every part passes its validity gate.
 
-An audit invalidated the pilot's Part~0 and Part~2 model rates and every cross-axis statistic that used them; Appendix~\ref{app:legacy-evidence} documents those corrections. The current evaluation therefore uses newly separated judging, task-aligned inferential units, and an implemented prompt--environment contract, while keeping the surviving pilot Part~1 summary as separate descriptive context.
+Relative to the pilot, the current evaluation separates judging from subject generation, aligns inference with request roots and complete trajectories, and implements the incentives stated by the commons prompt. Appendix~\ref{app:legacy-evidence} records the corresponding corrections to legacy evidence.
 
-The paper asks two concrete questions. First, how should safety refusal, dyadic cooperation, and commons restraint be measured in one traceable artifact while respecting their different independent units? Second, how do current frontier and open-weight systems vary across these probes, and which cross-axis comparisons survive the required validity gates? Figure~\ref{fig:overview} summarizes the design and its evidence boundaries.
+The paper asks two concrete questions. First, how should safety refusal, dyadic cooperation, and commons restraint be measured in one traceable artifact while respecting their different independent units? Second, how do current frontier and open-weight systems vary within these probes, across task conditions, and among exact related model routes? Cross-axis comparison remains a secondary analysis gated on the validity of every constituent measure. Figure~\ref{fig:overview} summarizes the design and its evidence boundaries.
 
 Our contributions are:
 \begin{itemize}
-    \item \textbf{Cost-shifting task progression.} We motivate three partially complementary behavioral probes by who bears the cost, how directly it is represented, and whether consequences accumulate over time.
+    \item \textbf{Three-part benchmark suite.} Prosocial Readiness Bench evaluates three partially complementary observable behaviors under explicit task contracts, organized by who bears the cost, how directly it is represented, and whether consequences accumulate over time.
     \item \textbf{Task-aligned measurement.} We define archived English request roots, scenario roots, and complete simulation trajectories as the respective independent units; malformed and unclear outputs remain in denominators. Part~0 uses one fixed judge distinct from every evaluated subject, and Part~2 implements the incentives shown to agents under repeated common-seed trajectories.
     \item \textbf{Broad, traceable evaluation.} The current frontier and open-weight executions span major model families through authenticated, identity-checked routes, with rate-limited parallel dispatch and no silent model substitution.
-    \item \textbf{Transparent evidence boundary.} We withdraw invalid legacy statistics, retain only defensible legacy Part~1 context, and label the executed current Part~0 and Part~1 panels exploratory rather than promoting them as confirmatory evidence.
+    \item \textbf{Task-specific empirical findings.} We report scope-separated variation among exact evaluated systems and task conditions, together with a corrected role-conditioned Part~1 calibration result; we do not collapse the tasks into a leaderboard or latent-trait score.
 \end{itemize}
 
 \begin{figure}[!htbp]
@@ -162,8 +162,8 @@ Five thousand bootstrap replicates resample the 24 request roots and retain all 
 
 No language-qualified human validation has been completed. Judge--subject separation reduces a rater-overlap confound, but it does not validate the labels. Part~0 is therefore exploratory and cannot support paper-facing model rankings or cross-part claims.
 
-\subsection{Part 1: Dyadic Cooperation}
-Part~1 evaluates what the model itself chooses in a neutral one-shot dilemma. Advice, observer evaluation, prediction, and demand-cue prompts are omitted from the self-choice construct because they ask different questions; they are not paraphrases of self-directed choice.
+\subsection{Part 1: Dyadic Cooperation and Role-Conditioned Probes}
+Part~1 evaluates what the model itself chooses in a neutral one-shot dilemma. Direct self-choice is the primary cooperation estimand. Advice, observer evaluation, prediction, and demand-cue instructions ask different questions and therefore serve as distinct calibration probes rather than paraphrases pooled into self-choice. The broad current campaign evaluates self-choice; the archived pilot supplies the separate role-conditioned comparison reported in Section~\ref{sec:results}.
 
 The executed broad panel uses a deterministic draft bank with two games crossed by six neutral domains. Seventy-five observed routes receive a balanced 96-root schedule with eight roots in every game--domain stratum. Two extreme-latency routes, MiniMax~M3 and Qwen3.5~397B, receive a balanced 12-root schedule with one root per stratum. GLM~5.1 receives the full 384-root schedule with 32 roots per stratum. The other three targets, Kimi~K2.5, Kimi~K2.6, and GLM-5.2, were unavailable and are reported as such rather than replaced. In total, 78 of 81 targeted routes were observed. Responses must end with the exact structured action \texttt{X} or \texttt{Y}; malformed output is \texttt{INVALID}, is retained as a non-welfare-preserving choice, and is not regenerated.
 
@@ -233,6 +233,8 @@ The Part~0 output is an exploratory automated-judge description of 24 English ha
 \subsection{Part 1: Exploratory Dyadic Cooperation}
 The Part~1 output reports self-directed welfare-preserving choice separately for the balanced 12-root, balanced 96-root, and full 384-root scopes. Results are never pooled across scopes. Kimi~K2.5, Kimi~K2.6, and GLM-5.2 remain recorded as unavailable rather than being replaced. Full per-system results appear in Appendix~\ref{app:current-results}. \textit{Outcome summary pending the locked artifacts.}
 
+The corrected separation of task roles preserves one finding from the 13-system April pilot while narrowing its interpretation. Across the balanced legacy matrix, the welfare-preserving action-label rate was 83.2\% when models acted as external evaluators, 66.8\% when they advised the focal actor, 61.4\% when they chose for themselves, and 4.9\% when they predicted the focal actor's choice. Each role contained the same 48 scenario roots with two nested presentations per system. These contrasts show strong role-conditioned response differences; because the instructions ask different questions, they are not a causal framing effect on one cooperation estimand. Appendix~\ref{app:legacy-evidence} keeps this legacy panel separate from the current self-choice campaign.
+
 \subsection{Part 2: Commons Restraint}
 The Part~2 output is interpreted only if every matched system contributes eight operationally eligible common-seed trajectories. The generated table reports trajectory-level AURC, restraint, reserve nondepletion, AUPC, and invalid agent-days with the intervals defined in Section~\ref{sec:benchmark-design}; it appears in Appendix~\ref{app:current-results}. \textit{Outcome summary pending all 192 frozen operational checks.}
 
@@ -242,6 +244,9 @@ The Part~2 output is interpreted only if every matched system contributes eight 
 \label{sec:discussion}
 \paragraph{Partial complementarity without assumed independence.}
 Separate reporting is justified by task design, not by a required low correlation. The tasks share the broad question of whether an action shifts avoidable costs onto others, while varying the explicitness of the rule, identity of the affected party, payoff structure, temporal horizon, and environmental mediation. A high, low, or uncertain association would each be scientifically interpretable; none would turn the three tasks into a unitary latent score.
+
+\paragraph{Role conditioning is part of the behavior being measured.}
+The legacy Part~1 contrast is too large to treat role wording as a cosmetic nuisance: models frequently selected the welfare-preserving label when evaluating or advising, but rarely selected it when predicting another actor. The corrected benchmark therefore defines self-choice as the primary cooperation estimand and treats the other roles as calibration probes. This retains the original insight that refusal-only evaluation misses context-dependent social behavior without conflating judgment, recommendation, prediction, and action.
 
 \paragraph{Evidence boundaries.}
 No cross-part association is current paper evidence because Part~0 lacks human validation and Part~1 lacks independent content approval. This boundary prevents exploratory labels from being converted into a stronger claim merely by matching model identities. Appendix~\ref{app:legacy-evidence} records why the earlier cross-part statistics are excluded.
@@ -293,11 +298,11 @@ The following tables are generated directly from the complete, hash-verified san
     \paragraph{Part 2 pending.} The Part~2 table awaits all 192 trajectory checks.
 }
 
-\section{Legacy Evidence Note}
+\section{Corrections to the Legacy Pilot}
 \label{app:legacy-evidence}
 The April archive contains 56,382 stored rows, but that number is not an inferential sample size: its repeated languages, prompt renderings, and agent-days are clustered. Part~0 model rates are withdrawn because the legacy judge prompt used hidden reasoning as well as the visible response, failed adjudications defaulted to a binary label, and no quantitative multilingual human validation was completed. Exact translated prompts and route-level failure provenance were also not retained sufficiently for an identical replay. Part~2 model rates are withdrawn because the prompt described private and group scores that the engine never computed or returned to agents, while each model supplied only one trajectory. Agent-day rows from that trajectory cannot support a run-level interval. All legacy cross-part statistics and figures are consequently withdrawn.
 
-The April Part~0 heatmaps, Part~2 trajectories and rasters, behavioral fingerprints, PCA projections, and cross-part plots remain in the research archive for provenance but are not paper evidence. Table~\ref{tab:legacy-part1} is the only retained quantitative legacy comparison. It reports only the direct self-choice subset: 48 legacy scenario roots per model, with the two presentations nested within each root. Advice, observer, and prediction prompts are excluded because they alter the role and estimand. The table demonstrates that the self-choice task elicited heterogeneous actions in the legacy cohort, but it neither validates Part~0 or Part~2 nor establishes relationships among the three tasks.
+The April Part~0 heatmaps, Part~2 trajectories and rasters, behavioral fingerprints, PCA projections, and cross-part plots remain in the research archive for provenance but are not paper evidence. Table~\ref{tab:legacy-part1} reports the direct self-choice subset: 48 legacy scenario roots per model, with the two presentations nested within each root. Advice, observer, and prediction prompts are excluded from that self-choice table because they alter the role and estimand; their equal-cell aggregate label rates are retained in Section~\ref{sec:results} as a separate role-conditioned calibration result. Neither result validates Part~0 or Part~2 or establishes relationships among the three tasks.
 
 \begin{table}[H]
 \centering
