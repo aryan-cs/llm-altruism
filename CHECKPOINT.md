@@ -132,8 +132,9 @@ campaigns have priority over supplemental retries.
 - `experiments.misc.inference_hub_part1_semantic_invalid_repair` and
   `experiments.misc.inference_hub_part1_role_semantic_invalid_repair` operate
   only on COMPLETE source manifests. They preserve every primary row and
-  denominator, use bounded periodic rounds, and emit separate text-free repair
-  evidence. Run them immediately after their source campaigns complete.
+  denominator, use up to eight periodic rounds spaced by 30 seconds, and emit
+  separate text-free repair evidence. Run them immediately after their source
+  campaigns complete.
 - `analysis.analyze_availability_retry_panels` validates and reports the three
   supplemental panels separately; it never replaces or merges primary rows.
 
