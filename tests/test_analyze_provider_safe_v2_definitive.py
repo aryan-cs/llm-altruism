@@ -323,6 +323,9 @@ def test_campaign_specific_accelerated_launcher_and_policy_bindings() -> None:
     main = ROOT / "experiments/misc/inference_hub_main_accelerated.py"
     deadline = ROOT / "experiments/misc/inference_hub_part1_deadline_accelerated.py"
     part0_deadline = ROOT / "experiments/misc/inference_hub_part0_deadline_retry.py"
+    sensitivity_deadline = (
+        ROOT / "experiments/misc/inference_hub_sensitivity_deadline_accelerated.py"
+    )
     exploratory = ROOT / "experiments/misc/inference_hub_exploratory_accelerated.py"
 
     def manifest(
@@ -357,16 +360,22 @@ def test_campaign_specific_accelerated_launcher_and_policy_bindings() -> None:
     part0_deadline_manifest = manifest(
         part0_deadline, 3, 2.0, global_concurrency=16, global_rps=10.0
     )
+    sensitivity_deadline_manifest = manifest(
+        sensitivity_deadline, 4, 2.5, global_concurrency=24, global_rps=12.0
+    )
     _provider_safe_contract(main_manifest, "part0")
     _provider_safe_contract(exploratory_manifest, "role")
     _provider_safe_contract(deadline_manifest, "part1")
     _provider_safe_contract(part0_deadline_manifest, "part0")
+    _provider_safe_contract(sensitivity_deadline_manifest, "sensitivity")
     with pytest.raises(DefinitiveAnalysisError, match="Wrong accelerated launcher"):
         _provider_safe_contract(main_manifest, "sensitivity")
     with pytest.raises(DefinitiveAnalysisError, match="Wrong accelerated launcher"):
         _provider_safe_contract(deadline_manifest, "part0")
     with pytest.raises(DefinitiveAnalysisError, match="Wrong accelerated launcher"):
         _provider_safe_contract(part0_deadline_manifest, "part1")
+    with pytest.raises(DefinitiveAnalysisError, match="Wrong accelerated launcher"):
+        _provider_safe_contract(sensitivity_deadline_manifest, "role")
     exploratory_manifest["execution_contract"]["shared_rate_limit"]["provider_requests_per_second"] = 2.1
     with pytest.raises(DefinitiveAnalysisError, match="policy hash failed"):
         _provider_safe_contract(exploratory_manifest, "sensitivity")

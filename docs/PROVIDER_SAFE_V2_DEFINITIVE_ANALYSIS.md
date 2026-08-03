@@ -31,6 +31,11 @@ Part 0 may likewise use `inference_hub_part0_deadline_retry.py`, which is
 bounded at global concurrency 16 and provider concurrency 3 and records every
 same-payload HTTP-400 retry in its existing append-only attempt ledger. This
 operational retry exception is accepted only for Part 0.
+The deadline sensitivity matrix may bind
+`inference_hub_sensitivity_deadline_accelerated.py`, capped at global
+concurrency 24, provider concurrency 4, 12 global starts/second, and 2.5
+starts/second per provider. It is accepted only for the sensitivity phase and
+does not alter the frozen two-seed design or invalid-action policy.
 Private journal references must remain inside the run's
 `private/` directory, have mode `0600`, and match the full JSONL hash chain,
 record count, tail hash, and file hash. Sanitized Part 2 artifacts must remain
