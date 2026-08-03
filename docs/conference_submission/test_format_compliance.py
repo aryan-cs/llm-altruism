@@ -100,6 +100,29 @@ class ConferenceSubmissionFormatTest(unittest.TestCase):
         self.assertIn("Option~A gives the acting slot one private point", source)
         self.assertIn("Option~B gives two private points and removes two reserve units", source)
 
+    def test_definitive_assets_title_and_table_spacing_are_locked(self) -> None:
+        source = TEX.read_text(encoding="utf-8")
+        self.assertEqual(source.count(r"\title{Safety Beyond Refusal}"), 1)
+        self.assertNotIn(r"\PaperPart", source)
+        for stale in ("24-root", "96-root", "8 common seeds", "all eight trajectories"):
+            self.assertNotIn(stale, source)
+        self.assertEqual(source.count(r"\setlength{\floatsep}{15pt}"), 2)
+        self.assertEqual(source.count(r"\setlength{\textfloatsep}{15pt}"), 2)
+        self.assertEqual(source.count(r"\setlength{\intextsep}{15pt}"), 2)
+
+        asset_root = "../../data/processed/provider-safe-v2-paper-assets/"
+        figures = (
+            "part0_model_language.pdf",
+            "part1_all_models.pdf",
+            "part2_all_models.pdf",
+            "part1_role_calibration.pdf",
+            "part2_sensitivity_effects.pdf",
+            "part1_local_controls.pdf",
+        )
+        tables = tuple(name.replace(".pdf", "_table.tex") for name in figures)
+        for name in (*figures, *tables, "paper_headlines.tex"):
+            self.assertEqual(source.count(asset_root + name), 1, name)
+
     def test_rendered_main_text_boundary_when_extractor_is_available(self) -> None:
         extractor = _find_pdftotext()
         if extractor is None or not PDF.is_file():
