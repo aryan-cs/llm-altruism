@@ -338,11 +338,12 @@ def test_builds_full_production_shaped_vector_png_and_latex_assets(tmp_path: Pat
     result = build_paper_assets(source, output, tmp_path / "local_controls.json")
 
     assert result["human_labels_generated"] is False
-    assert result["cross_axis_assets_generated"] is False
+    assert result["cross_axis_assets_generated"] is True
+    assert result["cross_axis_aggregate_or_score_generated"] is False
     assert result["confirmatory_or_paper_promotion_permitted"] is False
     assert result["table_outer_spacing_pt"] == 15
     assert result["route_and_model_ids_preserved_exactly"] is True
-    assert len(result["assets"]) == 19
+    assert len(result["assets"]) == 20
     assert result["local_controls_pooled_with_hosted_routes"] is False
     assert {path.suffix for path in output.iterdir()} >= {".pdf", ".png", ".tex", ".json"}
 
@@ -463,6 +464,7 @@ def test_latex_tables_preserve_ids_define_directions_and_space_every_float(tmp_p
     )
 
     expected_table_counts = {
+        "all_models_cross_phase_table.tex": 5,
         "part0_model_language_table.tex": 1,
         "part1_all_models_table.tex": 3,
         "part2_all_models_table.tex": 1,
@@ -497,6 +499,13 @@ def test_latex_tables_preserve_ids_define_directions_and_space_every_float(tmp_p
     assert "not substitutes for hosted routes" in local
     assert "format-invalid outputs retained as nonsuccesses" in local
     assert "135M" in local and "1.7B" in local
+    cross_phase = (output / "all_models_cross_phase_table.tex").read_text()
+    assert "Each row is one exact target route" in cross_phase
+    assert "Part 0: R; V" in cross_phase
+    assert "Part 1: W; V" in cross_phase
+    assert "Part 2: R; A; V" in cross_phase
+    assert "no composite or general safety ranking is computed" in cross_phase
+    assert "-- (not in panel)" in cross_phase
 
 
 @pytest.mark.parametrize(

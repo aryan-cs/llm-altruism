@@ -2,9 +2,10 @@
 
 The input is only the completed, sanitized output directory produced by
 ``analysis.analyze_provider_safe_v2_definitive``.  This module never opens the
-private manifests named in that output, never generates human labels, and
-never combines benchmark axes.  It publishes five within-task figure/table
-families atomically into a new output directory.
+private manifests named in that output and never generates human labels.  It
+publishes six within-task figure/table families plus one side-by-side
+cross-phase display atomically into a new output directory.  The display does
+not pool axes, compute a composite, or fill unexecuted cells.
 """
 
 from __future__ import annotations
@@ -1054,6 +1055,81 @@ def _table_tex(
 def _write_tables(data: Mapping[str, Any], directory: Path) -> list[Path]:
     output: list[Path] = []
 
+    phase_indices = {
+        "part0": {str(row["target_id"]): row for row in data["part0"]},
+        "part1": {str(row["target_id"]): row for row in data["part1"]},
+        "part2": {str(row["target_id"]): row for row in data["part2"]},
+    }
+    cross_phase_rows = []
+    all_targets = sorted(set().union(*(set(index) for index in phase_indices.values())))
+    for target in all_targets:
+        present = [index[target] for index in phase_indices.values() if target in index]
+        identities = {
+            (str(row["upstream_provider"]), str(row["model"])) for row in present
+        }
+        if len(identities) != 1:
+            raise PaperAssetsError(
+                f"Cross-phase exact identity differs for target {target!r}."
+            )
+        provider, model = next(iter(identities))
+        p0 = phase_indices["part0"].get(target)
+        p1 = phase_indices["part1"].get(target)
+        p2 = phase_indices["part2"].get(target)
+        p0_cell = "-- (not in panel)"
+        if p0 is not None:
+            scheduled = int(p0["scheduled_units"])
+            invalid = int(p0["first_attempt_invalid_count"])
+            p0_cell = (
+                f"R {_pct(float(p0['refusal_rate_all_scheduled']))}; "
+                f"V {_pct(1.0 - invalid / scheduled)}"
+            )
+        p1_cell = "-- (not in panel)"
+        if p1 is not None:
+            scheduled = int(p1["scheduled_units"])
+            invalid = int(p1["first_attempt_invalid_count"])
+            p1_cell = (
+                f"W {_pct(float(p1['welfare_preserving_rate_all_scheduled']))}; "
+                f"V {_pct(1.0 - invalid / scheduled)}"
+            )
+        p2_cell = "-- (not in panel)"
+        if p2 is not None:
+            scheduled = int(p2["scheduled_agent_days"])
+            invalid = int(p2["first_attempt_invalid_count"])
+            aurc = (
+                "NE"
+                if p2["mean_aurc_eligible"] is None
+                else f"{float(p2['mean_aurc_eligible']):.3f}"
+            )
+            p2_cell = (
+                f"R {_pct(float(p2['restraint_rate_all_scheduled']))}; "
+                f"A {aurc}; V {_pct(1.0 - invalid / scheduled)}"
+            )
+        cross_phase_rows.append(
+            [
+                _tex_escape(target),
+                _tex_escape(provider),
+                _tex_escape(model),
+                p0_cell,
+                p1_cell,
+                p2_cell,
+            ]
+        )
+    path = directory / "all_models_cross_phase_table.tex"
+    path.write_text(
+        _table_tex(
+            caption=(
+                "Exact-route cross-phase result matrix. Each row is one exact target route in the union of the three primary hosted panels; Provider and Model ID preserve the authenticated upstream identity. Part 0 reports material refusal R and valid first-attempt coverage V over 144 scheduled responses; higher R means less harmful-request assistance and higher V means fewer invalid outputs. Part 1 reports welfare-preserving self-choice W and V over 384 scheduled roots; higher W means fewer counterpart costs and higher V means fewer invalid outputs. Part 2 reports all-scheduled restraint R, eligible-trajectory normalized AURC A, and V over 12 common-seed trajectories; higher restraint and AURC mean greater reserve preservation and higher V means fewer invalid actions. NE means no operationally eligible AURC trajectory, while -- means the exact route was not in that phase panel. The columns are juxtaposed for coverage and inspection only: they remain different estimands, no cell is imputed, and no composite or general safety ranking is computed."
+            ),
+            label="tab:provider-safe-v2-all-models-cross-phase",
+            headers=("Target route ID", "Provider", "Model ID", "Part 0: R; V", "Part 1: W; V", "Part 2: R; A; V"),
+            rows=cross_phase_rows,
+            column_spec="lllrrr",
+            chunk_size=24,
+        ),
+        encoding="utf-8",
+    )
+    output.append(path)
+
     part0_rows = []
     for order, row in enumerate(data["part0"], start=1):
         values = [str(order), _tex_escape(row["target_id"]), _tex_escape(row["upstream_provider"]), _tex_escape(row["model"])]
@@ -1485,7 +1561,8 @@ def build_paper_assets(
             "exploratory_only": True,
             "confirmatory_or_paper_promotion_permitted": False,
             "human_labels_generated": False,
-            "cross_axis_assets_generated": False,
+            "cross_axis_assets_generated": True,
+            "cross_axis_aggregate_or_score_generated": False,
             "local_controls_pooled_with_hosted_routes": False,
             "route_and_model_ids_preserved_exactly": True,
         }

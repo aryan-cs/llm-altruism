@@ -120,7 +120,7 @@ class ConferenceSubmissionFormatTest(unittest.TestCase):
             "part1_local_controls.pdf",
         )
         tables = tuple(name.replace(".pdf", "_table.tex") for name in figures)
-        for name in (*figures, *tables, "paper_headlines.tex"):
+        for name in (*figures, *tables, "all_models_cross_phase_table.tex", "paper_headlines.tex"):
             self.assertEqual(source.count(asset_root + name), 1, name)
 
     def test_rendered_main_text_boundary_when_extractor_is_available(self) -> None:
