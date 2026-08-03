@@ -302,6 +302,7 @@ def _part1(source: Mapping[str, Any]) -> dict[str, Any]:
 def _part2(source: Mapping[str, Any]) -> dict[str, Any]:
     grouped: dict[str, list[tuple[str, dict[str, float]]]] = defaultdict(list)
     seen: set[str] = set()
+    nonestimable = 0
     for index, row in enumerate(_rows(source.get("part2"), "Part 2")):
         target_id, provider, _ = _identity(row, f"Part 2 row {index}")
         if target_id in seen:
@@ -309,12 +310,19 @@ def _part2(source: Mapping[str, Any]) -> dict[str, Any]:
         seen.add(target_id)
         count = _integer(row.get("trajectory_count"), "Part 2 trajectories", minimum=1)
         intervals = row.get("trajectory_level_95_percent_t_intervals")
+        valid_count = _integer(
+            row.get("valid_trajectory_count", count),
+            "Part 2 valid trajectories",
+        )
+        if intervals is None and valid_count == 0:
+            nonestimable += 1
+            continue
         if not isinstance(intervals, Mapping):
             raise DeveloperDescriptiveError("Part 2 intervals are absent.")
         metrics = {
             metric: _interval(
                 intervals.get(metric), f"Part 2 {metric}", center_key="mean",
-                expected_n=count, unit_center=True,
+                expected_n=valid_count, unit_center=True,
             )
             for metric in ("aurc", "restraint_rate", "aupc")
         }
@@ -335,7 +343,11 @@ def _part2(source: Mapping[str, Any]) -> dict[str, Any]:
                 for metric in ("aurc", "restraint_rate", "aupc")
             },
         })
-    return {"metric_scale": "proportion", "groups_alphabetical": output}
+    return {
+        "metric_scale": "proportion",
+        "groups_alphabetical": output,
+        "nonestimable_system_count": nonestimable,
+    }
 
 
 def _atomic_json(path: Path, value: Mapping[str, Any]) -> None:

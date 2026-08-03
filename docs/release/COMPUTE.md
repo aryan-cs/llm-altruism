@@ -28,14 +28,22 @@ operational safeguards, not model hyperparameters.
 - Part 1: 75 systems are reportable: 73 × n=96, one × n=12, and one × n=384.
   Three execution subjects are operationally unavailable and three additional
   registry targets were unavailable before execution.
-- Part 2: 22 systems contribute 8 independent trajectories × 12 steps × up to
-  5 active participants per step, for 176 included trajectories. Two systems
-  are operationally unavailable.
+- Part 2: 22 systems execute 8 independent trajectories × 12 steps × up to 5
+  active participants per step, for 176 total trajectories. Twenty systems and
+  159 fully valid trajectories support behavioral estimates. Seventeen
+  protocol-invalid trajectories are excluded; two all-invalid systems are
+  non-estimable, and two other matched-panel systems are operationally
+  unavailable.
 
-Final compute totals must be calculated from the included rows and sanitized
+Final compute totals must be calculated from the executed rows and sanitized
 availability bindings. A target-bound operationally unavailable system is
 counted in frozen coverage but contributes no scored units; scheduled maxima
 must not be reported as completed calls.
+
+The raw Part 2 audit contains 961 invalid agent-days among 10,413 scheduled
+agent-days. Their zero simulator effect permits deterministic continuation but
+does not count as restraint. Any affected trajectory is excluded wholesale
+from behavioral and environmental metrics.
 
 Retries are transport-only and bounded. Invalid structured output is retained
 and is not regenerated. Durable reservation and append-only journal records

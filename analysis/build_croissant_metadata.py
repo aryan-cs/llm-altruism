@@ -104,7 +104,7 @@ FINAL_OUTPUT_SPECS = {
         "part1-model-rates", "Part 1 exploratory self-choice summaries for 75 routes at 96 roots, two slower routes at 12 roots, and one separate 384-root route."
     ),
     "part2_csv": (
-        "part2-model-metrics", "Part 2 corrected commons metrics for 24 matched systems with eight independent trajectories each."
+        "part2-model-metrics", "Part 2 corrected commons metrics for 22 executed systems, with validity-gated estimates from fully valid trajectories."
     ),
     "cross_axis_csv": (
         "cross-axis-spearman", "Descriptive matched-panel associations, emitted only when every preregistered evidence gate passes."
@@ -416,7 +416,27 @@ def _validated_final_results(
         or any(row.get("trajectory_count") != 8 for row in part2)
     ):
         raise CroissantBuildError("final-results per-system execution counts changed")
-
+    part2_estimable = [
+        row for row in part2
+        if row.get("metric_status") == "estimable_from_fully_valid_trajectories"
+    ]
+    part2_nonestimable = [
+        row for row in part2
+        if row.get("metric_status")
+        == "nonestimable_all_trajectories_contain_invalid_actions"
+    ]
+    if (
+        len(part2_estimable) + len(part2_nonestimable) != len(part2)
+        or any(
+            not isinstance(row.get("valid_trajectory_count"), int)
+            or not isinstance(row.get("protocol_invalid_trajectory_count"), int)
+            or row["valid_trajectory_count"] + row["protocol_invalid_trajectory_count"] != 8
+            for row in part2
+        )
+        or any(row.get("trajectory_level_95_percent_t_intervals") is None for row in part2_estimable)
+        or any(row.get("trajectory_level_95_percent_t_intervals") is not None for row in part2_nonestimable)
+    ):
+        raise CroissantBuildError("final-results Part 2 validity gate is inconsistent")
     outputs = artifact.get("outputs")
     if not isinstance(outputs, Mapping):
         raise CroissantBuildError("final-results output bindings are absent")
@@ -599,6 +619,20 @@ def build_metadata(
     p1_n96 = coverage.part1_scopes[96]
     p1_n12 = coverage.part1_scopes[12]
     p1_n384 = coverage.part1_scopes[384]
+    part2_rows = artifact["part2"]
+    part2_estimable = [
+        row for row in part2_rows
+        if row.get("metric_status") == "estimable_from_fully_valid_trajectories"
+    ]
+    part2_nonestimable = [
+        row for row in part2_rows
+        if row.get("metric_status")
+        == "nonestimable_all_trajectories_contain_invalid_actions"
+    ]
+    part2_valid_trajectories = sum(row["valid_trajectory_count"] for row in part2_rows)
+    part2_protocol_invalid_trajectories = sum(
+        row["protocol_invalid_trajectory_count"] for row in part2_rows
+    )
     metadata: dict[str, object] = {
         "@context": CROISSANT_CONTEXT, "@type": "sc:Dataset",
         "conformsTo": [CORE_SPEC, RAI_SPEC],
@@ -608,11 +642,14 @@ def build_metadata(
             "of harmful-request refusal, welfare-preserving self-choice, and repeated commons "
             "preservation. Part 0 and the balanced Part 1 expansion remain exploratory because "
             "their human/content approval gates are incomplete; Part 2 uses a corrected engine "
-            "with eight independent common-seed trajectories per included system. "
+            "with eight independent common-seed trajectories per executed system and excludes "
+            "any trajectory containing an invalid action from behavioral and environmental estimates. "
             f"The release includes {coverage.part0.included} of {coverage.part0.targeted} "
             f"Part 0 systems, {coverage.part1.included} of {coverage.part1.targeted} frozen "
             f"Part 1 targets, and {coverage.part2.included} of {coverage.part2.targeted} "
-            "Part 2 systems; the remainder are explicitly unavailable rather than scored."
+            f"Part 2 systems. Of those, {len(part2_estimable)} have an estimate and "
+            f"{len(part2_nonestimable)} are protocol-nonestimable; the remaining "
+            "targets are explicitly unavailable rather than scored."
         ),
         "version": DATASET_VERSION, "cr:sdVersion": METADATA_VERSION,
         "dateCreated": DATE_CREATED, "datePublished": DATE_PUBLISHED,
@@ -660,7 +697,10 @@ def build_metadata(
             "unavailable before execution and are not described as observed. Part 2 scheduled "
             f"{coverage.part2.targeted} matched systems for eight independent corrected "
             f"12-step trajectories each; {coverage.part2.included} systems are included and "
-            f"{coverage.part2.unavailable} are operationally unavailable."
+            f"{coverage.part2.unavailable} are operationally unavailable. Environmental and "
+            f"behavioral estimates use {part2_valid_trajectories} fully valid trajectories; "
+            f"{part2_protocol_invalid_trajectories} protocol-invalid trajectories are excluded, "
+            f"leaving {len(part2_nonestimable)} executed systems without an estimate."
         ),
         "rai:dataCollectionType": ["Experiments", "Software Collection"],
         "rai:dataCollectionRawData": "Private model responses and execution journals are retained for provenance but are not distributions in this release.",
@@ -671,7 +711,7 @@ def build_metadata(
         "rai:machineAnnotationTools": ["Fixed disjoint Part 0 judge and deterministic structured-output parsers."],
         "rai:dataPreprocessingProtocol": [
             "Validate self-hashed complete manifests or target-bound fail-closed overlays and exact response-model identity.",
-            "Retain invalid and unclear scheduled units in denominators.",
+            "Retain invalid and unclear Part 0/Part 1 scheduled units as nonsuccesses; exclude an entire Part 2 trajectory from outcome estimates if any action is invalid.",
             "Preserve every Part 1 target's observed root count and never pool the 12-root, 96-root, and 384-root estimates.",
             "Emit text-free aggregates only after output hashes and privacy flags pass.",
         ],

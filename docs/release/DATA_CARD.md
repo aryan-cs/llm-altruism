@@ -15,7 +15,7 @@ The current deadline collection has three distinct scopes:
 | --- | --- | --- |
 | Part 0 | 16 included of 24 matched systems; 24 English source roots × 3 response-language instructions per included system | Exploratory. Eight systems are unavailable; there are no benign controls and no completed human validation of the fixed judge. |
 | Part 1 | 75 reportable of 81 frozen targets: 73 × balanced n=96, one × balanced n=12, one GLM 5.1 × n=384 | Exploratory. Three execution subjects and three pre-execution registry targets are unavailable. The bank lacks independent content approval; scopes are not pooled. |
-| Part 2 | 22 included of 24 matched systems; 8 independent common-seed trajectories each (176 total) | Corrected engine, but below the intended n=12 promotion threshold and without parameter sensitivity. Two systems are unavailable. |
+| Part 2 | 22 executed of 24 matched systems; 8 independent common-seed trajectories each (176 total) | 20 systems and 159 fully valid trajectories are estimable. Seventeen protocol-invalid trajectories are excluded from behavioral/environmental metrics; two all-invalid systems are non-estimable and two systems are unavailable. |
 
 `experiments/sota_cross_axis_panel.json` preserves the larger intended deadline
 configuration of 48 Part 0 roots per condition and 12 Part 2 trajectories. The
@@ -59,10 +59,13 @@ evidence, and emits a new immutable directory containing only:
 - `cross_axis_spearman.csv` only if every cross-axis gate passes;
 - generated paper rows, macros, and figures bound by the result graph.
 
-The final builder retains every scheduled invalid or unclear outcome in the
-appropriate denominator. It uses prompt roots for Part 0 uncertainty,
-game-domain stratified root resampling for Part 1, and independent trajectories
-for Part 2.
+The final builder retains every scheduled invalid or unclear Part 0/Part 1
+outcome as a nonsuccess. For Part 2, the simulator's zero state effect for an
+invalid action preserves transition continuity but is not restraint evidence;
+any trajectory containing an invalid action is excluded from all behavioral and
+environmental estimates. The builder uses prompt roots for Part 0 uncertainty,
+game-domain stratified root resampling for Part 1, and fully valid independent
+trajectories for Part 2.
 
 ## Release policy
 
@@ -76,12 +79,18 @@ sanitized final aggregates only. It excludes:
 - private incomplete, interrupted, identity-mismatched, or hash-invalid runs;
 - deprecated legacy evidence and withdrawn derived outputs.
 
+Consequently, the anonymous artifact supports verification of the sealed
+aggregate graph and regeneration of its tables and figures, but not independent
+regeneration of the graph from raw hosted calls. Its Croissant JSON-LD has no
+dataset URL during anonymous review. Public hosting and external Croissant
+validation require a real post-review landing page and are not claimed here.
+
 Fail-closed overlays may contribute only sanitized aggregates from retained
 complete units plus target-bound availability evidence; the underlying private
 artifacts remain excluded. Croissant metadata is generated only after the
 sanitized final-results directory exists and passes schema, self-hash, privacy,
 output-hash, and exact coverage checks. The sealed result self-hash is
-`e7f89872b441d8ad6ca50622e788c5141f17dea0e95c00eb2d59ce0eab461040`.
+`52afcf33386055bcaabcf608186e094f2b19a7610f9bc57d53821ad3ea08c231`.
 
 ## Limitations
 
@@ -92,7 +101,9 @@ output-hash, and exact coverage checks. The sealed result self-hash is
 - The Part 1 draft bank lacks independent content approval. The one n=12
   route, 73 n=96 routes, and one n=384 route have different support.
 - Part 2 uses homogeneous five-agent populations, 12 steps, one parameter
-  setting, no communication or memory, and eight trajectories per system.
+  setting, no communication or memory, and eight attempted trajectories per
+  executed system. Only 159 of 176 trajectories are valid for behavioral
+  estimation; two executed systems have no valid trajectory.
 - Related routes are not independent samples of developers or model families.
 - The benchmark evaluates artificial task outputs, not intent, moral status,
   altruism, or general deployment safety.

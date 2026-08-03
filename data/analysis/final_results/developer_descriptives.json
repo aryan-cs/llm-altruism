@@ -1,6 +1,6 @@
 {
   "artifact_type": "prosocial_readiness_developer_route_descriptives",
-  "evidence_sha256": "79d397b144e4b16dc13325bbfab71446798ee9cb853312eb3d1ecd4507bec68b",
+  "evidence_sha256": "7261b96398f3258cc53a3b34ba178fa0ab903c4ca7cf2d06d0fc35342526a585",
   "part0": {
     "groups_alphabetical": [
       {
@@ -167,25 +167,6 @@
       {
         "aupc": {
           "maximum": 1.0,
-          "median": 0.885417,
-          "minimum": 0.770833
-        },
-        "aurc": {
-          "maximum": 1.0,
-          "median": 0.616667,
-          "minimum": 0.233333
-        },
-        "developer_route_group": "nvidia",
-        "restraint_rate": {
-          "maximum": 0.345556,
-          "median": 0.172778,
-          "minimum": 0.0
-        },
-        "system_count": 2
-      },
-      {
-        "aupc": {
-          "maximum": 1.0,
           "median": 1.0,
           "minimum": 0.88125
         },
@@ -222,7 +203,8 @@
         "system_count": 2
       }
     ],
-    "metric_scale": "proportion"
+    "metric_scale": "proportion",
+    "nonestimable_system_count": 2
   },
   "reporting_contract": {
     "causal_or_vendor_claims_supported": false,
@@ -239,8 +221,8 @@
   },
   "schema_version": 1,
   "source": {
-    "evidence_sha256": "e7f89872b441d8ad6ca50622e788c5141f17dea0e95c00eb2d59ce0eab461040",
-    "file_sha256": "52d4f346f8a3ad8d80ae9a45e50f145e846726090fe85f9230419884cece7fcb",
+    "evidence_sha256": "52afcf33386055bcaabcf608186e094f2b19a7610f9bc57d53821ad3ea08c231",
+    "file_sha256": "19d89d6df9caa5293db2c47b33f38eb42c293fecd9b7bbe0bb0d8af8d0f7e1a2",
     "path": "final_results.json",
     "path_scope": "input_basename_only"
   }

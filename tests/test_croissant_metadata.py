@@ -80,6 +80,10 @@ def _final_fixture(
         {
             "target_id": target_id,
             "trajectory_count": 8,
+            "valid_trajectory_count": 8,
+            "protocol_invalid_trajectory_count": 0,
+            "metric_status": "estimable_from_fully_valid_trajectories",
+            "trajectory_level_95_percent_t_intervals": {"aurc": {"mean": 0.5}},
             "paper_eligible": False,
         }
         for target_id in p0_ids if target_id not in p2_unavailable
@@ -105,7 +109,13 @@ def _final_fixture(
             for row in part1
         ],
         "part2_model_metrics.csv": [
-            {"target_id": target_id, "trajectory_count": 8, "restraint_rate_mean": 0.5}
+            {
+                "target_id": target_id, "trajectory_count": 8,
+                "valid_trajectory_count": 8,
+                "protocol_invalid_trajectory_count": 0,
+                "metric_status": "estimable_from_fully_valid_trajectories",
+                "restraint_rate_mean": 0.5,
+            }
             for target_id in p0_ids if target_id not in p2_unavailable
         ],
     }

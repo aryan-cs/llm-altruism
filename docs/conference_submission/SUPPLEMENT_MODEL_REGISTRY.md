@@ -19,8 +19,11 @@ Part 0 reports 16 systems and marks eight unavailable:
 `anthropic/claude-haiku-4-5`, `anthropic/claude-opus-4-5`,
 `anthropic/claude-opus-4-6`, `anthropic/claude-sonnet-4-5`,
 `minimaxai/minimax-m2.7`, `openai/gpt-5`, `openai/gpt-5.2`, and
-`openai/gpt-5.4`. Part 2 reports 22 systems and marks
-`anthropic/claude-opus-4-6` and `minimaxai/minimax-m2.7` unavailable.
+`openai/gpt-5.4`. Part 2 executes 22 systems and 176 trajectories. Twenty
+systems and 159 fully valid trajectories support estimates; 17 trajectories
+are protocol-invalid, and two all-invalid executed systems are non-estimable.
+The two unavailable targets are `anthropic/claude-opus-4-6` and
+`minimaxai/minimax-m2.7`.
 
 ## Expanded Part 1 coverage
 

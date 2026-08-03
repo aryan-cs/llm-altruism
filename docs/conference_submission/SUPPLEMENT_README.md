@@ -25,11 +25,14 @@ does not assign a single altruism, morality, or deployment-safety score.
   `zai-org/glm-5.2` were unavailable before execution. The scopes are never
   pooled. The bank lacks independent content approval, so results are
   exploratory.
-- **Part 2:** 22 of the 24 matched systems contribute eight independent,
+- **Part 2:** 22 of the 24 matched systems execute eight independent,
   common-seed trajectories under the corrected five-agent, 12-step commons
-  engine, for 176 trajectories total. `anthropic/claude-opus-4-6` and
-  `minimaxai/minimax-m2.7` are unavailable. The n=8 result remains below the
-  paper's n=12 promotion gate and has no parameter sensitivity analysis.
+  engine, for 176 trajectories total. Twenty systems and 159 fully valid
+  trajectories support estimates; 17 trajectories containing an invalid
+  action are excluded, and two all-invalid executed systems are non-estimable.
+  `anthropic/claude-opus-4-6` and `minimaxai/minimax-m2.7` are unavailable. The
+  n=8 result remains below the paper's n=12 promotion gate and has no parameter
+  sensitivity analysis.
 
 The April 13-model pilot remains historical context. Its legacy Part 0 labels,
 legacy Part 2 rates, and legacy cross-axis correlations are not current result
@@ -73,3 +76,10 @@ sanitized final aggregates. It excludes `.env` files, API keys, private manifest
 prompts, visible responses, reasoning, raw journals, interrupted runs, and
 deprecated legacy evidence. `SUPPLEMENT_MANIFEST.json` binds every packaged
 payload to its SHA-256 and records the exclusion policy.
+
+This is aggregate-reproducible, not collection-reproducible: reviewers can
+validate the sealed graph and regenerate paper-facing tables, figures, and
+checks, but cannot independently rebuild that graph without the excluded
+private execution evidence. The packaged Croissant metadata intentionally has
+no dataset URL during anonymous review; no placeholder or identifying URL is
+claimed.

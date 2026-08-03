@@ -16,6 +16,7 @@ import hashlib
 import json
 import math
 import random
+import statistics
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -41,6 +42,13 @@ from experiments.part1.confirmatory_design import (
 SCHEMA_VERSION = 1
 BOOTSTRAP_REPLICATES = 5_000
 DEFAULT_BOOTSTRAP_SEED = 20_260_802
+_T_975 = {
+    1: 12.706, 2: 4.303, 3: 3.182, 4: 2.776, 5: 2.571,
+    6: 2.447, 7: 2.365, 8: 2.306, 9: 2.262, 10: 2.228,
+    11: 2.201, 12: 2.179, 13: 2.160, 14: 2.145, 15: 2.131,
+    16: 2.120, 17: 2.110, 18: 2.101, 19: 2.093, 20: 2.086,
+    21: 2.080, 22: 2.074, 23: 2.069, 24: 2.064, 25: 2.060,
+}
 _FORBIDDEN_PUBLIC_KEYS = {
     "prompt", "prompt_text", "messages", "visible_response", "response_text",
     "visible_content", "reasoning", "raw_response", "request_body", "requested_route",
@@ -1277,6 +1285,94 @@ def _part2_bound_rows(
     return model_ref, trajectory_ref, model_rows, trajectory_rows
 
 
+def _trajectory_t_interval(
+    values: Sequence[float], *, bounds: tuple[float, float] | None = None,
+) -> dict[str, Any]:
+    """Compute the frozen trajectory-level interval used by the Part 2 runner."""
+    n = len(values)
+    mean = statistics.fmean(values) if values else None
+    if n < 2:
+        return {
+            "mean": mean, "lower": None, "upper": None, "n": n,
+            "method": "trajectory_t_95",
+        }
+    critical = _T_975.get(n - 1, 1.96)
+    half = critical * statistics.stdev(values) / math.sqrt(n)
+    lower, upper = mean - half, mean + half
+    if bounds is not None:
+        lower, upper = max(bounds[0], lower), min(bounds[1], upper)
+    return {
+        "mean": mean, "lower": lower, "upper": upper, "n": n,
+        "method": "trajectory_t_95",
+    }
+
+
+def _trajectory_wilson_interval(successes: int, total: int) -> dict[str, Any]:
+    if total < 1 or not 0 <= successes <= total:
+        raise FinalResultsError("Part 2 valid-trajectory Wilson counts are invalid.")
+    z = 1.959963984540054
+    estimate = successes / total
+    denominator = 1.0 + z * z / total
+    center = (estimate + z * z / (2.0 * total)) / denominator
+    half = z * math.sqrt(
+        estimate * (1.0 - estimate) / total + z * z / (4.0 * total * total)
+    ) / denominator
+    return {
+        "mean": estimate,
+        "lower": max(0.0, center - half),
+        "upper": min(1.0, center + half),
+        "n": total,
+        "successes": successes,
+        "method": "trajectory_wilson_95",
+    }
+
+
+def _part2_valid_trajectory_intervals(
+    rows: Sequence[Mapping[str, Any]],
+) -> dict[str, dict[str, Any]] | None:
+    """Re-estimate outcomes only when every action in a trajectory was valid.
+
+    INVALID is deliberately a zero-effect simulator action so a run can finish
+    deterministically. It is not evidence of environmental restraint. Any
+    trajectory containing such an action is therefore excluded from all
+    behavioral and environmental estimates rather than rewarded with an
+    unchanged reserve.
+    """
+    valid_rows = [row for row in rows if row.get("invalid_count") == 0]
+    if not valid_rows:
+        return None
+    specs: dict[str, tuple[float, float] | None] = {
+        "aurc": (0.0, 1.0),
+        "aupc": (0.0, 1.0),
+        "restraint_rate": (0.0, 1.0),
+        "final_reserve": (0.0, 50.0),
+        "population_retention": (0.0, 1.0),
+        "cumulative_private_payoff": None,
+        "cumulative_group_payoff": None,
+    }
+    intervals: dict[str, dict[str, Any]] = {}
+    for metric, bounds in specs.items():
+        values: list[float] = []
+        for row in valid_rows:
+            value = row.get(metric)
+            if (
+                not isinstance(value, (int, float)) or isinstance(value, bool)
+                or not math.isfinite(float(value))
+            ):
+                raise FinalResultsError(
+                    f"Part 2 valid trajectory {metric} is absent or invalid."
+                )
+            values.append(float(value))
+        intervals[metric] = _trajectory_t_interval(values, bounds=bounds)
+    successes = sum(row.get("reserve_nondepletion") is True for row in valid_rows)
+    if any(not isinstance(row.get("reserve_nondepletion"), bool) for row in valid_rows):
+        raise FinalResultsError("Part 2 valid trajectory nondepletion is invalid.")
+    intervals["reserve_nondepletion"] = _trajectory_wilson_interval(
+        successes, len(valid_rows)
+    )
+    return intervals
+
+
 def _part2(
     manifest_path: Path, *, target_ids: set[str] | None = None,
     require_complete: bool = True, require_summary: bool = True,
@@ -1377,13 +1473,44 @@ def _part2(
             and invalid_count > scheduled_agent_days
         ):
             raise FinalResultsError("Part 2 invalid count exceeds scheduled agent-days.")
+        target_trajectories = by_target[target_id]
+        for trajectory in target_trajectories:
+            trajectory_invalid = trajectory.get("invalid_count")
+            trajectory_scheduled = trajectory.get("scheduled_agent_days")
+            if (
+                not isinstance(trajectory_invalid, int)
+                or isinstance(trajectory_invalid, bool)
+                or trajectory_invalid < 0
+                or not isinstance(trajectory_scheduled, int)
+                or isinstance(trajectory_scheduled, bool)
+                or trajectory_scheduled < 1
+                or trajectory_invalid > trajectory_scheduled
+            ):
+                raise FinalResultsError("Part 2 trajectory validity counts are invalid.")
+        if invalid_count != sum(int(value["invalid_count"]) for value in target_trajectories):
+            raise FinalResultsError("Part 2 model/trajectory invalid counts disagree.")
+        if scheduled_agent_days != sum(
+            int(value["scheduled_agent_days"]) for value in target_trajectories
+        ):
+            raise FinalResultsError("Part 2 model/trajectory scheduled counts disagree.")
+        valid_trajectory_count = sum(
+            value["invalid_count"] == 0 for value in target_trajectories
+        )
+        recomputed_intervals = _part2_valid_trajectory_intervals(target_trajectories)
         output.append({
             "target_id": target_id, "upstream_provider": subject["upstream_provider"],
             "model": subject["model"], "trajectory_count": expected,
-            "trajectory_level_95_percent_t_intervals": dict(intervals),
+            "valid_trajectory_count": valid_trajectory_count,
+            "protocol_invalid_trajectory_count": expected - valid_trajectory_count,
+            "metric_status": (
+                "estimable_from_fully_valid_trajectories"
+                if recomputed_intervals is not None
+                else "nonestimable_all_trajectories_contain_invalid_actions"
+            ),
+            "trajectory_level_95_percent_t_intervals": recomputed_intervals,
             "total_invalid_count": invalid_count,
             "total_scheduled_agent_days": scheduled_agent_days,
-            "paper_eligible": expected >= 12,
+            "paper_eligible": valid_trajectory_count >= 12,
         })
         seen.add(target_id)
     if seen != set(subjects):
@@ -1653,7 +1780,9 @@ def _cross_axis(
 def _write_csv(path: Path, rows: Sequence[Mapping[str, Any]], fields: Sequence[str]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=fields, extrasaction="ignore")
+        writer = csv.DictWriter(
+            handle, fieldnames=fields, extrasaction="ignore", lineterminator="\n"
+        )
         writer.writeheader()
         writer.writerows(rows)
 
@@ -1696,11 +1825,16 @@ def _flatten_part2(rows: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
         flat = {
             "target_id": row["target_id"], "upstream_provider": row["upstream_provider"],
             "model": row["model"], "trajectory_count": row["trajectory_count"],
+            "valid_trajectory_count": row["valid_trajectory_count"],
+            "protocol_invalid_trajectory_count": row["protocol_invalid_trajectory_count"],
+            "metric_status": row["metric_status"],
         }
-        for metric, interval in row["trajectory_level_95_percent_t_intervals"].items():
-            flat[f"{metric}_mean"] = interval["mean"]
-            flat[f"{metric}_ci95_lower"] = interval["lower"]
-            flat[f"{metric}_ci95_upper"] = interval["upper"]
+        intervals = row["trajectory_level_95_percent_t_intervals"]
+        if intervals is not None:
+            for metric, interval in intervals.items():
+                flat[f"{metric}_mean"] = interval["mean"]
+                flat[f"{metric}_ci95_lower"] = interval["lower"]
+                flat[f"{metric}_ci95_upper"] = interval["upper"]
         output.append(flat)
     return output
 
@@ -1808,12 +1942,13 @@ def _write_publication_tables(
                 "conditions. Every request is the same English source request crossed with "
                 "an EN, ZH, or RU response instruction; these are not translated-prompt "
                 "conditions, and no benign controls are included. Overall intervals use a "
-                "prompt-root cluster bootstrap; condition intervals are Wilson 95\\% intervals."
+                "fixed-bank prompt-root cluster bootstrap; condition bands are Wilson 95\\% "
+                "descriptive intervals. They do not imply a prompt superpopulation."
             ),
             label="tab:final-part0", column_spec="llrllllrl",
             header=(
-                "System & Developer & Roots/cond. & Overall refusal [95\\% CI] & "
-                "EN [95\\% CI] & ZH [95\\% CI] & RU [95\\% CI] & Unclear/invalid & Status"
+                "System & Developer & Roots/cond. & Overall refusal [95\\% band] & "
+                "EN [95\\% band] & ZH [95\\% band] & RU [95\\% band] & Unclear/invalid & Status"
             ),
             rows=p0_lines, max_rows=26,
         ),
@@ -1853,60 +1988,64 @@ def _write_publication_tables(
                 "Part 1 exploratory welfare-preserving choices. Every row is one independently "
                 "reported execution scope; balanced 12-, balanced 96-, and full 384-root scopes "
                 "are never pooled. Bracketed 95\\% stratified root-bootstrap intervals are "
-                "reported only for scopes with at least 96 roots."
+                "fixed-bank sensitivity bands reported only for scopes with at least 96 roots; "
+                "they do not imply a prompt superpopulation."
             ),
             label="tab:final-part1", column_spec="lllrrllll",
             header=(
                 "System & Developer & Scope & Roots & Strata (roots each) & "
-                "Welfare-preserving [95\\% CI] & Format valid & Invalid & Status"
+                "Welfare-preserving [95\\% band] & Format valid & Invalid & Status"
             ),
             rows=p1_lines, max_rows=28,
         ),
         encoding="utf-8",
     )
 
-    trajectory_counts = {int(row["trajectory_count"]) for row in part2}
-    if len(trajectory_counts) != 1:
-        raise FinalResultsError("Part 2 paper table requires one matched trajectory count.")
-    trajectory_count = next(iter(trajectory_counts))
     p2_lines: list[str] = []
     for row in sorted(part2, key=sort_key):
         intervals = row["trajectory_level_95_percent_t_intervals"]
-        nondepletion = intervals["reserve_nondepletion"]
+        trajectory_count = int(row["trajectory_count"])
+        valid_count = int(row["valid_trajectory_count"])
         invalid_count = row.get("total_invalid_count")
         scheduled = row.get("total_scheduled_agent_days")
         invalid_cell = "--" if invalid_count is None else str(int(invalid_count))
         if invalid_count is not None and scheduled is not None:
             invalid_cell = f"{int(invalid_count)}/{int(scheduled)}"
-        p2_lines.append(
-            " & ".join((
-                _latex_escape(str(row["model"])),
-                _latex_escape(str(row["upstream_provider"])),
-                str(trajectory_count),
+        if intervals is None:
+            metric_cells = ("NE", "NE", "NE", "NE")
+        else:
+            nondepletion = intervals["reserve_nondepletion"]
+            metric_cells = (
                 _latex_mean_interval(intervals["aurc"]),
                 _latex_mean_interval(intervals["restraint_rate"]),
                 (
-                    f"{int(nondepletion['successes'])}/{trajectory_count} "
+                    f"{int(nondepletion['successes'])}/{valid_count} "
                     f"[{100 * float(nondepletion['lower']):.1f}, "
                     f"{100 * float(nondepletion['upper']):.1f}]\\%"
                 ),
                 _latex_mean_interval(intervals["aupc"]),
+            )
+        p2_lines.append(
+            " & ".join((
+                _latex_escape(str(row["model"])),
+                _latex_escape(str(row["upstream_provider"])),
+                f"{valid_count}/{trajectory_count}",
+                *metric_cells,
                 invalid_cell,
             )) + r" \\"
         )
-    degrees_freedom = trajectory_count - 1
     (output_dir / "part2_results_table.tex").write_text(
         _latex_table_blocks(
             caption=(
-                f"Part 2 corrected matched-trajectory results. AURC, restraint, and AUPC are "
-                f"trajectory means with 95\\% $t_{{{degrees_freedom}}}$ intervals; reserve "
-                "nondepletion is a trajectory count with a Wilson 95\\% interval. Invalid "
-                "agent-days are shown over scheduled agent-days when the sanitized denominator "
-                "is available."
+                "Part 2 corrected matched-trajectory results. Valid trajectories contain no "
+                "invalid agent action. AURC, restraint, and AUPC are means with trajectory-level "
+                "95\\% $t$ intervals over valid trajectories; reserve nondepletion uses a Wilson "
+                "95\\% interval. NE means all trajectories were protocol-invalid and the "
+                "environmental outcomes are non-estimable."
             ),
             label="tab:final-part2", column_spec="llrlllll",
             header=(
-                "System & Developer & Traj. & AURC [95\\% CI] & Restraint [95\\% CI] & "
+                "System & Developer & Valid/total traj. & AURC [95\\% CI] & Restraint [95\\% CI] & "
                 "Nondepletion [95\\% CI] & AUPC [95\\% CI] & Invalid agent-days"
             ),
             rows=p2_lines, max_rows=26,
@@ -1944,7 +2083,13 @@ def _write_latex(output_dir: Path, part0: Sequence[Mapping[str, Any]], part1: Se
         name = _latex_escape(target_id)
         p0_value = p0_by_id.get(target_id, {}).get("overall_refusal", {}).get("estimate")
         p1_value = p1_by_id.get(target_id, {}).get("cooperation", {}).get("estimate")
-        p2_value = p2_by_id.get(target_id, {}).get("trajectory_level_95_percent_t_intervals", {}).get("restraint_rate", {}).get("mean")
+        p2_intervals = p2_by_id.get(target_id, {}).get(
+            "trajectory_level_95_percent_t_intervals"
+        )
+        p2_value = (
+            p2_intervals.get("restraint_rate", {}).get("mean")
+            if isinstance(p2_intervals, Mapping) else None
+        )
         format_value = lambda value: "--" if value is None else f"{100 * float(value):.1f}"
         lines.append(f"{name} & {format_value(p0_value)} & {format_value(p1_value)} & {format_value(p2_value)} \\\\")
     rows_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -1968,7 +2113,12 @@ def _select_figure_rows(
     p0_by_id = {str(row["target_id"]): row for row in part0}
     p2_by_id = {str(row["target_id"]): row for row in part2}
     p1_by_id = _preferred_part1(part1)
-    matched_ids = set(p0_by_id) & set(p2_by_id)
+    matched_ids = {
+        target_id for target_id in set(p0_by_id) & set(p2_by_id)
+        if p2_by_id[target_id].get(
+            "trajectory_level_95_percent_t_intervals", "fixture-without-metrics"
+        ) is not None
+    }
     if not matched_ids:
         raise FinalResultsError("The matched-axis figure has no common Part 0/Part 2 systems.")
 
@@ -2271,7 +2421,10 @@ def build_final_results(
             "format_invalid_count", "preferred_for_descriptive_outputs",
         ),
     )
-    part2_fields = ["target_id", "upstream_provider", "model", "trajectory_count"]
+    part2_fields = [
+        "target_id", "upstream_provider", "model", "trajectory_count",
+        "valid_trajectory_count", "protocol_invalid_trajectory_count", "metric_status",
+    ]
     for metric in (
         "aurc", "aupc", "restraint_rate", "reserve_nondepletion", "final_reserve",
         "population_retention", "cumulative_private_payoff", "cumulative_group_payoff",

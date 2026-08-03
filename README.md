@@ -16,9 +16,11 @@ The sealed deadline artifact contains:
   systems at 96 balanced roots, one at 12 balanced roots, and one at 384 roots.
   Three execution-roster targets and three pre-execution registry targets are
   unavailable. The three scopes are never pooled.
-- **Part 2:** corrected commons results for 22 of 24 matched systems, each with
-  eight independent common-seed trajectories (176 trajectories total). Two
-  systems are axis-specifically unavailable.
+- **Part 2:** 22 of 24 matched systems execute eight independent common-seed
+  trajectories (176 total). Twenty systems and 159 fully valid trajectories
+  support corrected commons estimates; 17 protocol-invalid trajectories are
+  excluded, two executed systems are wholly non-estimable, and two systems are
+  axis-specifically unavailable.
 
 The April pilot remains historical provenance. Its audit led to the corrected
 response-only judge, balanced Part 1 bank, repeated-commons engine, provenance
@@ -48,7 +50,7 @@ tests/                        Unit and integration tests
 Parts 3-5 are roadmap placeholders. Parts 0-2 are the implemented benchmark
 scope. The current sanitized result graph is
 `data/analysis/final_results/final_results.json`, whose self-hash is
-`e7f89872b441d8ad6ca50622e788c5141f17dea0e95c00eb2d59ce0eab461040`.
+`52afcf33386055bcaabcf608186e094f2b19a7610f9bc57d53821ad3ea08c231`.
 Part 0 and Part 1 remain exploratory because their external validation gates
 are incomplete; Part 2 remains below its intended n=12 promotion threshold.
 
@@ -362,8 +364,10 @@ credentials, interrupted artifacts, and deprecated legacy outputs. It includes
 only reviewed code, documentation, tests, and the sealed text-free aggregates.
 
 The current results are task-specific descriptive evidence, not a leaderboard.
-Part 2 uses the corrected five-agent, 12-step engine and includes 176 eligible
-independent trajectories across 22 systems; it does not reuse the mismatched
+Part 2 uses the corrected five-agent, 12-step engine and executes 176
+independent trajectories across 22 systems. Its estimates use only the 159
+trajectories with no invalid action; simulator continuation after an invalid
+action is not treated as restraint evidence. It does not reuse the mismatched
 April pilot trajectories.
 
 ## Useful Release Documents

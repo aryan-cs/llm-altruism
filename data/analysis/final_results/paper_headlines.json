@@ -1,6 +1,6 @@
 {
   "artifact_type": "prosocial_readiness_paper_headlines",
-  "evidence_sha256": "3aca436770e3316e2d923630148a0b45263b5077aa981c683941f0c71c67a682",
+  "evidence_sha256": "76b55e8f187d475d342b794aacfa84c8b6edd30b0043801c1dff1b7f6566f7cb",
   "part0": {
     "condition_system_median_percent": {
       "chinese": 79.2,
@@ -69,9 +69,13 @@
     "unavailable_systems": 6
   },
   "part2": {
+    "estimable_systems": 20,
     "included_systems": 22,
     "invalid_agent_days": 961,
-    "nondepleted_trajectories": 159,
+    "nondepleted_trajectories": 142,
+    "nondepletion_denominator": 159,
+    "nonestimable_systems": 2,
+    "protocol_invalid_trajectories": 17,
     "scheduled_agent_days": 10413,
     "system_aupc": {
       "maximum": 1.0,
@@ -85,13 +89,14 @@
     },
     "system_restraint_percent": {
       "maximum": 100.0,
-      "median": 95.7,
-      "minimum": 0.0
+      "median": 100.0,
+      "minimum": 34.6
     },
     "targeted_systems": 24,
     "total_trajectories": 176,
     "trajectories_per_system": 8,
-    "unavailable_systems": 2
+    "unavailable_systems": 2,
+    "valid_trajectories": 159
   },
   "reporting_contract": {
     "cross_axis_associations_computed": false,
@@ -104,8 +109,8 @@
   },
   "schema_version": 1,
   "source": {
-    "evidence_sha256": "e7f89872b441d8ad6ca50622e788c5141f17dea0e95c00eb2d59ce0eab461040",
-    "file_sha256": "52d4f346f8a3ad8d80ae9a45e50f145e846726090fe85f9230419884cece7fcb",
+    "evidence_sha256": "52afcf33386055bcaabcf608186e094f2b19a7610f9bc57d53821ad3ea08c231",
+    "file_sha256": "19d89d6df9caa5293db2c47b33f38eb42c293fecd9b7bbe0bb0d8af8d0f7e1a2",
     "path": "final_results.json",
     "path_scope": "input_basename_only"
   }

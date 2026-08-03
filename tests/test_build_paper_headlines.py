@@ -136,6 +136,9 @@ def _p2_row(
         "upstream_provider": "provider",
         "model": model,
         "trajectory_count": 8,
+        "valid_trajectory_count": 8,
+        "protocol_invalid_trajectory_count": 0,
+        "metric_status": "estimable_from_fully_valid_trajectories",
         "trajectory_level_95_percent_t_intervals": {
             "aurc": _trajectory_interval(aurc),
             "restraint_rate": _trajectory_interval(restraint),

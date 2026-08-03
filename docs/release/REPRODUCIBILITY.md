@@ -3,6 +3,12 @@
 Run commands from the repository root. The release pipeline has a hard boundary
 between private execution evidence and public aggregate artifacts.
 
+The public workflow is aggregate-reproducible, not collection-reproducible:
+reviewers can verify the sealed graph and regenerate every paper-facing table,
+figure, and check from it, but cannot rebuild that graph from the private
+prompts, responses, authenticated routes, manifests, or journals excluded from
+the supplement.
+
 ## Environment and tests
 
 ```bash
@@ -37,8 +43,10 @@ counts.
 
 Sealed coverage is Part 0: 16 included and 8 unavailable; Part 1: 75
 reportable and 6 unavailable of 81 (73 at n=96, one at n=12, one at n=384;
-three operational and three pre-execution unavailable); Part 2: 22 included and
-2 unavailable, with 176 included trajectories. Exact IDs are listed in
+three operational and three pre-execution unavailable); Part 2: 22 executed and
+2 unavailable, with 176 total trajectories. Twenty systems and 159 valid
+trajectories are estimable; 17 trajectories are protocol-invalid, and two
+all-invalid executed systems are non-estimable. Exact IDs are listed in
 `MODEL_REGISTRY.md`.
 
 All hosted callers use the shared cross-process rate limiter and exact
@@ -135,7 +143,7 @@ output is absent unless the exact 24-system overlap and every evidence gate
 pass. The two replacement manifests preserve the exact DeepSeek target IDs and
 frozen n=96 schedules; they are not model substitutions. The sealed result
 self-hash is
-`e7f89872b441d8ad6ca50622e788c5141f17dea0e95c00eb2d59ce0eab461040`.
+`52afcf33386055bcaabcf608186e094f2b19a7610f9bc57d53821ad3ea08c231`.
 
 Convert the sealed result graph into the exact, scope-separated values used by
 the manuscript:
@@ -178,16 +186,19 @@ This command no longer catalogs April raw CSVs. It accepts only the self-hashed
 It checks that included rows plus validated, axis-specific operationally
 unavailable IDs reconstruct the frozen 24-system Part 0 panel (16+8), the
 78-target Part 1 execution roster (75 reported+3 operationally unavailable),
-and the 24-system Part 2 panel (22+2). It separately accounts for the three frozen Part 1
+and the 24-system Part 2 panel (22 executed+2 unavailable). It separately accounts for the three frozen Part 1
 registry targets that were unavailable before execution, yielding 81 planned
 Part 1 targets without describing those three as observed. It also verifies 24
-Part 0 roots per condition, 176 Part 2 trajectories, scope-separated CSV
-rows, and public-basename-only provenance. Missing final results, stale hashes,
+Part 0 roots per condition, 176 total Part 2 trajectories, 159 valid-trajectory
+estimands, scope-separated CSV rows, and public-basename-only provenance. Missing final results, stale hashes,
 sensitive fields, private paths, or a changed frozen scope stop metadata
 emission.
 
-At anonymous review time, omit the dataset URL. At hosting time, supply a real
-public HTTPS landing page with `--dataset-url` and rerun the metadata tests.
+At anonymous review time, omit the dataset URL; the local content-addressed
+Croissant package is the available artifact boundary. Do not invent a
+placeholder or identifying URL. At hosting time, supply a real public HTTPS
+landing page with `--dataset-url` and rerun the metadata tests and external
+validator.
 
 ## Build the paper and supplement
 

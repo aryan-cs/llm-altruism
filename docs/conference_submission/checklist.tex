@@ -46,8 +46,8 @@
 
     \item {\bf Experimental result reproducibility}
     \item[] Question: Does the paper fully disclose all the information needed to reproduce the main experimental results of the paper to the extent that it affects the main claims and/or conclusions of the paper (regardless of whether the code and data are provided or not)?
-    \item[] Answer: \answerYes{}
-    \item[] Justification: Sections~3--5 and Appendix~\ref{app:artifact-map} disclose the task contracts, sampling units, schedules, decoding and retry rules, estimators, model identities, and artifact checks. The anonymous supplement contains the validated text-free result graph, generated tables, exact analysis code, schemas, and clean-build tests needed to reproduce every reported aggregate without redistributing private harmful text.
+    \item[] Answer: \answerNo{}
+    \item[] Justification: Sections~3--5 and Appendix~\ref{app:artifact-map} disclose the task contracts, sampling units, schedules, estimators, study identities, and evidence gates. The anonymous supplement permits verification and regeneration of paper tables from the sealed text-free aggregate graph. It intentionally excludes private prompts, responses, authenticated routes, manifests, and journals, so it cannot independently regenerate \texttt{final\_results.json} or fully reproduce the hosted data collection.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the paper does not include experiments.
@@ -66,8 +66,8 @@
 
 \item {\bf Open access to data and code}
     \item[] Question: Does the paper provide open access to the data and code, with sufficient instructions to faithfully reproduce the main experimental results, as described in supplemental material?
-    \item[] Answer: \answerYes{}
-    \item[] Justification: The submitted anonymous supplement provides the code, sanitized aggregate data, metadata, and exact commands needed to reproduce all paper-facing tables and checks. Raw Part~0 harmful prompts and completions are intentionally excluded under the documented safety policy; they are not required to verify the released aggregate result graph.
+    \item[] Answer: \answerNo{}
+    \item[] Justification: The anonymous supplement openly provides reviewed code, sanitized aggregates, metadata, and commands to regenerate paper-facing tables and validation checks. It does not provide the private execution evidence needed to reconstruct the sealed aggregate graph: harmful prompts and completions, other model responses and reasoning, authenticated routes, private manifests, and journals are excluded for safety and access-control reasons. No anonymous hosted dataset URL is claimed.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that paper does not include experiments requiring code.
@@ -84,7 +84,7 @@
 \item {\bf Experimental setting/details}
     \item[] Question: Does the paper specify all the training and test details (e.g., data splits, hyperparameters, how they were chosen, type of optimizer) necessary to understand the results?
     \item[] Answer: \answerYes{}
-    \item[] Justification: Sections~3--5 specify the prompt matrices, exact route identities, action schemas, decoding controls, retry contract, balanced strata, common seeds, simulator parameters, metrics, and uncertainty units. The complete sanitized result artifacts and executable validation code are included in the supplement.
+    \item[] Justification: Sections~3--5 specify the task matrices, study identities, action schemas, decoding controls, retry contract, balanced strata, common seeds, simulator parameters, metrics, and uncertainty units. Exact authenticated routes and raw execution evidence remain private; the supplement includes the complete sanitized aggregate artifacts and executable downstream validation code needed to understand the reported results.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the paper does not include experiments.
@@ -95,7 +95,7 @@
 \item {\bf Experiment statistical significance}
     \item[] Question: Does the paper report error bars suitably and correctly defined or other appropriate information about the statistical significance of the experiments?
     \item[] Answer: \answerYes{}
-    \item[] Justification: Sections~3 and~6 define and report request-root bootstrap summaries for Part~0, stratified root resampling for the 96- and 384-root Part~1 scopes, trajectory-level Student-$t$ intervals for continuous Part~2 metrics, and Wilson intervals for reserve nondepletion. Appendix~\ref{app:current-results} provides the complete generated interval tables and identifies the variability unit for each.
+    \item[] Justification: Sections~3 and~6 define and report request-root bootstrap summaries for Part~0, stratified root resampling for the 96- and 384-root Part~1 scopes, trajectory-level Student-$t$ intervals with system-specific valid-trajectory degrees of freedom for continuous Part~2 metrics, and Wilson intervals over valid trajectories for reserve nondepletion. Appendix~\ref{app:current-results} provides the generated intervals, valid/total counts, and variability unit for each estimable system.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the paper does not include experiments.
@@ -178,7 +178,7 @@
 \item {\bf New assets}
     \item[] Question: Are new assets introduced in the paper well documented and is the documentation provided alongside the assets?
     \item[] Answer: \answerYes{}
-    \item[] Justification: Sections~3--5 document the new task contracts, schemas, metadata, validation, metrics, and release policy; Appendix~\ref{app:artifact-map} identifies the accompanying data card, model registry, compute note, licenses, code, and reproduction commands.
+    \item[] Justification: Sections~3--5 document the new task contracts, schemas, metadata, validation, metrics, and release policy; Appendix~\ref{app:artifact-map} identifies the accompanying data card, model registry, compute note, licenses, code, and reproduction commands. The Croissant metadata is packaged without a dataset URL during anonymous review; public hosting and hosted validation remain external post-review steps.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the paper does not release new assets.

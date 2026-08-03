@@ -512,6 +512,9 @@ def _part2(source: Mapping[str, Any]) -> dict[str, Any]:
     invalid_agent_days = 0
     nondepleted = 0
     total_trajectories = 0
+    valid_trajectories = 0
+    protocol_invalid_trajectories = 0
+    nonestimable_systems = 0
     for index, row in enumerate(rows):
         target_id = _nonempty_string(row.get("target_id"), f"Part 2 row {index} target")
         if target_id in seen or target_id in unavailable:
@@ -523,26 +526,61 @@ def _part2(source: Mapping[str, Any]) -> dict[str, Any]:
         )
         trajectory_counts.add(count)
         intervals = row.get("trajectory_level_95_percent_t_intervals")
-        if not isinstance(intervals, Mapping):
-            raise PaperHeadlineError("Part 2 trajectory intervals are absent.")
+        valid_count = _integer(
+            row.get("valid_trajectory_count"),
+            f"Part 2 {target_id} valid trajectories",
+        )
+        invalid_trajectories = _integer(
+            row.get("protocol_invalid_trajectory_count"),
+            f"Part 2 {target_id} protocol-invalid trajectories",
+        )
+        if valid_count + invalid_trajectories != count:
+            raise PaperHeadlineError("Part 2 trajectory-validity counts are inconsistent.")
+        status = row.get("metric_status")
+        if valid_count == 0:
+            if (
+                intervals is not None
+                or status != "nonestimable_all_trajectories_contain_invalid_actions"
+            ):
+                raise PaperHeadlineError("Part 2 non-estimable metric status is invalid.")
+            nonestimable_systems += 1
+        elif (
+            not isinstance(intervals, Mapping)
+            or status != "estimable_from_fully_valid_trajectories"
+        ):
+            raise PaperHeadlineError("Part 2 estimable trajectory intervals are absent.")
+        valid_trajectories += valid_count
+        protocol_invalid_trajectories += invalid_trajectories
+        total_trajectories += count
+        if valid_count == 0:
+            scheduled = _integer(
+                row.get("total_scheduled_agent_days"),
+                "Part 2 scheduled agent-days", minimum=1,
+            )
+            invalid = _integer(row.get("total_invalid_count"), "Part 2 invalid agent-days")
+            if invalid > scheduled:
+                raise PaperHeadlineError("Part 2 invalid agent-days exceed scheduled agent-days.")
+            scheduled_agent_days += scheduled
+            invalid_agent_days += invalid
+            continue
         for metric in ("aurc", "restraint_rate", "aupc"):
             center, _, _ = _interval(
                 intervals.get(metric), f"Part 2 {target_id} {metric}",
-                center_key="mean", expected_n=count,
+                center_key="mean", expected_n=valid_count,
             )
             metrics[metric].append(center)
         nondepletion = intervals.get("reserve_nondepletion")
         mean, _, _ = _interval(
             nondepletion, f"Part 2 {target_id} reserve nondepletion",
-            center_key="mean", expected_n=count, bounded_interval=True,
+            center_key="mean", expected_n=valid_count, bounded_interval=True,
         )
         if not isinstance(nondepletion, Mapping):
             raise PaperHeadlineError("Part 2 nondepletion interval is absent.")
         successes = _integer(
             nondepletion.get("successes"), "Part 2 nondepletion successes"
         )
-        if successes > count or not math.isclose(
-            mean, successes / count, rel_tol=0.0, abs_tol=1e-12
+        if successes > valid_count or not math.isclose(
+            mean, successes / valid_count, rel_tol=0.0, abs_tol=1e-12
         ):
             raise PaperHeadlineError("Part 2 nondepletion denominator is inconsistent.")
         scheduled = _integer(
@@ -555,17 +593,20 @@ def _part2(source: Mapping[str, Any]) -> dict[str, Any]:
         scheduled_agent_days += scheduled
         invalid_agent_days += invalid
         nondepleted += successes
-        total_trajectories += count
     if len(trajectory_counts) != 1:
         raise PaperHeadlineError("Part 2 trajectories per system are inconsistent.")
     if set(unavailable) & seen:
         raise PaperHeadlineError("Part 2 included and unavailable systems overlap.")
     return {
         "included_systems": len(rows),
+        "estimable_systems": len(rows) - nonestimable_systems,
+        "nonestimable_systems": nonestimable_systems,
         "unavailable_systems": len(unavailable),
         "targeted_systems": len(rows) + len(unavailable),
         "trajectories_per_system": next(iter(trajectory_counts)),
         "total_trajectories": total_trajectories,
+        "valid_trajectories": valid_trajectories,
+        "protocol_invalid_trajectories": protocol_invalid_trajectories,
         "scheduled_agent_days": scheduled_agent_days,
         "invalid_agent_days": invalid_agent_days,
         "system_aurc": _summary(metrics["aurc"], percent=False),
@@ -574,6 +615,7 @@ def _part2(source: Mapping[str, Any]) -> dict[str, Any]:
         ),
         "system_aupc": _summary(metrics["aupc"], percent=False),
         "nondepleted_trajectories": nondepleted,
+        "nondepletion_denominator": valid_trajectories,
     }
 
 
@@ -652,9 +694,13 @@ def _macro_lines(artifact: Mapping[str, Any]) -> list[str]:
         ("PaperPartOneNThreeEightyFourUpperPct", f"{p1_n384['ci95_percent']['upper']:.1f}"),
         ("PaperPartOneNThreeEightyFourInvalid", p1_n384["invalid_outputs"]),
         ("PaperPartTwoIncludedSystems", p2["included_systems"]),
+        ("PaperPartTwoEstimableSystems", p2["estimable_systems"]),
+        ("PaperPartTwoNonestimableSystems", p2["nonestimable_systems"]),
         ("PaperPartTwoUnavailableSystems", p2["unavailable_systems"]),
         ("PaperPartTwoTrajectoriesPerSystem", p2["trajectories_per_system"]),
         ("PaperPartTwoTrajectories", p2["total_trajectories"]),
+        ("PaperPartTwoValidTrajectories", p2["valid_trajectories"]),
+        ("PaperPartTwoProtocolInvalidTrajectories", p2["protocol_invalid_trajectories"]),
         ("PaperPartTwoScheduledAgentDays", p2["scheduled_agent_days"]),
         ("PaperPartTwoInvalidAgentDays", p2["invalid_agent_days"]),
         ("PaperPartTwoAURCMedian", f"{p2_aurc['median']:.3f}"),
@@ -667,6 +713,7 @@ def _macro_lines(artifact: Mapping[str, Any]) -> list[str]:
         ("PaperPartTwoAUPCMinimum", f"{p2_aupc['minimum']:.3f}"),
         ("PaperPartTwoAUPCMaximum", f"{p2_aupc['maximum']:.3f}"),
         ("PaperPartTwoNondepleted", p2["nondepleted_trajectories"]),
+        ("PaperPartTwoNondepletionDenominator", p2["nondepletion_denominator"]),
     ]
     return [
         "% Generated by analysis.build_paper_headlines; do not edit.",

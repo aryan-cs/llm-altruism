@@ -16,6 +16,7 @@ from analysis.build_final_results import (
     _part1_manifest,
     _part2,
     _part2_overlay,
+    _part2_valid_trajectory_intervals,
     _parser,
     _preferred_part1,
     _reject_text_keys,
@@ -314,13 +315,15 @@ def _part2_fixture(
         identity_count = trajectory_count if failure_kind == "identity" else 0
         transport_count = trajectory_count if failure_kind == "transport" else 0
         eligible_count = 0 if failure_kind else trajectory_count
+        semantic_invalid = target_id in semantic_invalid_targets
         model_rows.append({
             "target_id": target_id,
             "upstream_provider": subject["upstream_provider"],
             "model": subject["model"], "trajectory_count": trajectory_count,
             "eligible_trajectory_count": eligible_count,
             "complete_matched_panel": failure_kind is None,
-            "total_scheduled_agent_days": 73, "total_invalid_count": 3,
+            "total_scheduled_agent_days": 80,
+            "total_invalid_count": trajectory_count if (failure_kind or semantic_invalid) else 0,
             "total_identity_mismatch_count": identity_count,
             "total_transport_failure_count": transport_count,
             "trajectory_level_95_percent_t_intervals": intervals,
@@ -331,8 +334,17 @@ def _part2_fixture(
             "identity_mismatch_count": 1 if failure_kind == "identity" else 0,
             "transport_failure_count": 1 if failure_kind == "transport" else 0,
             "invalid_count": 1 if (
-                failure_kind or target_id in semantic_invalid_targets
+                failure_kind or semantic_invalid
             ) else 0,
+            "scheduled_agent_days": 10,
+            "aurc": 0.625,
+            "aupc": 0.875,
+            "restraint_rate": 0.375,
+            "reserve_nondepletion": index < 4,
+            "final_reserve": 10.0,
+            "population_retention": 0.8,
+            "cumulative_private_payoff": 10.0,
+            "cumulative_group_payoff": 10.0,
         } for index in range(trajectory_count))
     models = _seal({
         "schema_version": 1, "artifact_type": "inference_hub_part2_sanitized_model_metrics",
@@ -464,11 +476,11 @@ def test_publication_tables_are_exact_scoped_escaped_private_and_hash_bound(
     assert part1.count("384/384 (100.0\\%) & 0 & Exploratory") == 1
 
     part2 = (output / "part2_results_table.tex").read_text(encoding="utf-8")
-    assert "95\\% $t_{7}$ intervals" in part2
-    assert "0.625 [0.500, 0.750]" in part2
-    assert "0.375 [0.250, 0.500]" in part2
+    assert "95\\% $t$ intervals" in part2
+    assert "0.625 [0.625, 0.625]" in part2
+    assert "0.375 [0.375, 0.375]" in part2
     assert "4/8 [21.5, 78.5]\\%" in part2
-    assert "0.875 [0.750, 1.000] & 3/73" in part2
+    assert "0.875 [0.875, 0.875] & 0/80" in part2
 
     combined = part0 + part1 + part2
     for forbidden in (
@@ -865,6 +877,29 @@ def test_semantic_or_format_invalid_outputs_cannot_be_declared_unavailable(
     )
     with pytest.raises(FinalResultsError, match="no target-bound operational or identity"):
         _part2_overlay(p2, [], [SECOND_TARGET])
+
+
+def test_part2_invalid_trajectories_are_not_rewarded_as_environmental_restraint() -> None:
+    rows = [
+        {
+            "invalid_count": 60, "aurc": 1.0, "aupc": 1.0,
+            "restraint_rate": 0.0, "reserve_nondepletion": True,
+            "final_reserve": 50, "population_retention": 1.0,
+            "cumulative_private_payoff": 0, "cumulative_group_payoff": 0,
+        },
+        {
+            "invalid_count": 0, "aurc": 0.4, "aupc": 0.8,
+            "restraint_rate": 0.25, "reserve_nondepletion": False,
+            "final_reserve": 0, "population_retention": 0.6,
+            "cumulative_private_payoff": 25, "cumulative_group_payoff": 0,
+        },
+    ]
+    intervals = _part2_valid_trajectory_intervals(rows)
+    assert intervals is not None
+    assert intervals["aurc"]["mean"] == 0.4
+    assert intervals["reserve_nondepletion"]["successes"] == 0
+    assert intervals["aurc"]["n"] == 1
+    assert _part2_valid_trajectory_intervals(rows[:1]) is None
 
 
 def test_part0_retains_empty_visible_responses_as_invalid_without_judging(

@@ -62,7 +62,7 @@
     "http://mlcommons.org/croissant/RAI/1.0"
   ],
   "name": "Prosocial Readiness Bench",
-  "description": "Release-safe aggregate artifacts for Safety Beyond Refusal, a three-axis evaluation of harmful-request refusal, welfare-preserving self-choice, and repeated commons preservation. Part 0 and the balanced Part 1 expansion remain exploratory because their human/content approval gates are incomplete; Part 2 uses a corrected engine with eight independent common-seed trajectories per included system. The release includes 16 of 24 Part 0 systems, 75 of 81 frozen Part 1 targets, and 22 of 24 Part 2 systems; the remainder are explicitly unavailable rather than scored.",
+  "description": "Release-safe aggregate artifacts for Safety Beyond Refusal, a three-axis evaluation of harmful-request refusal, welfare-preserving self-choice, and repeated commons preservation. Part 0 and the balanced Part 1 expansion remain exploratory because their human/content approval gates are incomplete; Part 2 uses a corrected engine with eight independent common-seed trajectories per executed system and excludes any trajectory containing an invalid action from behavioral and environmental estimates. The release includes 16 of 24 Part 0 systems, 75 of 81 frozen Part 1 targets, and 22 of 24 Part 2 systems. Of those, 20 have an estimate and 2 are protocol-nonestimable; the remaining targets are explicitly unavailable rather than scored.",
   "version": "0.2.0",
   "cr:sdVersion": "1.0.0",
   "dateCreated": "2026-04-30",
@@ -104,7 +104,7 @@
     "description": "analysis.build_final_results followed by analysis.build_croissant_metadata"
   },
   "conditionsOfAccess": "Only sanitized aggregate tables and their text-free self-hashed result graph are released. Provider credentials, private manifests, harmful prompts, visible responses, reasoning, raw journals, and interrupted artifacts are excluded.",
-  "rai:dataCollection": "Part 0 scheduled 24 systems on 24 archived English harmful-request roots under English, Chinese, and Russian response-language instructions; 16 systems are included and 8 are operationally unavailable. Part 1 scheduled 75 execution-roster targets on 96 balanced roots (73 included, 2 unavailable), 2 on 12 balanced roots (1 included, 1 unavailable), and 1 on all 384 roots (1 included, 0 unavailable). Another 3 frozen Part 1 registry targets were unavailable before execution and are not described as observed. Part 2 scheduled 24 matched systems for eight independent corrected 12-step trajectories each; 22 systems are included and 2 are operationally unavailable.",
+  "rai:dataCollection": "Part 0 scheduled 24 systems on 24 archived English harmful-request roots under English, Chinese, and Russian response-language instructions; 16 systems are included and 8 are operationally unavailable. Part 1 scheduled 75 execution-roster targets on 96 balanced roots (73 included, 2 unavailable), 2 on 12 balanced roots (1 included, 1 unavailable), and 1 on all 384 roots (1 included, 0 unavailable). Another 3 frozen Part 1 registry targets were unavailable before execution and are not described as observed. Part 2 scheduled 24 matched systems for eight independent corrected 12-step trajectories each; 22 systems are included and 2 are operationally unavailable. Environmental and behavioral estimates use 159 fully valid trajectories; 17 protocol-invalid trajectories are excluded, leaving 2 executed systems without an estimate.",
   "rai:dataCollectionType": [
     "Experiments",
     "Software Collection"
@@ -116,7 +116,7 @@
   ],
   "rai:dataPreprocessingProtocol": [
     "Validate self-hashed complete manifests or target-bound fail-closed overlays and exact response-model identity.",
-    "Retain invalid and unclear scheduled units in denominators.",
+    "Retain invalid and unclear Part 0/Part 1 scheduled units as nonsuccesses; exclude an entire Part 2 trajectory from outcome estimates if any action is invalid.",
     "Preserve every Part 1 target's observed root count and never pool the 12-root, 96-root, and 384-root estimates.",
     "Emit text-free aggregates only after output hashes and privacy flags pass."
   ],
@@ -151,9 +151,9 @@
       "name": "final_results.json",
       "description": "Self-hashed, text-free Safety Beyond Refusal result graph and evidence-status record.",
       "contentUrl": "final_results/final_results.json",
-      "contentSize": "143483 B",
+      "contentSize": "143907 B",
       "encodingFormat": "application/json",
-      "sha256": "52d4f346f8a3ad8d80ae9a45e50f145e846726090fe85f9230419884cece7fcb"
+      "sha256": "19d89d6df9caa5293db2c47b33f38eb42c293fecd9b7bbe0bb0d8af8d0f7e1a2"
     },
     {
       "@type": "cr:FileObject",
@@ -161,9 +161,9 @@
       "name": "part0_model_rates.csv",
       "description": "Part 0 exploratory refusal summaries over 24 English-source roots crossed with three response-language instructions.",
       "contentUrl": "final_results/part0_model_rates.csv",
-      "contentSize": "8798 B",
+      "contentSize": "8749 B",
       "encodingFormat": "text/csv",
-      "sha256": "45ac05ae4d5f360dab58d8361d6d0a9b7653a3f803dffe237cd9dfeeef28f368"
+      "sha256": "6fc17d3d1578193ae8cff12d28bb4a5566f10bca6b28b52d4be5842807797ebe"
     },
     {
       "@type": "cr:FileObject",
@@ -171,19 +171,19 @@
       "name": "part1_model_rates.csv",
       "description": "Part 1 exploratory self-choice summaries for 75 routes at 96 roots, two slower routes at 12 roots, and one separate 384-root route.",
       "contentUrl": "final_results/part1_model_rates.csv",
-      "contentSize": "8066 B",
+      "contentSize": "7990 B",
       "encodingFormat": "text/csv",
-      "sha256": "dbd3caa44e42d9b26fce5a36f9c978a1208ae0e62223829355f867fbd19454c1"
+      "sha256": "f4febc04d1cee927eb99cca4c0a16ca900f5a1ce498cdbce786870c683264882"
     },
     {
       "@type": "cr:FileObject",
       "@id": "part2-model-metrics",
       "name": "part2_model_metrics.csv",
-      "description": "Part 2 corrected commons metrics for 24 matched systems with eight independent trajectories each.",
+      "description": "Part 2 corrected commons metrics for 22 executed systems, with validity-gated estimates from fully valid trajectories.",
       "contentUrl": "final_results/part2_model_metrics.csv",
-      "contentSize": "5727 B",
+      "contentSize": "6537 B",
       "encodingFormat": "text/csv",
-      "sha256": "131b381111e835bf89e517d6219ef448b663a10577a6da1fed57adda676bba1b"
+      "sha256": "9c5bf6429cc211171f99a1e684e932bae06da9d81fec3dd07deafd3c18fdf577"
     }
   ],
   "recordSet": [
@@ -552,7 +552,7 @@
       "@type": "cr:RecordSet",
       "@id": "part2-model-metrics-records",
       "name": "Part2 Model Metrics records",
-      "description": "Part 2 corrected commons metrics for 24 matched systems with eight independent trajectories each.",
+      "description": "Part 2 corrected commons metrics for 22 executed systems, with validity-gated estimates from fully valid trajectories.",
       "field": [
         {
           "@type": "cr:Field",
@@ -611,6 +611,51 @@
             },
             "extract": {
               "column": "trajectory_count"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "part2-model-metrics-records/valid_trajectory_count",
+          "name": "valid_trajectory_count",
+          "description": "Column `valid_trajectory_count` from part2_model_metrics.csv.",
+          "dataType": "sc:Integer",
+          "source": {
+            "fileObject": {
+              "@id": "part2-model-metrics"
+            },
+            "extract": {
+              "column": "valid_trajectory_count"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "part2-model-metrics-records/protocol_invalid_trajectory_count",
+          "name": "protocol_invalid_trajectory_count",
+          "description": "Column `protocol_invalid_trajectory_count` from part2_model_metrics.csv.",
+          "dataType": "sc:Integer",
+          "source": {
+            "fileObject": {
+              "@id": "part2-model-metrics"
+            },
+            "extract": {
+              "column": "protocol_invalid_trajectory_count"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "part2-model-metrics-records/metric_status",
+          "name": "metric_status",
+          "description": "Column `metric_status` from part2_model_metrics.csv.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "part2-model-metrics"
+            },
+            "extract": {
+              "column": "metric_status"
             }
           }
         },
