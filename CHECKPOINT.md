@@ -102,10 +102,11 @@ campaigns have priority over supplemental retries.
 
 ## Availability and invalid retries
 
-- Two fresh compatibility rounds were executed. The same-policy visible-content
-  snapshot selected 77 of 84 SOTA target families. MiniMax M2.7 and Kimi K2.5
-  remain unavailable; unavailable routes must be retried again later without
-  silent substitution.
+- Three fresh compatibility rounds were executed. The latest same-policy
+  visible-content snapshot again selected 77 of 84 SOTA target families.
+  MiniMax M2.7 again returned target-bound HTTP 503 and Kimi K2.5 target-bound
+  HTTP 529 on their exact minimal routes; both remain unavailable without
+  silent substitution and may be retried again later.
 - Supplemental availability runs are private, separate, and currently paused so
   primary campaigns retain capacity:
   - Part 0 Opus 4.5:
