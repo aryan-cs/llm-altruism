@@ -4,161 +4,172 @@ Updated: 2026-08-03 (America/Los_Angeles)
 
 ## North star
 
-- The submission is **Safety Beyond Refusal**, a corrected and expanded version
-  of the original Prosocial Readiness Bench manuscript at Git commit `9cdefa4`.
-- The scientific question remains whether harmful-request refusal, cooperation
-  in one-shot social dilemmas, and restraint in repeated commons environments
-  provide complementary observable evidence about model behavior.
-- The April audit is not the paper's thesis. Its valid findings appear as
-  protocol repairs, provenance controls, exclusions of unsupported legacy
-  evidence, and explicit limitations.
-- No incomplete sampling unit is promoted, an unavailable route is never
-  silently substituted, and a subject model never judges its own output.
+- The exact paper title is **Safety Beyond Refusal**.
+- This is an expanded, corrected resubmission of the original three-axis paper,
+  not a benchmark-audit replacement. The central question remains whether
+  harmful-request refusal, welfare-preserving dyadic choice, and repeated
+  commons restraint expose complementary observable behavior.
+- Reviewer-driven changes are broader model coverage, larger independent-unit
+  counts, judge--subject separation, corrected task contracts, stronger
+  statistics, clearer validity gates, and reproducible artifacts.
+- No axis is a latent altruism score. No cross-axis association is promoted
+  while Part 0 lacks human label validation and Part 1 lacks independent prompt
+  approval.
 
-## Sealed corrected experiments
+## Current source state
 
-### Matched cross-axis panel
+- Branch: `master` (no additional branch or tag).
+- Latest pushed source commit at this checkpoint: `17fc8bb`.
+- Important preceding commits:
+  - `d11c739`: deterministic, privacy-safe clean-room supplement;
+  - `b94e65a`: deterministic paper headline macros and six asset families;
+  - `ba28b5f`: role-invalid repair and availability-snapshot merge support;
+  - `a75e6b9`: bounded two-seed deadline sensitivity and Part 1 invalid repair.
+- The exact title remains in
+  `docs/conference_submission/conference_submission.tex`.
+- `.env` is ignored, mode `0600`, and never enters Git or release artifacts.
 
-- `experiments/sota_cross_axis_panel.json` freezes 24 subject systems spanning
-  OpenAI GPT-3.5/4/5 and GPT-OSS, Anthropic Claude Haiku/Sonnet/Opus, Google
-  Gemini 2.5/3.x, Meta Llama, DeepSeek, Qwen, MiniMax, GLM, and NVIDIA
-  Nemotron families.
-- The fixed Part 0 judge is `judge.nvidia-evals-nemotron-3-30b-a3b`. It is
-  outside the subject roster; selection rejects target-ID, exact-route, and
-  upstream-identity overlap.
-- The planning file retains intended settings of 48 Part 0 roots per condition
-  and 12 Part 2 trajectories. The executed deadline design is reported
-  separately: 24 Part 0 roots per condition and eight Part 2 trajectories.
+## Active definitive campaigns
 
-### Part 0: response-only safety refusal
+All paths below are private and excluded from Git and the anonymous supplement.
+Every runner uses append-only, fsync-backed, hash-chained journals and supports
+fail-closed resume. The fixed Part 0 judge is
+`judge.nvidia-evals-nemotron-3-30b-a3b`; it is disjoint from every subject at
+target ID, exact route, and upstream provider/model identity.
 
-- Source artifact:
-  `data/private/inference_hub/part0-sota-panel-v2-n24`.
-- Design: 24 archived English harmful-request roots crossed with English,
-  Chinese, and Russian response-language instructions (72 cells per system).
-  These are not retained translated-prompt conditions.
-- Sixteen systems have complete scored cells and enter the sanitized results.
-  Eight have no estimate because of validated target-bound operational failure:
-  `anthropic/claude-haiku-4-5`, `anthropic/claude-opus-4-5`,
-  `anthropic/claude-opus-4-6`, `anthropic/claude-sonnet-4-5`,
-  `minimaxai/minimax-m2.7`, `openai/gpt-5`, `openai/gpt-5.2`, and
-  `openai/gpt-5.4`.
-- The fixed disjoint judge saw only visible response text. Judge failures remain
-  unjudged rather than becoming refusal or compliance labels.
-- With no benign controls and no completed blinded human validation, Part 0 is
-  exploratory and cannot pass the cross-axis promotion gate.
+### Primary main scope (currently running)
 
-### Part 1: balanced one-shot cooperation
+- Part 0: `data/private/inference_hub/definitive-part0-large-n48-main22-v3`
+  - 22 exact systems;
+  - 48 archived English harmful-request roots crossed with three requested
+    response languages (144 scheduled subject responses/system);
+  - one fixed disjoint judge for every subject response;
+  - host process resumed with an eight-hour wrapper after the original
+    one-hour shell timeout; journals were preserved.
+- Part 1: `data/private/inference_hub/definitive-part1-large-n384-main75-v2`
+  - 75 exact routes, each on the same balanced 384-root self-choice bank;
+  - malformed first responses remain all-scheduled nonsuccesses;
+  - six unavailable targets remain explicit rather than substituted;
+  - host process resumed with the exact frozen arguments and an eight-hour
+    wrapper after the original one-hour shell timeout.
+- Part 2: `data/private/inference_hub/definitive-part2-n12-main19-v3`
+  - 19 exact systems, 12 independent common-seed trajectories/system;
+  - five agents, 12 days, corrected prompt--engine incentives;
+  - invalid actions retain zero state effect for continuity but invalidate the
+    affected matched-panel trajectory for behavioral/environmental estimates;
+  - host process resumed with the exact frozen arguments and an eight-hour
+    wrapper after the original one-hour shell timeout.
 
-- Source artifacts are the n=96 main shard, the n=12 slow shard, the GLM-5.1
-  n=384 full-bank run, and two complete identity- and schedule-matched n=96
-  DeepSeek repair artifacts listed in `docs/release/REPRODUCIBILITY.md`.
-- Seventy-five of 81 frozen targets are reportable: 73 at n=96, Qwen3.5 397B at
-  n=12, and GLM-5.1 at n=384. The scopes are never pooled.
-- Three execution subjects are operationally unavailable:
-  `anthropic/claude-opus-4-5`, `minimaxai/minimax-m2.7`, and
-  `minimaxai/minimax-m3`. Three additional registry targets were unavailable
-  before execution: `moonshotai/kimi-k2.5`, `moonshotai/kimi-k2.6`, and
-  `zai-org/glm-5.2`. None receives a substitute or estimate.
-- The DeepSeek repair artifacts reproduce the same frozen target identities and
-  schedules. They are replacement evidence for failed primary artifacts, not
-  model substitutions.
-- Direct self-choice is the primary estimand. Invalid formats remain
-  non-cooperation; advice, observer, and prediction roles are separate probes.
-  The bank lacks independent content approval, so results are exploratory.
+The main accelerated policy is source-bound at global concurrency 12,
+provider concurrency 2, global 8 starts/second, and provider 1.5 starts/second.
+Primary main campaigns have priority over supplemental retries.
 
-### Part 2: corrected repeated commons restraint
+### Role calibration (currently running)
 
-- Source artifact:
-  `data/private/inference_hub/part2-sota-matched-v1-n8`.
-- Twenty-two systems execute eight complete, independent common-seed
-  trajectories each: 176 trajectories total. Twenty systems and 159 fully
-  valid trajectories support estimates. Seventeen trajectories contain an
-  invalid action and are excluded; two executed systems are consequently
-  non-estimable. Two additional systems are operationally unavailable:
-  `anthropic/claude-opus-4-6` and `minimaxai/minimax-m2.7`.
-- Each trajectory uses five agents, 12 days, and capacity 50. Option A gives
-  private payoff +1 with no reserve loss; Option B gives private payoff +2 and
-  removes two reserve units. Unanimous A adds five group-payoff units and
-  unanimous B removes five.
-- Invalid visible outputs are zero-effect `INVALID` actions with no semantic
-  retry. The zero effect preserves simulator continuity but is not restraint
-  evidence, so any affected trajectory is excluded from every behavioral and
-  environmental estimate. Transport and identity failures remain operational
-  failures.
-- The primary unit is the independent trajectory. Continuous metrics use
-  trajectory-level t intervals; reserve nondepletion uses a Wilson interval.
-  The n=8 deadline design remains below n=12 and has no sensitivity panel.
+- Path: `data/private/inference_hub/definitive-part1-role-calibration-v2`.
+- Six frozen sentinels × 96 roots × three distinct frames (advice, observer
+  evaluation, prediction) × four counterbalances = 6,912 requests.
+- Frames remain separate estimands and are never pooled into self-choice.
+- The exploratory accelerated policy is source-bound at global concurrency 12,
+  provider concurrency 3, global 8 starts/second, and provider 2 starts/second.
+- The role campaign currently has priority in this scope so that its separate
+  semantic-invalid repair can run before sensitivity resumes.
 
-## Evidence and privacy controls
+### Part 2 deadline sensitivity (paused, resumable)
 
-- The hosted collection is finished; there are no active primary experiment
-  writers. Fail-closed offline tools closed target-bound operational tails or
-  retained complete Part 2 trajectories without dispatching new calls or
-  inventing behavioral outcomes.
-- Durable reservations, fsync-appended SHA-256 journal chains, exact route and
-  returned-model bindings, source/input hashes, frozen schedules, request
-  hashes, raw-response hashes, shared rate limits, and `Retry-After` handling
-  remain in the private evidence.
-- Private prompts, responses, reasoning, routes, manifests, journals, and keys
-  do not enter Git, the paper, Croissant metadata, or the supplement.
-- Four pinned local Hugging Face controls completed 1,536 separate exploratory
-  Part 1 generations. They do not replace unavailable hosted systems.
+- Path: `data/private/inference_hub/definitive-part2-sensitivity-deadline-v3`.
+- Six sentinels × 16 resolution-V cells × two common environment seeds = 192
+  trajectories and 17,280 scheduled agent-day POSTs.
+- Five factors vary: capacity per initial agent, depletion units, collapse death
+  rate, society size, and horizon.
+- Invalid visible actions are retained as nonrestraint/zero-effect observations;
+  transport or identity failure blocks operational eligibility.
+- The panel is explicitly deadline-exploratory and underpowered. Thirty
+  sentinel-by-factor Holm rows document the prespecified family; they do not
+  authorize confirmatory robustness claims.
+- The writer is paused to avoid starving role calibration and must resume with
+  its original frozen worker counts and source hashes.
 
-## Paper and artifact state
+## Availability and invalid retries
 
-- `docs/conference_submission/conference_submission.tex` retains the exact
-  title **Safety Beyond Refusal** and the original three-axis motivation.
-  Repairs address reviewer concerns without changing the paper into a benchmark
-  audit.
-- `analysis.build_final_results` accepted the validated primary evidence,
-  target-bound availability overlays, and two exact DeepSeek repair manifests.
-  It emitted `data/analysis/final_results/final_results.json` with self-hash
-  `a9f961dd3a52fa082c9ed3ccab5c745c2fae7e2b303d9b1f08b3d0920517ecb1`.
-- Cross-axis output is withheld fail-closed: the exact full overlap, Part 0
-  human validation, full n=384 Part 1 support, and n=12 Part 2 gate do not pass.
-- `analysis.build_paper_headlines` and
-  `analysis.build_developer_descriptives` emit only within-axis,
-  scope-separated manuscript values. They do not support vendor effects,
-  rankings, significance claims, or a latent readiness score.
-- Exact finalization, result-building, Croissant, supplement, and paper commands
-  are recorded in `docs/release/REPRODUCIBILITY.md`.
-- The manuscript now includes four legible, self-contained visuals: the original
-  three-axis pipeline plus corrected, axis-specific Part 0 response-language,
-  Part 1 scope-distribution, and Part 2 outcome figures. Unsupported composite,
-  PCA, and cross-axis plots remain excluded.
-- Every table uses approximately 20 px (15 pt) float separation, and every
-  table caption defines its row unit, columns, and whether higher or lower
-  values are preferable or operationally problematic.
+- Two fresh compatibility rounds were executed. The same-policy visible-content
+  snapshot selected 77 of 84 SOTA target families. MiniMax M2.7 and Kimi K2.5
+  remain unavailable; unavailable routes must be retried again later without
+  silent substitution.
+- Supplemental availability runs are private, separate, and currently paused so
+  primary campaigns retain capacity:
+  - Part 0 Opus 4.5:
+    `data/private/inference_hub/definitive-part0-unavailable-retry-opus45-v2`;
+  - Part 1 Opus 4.5, MiniMax M3, Kimi K2.6, and GLM 5.2:
+    `data/private/inference_hub/definitive-part1-unavailable-retry-n384-v2`;
+  - Part 2 Opus 4.5, DeepSeek V4 Flash, Nemotron 3 Ultra, and GLM 5.1:
+    `data/private/inference_hub/definitive-part2-availability-retry-n12-v1`.
+- Resume supplemental runs only with their original frozen worker arguments,
+  after primary main capacity is released.
+- `experiments.misc.inference_hub_part1_semantic_invalid_repair` and
+  `experiments.misc.inference_hub_part1_role_semantic_invalid_repair` operate
+  only on COMPLETE source manifests. They preserve every primary row and
+  denominator, use bounded periodic rounds, and emit separate text-free repair
+  evidence. Run them immediately after their source campaigns complete.
+- `analysis.analyze_availability_retry_panels` validates and reports the three
+  supplemental panels separately; it never replaces or merges primary rows.
 
-## Completion verification
+## Completed local and release controls
 
-1. Every manuscript number and evidence-status statement is generated from or
-   checked against sealed result self-hash
-   `a9f961dd3a52fa082c9ed3ccab5c745c2fae7e2b303d9b1f08b3d0920517ecb1`.
-2. The final anonymous PDF compiles to 32 pages. Its exact title, eight-page main
-   body, references beginning on page 9, corrected visual summaries, landscape
-   result tables, checklist, metadata, and all pages passed automated and visual
-   inspection.
-3. The repository test suite passes with 797 tests passed and one optional test
-   skipped. Strict validation reports 27 files, 14 pass, 13 documented warnings,
-   and zero failures; the focused paper and format suite passes all 52 tests.
-4. A context-fresh independent paper audit returns GO after confirming the Part
-   2 validity gate, honest reproducibility boundary, legible tables, anonymity,
-   and fidelity to the original Safety Beyond Refusal thesis.
-5. Croissant metadata is hash-bound and passes its local check. The final
-   338-file supplement passes 713 tests with three optional skips in a clean
-   extracted directory, rebuilds to the identical file manifest, and has zero
-   anonymity-audit findings.
+- Four pinned local Hugging Face controls completed the full 384-root Part 1
+  bank (1,536 real generations) under
+  `data/private/local_hf/part1-large-n-20260802-v3-hardened`.
+- They are reported as separate exploratory execution-scale controls, never as
+  hosted-route substitutes.
+- `analysis.analyze_provider_safe_v2_definitive` accepts only five COMPLETE,
+  source-bound primary/robustness manifests and produces per-model tables while
+  preserving first-attempt invalid denominators.
+- `analysis.build_provider_safe_v2_paper_assets` produces six vector-PDF and
+  300-dpi PNG figure families, full model-row LaTeX tables, and 57 deterministic
+  headline macros. It validates the two-seed sensitivity contract and generates
+  no cross-axis composite.
+- The supplement at commit `d11c739` had 206 payload files plus manifest,
+  rebuilt byte-identically, and passed 774 clean-extraction tests with 16
+  intentional skips plus Croissant, privacy, anonymity, and manifest checks.
+  It is being refreshed only to exact-allowlist the availability-retry analyzer;
+  private/live outputs remain excluded.
 
-## External gates and interpretation
+## Paper requirements that remain fixed
 
-- Blinded two-annotator Part 0 validation and adjudication are incomplete.
-- The balanced Part 1 bank lacks planned independent human content approval.
-- Part 2 has eight rather than 12 trajectories per model and no sensitivity
-  grid.
-- Anonymous reviewer-accessible hosting and official external Croissant
-  validation must be completed outside this repository.
-- Therefore the current paper reports exploratory Part 0 and Part 1
-  descriptives and corrected but underpowered Part 2 evidence, with no
-  cross-axis claim or deployment-safety certification.
+- Keep the exact title **Safety Beyond Refusal**.
+- Preserve the original three-axis motivation, terminology, and scientific
+  direction. Audit findings appear only as repairs, exclusions, provenance, and
+  limitations.
+- Main text remains within the NeurIPS page limit; full one-row-per-model tables
+  and detailed visuals go in the appendix.
+- Every table has 15 pt (approximately 20 CSS pixels) above and below it. Every
+  caption defines its row unit, all columns and denominators, whether high or
+  low is preferable or problematic, and why.
+- Final appendix uses six updated visual families: Part 0 model×language,
+  Part 1 all hosted models, Part 2 all hosted models, role calibration,
+  sensitivity, and separate local controls. Supplemental retry tables remain
+  clearly labeled and unpooled.
+- No human labels, prompt approval, benign controls, or cross-axis evidence may
+  be fabricated. Part 0 and Part 1 remain explicitly exploratory under their
+  unresolved external validity gates.
+
+## Exact next steps
+
+1. Let primary Part 0/1/2 and role calibration reach COMPLETE manifests; if an
+   eight-hour host wrapper expires, resume with byte-identical arguments.
+2. Run the two separate semantic-invalid repair campaigns and retain original
+   denominators.
+3. Resume and complete deadline sensitivity, then resume the three availability
+   retry panels; periodically re-probe still-unavailable MiniMax M2.7 and Kimi
+   K2.5.
+4. Run `analysis.analyze_provider_safe_v2_definitive`, build the six paper asset
+   families/headline macros, and run the separate availability-retry analyzer.
+5. Replace stale n=24/n=96/n=8 prose and artifacts in the manuscript with only
+   the completed generated n=48/n=384/n=12 evidence. Keep role and sensitivity
+   exploratory and keep cross-axis output gated.
+6. Compile with bundled Tectonic, render every PDF page, verify exact title,
+   anonymity, main-body page limit, table spacing/captions, figure legibility,
+   citations, and numeric consistency.
+7. Run the full repository suite, strict validation, deterministic supplement
+   rebuild, three context-fresh paper audits, update this checkpoint with final
+   hashes/counts, commit, and push `master`.
