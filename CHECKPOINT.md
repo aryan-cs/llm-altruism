@@ -51,15 +51,15 @@ target ID, exact route, and upstream provider/model identity.
     one-request-per-upstream-provider lock cannot starve unrelated providers;
     this does not raise the global or provider network ceilings. The
     superseded v3/v4/v5 partial runs remain preserved but are not paper inputs.
-- Part 1: `data/private/inference_hub/definitive-part1-large-n384-main75-deadline-v4`
+- Part 1: `data/private/inference_hub/definitive-part1-large-n384-main75-deadline-v5`
   - 75 exact routes, each on the same balanced 384-root self-choice bank;
   - malformed first responses remain all-scheduled nonsuccesses;
   - six unavailable targets remain explicit rather than substituted;
   - a source-bound deadline lane uses bounded global concurrency 24,
     provider concurrency 4, 12 global starts/second, and 2.5 starts/second per
-    provider. The local executor has 64 slots so tasks waiting on the strict
+    provider. The local executor has 256 slots so tasks waiting on the strict
     one-request-per-exact-route semaphore cannot starve unrelated routes; it
-    does not raise any network or provider ceiling. The superseded v2/v3
+    does not raise any network or provider ceiling. The superseded v2/v3/v4
     partial runs remain preserved but are not paper inputs.
 - Part 2: `data/private/inference_hub/definitive-part2-n12-main19-v3`
   - 19 exact systems, 12 independent common-seed trajectories/system;

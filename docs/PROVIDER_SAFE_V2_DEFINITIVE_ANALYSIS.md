@@ -79,7 +79,7 @@ be explicitly outside the Holm-30 family.
 ```bash
 uv run python -m analysis.analyze_provider_safe_v2_definitive \
   --part0 data/private/inference_hub/definitive-part0-large-n48-main22-deadline-v6 \
-  --part1 data/private/inference_hub/definitive-part1-large-n384-main75-deadline-v4 \
+  --part1 data/private/inference_hub/definitive-part1-large-n384-main75-deadline-v5 \
   --part2 data/private/inference_hub/definitive-part2-n12-main19-v3 \
   --role-calibration data/private/inference_hub/definitive-part1-role-calibration-v2 \
   --sensitivity data/private/inference_hub/definitive-part2-sensitivity-deadline-fast-v8 \
