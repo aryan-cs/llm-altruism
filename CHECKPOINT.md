@@ -46,12 +46,14 @@ target ID, exact route, and upstream provider/model identity.
   - one fixed disjoint judge for every subject response;
   - host process resumed with an eight-hour wrapper after the original
     one-hour shell timeout; journals were preserved.
-- Part 1: `data/private/inference_hub/definitive-part1-large-n384-main75-v2`
+- Part 1: `data/private/inference_hub/definitive-part1-large-n384-main75-deadline-v3`
   - 75 exact routes, each on the same balanced 384-root self-choice bank;
   - malformed first responses remain all-scheduled nonsuccesses;
   - six unavailable targets remain explicit rather than substituted;
-  - host process resumed with the exact frozen arguments and an eight-hour
-    wrapper after the original one-hour shell timeout.
+  - a new source-bound deadline lane uses bounded global concurrency 24,
+    provider concurrency 4, 12 global starts/second, and 2.5 starts/second per
+    provider; the superseded v2 partial run remains preserved but is not a
+    paper input.
 - Part 2: `data/private/inference_hub/definitive-part2-n12-main19-v3`
   - 19 exact systems, 12 independent common-seed trajectories/system;
   - five agents, 12 days, corrected prompt--engine incentives;
@@ -60,9 +62,10 @@ target ID, exact route, and upstream provider/model identity.
   - host process resumed with the exact frozen arguments and an eight-hour
     wrapper after the original one-hour shell timeout.
 
-The main accelerated policy is source-bound at global concurrency 12,
+Part 0 and Part 2 retain the main accelerated policy at global concurrency 12,
 provider concurrency 2, global 8 starts/second, and provider 1.5 starts/second.
-Primary main campaigns have priority over supplemental retries.
+Part 1 uses the separately source-bound deadline policy above. Primary main
+campaigns have priority over supplemental retries.
 
 ### Role calibration (currently running)
 
