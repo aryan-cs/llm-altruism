@@ -153,16 +153,17 @@ campaigns have priority over supplemental retries.
 - `analysis.analyze_provider_safe_v2_definitive` accepts only five COMPLETE,
   source-bound primary/robustness manifests and produces per-model tables while
   preserving first-attempt invalid denominators.
-- `analysis.build_provider_safe_v2_paper_assets` produces six vector-PDF and
-  300-dpi PNG figure families, full model-row LaTeX tables, and 68 deterministic
+- `analysis.build_provider_safe_v2_paper_assets` produces seven vector-PDF and
+  300-dpi PNG figure families, including restored model bars and the original
+  red/green route-profile idiom; full model-row LaTeX tables; and deterministic
   headline macros including Part 2 AUPC, reserve-nondepletion, and
-  population-retention summaries. It validates the two-seed sensitivity
-  contract and generates no cross-axis composite.
-- The supplement at commit `c84a841` has 210 payload files plus manifest,
-  rebuilds byte-identically, and passes 781 clean-extraction tests with 16
-  intentional skips plus Croissant, privacy, anonymity, and manifest checks.
-  It exact-allowlists the availability-retry analyzer and current checkpoint;
-  private/live outputs remain excluded.
+  population-retention summaries. Figures use the original submission palette
+  and a Times-compatible NeurIPS-template font. It validates the two-seed
+  sensitivity contract and generates no cross-axis composite.
+- The definitive supplement pipeline at commit `99b56d6` validates all current
+  paper assets from their hash-bound manifest, emits portable Croissant 1.1
+  metadata, rebuilds from a clean extraction, and rejects stale, partial,
+  private, or tampered inputs. Private/live outputs remain excluded.
 
 ## Paper requirements that remain fixed
 
@@ -175,10 +176,12 @@ campaigns have priority over supplemental retries.
 - Every table has 15 pt (approximately 20 CSS pixels) above and below it. Every
   caption defines its row unit, all columns and denominators, whether high or
   low is preferable or problematic, and why.
-- Final appendix uses six updated visual families: Part 0 model×language,
+- Final appendix uses seven updated visual families: Part 0 model×language,
   Part 1 all hosted models, Part 2 all hosted models, role calibration,
-  sensitivity, and separate local controls. Supplemental retry tables remain
-  clearly labeled and unpooled.
+  sensitivity, separate local controls, and a nonpooled red/green cross-phase
+  route profile. Argument-facing tables omit bookkeeping-only invalid columns;
+  those counts and bounded repair diagnostics remain in reproducibility
+  artifacts. Supplemental availability rows remain clearly labeled and unpooled.
 - No human labels, prompt approval, benign controls, or cross-axis evidence may
   be fabricated. Part 0 and Part 1 remain explicitly exploratory under their
   unresolved external validity gates.
