@@ -294,14 +294,14 @@ Safety Beyond Refusal asks how model evaluation should expand from explicit harm
 The following tables are generated directly from the complete, hash-verified sanitized result graph. Missing result artifacts are compilation errors rather than occasions to render stale or hand-transcribed values.
 
 \subsection{Corrected Current-Data Visual Summaries}
-Figures~\ref{fig:part0-model-language}--\ref{fig:part1-local-controls} are the six provider-safe visual families generated from the sealed current aggregate graph. They remain axis- and estimand-specific: hosted routes, role probes, sensitivity cells, and local controls are not pooled.
+Figures~\ref{fig:part0-model-language}--\ref{fig:cross-phase-outcome-profile} are the seven provider-safe visual families generated from the sealed current aggregate graph. They restore the original submission's bar-chart, heatmap, and red/green model-profile visual language while using only the corrected current data. All plot text uses a Times-compatible serif matching the NeurIPS template, and the original blue/orange/green/vermillion palette is fixed in the generator. The panels remain axis- and estimand-specific: hosted routes, role probes, sensitivity cells, and local controls are not pooled.
 
 \clearpage
 \begin{landscape}
 \begin{figure}[p]
 \centering
 \includegraphics[width=\linewidth,height=0.78\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/part0_model_language.pdf}
-\caption{Part~0 response-language outcomes. Each row is one exact target route, and columns are English, Chinese, and Russian response instructions applied to the same archived English requests. The left panel is REFUSAL divided by all 48 scheduled harmful-request roots per route-language cell; the right panel is valid-output coverage over the same denominator. Higher refusal means less assistance on this harmful-request task, and higher validity means fewer invalid outputs. Cross-column differences measure response-language instruction sensitivity, not multilingual-input robustness; absent benign controls and human validation keep the panel exploratory.}
+\caption{Part~0 response-language outcomes. Each row is one exact target route; the three centered columns are English, Chinese, and Russian response instructions applied to the same archived English requests. Every cell is REFUSAL divided by all 48 scheduled harmful-request roots and prints its Wilson 95\% interval. Higher values mean less assistance on this harmful-only task; lower values mean more compliance, not general unsafety. Invalid and unclear responses remain in the scheduled denominator but are kept in the reproducibility accounting instead of occupying separate visual columns. Cross-column differences measure response-language instruction sensitivity, not multilingual-input robustness; absent benign controls and human validation keep this panel exploratory.}
 \label{fig:part0-model-language}
 \end{figure}
 \end{landscape}
@@ -311,7 +311,7 @@ Figures~\ref{fig:part0-model-language}--\ref{fig:part1-local-controls} are the s
 \begin{figure}[p]
 \centering
 \includegraphics[width=\linewidth,height=0.84\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/part1_all_models.pdf}
-\caption{Part~1 self-choice outcomes for all hosted routes. Each row is one exact route evaluated on 384 scheduled scenario roots. The left panel is the welfare-preserving first-attempt count divided by all scheduled units, with invalid outputs retained as nonsuccesses; the right panel is valid first-attempt coverage over the same denominator. Higher welfare preservation means fewer costs shifted to the counterpart in this task, and higher validity means fewer invalid outputs. Rows are ordered only within Part~1; the draft bank lacks independent content approval, so this is neither a general safety ranking nor confirmatory evidence.}
+\caption{Part~1 self-choice outcomes for all hosted routes. Each row is one exact route evaluated on 384 scheduled roots; the horizontal orange bar is its welfare-preserving first-attempt share over that full denominator and the whisker is its 5,000-replicate stratified frozen-bank sensitivity interval. Higher values mean fewer costs shifted to the counterpart in this task; lower values mean more focal-advantage choices. Invalid outputs remain nonsuccesses in the denominator but are not a separate argument-facing panel. Rows are ordered only within Part~1; the draft bank lacks independent content approval, so this is neither a general safety ranking nor confirmatory evidence.}
 \label{fig:part1-all-models}
 \end{figure}
 \end{landscape}
@@ -321,7 +321,7 @@ Figures~\ref{fig:part0-model-language}--\ref{fig:part1-local-controls} are the s
 \begin{figure}[p]
 \centering
 \includegraphics[width=\linewidth,height=0.78\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/part2_all_models.pdf}
-\caption{Part~2 commons outcomes for all hosted routes. Each row is one exact route with 12 common-seed trajectories. Panels show restraint divided by all scheduled agent-days; mean normalized reserve area (AURC), mean normalized population area (AUPC), reserve nondepletion, and final population retention over trajectories with valid identity, transport, and first actions; and valid first-attempt coverage over scheduled agent-days. Invalid first attempts remain nonrestraint and have zero simulator effect; their trajectories do not enter environmental estimates, and ``NE'' means no estimable trajectory rather than a zero score. Higher restraint, AURC, AUPC, nondepletion, and population retention mean more resource or population preservation in this simulator, while higher validity means fewer invalid actions; none is a general safety score.}
+\caption{Part~2 commons outcomes for all hosted routes. Each row is one exact route with 12 common-seed trajectories. From left to right, the five centered green-bar columns show mean trajectory restraint, normalized reserve area (AURC), normalized population area (AUPC), reserve nondepletion, and final population retention. Whiskers are trajectory Student-$t$ 95\% intervals, except Wilson 95\% intervals for nondepletion. Restraint retains invalid first actions as nonsuccesses; environmental columns use only trajectories with valid identity, transport, and every first action. NE means no estimable trajectory rather than zero. Higher values mean more resource or population preservation in this simulator; none is a general safety score.}
 \label{fig:part2-all-models}
 \end{figure}
 \end{landscape}
@@ -331,7 +331,7 @@ Figures~\ref{fig:part0-model-language}--\ref{fig:part1-local-controls} are the s
 \begin{figure}[p]
 \centering
 \includegraphics[width=\linewidth,height=0.78\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/part1_role_calibration.pdf}
-\caption{Part~1 exploratory role calibration. Each row is one of six exact sentinel routes; columns are the separate advice, observer-evaluation, and prediction frames, with 384 scheduled draws per route-frame. The left panel gives welfare-preserving first attempts divided by all scheduled draws, and the right gives valid first-attempt coverage. Higher welfare preservation means fewer counterpart costs within the named frame, while higher validity means fewer invalid outputs. Frames ask different questions, are never pooled, and differences among them are descriptive rather than causal or indicative of general safety.}
+\caption{Part~1 exploratory role calibration. Each row is one of six exact sentinel routes; the three centered columns are the separate advice, observer-evaluation, and prediction frames, with 384 scheduled draws per route-frame. Every cell is the welfare-preserving first-attempt share over all scheduled draws. Higher values mean fewer counterpart costs within the named frame; lower values mean more focal-advantage responses. Invalid outputs remain nonsuccesses in each denominator but are not a separate visual column. Frames ask different questions, are never pooled, and their differences are descriptive rather than causal or indicative of general safety.}
 \label{fig:part1-role-calibration}
 \end{figure}
 \end{landscape}
@@ -350,9 +350,19 @@ Figures~\ref{fig:part0-model-language}--\ref{fig:part1-local-controls} are the s
 \begin{figure}[p]
 \centering
 \includegraphics[width=\linewidth,height=0.72\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/part1_local_controls.pdf}
-\caption{Part~1 exploratory local execution-scale controls. Each row is one exact offline Hugging Face model ID and advertised parameter scale evaluated on 384 scheduled roots. The left panel is welfare-preserving choice over all scheduled units, with invalid outputs retained as nonsuccesses; the right is format-valid output over the same denominator. Higher values mean fewer counterpart costs or fewer malformed outputs only within these measures. The four fixed local models are separate controls, not substitutes for or members of the hosted-route panel and not confirmatory evidence.}
+\caption{Part~1 exploratory local execution-scale controls. Each row is one exact offline Hugging Face model ID and advertised parameter scale evaluated on 384 scheduled roots. The horizontal orange bar is welfare-preserving choice over all scheduled units, with invalid outputs retained as nonsuccesses. Higher values mean fewer counterpart costs in this task; lower values mean more focal-advantage choices. The four fixed local models are separate controls, not substitutes for or members of the hosted-route panel and not confirmatory evidence.}
 \label{fig:part1-local-controls}
 \end{figure}
+
+\clearpage
+\begin{landscape}
+\begin{figure}[p]
+\centering
+\includegraphics[width=\linewidth,height=0.84\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/all_models_cross_phase_outcome_profile.pdf}
+\caption{Task-specific red/green outcome profile for every authenticated route in the union of the three hosted panels. Each row is one exact route. The three centered panels are Part~0, Part~1, and Part~2; within each panel, horizontal position is a share of that phase's scheduled denominator. Green denotes the task-preferable recorded outcome: refusal of the harmful request, welfare-preserving self-choice, or commons restraint. Red denotes the corresponding task-adverse recorded outcome: compliance, focal-advantage choice, or overuse. Higher green and lower red support the named within-task claim; the reverse weakens it. Green and red may not sum to 100\% because unclear or invalid outputs remain in the denominator but are omitted as visual bookkeeping. A gray cross means that exact route was not in that phase panel, not a zero. The three panels are not pooled into a composite or general safety ranking.}
+\label{fig:cross-phase-outcome-profile}
+\end{figure}
+\end{landscape}
 
 \clearpage
 \begin{landscape}
@@ -493,7 +503,7 @@ Historical/local & Legacy GPT, Gemini, Gemma, GPT-OSS, and local routes & Separa
     \item Fail-closed administrative provenance: \path{experiments/misc/inference_hub_retire_target.py} records target-bound unavailable tails, and \path{analysis/finalize_inference_hub_part2_offline.py} seals completed Part~2 evidence after verifying its bound source tree. Neither utility dispatches model calls or manufactures outcomes.
     \item Route discovery and identity evidence: \path{experiments/misc/inference_hub_discovery.py} and \path{data/private/inference_hub}.
     \item Task definitions: \path{experiments/part0}, \path{experiments/part1}, and \path{experiments/part2}; executed inputs and schedules are hash-pinned in their manifests.
-    \item Paper-facing validation and export: \path{analysis/analyze_provider_safe_v2_definitive.py} validates the complete source-bound matrices, and \path{analysis/build_provider_safe_v2_paper_assets.py} emits the six vector/PNG figure families, six within-panel full model-row tables, one nonpooled cross-phase model matrix, deterministic headline macros, and a hashed asset manifest. \path{analysis/analyze_availability_retry_panels.py} and \path{analysis/analyze_semantic_invalid_repairs.py} separately validate and render exact-route retry and bounded repair diagnostics. They fail closed on incomplete coverage, identity mismatch, unsafe fields, denominator changes, or attempts to overwrite an existing output directory. Missing Part~0 human validation and Part~1 prompt approval block cross-axis promotion while preserving explicitly exploratory within-task summaries and side-by-side coverage.
+    \item Paper-facing validation and export: \path{analysis/analyze_provider_safe_v2_definitive.py} validates the complete source-bound matrices, and \path{analysis/build_provider_safe_v2_paper_assets.py} emits seven vector/PNG figure families, six within-panel full model-row tables, one nonpooled cross-phase model matrix, deterministic headline macros, and a hashed asset manifest. \path{analysis/analyze_availability_retry_panels.py} and \path{analysis/analyze_semantic_invalid_repairs.py} separately validate and render exact-route retry and bounded repair diagnostics. They fail closed on incomplete coverage, identity mismatch, unsafe fields, denominator changes, or attempts to overwrite an existing output directory. Missing Part~0 human validation and Part~1 prompt approval block cross-axis promotion while preserving explicitly exploratory within-task summaries and side-by-side coverage.
     \item Legacy status tables: \path{data/analysis/tables}; deprecated Part~0 and Part~2 tables are retained for audit but are not paper evidence.
     \item Croissant metadata: \path{data/analysis/croissant_metadata.json} \citep{akhtar2024croissant}.
     \item Documentation: \path{docs/release/REPRODUCIBILITY.md}, \path{docs/release/DATA_CARD.md}, \path{docs/release/MODEL_REGISTRY.md}, \path{docs/release/COMPUTE.md}, and \path{docs/release/LICENSES_AND_TERMS.md}.

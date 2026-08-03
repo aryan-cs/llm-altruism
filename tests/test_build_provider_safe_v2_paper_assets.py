@@ -431,18 +431,22 @@ def test_builds_full_production_shaped_vector_png_and_latex_assets(tmp_path: Pat
     assert result["cross_axis_aggregate_or_score_generated"] is False
     assert result["confirmatory_or_paper_promotion_permitted"] is False
     assert result["table_outer_spacing_pt"] == 15
-    assert result["figure_palette"].startswith("matplotlib_turbo")
+    assert result["figure_palette"] == (
+        "original_submission_okabe_ito_blue_orange_green_vermillion"
+    )
+    assert result["figure_font_family"].startswith("Times New Roman")
     assert result["figure_semantic_redundancy"] == (
         "directional_caption_position_and_printed_values"
     )
     assert result["route_and_model_ids_preserved_exactly"] is True
-    assert len(result["assets"]) == 21
+    assert len(result["assets"]) == 23
     assert result["local_controls_pooled_with_hosted_routes"] is False
     assert {path.suffix for path in output.iterdir()} >= {".pdf", ".png", ".tex", ".json"}
 
     expected_stems = {
         "part0_model_language", "part1_all_models", "part2_all_models",
         "part1_role_calibration", "part2_sensitivity_effects", "part1_local_controls",
+        "all_models_cross_phase_outcome_profile",
     }
     assert {path.stem for path in output.glob("*.pdf")} == expected_stems
     assert {path.stem for path in output.glob("*.png")} == expected_stems
@@ -450,6 +454,7 @@ def test_builds_full_production_shaped_vector_png_and_latex_assets(tmp_path: Pat
         content = path.read_bytes()
         assert content.startswith(b"%PDF")
         assert b"/Subtype /Image" not in content, f"{path.name} unexpectedly embeds raster marks"
+        assert b"TimesNewRoman" in content or b"Times New Roman" in content
         assert len(content) > 8_000
     for path in output.glob("*.png"):
         with Image.open(path) as image:
@@ -473,8 +478,8 @@ def test_builds_full_production_shaped_vector_png_and_latex_assets(tmp_path: Pat
     assert markdown_asset["kind"] == "markdown_table"
     markdown = (output / "all_models_cross_phase_table.md").read_text(encoding="utf-8")
     assert "not population confidence intervals" in markdown
-    assert "Part 0: R [95%]; V" in markdown
-    assert "Part 2: R; A [95%]; V" in markdown
+    assert "Part 0: R [95%]" in markdown
+    assert "Part 2: R; A [95%]" in markdown
     assert len([line for line in markdown.splitlines() if line.startswith("|")]) == 118
 
 
@@ -610,28 +615,41 @@ def test_latex_tables_preserve_ids_define_directions_and_space_every_float(tmp_p
     part0 = (output / "part0_model_language_table.tex").read_text()
     assert r"route/p0\_00:exact" in part0
     assert r"model/p0\_00\_exact" in part0
-    assert "english" in part0 and "chinese" in part0 and "russian" in part0
+    assert "English" in part0 and "Chinese" in part0 and "Russian" in part0
     part1 = (output / "part1_all_models_table.tex").read_text()
     assert sum(line.rstrip().endswith(r"\\") for line in part1.splitlines()) >= 75
     role = (output / "part1_role_calibration_table.tex").read_text()
-    assert "frames ask different questions" in role
+    assert "three centered columns are separate estimands" in role
     sensitivity = (output / "part2_sensitivity_effects_table.tex").read_text()
-    assert "Positive/negative is not automatically good/bad" in sensitivity
+    assert "sign is not automatically good or bad" in sensitivity
     assert "Holm p" in sensitivity and "high-low AURC" in sensitivity
     local = (output / "part1_local_controls_table.tex").read_text()
     assert "exploratory local execution-scale controls" in local
     assert "not substitutes for hosted routes" in local
-    assert "format-invalid outputs retained as nonsuccesses" in local
+    assert "Invalid outputs remain nonsuccesses" in local
     assert "135M" in local and "1.7B" in local
     cross_phase = (output / "all_models_cross_phase_table.tex").read_text()
-    assert "Each row is one exact target route" in cross_phase
-    assert "Part 0: R; V" in cross_phase
-    assert "Part 1: W; V" in cross_phase
-    assert "Part 2: R; A; V" in cross_phase
+    assert "Each row is one authenticated target route" in cross_phase
+    assert "Part 0: R [95\\%]" in cross_phase
+    assert "Part 1: W [95\\%]" in cross_phase
+    assert "Part 2: R; A [95\\%]" in cross_phase
     assert "environmentally estimable-trajectory normalized AURC" in cross_phase
     assert "no environmentally estimable AURC trajectory" in cross_phase
     assert "no composite or general safety ranking is computed" in cross_phase
     assert "-- (not in panel)" in cross_phase
+    assert "\\begin{tabular}{llccc}" in cross_phase
+    assert "\\begin{tabular}{llcccc}" in part0
+    assert "\\begin{tabular}{llc}" in part1
+    assert "\\begin{tabular}{llccccc}" in (
+        output / "part2_all_models_table.tex"
+    ).read_text()
+    assert "\\begin{tabular}{llccc}" in role
+    assert "\\begin{tabular}{lllccc}" in sensitivity
+    assert "\\begin{tabular}{llc}" in local
+    for name in expected_table_counts:
+        table = (output / name).read_text()
+        assert "Invalid/scheduled" not in table
+        assert "Valid coverage" not in table
 
 
 @pytest.mark.parametrize(

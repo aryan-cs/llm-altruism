@@ -3,9 +3,10 @@
 The input is only the completed, sanitized output directory produced by
 ``analysis.analyze_provider_safe_v2_definitive``.  This module never opens the
 private manifests named in that output and never generates human labels.  It
-publishes six within-task figure/table families plus one side-by-side
-cross-phase display atomically into a new output directory.  The display does
-not pool axes, compute a composite, or fill unexecuted cells.
+publishes six within-task figure/table families plus a side-by-side table and
+red/green/gray cross-phase outcome profile atomically into a new output
+directory.  The displays do not pool axes, compute a composite, or fill
+unexecuted cells.
 """
 
 from __future__ import annotations
@@ -27,7 +28,7 @@ import matplotlib
 matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt
-from matplotlib.colors import LinearSegmentedColormap, TwoSlopeNorm, to_hex
+from matplotlib.colors import LinearSegmentedColormap, TwoSlopeNorm
 from matplotlib.ticker import PercentFormatter
 
 
@@ -63,20 +64,35 @@ DEFAULT_LOCAL_CONTROLS_PATH = (
 INK = "#20252B"
 MUTED = "#66707A"
 GRID = "#D9DEE3"
-TURBO = matplotlib.colormaps["turbo"]
-BLUE = to_hex(TURBO(0.10))
-GREEN = to_hex(TURBO(0.42))
-RED = to_hex(TURBO(0.90))
-RATE_CMAP = LinearSegmentedColormap.from_list(
-    "rate_turbo",
-    tuple(TURBO(stop) for stop in (0.08, 0.20, 0.31, 0.42)),
-)
-VALID_CMAP = LinearSegmentedColormap.from_list(
-    "valid_turbo",
-    tuple(TURBO(stop) for stop in (0.08, 0.20, 0.31, 0.42)),
-)
-SIGNED_CMAP = LinearSegmentedColormap.from_list(
-    "signed_turbo", (BLUE, "#FAFAF8", RED)
+# Original submission palette (Okabe-Ito): refusal blue, one-shot-choice
+# orange, commons green, and adverse-outcome vermillion.  Keep this explicit
+# so a Matplotlib style change cannot silently recolor the paper.
+BLUE = "#0072B2"
+ORANGE = "#E69F00"
+GREEN = "#009E73"
+RED = "#D55E00"
+P0_CMAP = LinearSegmentedColormap.from_list("part0_original_blue", ("#F7FBFF", BLUE))
+P1_CMAP = LinearSegmentedColormap.from_list("part1_original_orange", ("#FFF9E8", ORANGE))
+SIGNED_CMAP = LinearSegmentedColormap.from_list("signed_original", (BLUE, "#FAFAF8", RED))
+
+# The NeurIPS template sets ptm (Times) as its Roman default.  Times New Roman
+# is the installed metric-compatible plotting font on the submission host.
+plt.rcParams.update(
+    {
+        "font.family": "serif",
+        "font.serif": ["Times New Roman", "Times", "DejaVu Serif"],
+        "mathtext.fontset": "stix",
+        "font.size": 8.0,
+        "axes.titlesize": 8.5,
+        "axes.labelsize": 8.0,
+        "xtick.labelsize": 7.0,
+        "ytick.labelsize": 7.0,
+        "legend.fontsize": 7.0,
+        "figure.titlesize": 10.0,
+        "axes.linewidth": 0.7,
+        "pdf.fonttype": 42,
+        "ps.fonttype": 42,
+    }
 )
 
 
@@ -1083,23 +1099,17 @@ def _plot_part0(data: Mapping[str, Any], directory: Path) -> list[Path]:
         ]
         for row in rows
     ]
-    validity = [
-        [1.0 - int(by_key[(row["target_id"], language)]["invalid_count"]) / int(by_key[(row["target_id"], language)]["scheduled_units"]) for language in PART0_LANGUAGES]
-        for row in rows
-    ]
-    fig, axes = plt.subplots(1, 2, figsize=(15.5, 10.6), sharey=True)
+    fig, ax = plt.subplots(figsize=(9.6, 10.6))
     fig.patch.set_facecolor("white")
     fig.suptitle("Part 0 response-language outcomes by exact model route", x=0.08, ha="left", fontsize=15, fontweight="bold", color=INK)
     fig.text(0.08, 0.955, "Each cell uses 48 scheduled harmful-request roots; rows are ordered by overall within-task refusal rate.", fontsize=9, color=MUTED)
     _heatmap(
-        axes[0], refusal, PART0_LANGUAGES, labels,
-        title="Refusal rate [Wilson 95%] / 48 roots", cmap=RATE_CMAP,
+        ax, refusal, PART0_LANGUAGES, labels,
+        title="Refusal rate [Wilson 95%] / 48 roots", cmap=P0_CMAP,
         vmin=0.0, vmax=1.0, intervals=refusal_intervals,
     )
-    _heatmap(axes[1], validity, PART0_LANGUAGES, labels, title="Valid-output coverage", cmap=VALID_CMAP, vmin=0.0, vmax=1.0)
-    axes[1].tick_params(axis="y", labelleft=False)
-    fig.text(0.08, 0.018, "Brackets are condition-specific Wilson 95% intervals over 48 roots. Higher refusal means less assistance on this harmful-request task; higher validity means fewer invalid outputs. Neither panel is a general safety score.", fontsize=8, color=MUTED)
-    fig.tight_layout(rect=(0.06, 0.045, 0.99, 0.94), w_pad=2.2)
+    fig.text(0.08, 0.018, "Brackets are condition-specific Wilson 95% intervals over 48 roots. Higher refusal means less assistance on this harmful-request task. Invalid outputs remain in the scheduled denominator but are reported in the reproducibility artifacts rather than as a separate argument-facing column.", fontsize=8, color=MUTED)
+    fig.tight_layout(rect=(0.06, 0.045, 0.99, 0.94))
     return _save_figure(fig, directory, "part0_model_language", "Part 0 model by language outcomes")
 
 
@@ -1115,9 +1125,10 @@ def _lollipop_panel(
 ) -> None:
     positions = list(range(len(values)))
     estimable = [(position, value) for position, value in zip(positions, values, strict=True) if value is not None]
-    ax.hlines(
-        [position for position, _ in estimable], 0.0,
-        [value for _, value in estimable], color=GRID, linewidth=1.0, zorder=1,
+    ax.barh(
+        [position for position, _ in estimable],
+        [value for _, value in estimable],
+        height=0.58, color=color, alpha=0.58, edgecolor="none", zorder=1,
     )
     ax.scatter(
         [value for _, value in estimable], [position for position, _ in estimable],
@@ -1156,6 +1167,128 @@ def _lollipop_panel(
     _style_axes(ax)
 
 
+def _plot_cross_phase_outcome_profile(
+    data: Mapping[str, Any], directory: Path
+) -> list[Path]:
+    """Restore the original red/green per-model visual without pooling axes."""
+
+    phase_indices = {
+        "Part 0: refusal / compliance": {
+            str(row["target_id"]): row for row in data["part0"]
+        },
+        "Part 1: welfare / focal advantage": {
+            str(row["target_id"]): row for row in data["part1"]
+        },
+        "Part 2: restraint / overuse": {
+            str(row["target_id"]): row for row in data["part2"]
+        },
+    }
+    all_targets = sorted(set().union(*(set(index) for index in phase_indices.values())))
+    identity_by_target: dict[str, tuple[str, str]] = {}
+    for target in all_targets:
+        identities = {
+            (str(row["upstream_provider"]), str(row["model"]))
+            for index in phase_indices.values()
+            if (row := index.get(target)) is not None
+        }
+        if len(identities) != 1:
+            raise PaperAssetsError(
+                f"Cross-phase exact identity differs for target {target!r}."
+            )
+        identity_by_target[target] = next(iter(identities))
+    labels = [
+        f"{target} | {identity_by_target[target][1]}" for target in all_targets
+    ]
+
+    fig, axes = plt.subplots(1, 3, figsize=(17.8, 21.5), sharey=False)
+    fig.patch.set_facecolor("white")
+    fig.suptitle(
+        "Task-specific outcome profiles across exact model routes",
+        x=0.07, y=0.995, ha="left", fontsize=15, fontweight="bold", color=INK,
+    )
+    fig.text(
+        0.07, 0.976,
+        "One row per authenticated exact route; panels retain separate tasks and denominators.",
+        fontsize=9, color=MUTED,
+    )
+    positions = list(range(len(all_targets)))
+    for panel_index, (title, index) in enumerate(phase_indices.items()):
+        ax = axes[panel_index]
+        for position, target in zip(positions, all_targets, strict=True):
+            row = index.get(target)
+            if row is None:
+                ax.scatter(
+                    [0.02], [position], marker="x", s=13, color=MUTED,
+                    linewidth=0.7, zorder=2,
+                )
+                continue
+            if panel_index == 0:
+                denominator = int(row["scheduled_units"])
+                preferable = int(row["refusal_count"]) / denominator
+                adverse = int(row["compliance_count"]) / denominator
+                unresolved = (
+                    int(row["unclear_count"])
+                    + int(row["first_attempt_invalid_count"])
+                ) / denominator
+            elif panel_index == 1:
+                denominator = int(row["scheduled_units"])
+                preferable_count = int(row["welfare_preserving_count_first_attempt"])
+                invalid_count = int(row["first_attempt_invalid_count"])
+                preferable = preferable_count / denominator
+                adverse = (denominator - preferable_count - invalid_count) / denominator
+                unresolved = invalid_count / denominator
+            else:
+                denominator = int(row["scheduled_agent_days"])
+                preferable = int(row["restraint_count"]) / denominator
+                adverse = int(row["overuse_count"]) / denominator
+                unresolved = int(row["first_attempt_invalid_count"]) / denominator
+            if min(preferable, adverse, unresolved) < 0 or not math.isclose(
+                preferable + adverse + unresolved, 1.0, abs_tol=1e-9
+            ):
+                raise PaperAssetsError(
+                    f"Cross-phase outcome partition is invalid for {target!r}."
+                )
+            ax.scatter(
+                [preferable], [position], marker="o", s=18, color=GREEN,
+                edgecolor=INK, linewidth=0.3, zorder=3,
+            )
+            ax.scatter(
+                [adverse], [position], marker="o", s=18, color=RED,
+                edgecolor=INK, linewidth=0.3, zorder=3,
+            )
+        ax.set_xlim(0.0, 1.0)
+        ax.set_ylim(-0.8, len(all_targets) - 0.2)
+        ax.invert_yaxis()
+        ax.xaxis.set_major_formatter(PercentFormatter(1.0))
+        ax.grid(axis="x", color=GRID, linewidth=0.6)
+        ax.set_axisbelow(True)
+        ax.set_title(title, fontsize=9, fontweight="bold", loc="left")
+        ax.set_yticks(positions)
+        if panel_index == 0:
+            ax.set_yticklabels(labels, fontsize=5.0)
+        else:
+            ax.set_yticklabels([])
+            ax.tick_params(axis="y", length=0)
+        _style_axes(ax)
+    axes[0].scatter([], [], s=26, color=GREEN, edgecolor=INK, linewidth=0.3, label="task-preferable outcome")
+    axes[0].scatter([], [], s=26, color=RED, edgecolor=INK, linewidth=0.3, label="task-adverse outcome")
+    axes[0].scatter([], [], marker="x", s=18, color=MUTED, linewidth=0.7, label="route not in panel")
+    fig.legend(
+        loc="lower center", bbox_to_anchor=(0.53, 0.018), ncol=3,
+        frameon=False, fontsize=8,
+    )
+    fig.text(
+        0.07, 0.046,
+        "Green is refusal in Part 0, welfare-preserving choice in Part 1, and restraint in Part 2; red is compliance, focal-advantage choice, and overuse, respectively. Horizontal position is the share of that phase's scheduled denominator. Green and red need not sum to 100% because unclear or invalid outputs remain in the denominator but are omitted as visual bookkeeping. Higher green and lower red are preferable only within the named task; the three panels are not a composite or general safety ranking.",
+        fontsize=8, color=MUTED, wrap=True,
+    )
+    fig.tight_layout(rect=(0.045, 0.075, 0.995, 0.965), w_pad=1.8)
+    return _save_figure(
+        fig, directory, "all_models_cross_phase_outcome_profile",
+        "Task-specific red green gray outcome profiles by exact model route",
+    )
+
+
 def _plot_part1(data: Mapping[str, Any], directory: Path) -> list[Path]:
     rows = data["part1"]
     labels = [_label(row) for row in rows]
@@ -1167,21 +1300,17 @@ def _plot_part1(data: Mapping[str, Any], directory: Path) -> list[Path]:
         )
         for row in rows
     ]
-    validity = [1.0 - int(row["first_attempt_invalid_count"]) / int(row["scheduled_units"]) for row in rows]
-    # Keep separate y-axis formatters: sharing the formatter allows an unlabeled
-    # right panel to erase the exact route/model labels on the left panel.
-    fig, axes = plt.subplots(1, 2, figsize=(15.5, 20.5), sharey=False)
+    fig, ax = plt.subplots(figsize=(10.2, 20.5))
     fig.patch.set_facecolor("white")
     fig.suptitle("Part 1 self-choice outcomes for all 75 exact model routes", x=0.08, y=0.995, ha="left", fontsize=15, fontweight="bold", color=INK)
     fig.text(0.08, 0.973, "One row per route; 384 scheduled units per route; ordered by within-task welfare-preserving rate.", fontsize=9, color=MUTED)
     _lollipop_panel(
-        axes[0], welfare, labels,
-        title="Welfare-preserving [root sensitivity 95%]", color=BLUE,
+        ax, welfare, labels,
+        title="Welfare-preserving [root sensitivity 95%]", color=ORANGE,
         show_labels=True, intervals=welfare_intervals,
     )
-    _lollipop_panel(axes[1], validity, labels, title="Valid first-attempt coverage", color=GREEN, show_labels=False)
-    fig.text(0.08, 0.012, "Whiskers are deterministic 5,000-replicate stratified frozen-root-bank sensitivity intervals, not population CIs. Higher welfare preservation means fewer counterpart costs; higher validity means fewer invalid outputs.", fontsize=8, color=MUTED)
-    fig.tight_layout(rect=(0.055, 0.028, 0.99, 0.965), w_pad=2.0)
+    fig.text(0.08, 0.012, "Bars show welfare-preserving choice over all 384 scheduled roots. Whiskers are deterministic 5,000-replicate stratified frozen-root-bank sensitivity intervals, not population CIs. Higher values mean fewer counterpart costs in this task.", fontsize=8, color=MUTED)
+    fig.tight_layout(rect=(0.055, 0.028, 0.99, 0.965))
     return _save_figure(fig, directory, "part1_all_models", "Part 1 all-model outcomes")
 
 
@@ -1240,18 +1369,16 @@ def _plot_part2(data: Mapping[str, Any], directory: Path) -> list[Path]:
         )
         for row in rows
     ]
-    validity = [1.0 - int(row["first_attempt_invalid_count"]) / int(row["scheduled_agent_days"]) for row in rows]
-    fig, axes = plt.subplots(1, 6, figsize=(22.0, 9.2), sharey=False)
+    fig, axes = plt.subplots(1, 5, figsize=(19.5, 9.2), sharey=False)
     fig.patch.set_facecolor("white")
     fig.suptitle("Part 2 commons outcomes for 19 exact model routes", x=0.075, y=0.995, ha="left", fontsize=15, fontweight="bold", color=INK)
     fig.text(0.075, 0.953, "One row per route; 12 trajectories per route; ordered by within-task restraint rate.", fontsize=9, color=MUTED)
-    _lollipop_panel(axes[0], restraint, labels, title="Mean trajectory restraint [t95]", color=BLUE, show_labels=True, intervals=restraint_intervals)
-    _lollipop_panel(axes[1], aurc, labels, title="Mean AURC [t95] / env.", color=BLUE, show_labels=False, intervals=aurc_intervals)
-    _lollipop_panel(axes[2], aupc, labels, title="Mean AUPC [t95] / env.", color=BLUE, show_labels=False, intervals=aupc_intervals)
+    _lollipop_panel(axes[0], restraint, labels, title="Mean trajectory restraint [t95]", color=GREEN, show_labels=True, intervals=restraint_intervals)
+    _lollipop_panel(axes[1], aurc, labels, title="Mean AURC [t95] / env.", color=GREEN, show_labels=False, intervals=aurc_intervals)
+    _lollipop_panel(axes[2], aupc, labels, title="Mean AUPC [t95] / env.", color=GREEN, show_labels=False, intervals=aupc_intervals)
     _lollipop_panel(axes[3], nondepletion, labels, title="Nondepletion [Wilson95] / env.", color=GREEN, show_labels=False, intervals=nondepletion_intervals)
     _lollipop_panel(axes[4], population, labels, title="Population retained [t95] / env.", color=GREEN, show_labels=False, intervals=population_intervals)
-    _lollipop_panel(axes[5], validity, labels, title="Valid coverage", color=GREEN, show_labels=False)
-    fig.text(0.075, 0.018, "Whiskers are trajectory-level Student-t 95% intervals (Wilson 95% for nondepletion). Higher values mean more resource/population preservation; higher validity means fewer invalid actions. These are not general safety scores.", fontsize=8, color=MUTED)
+    fig.text(0.075, 0.018, "Bars show task outcomes and whiskers are trajectory-level Student-t 95% intervals (Wilson 95% for nondepletion). Higher values mean more resource or population preservation in this simulator. Invalid actions remain in all-scheduled restraint denominators and environmental eligibility checks, but are not a separate argument-facing panel.", fontsize=8, color=MUTED)
     fig.tight_layout(rect=(0.055, 0.045, 0.995, 0.94), w_pad=1.8)
     return _save_figure(fig, directory, "part2_all_models", "Part 2 all-model outcomes")
 
@@ -1261,16 +1388,13 @@ def _plot_role(data: Mapping[str, Any], directory: Path) -> list[Path]:
     by_key = data["role"]
     labels = [_label(by_key[(target, ROLE_FRAMES[0])]) for target in targets]
     welfare = [[float(by_key[(target, frame)]["welfare_preserving_rate_all_scheduled"]) for frame in ROLE_FRAMES] for target in targets]
-    validity = [[1.0 - int(by_key[(target, frame)]["first_attempt_invalid_count"]) / int(by_key[(target, frame)]["scheduled_draws"]) for frame in ROLE_FRAMES] for target in targets]
-    fig, axes = plt.subplots(1, 2, figsize=(15.2, 5.6), sharey=True)
+    fig, ax = plt.subplots(figsize=(11.2, 5.6))
     fig.patch.set_facecolor("white")
     fig.suptitle("Part 1 role-calibration outcomes by exact sentinel route and frame", x=0.08, ha="left", fontsize=15, fontweight="bold", color=INK)
     fig.text(0.08, 0.91, "Six sentinels x three separate frames; 384 scheduled draws per route-frame; frames are not pooled.", fontsize=9, color=MUTED)
-    _heatmap(axes[0], welfare, ROLE_FRAMES, labels, title="Welfare-preserving / all scheduled draws", cmap=RATE_CMAP, vmin=0.0, vmax=1.0)
-    _heatmap(axes[1], validity, ROLE_FRAMES, labels, title="Valid first-attempt coverage", cmap=VALID_CMAP, vmin=0.0, vmax=1.0)
-    axes[1].tick_params(axis="y", labelleft=False)
-    fig.text(0.08, 0.025, "Higher welfare preservation means fewer counterpart costs within that role-conditioned task; higher validity means fewer invalid outputs. Frame differences are descriptive, not causal.", fontsize=8, color=MUTED)
-    fig.tight_layout(rect=(0.055, 0.07, 0.995, 0.87), w_pad=2.2)
+    _heatmap(ax, welfare, ROLE_FRAMES, labels, title="Welfare-preserving / all scheduled draws", cmap=P1_CMAP, vmin=0.0, vmax=1.0)
+    fig.text(0.08, 0.025, "Higher welfare preservation means fewer counterpart costs within that role-conditioned task. Frame differences are descriptive, not causal; invalid outputs remain in each scheduled denominator.", fontsize=8, color=MUTED)
+    fig.tight_layout(rect=(0.055, 0.07, 0.995, 0.87))
     return _save_figure(fig, directory, "part1_role_calibration", "Part 1 role-calibration outcomes")
 
 
@@ -1318,8 +1442,7 @@ def _plot_local_controls(data: Mapping[str, Any], directory: Path) -> list[Path]
     rows = data["local_controls"]
     labels = [f"{row['model_id']} | {row['parameter_scale']}" for row in rows]
     welfare = [float(row["welfare_rate"]) for row in rows]
-    validity = [float(row["validity_rate"]) for row in rows]
-    fig, axes = plt.subplots(1, 2, figsize=(13.4, 4.8), sharey=False)
+    fig, ax = plt.subplots(figsize=(9.2, 4.8))
     fig.patch.set_facecolor("white")
     fig.suptitle(
         "Part 1 exploratory local execution-scale controls", x=0.085, y=0.99,
@@ -1331,19 +1454,15 @@ def _plot_local_controls(data: Mapping[str, Any], directory: Path) -> list[Path]
         fontsize=9, color=MUTED,
     )
     _lollipop_panel(
-        axes[0], welfare, labels,
-        title="Welfare-preserving / all 384 scheduled units", color=BLUE, show_labels=True,
-    )
-    _lollipop_panel(
-        axes[1], validity, labels,
-        title="Format-valid / all 384 scheduled units", color=GREEN, show_labels=False,
+        ax, welfare, labels,
+        title="Welfare-preserving / all 384 scheduled units", color=ORANGE, show_labels=True,
     )
     fig.text(
         0.085, 0.025,
-        "Invalid outputs remain nonsuccesses for welfare preservation. Higher values are preferable only within this task; these exploratory scale controls are separate from, and not substitutes for, hosted-route or confirmatory evidence.",
+        "Bars show welfare-preserving choice with invalid outputs retained as nonsuccesses. Higher values are preferable only within this task; these exploratory scale controls are separate from, and not substitutes for, hosted-route or confirmatory evidence.",
         fontsize=8, color=MUTED,
     )
-    fig.tight_layout(rect=(0.055, 0.095, 0.99, 0.84), w_pad=2.0)
+    fig.tight_layout(rect=(0.055, 0.095, 0.99, 0.84))
     return _save_figure(
         fig, directory, "part1_local_controls", "Part 1 exploratory local execution-scale controls"
     )
@@ -1455,14 +1574,12 @@ def _write_tables(data: Mapping[str, Any], directory: Path) -> list[Path]:
             raise PaperAssetsError(
                 f"Cross-phase exact identity differs for target {target!r}."
             )
-        provider, model = next(iter(identities))
+        _provider, model = next(iter(identities))
         p0 = phase_indices["part0"].get(target)
         p1 = phase_indices["part1"].get(target)
         p2 = phase_indices["part2"].get(target)
         p0_cell = "-- (not in panel)"
         if p0 is not None:
-            scheduled = int(p0["scheduled_units"])
-            invalid = int(p0["first_attempt_invalid_count"])
             p0_cell = (
                 "R "
                 + _pct_interval(
@@ -1470,13 +1587,9 @@ def _write_tables(data: Mapping[str, Any], directory: Path) -> list[Path]:
                     float(p0["refusal_rate_all_scheduled_finite_bank_sensitivity_low"]),
                     float(p0["refusal_rate_all_scheduled_finite_bank_sensitivity_high"]),
                 )
-                + "; "
-                f"V {_pct(1.0 - invalid / scheduled)}"
             )
         p1_cell = "-- (not in panel)"
         if p1 is not None:
-            scheduled = int(p1["scheduled_units"])
-            invalid = int(p1["first_attempt_invalid_count"])
             p1_cell = (
                 "W "
                 + _pct_interval(
@@ -1484,13 +1597,9 @@ def _write_tables(data: Mapping[str, Any], directory: Path) -> list[Path]:
                     float(p1["welfare_preserving_rate_all_scheduled_finite_bank_sensitivity_low"]),
                     float(p1["welfare_preserving_rate_all_scheduled_finite_bank_sensitivity_high"]),
                 )
-                + "; "
-                f"V {_pct(1.0 - invalid / scheduled)}"
             )
         p2_cell = "-- (not in panel)"
         if p2 is not None:
-            scheduled = int(p2["scheduled_agent_days"])
-            invalid = int(p2["first_attempt_invalid_count"])
             aurc = (
                 "NE"
                 if p2["mean_aurc_eligible"] is None
@@ -1501,12 +1610,11 @@ def _write_tables(data: Mapping[str, Any], directory: Path) -> list[Path]:
             )
             p2_cell = (
                 f"R {_pct(float(p2['restraint_rate_all_scheduled']))}; "
-                f"A {aurc}; V {_pct(1.0 - invalid / scheduled)}"
+                f"A {aurc}"
             )
         cross_phase_rows.append(
             [
                 _tex_escape(target),
-                _tex_escape(provider),
                 _tex_escape(model),
                 p0_cell,
                 p1_cell,
@@ -1514,19 +1622,19 @@ def _write_tables(data: Mapping[str, Any], directory: Path) -> list[Path]:
             ]
         )
         cross_phase_markdown_rows.append(
-            [target, provider, model, p0_cell.replace("\\%", "%"),
+            [target, model, p0_cell.replace("\\%", "%"),
              p1_cell.replace("\\%", "%"), p2_cell.replace("\\%", "%")]
         )
     path = directory / "all_models_cross_phase_table.tex"
     path.write_text(
         _table_tex(
             caption=(
-                "Exact-route cross-phase result matrix. Each row is one exact target route in the union of the three primary hosted panels; Provider and Model ID preserve authenticated upstream identity. Part 0 reports refusal R as estimate [95\\% frozen-root-bank sensitivity interval] and valid first-attempt coverage V over 144 responses; higher R means less harmful-request assistance and higher V means fewer invalid outputs. Part 1 reports welfare-preserving self-choice W as estimate [95\\% stratified frozen-root-bank sensitivity interval] and V over 384 roots; higher W means fewer counterpart costs. These two bootstrap intervals describe the fixed banks, not population confidence intervals. Part 2 reports pooled all-scheduled restraint R, environmentally estimable-trajectory normalized AURC A as estimate [trajectory Student-t 95\\% interval], and V over 12 common-seed trajectories; higher restraint and AURC mean greater reserve preservation and higher V means fewer invalid actions. A trajectory supplies AURC only when model identity and transport are valid and every first action is semantically valid. NE means no environmentally estimable AURC trajectory, while -- means the exact route was not in that phase panel. Columns remain different estimands: no cell is imputed and no composite or general safety ranking is computed."
+                "Exact-route cross-phase result matrix. Each row is one authenticated target route and exact upstream Model ID in the union of the three hosted panels. Part 0 reports refusal R as estimate [95\\% frozen-root-bank sensitivity interval] over 144 responses; higher R means less harmful-request assistance. Part 1 reports welfare-preserving self-choice W as estimate [95\\% stratified frozen-root-bank sensitivity interval] over 384 roots; higher W means fewer counterpart costs. Those bootstrap intervals describe fixed-bank sensitivity, not population confidence intervals. Part 2 reports all-scheduled restraint R and environmentally estimable-trajectory normalized AURC A as estimate [trajectory Student-t 95\\% interval] over 12 common-seed trajectories; higher R and A mean greater reserve preservation. NE means no environmentally estimable AURC trajectory, while -- means the route was not in that phase. Columns are centered for comparison but remain different estimands: no cell is imputed and no composite or general safety ranking is computed."
             ),
             label="tab:provider-safe-v2-all-models-cross-phase",
-            headers=("Target route ID", "Provider", "Model ID", "Part 0: R; V", "Part 1: W; V", "Part 2: R; A; V"),
+            headers=("Target route ID", "Model ID", "Part 0: R [95\\%]", "Part 1: W [95\\%]", "Part 2: R; A [95\\%]"),
             rows=cross_phase_rows,
-            column_spec="lllrrr",
+            column_spec="llccc",
             chunk_size=24,
         ),
         encoding="utf-8",
@@ -1534,8 +1642,8 @@ def _write_tables(data: Mapping[str, Any], directory: Path) -> list[Path]:
     output.append(path)
     markdown_path = directory / "all_models_cross_phase_table.md"
     markdown_headers = (
-        "Target route ID", "Provider", "Model ID", "Part 0: R [95%]; V",
-        "Part 1: W [95%]; V", "Part 2: R; A [95%]; V",
+        "Target route ID", "Model ID", "Part 0: R [95%]",
+        "Part 1: W [95%]", "Part 2: R; A [95%]",
     )
     markdown_lines = [
         "# Exact-route cross-phase results",
@@ -1548,8 +1656,7 @@ def _write_tables(data: Mapping[str, Any], directory: Path) -> list[Path]:
             "means fewer counterpart costs. These Part 0/1 intervals describe sensitivity to the "
             "fixed prompt banks, not population confidence intervals. Part 2 R is all-scheduled "
             "restraint and A is mean environmentally estimable AURC with a trajectory-level Student-t "
-            "95% interval; higher means more reserve preservation. V is valid first-attempt coverage "
-            "in every phase, so higher means fewer invalid outputs/actions. NE means no estimable "
+            "95% interval; higher means more reserve preservation. NE means no estimable "
             "trajectory; -- means the route was not tested in that phase. Columns remain distinct "
             "estimands and are not a composite or general safety ranking."
         ),
@@ -1566,8 +1673,8 @@ def _write_tables(data: Mapping[str, Any], directory: Path) -> list[Path]:
     output.append(markdown_path)
 
     part0_rows = []
-    for order, row in enumerate(data["part0"], start=1):
-        values = [str(order), _tex_escape(row["target_id"]), _tex_escape(row["upstream_provider"]), _tex_escape(row["model"])]
+    for row in data["part0"]:
+        values = [_tex_escape(row["target_id"]), _tex_escape(row["model"])]
         values.append(
             _pct_interval(
                 float(row["refusal_rate_all_scheduled"]),
@@ -1583,8 +1690,7 @@ def _write_tables(data: Mapping[str, Any], directory: Path) -> list[Path]:
                         float(aggregate["refusal_rate_all_scheduled"]),
                         float(aggregate["refusal_rate_all_scheduled_wilson95_low"]),
                         float(aggregate["refusal_rate_all_scheduled_wilson95_high"]),
-                    ),
-                    f"{aggregate['invalid_count']}/{aggregate['scheduled_units']}",
+                    )
                 ]
             )
         part0_rows.append(values)
@@ -1592,12 +1698,12 @@ def _write_tables(data: Mapping[str, Any], directory: Path) -> list[Path]:
     path.write_text(
         _table_tex(
             caption=(
-                "Part 0 exact-route response-language outcomes. Each row is one target route, shown in descending overall refusal-rate display order; Provider and Model are exact upstream identifiers. Overall R [95\\%] is REFUSAL over 144 responses followed by a deterministic 5,000-replicate percentile interval that resamples 48 harmful-request roots while retaining each root's three languages. Each language R [95\\%] is REFUSAL over 48 roots followed by a Wilson interval; Invalid/scheduled is invalid-output coverage. The root-bootstrap interval is frozen-bank sensitivity, not a population confidence interval. Higher R means less harmful-request assistance; lower invalid coverage is operationally preferable. These directions are within-task only and do not imply general safety."
+                "Part 0 exact-route response-language outcomes. Each row is one authenticated target route and exact upstream Model ID, shown in descending overall refusal-rate display order. Overall R [95\\%] is refusal over all 144 scheduled responses followed by a deterministic 5,000-replicate interval that resamples the 48 harmful-request roots while retaining each root's three language conditions. English, Chinese, and Russian R [95\\%] are refusal over 48 scheduled roots followed by Wilson intervals. Every quantitative column is centered. Higher R means less harmful-request assistance on this harmful-only task; it is not a general safety score. Invalid and unclear outputs remain in every scheduled denominator and are retained in the reproducibility artifacts rather than displayed as separate result columns."
             ),
             label="tab:provider-safe-v2-part0-model-language",
-            headers=("Order", "Target route ID", "Provider", "Model ID", "Overall R [95\\%]", "english R [95\\%]", "english invalid/scheduled", "chinese R [95\\%]", "chinese invalid/scheduled", "russian R [95\\%]", "russian invalid/scheduled"),
+            headers=("Target route ID", "Model ID", "Overall R [95\\%]", "English R [95\\%]", "Chinese R [95\\%]", "Russian R [95\\%]"),
             rows=part0_rows,
-            column_spec="rlllrrrrrrr",
+            column_spec="llcccc",
             chunk_size=22,
         ),
         encoding="utf-8",
@@ -1609,22 +1715,19 @@ def _write_tables(data: Mapping[str, Any], directory: Path) -> list[Path]:
         local_rows.append(
             [
                 _tex_escape(row["model_id"]), _tex_escape(row["parameter_scale"]),
-                str(row["scheduled"]),
                 f"{row['welfare_count']}/{row['scheduled']} ({_pct(float(row['welfare_rate']))})",
-                f"{row['invalid_count']}/{row['scheduled']}",
-                f"{row['valid_count']}/{row['scheduled']} ({_pct(float(row['validity_rate']))})",
             ]
         )
     path = directory / "part1_local_controls_table.tex"
     path.write_text(
         _table_tex(
             caption=(
-                "Part 1 exploratory local execution-scale controls, reported separately from hosted model routes. Each row is one exact offline HF Model ID; Parameter scale is the advertised model parameter count; n is 384 scheduled trial units per model. Welfare/scheduled is the welfare-preserving count divided by all 384 units, with format-invalid outputs retained as nonsuccesses; Invalid/scheduled is the invalid count and denominator; Format validity is the valid-format count divided by 384. Higher welfare preservation means fewer counterpart costs in this task and higher format validity means fewer malformed outputs; lower values mean the converse only within these operational measures. These four fixed local models are exploratory execution-scale controls, not substitutes for hosted routes and not confirmatory or general safety evidence."
+                "Part 1 exploratory local execution-scale controls, reported separately from hosted routes. Each row is one exact offline HF Model ID; Parameter scale is the advertised parameter count; Welfare/scheduled is the welfare-preserving count and percentage over all 384 scheduled roots. The result column is centered. Higher welfare preservation means fewer counterpart costs in this task. Invalid outputs remain nonsuccesses in the denominator but are not a separate argument-facing column. These four fixed local models are execution-scale controls, not substitutes for hosted routes and not confirmatory or general safety evidence."
             ),
             label="tab:provider-safe-v2-part1-local-controls",
-            headers=("Model ID", "Parameter scale", "n", "Welfare/scheduled", "Invalid/scheduled", "Format validity"),
+            headers=("Model ID", "Parameter scale", "Welfare/scheduled"),
             rows=local_rows,
-            column_spec="llrrrr",
+            column_spec="llc",
             chunk_size=4,
         ),
         encoding="utf-8",
@@ -1632,31 +1735,27 @@ def _write_tables(data: Mapping[str, Any], directory: Path) -> list[Path]:
     output.append(path)
 
     part1_rows = []
-    for order, row in enumerate(data["part1"], start=1):
-        scheduled = int(row["scheduled_units"])
-        invalid = int(row["first_attempt_invalid_count"])
+    for row in data["part1"]:
         part1_rows.append(
             [
-                str(order), _tex_escape(row["target_id"]), _tex_escape(row["upstream_provider"]),
-                _tex_escape(row["model"]), str(scheduled),
+                _tex_escape(row["target_id"]), _tex_escape(row["model"]),
                 _pct_interval(
                     float(row["welfare_preserving_rate_all_scheduled"]),
                     float(row["welfare_preserving_rate_all_scheduled_finite_bank_sensitivity_low"]),
                     float(row["welfare_preserving_rate_all_scheduled_finite_bank_sensitivity_high"]),
                 ),
-                f"{invalid}/{scheduled}", _pct(1.0 - invalid / scheduled),
             ]
         )
     path = directory / "part1_all_models_table.tex"
     path.write_text(
         _table_tex(
             caption=(
-                "Part 1 self-choice outcomes for all 75 exact model routes. Each row is one target route, shown in descending within-task welfare-preserving-rate display order; Provider and Model are exact upstream identifiers. Scheduled is the number of retained roots. Welfare/scheduled [95\\%] is the first-attempt welfare-preserving count over all 384 roots followed by a deterministic 5,000-replicate percentile interval that resamples roots separately within all 12 game-domain strata (32 roots each). This is frozen-bank sensitivity, not a population confidence interval. Invalid/scheduled gives the invalid count and denominator; Valid coverage is one minus that fraction. Higher welfare preservation means fewer counterpart costs and higher validity means fewer invalid outputs within this task, not general safety."
+                "Part 1 self-choice outcomes for all 75 exact model routes. Each row is one authenticated target route and exact upstream Model ID, shown in descending welfare-preserving-rate display order. Welfare/scheduled [95\\%] is the welfare-preserving first-attempt share over all 384 scheduled roots followed by a deterministic 5,000-replicate interval that resamples roots separately within the 12 game-domain strata. The centered interval is frozen-bank sensitivity, not a population confidence interval. Higher welfare preservation means fewer counterpart costs in this task. Invalid outputs remain nonsuccesses in the denominator and are retained in the reproducibility artifacts rather than shown as a separate result column. The value is not a general safety score."
             ),
             label="tab:provider-safe-v2-part1-all-models",
-            headers=("Order", "Target route ID", "Provider", "Model ID", "Scheduled", "Welfare/scheduled [95\\%]", "Invalid/scheduled", "Valid coverage"),
+            headers=("Target route ID", "Model ID", "Welfare/scheduled [95\\%]"),
             rows=part1_rows,
-            column_spec="rlllrrrr",
+            column_spec="llc",
             chunk_size=25,
         ),
         encoding="utf-8",
@@ -1664,22 +1763,11 @@ def _write_tables(data: Mapping[str, Any], directory: Path) -> list[Path]:
     output.append(path)
 
     part2_rows = []
-    for order, row in enumerate(data["part2"], start=1):
-        scheduled = int(row["scheduled_agent_days"])
-        invalid = int(row["first_attempt_invalid_count"])
+    for row in data["part2"]:
         part2_rows.append(
             [
-                str(order), _tex_escape(row["target_id"]), _tex_escape(row["upstream_provider"]),
-                _tex_escape(row["model"]), str(row["trajectory_count"]),
-                str(row["environmentally_estimable_trajectory_count"]),
-                str(scheduled),
+                _tex_escape(row["target_id"]), _tex_escape(row["model"]),
                 _pct(float(row["restraint_rate_all_scheduled"])),
-                _optional_interval_cell(
-                    row["mean_trajectory_restraint_rate_all_scheduled"],
-                    row["mean_trajectory_restraint_rate_all_scheduled_t95_low"],
-                    row["mean_trajectory_restraint_rate_all_scheduled_t95_high"],
-                    percent=True,
-                ),
                 _optional_interval_cell(
                     row["mean_aurc_eligible"], row["mean_aurc_eligible_t95_low"],
                     row["mean_aurc_eligible_t95_high"], percent=False,
@@ -1698,19 +1786,18 @@ def _write_tables(data: Mapping[str, Any], directory: Path) -> list[Path]:
                     row["mean_population_retention_eligible_t95_low"],
                     row["mean_population_retention_eligible_t95_high"], percent=True,
                 ),
-                f"{invalid}/{scheduled}", _pct(1.0 - invalid / scheduled),
             ]
         )
     path = directory / "part2_all_models_table.tex"
     path.write_text(
         _table_tex(
             caption=(
-                "Part 2 commons outcomes for all 19 exact model routes. Each row is one target route, shown in descending within-task pooled restraint-rate order; Provider and Model are exact upstream identifiers. Traj. is completed trajectories; Env. traj. is the identity-valid, transport-valid subset with no invalid first action used for environmental estimates; Agent-days is the scheduled action denominator. Pooled restraint/agent-days retains invalid actions as nonsuccesses. Mean trajectory restraint [95\\%], Mean AURC [95\\%], Mean AUPC [95\\%], and Population retained [95\\%] report the mean and trajectory-level Student-t interval; Nondepletion [95\\%] reports the proportion and Wilson interval. Environmental columns use Env. traj.; restraint uses all trajectories. NE means not estimable. Invalid/agent-days and Valid coverage describe operational validity. Higher restraint, AURC, AUPC, nondepletion, population retention, and validity mean more preservation or fewer invalid actions within this simulator, not general safety."
+                "Part 2 commons outcomes for all 19 exact model routes. Each row is one authenticated target route and exact upstream Model ID, shown in descending all-scheduled restraint-rate order. Restraint is the restrained-action share over scheduled agent-days. Mean AURC and AUPC are normalized reserve and population areas; Nondepletion is the share of environmentally estimable trajectories ending with reserve above zero; Population retained is final population divided by initial population. Brackets are trajectory-level Student-t 95\\% intervals, except the Wilson 95\\% interval for nondepletion. All result columns are centered. Higher values mean more resource or population preservation in this simulator. NE means no environmentally estimable trajectory, not zero. Eligibility and invalid-action counts remain in Methods and the reproducibility artifacts rather than as separate result columns. None of these columns is a general safety score."
             ),
             label="tab:provider-safe-v2-part2-all-models",
-            headers=("Order", "Target route ID", "Provider", "Model ID", "Traj.", "Env. traj.", "Agent-days", "Pooled restraint/agent-days", "Mean traj. restraint [95\\%]", "Mean AURC [95\\%]", "Mean AUPC [95\\%]", "Nondepletion [95\\%]", "Population retained [95\\%]", "Invalid/agent-days", "Valid coverage"),
+            headers=("Target route ID", "Model ID", "Restraint", "Mean AURC [95\\%]", "Mean AUPC [95\\%]", "Nondepletion [95\\%]", "Population retained [95\\%]"),
             rows=part2_rows,
-            column_spec="rlllrrrrrrrrrrr",
+            column_spec="llccccc",
             chunk_size=19,
         ),
         encoding="utf-8",
@@ -1720,26 +1807,21 @@ def _write_tables(data: Mapping[str, Any], directory: Path) -> list[Path]:
     role_rows = []
     for target in data["role_targets"]:
         base = data["role"][(target, ROLE_FRAMES[0])]
-        values = [_tex_escape(target), _tex_escape(base["upstream_provider"]), _tex_escape(base["model"])]
+        values = [_tex_escape(target), _tex_escape(base["model"])]
         for frame in ROLE_FRAMES:
             row = data["role"][(target, frame)]
-            values.extend(
-                [
-                    _pct(float(row["welfare_preserving_rate_all_scheduled"])),
-                    f"{row['first_attempt_invalid_count']}/{row['scheduled_draws']}",
-                ]
-            )
+            values.append(_pct(float(row["welfare_preserving_rate_all_scheduled"])))
         role_rows.append(values)
     path = directory / "part1_role_calibration_table.tex"
     path.write_text(
         _table_tex(
             caption=(
-                "Part 1 exploratory role calibration for six exact sentinel routes and three separate frames. Each row is one target route; Provider and Model are exact upstream identifiers. For advice, observer\\_evaluation, and prediction, W/scheduled is the first-attempt welfare-preserving count divided by all 384 scheduled draws and Invalid/scheduled is the invalid count and denominator. Higher W/scheduled means fewer counterpart costs within that role-conditioned task; lower invalid coverage means better operational validity. The frames ask different questions, are not pooled, and their differences are descriptive rather than causal. Neither high nor low values imply general safety outside this task."
+                "Part 1 exploratory role calibration for six exact sentinel routes. Each row is one authenticated target route and exact upstream Model ID; Advice, Observer evaluation, and Prediction report welfare-preserving first attempts over all 384 scheduled draws in that named frame. The three centered columns are separate estimands and are never pooled. Higher values mean fewer counterpart costs only within the named frame; differences are descriptive rather than causal. Invalid outputs remain nonsuccesses in each denominator but are not separate result columns. No frame is a general safety score."
             ),
             label="tab:provider-safe-v2-part1-role-calibration",
-            headers=("Target route ID", "Provider", "Model ID", "advice W/scheduled", "advice invalid/scheduled", "observer\\_evaluation W/scheduled", "observer\\_evaluation invalid/scheduled", "prediction W/scheduled", "prediction invalid/scheduled"),
+            headers=("Target route ID", "Model ID", "Advice W/scheduled", "Observer evaluation W/scheduled", "Prediction W/scheduled"),
             rows=role_rows,
-            column_spec="lllrrrrrr",
+            column_spec="llccc",
             chunk_size=6,
         ),
         encoding="utf-8",
@@ -1755,7 +1837,6 @@ def _write_tables(data: Mapping[str, Any], directory: Path) -> list[Path]:
             sensitivity_rows.append(
                 [
                     _tex_escape(target), _tex_escape(model["model"]), _tex_escape(factor),
-                    _tex_escape(row["low_level"]), _tex_escape(row["high_level"]),
                     f"{float(row['effect_high_minus_low']):+.4f}", f"{holm:.4f}",
                     "H" if holm <= 0.05 else "n.s.",
                 ]
@@ -1764,12 +1845,12 @@ def _write_tables(data: Mapping[str, Any], directory: Path) -> list[Path]:
     path.write_text(
         _table_tex(
             caption=(
-                "Part 2 deadline-exploratory sensitivity main effects. Each row is one exact sentinel route-factor estimate; Model is the exact upstream model identifier; Factor names the varied parameter; Low and High are the frozen numeric levels; Effect is mean normalized AURC at High minus mean normalized AURC at Low over the resolution-V design and two common environment-seed blocks; Holm p is the adjustment over all 30 sentinel-by-factor tests; Status is H when Holm p is at most 0.05 and n.s. otherwise. Positive effects mean the high factor level increased reserve preservation in this simulator and negative effects mean it decreased preservation. Positive/negative is not automatically good/bad for a parameter factor, especially depletion and death rate, and no cell is a general safety score. With only two common seeds, the panel is underpowered and descriptive; Holm values document the prespecified family rather than support confirmatory claims."
+                "Part 2 deadline-exploratory sensitivity effects. Each row is one exact sentinel route and prespecified factor; Model ID is the authenticated upstream model; Effect is mean normalized AURC at the factor's high level minus its low level over the resolution-V design and two common-seed blocks; Holm p adjusts the 30 sentinel-by-factor tests; Status is H when adjusted p is at most 0.05 and n.s. otherwise. The centered effect and significance columns directly assess whether the commons result changes under the prespecified contrast. Positive means the high level increased reserve preservation and negative means it decreased preservation, but sign is not automatically good or bad for the parameter. With two seeds this panel is underpowered and descriptive, not a general safety score."
             ),
             label="tab:provider-safe-v2-part2-sensitivity",
-            headers=("Target route ID", "Model ID", "Factor", "Low", "High", "Effect (high-low AURC)", "Holm p", "Status"),
+            headers=("Target route ID", "Model ID", "Factor", "Effect (high-low AURC)", "Holm p", "Status"),
             rows=sensitivity_rows,
-            column_spec="lllrrrrl",
+            column_spec="lllccc",
             chunk_size=15,
         ),
         encoding="utf-8",
@@ -2052,6 +2133,7 @@ def build_paper_assets(
         assets.extend(_plot_role(data, temporary))
         assets.extend(_plot_sensitivity(data, temporary))
         assets.extend(_plot_local_controls(data, temporary))
+        assets.extend(_plot_cross_phase_outcome_profile(data, temporary))
         assets.extend(_write_tables(data, temporary))
         assets.append(_write_headlines(data, temporary))
         asset_rows = [
@@ -2079,7 +2161,8 @@ def build_paper_assets(
             "assets": asset_rows,
             "table_outer_spacing_pt": 15,
             "table_outer_spacing_approx_css_px_at_96dpi": 20,
-            "figure_palette": "matplotlib_turbo_sampled_0.08_to_0.90",
+            "figure_palette": "original_submission_okabe_ito_blue_orange_green_vermillion",
+            "figure_font_family": "Times New Roman (NeurIPS ptm-compatible serif)",
             "figure_semantic_redundancy": (
                 "directional_caption_position_and_printed_values"
             ),
