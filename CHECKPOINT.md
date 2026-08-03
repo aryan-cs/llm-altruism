@@ -180,7 +180,8 @@ campaigns have priority over supplemental retries.
    K2.5.
 4. Run `analysis.analyze_provider_safe_v2_definitive`, build the six figure
    families, six within-panel tables, nonpooled model-by-phase matrix, and
-   headline macros, then run the separate availability-retry analyzer.
+   headline macros, then run the separate availability-retry and bounded
+   semantic-repair analyzers.
 5. Replace stale n=24/n=96/n=8 prose and artifacts in the manuscript with only
    the completed generated n=48/n=384/n=12 evidence. Keep role and sensitivity
    exploratory and keep cross-axis output gated.
