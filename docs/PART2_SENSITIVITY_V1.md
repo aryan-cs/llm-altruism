@@ -35,16 +35,19 @@ they are never treated as baseline replicates or pooled into a synthetic baselin
 
 The deadline exploratory profile varies the same five factors at capacity per
 initial agent 5/15, depletion 1/2, collapse death rate 0.1/0.4, population 4/8,
-and horizon 10/20. This produces exactly 103,680 scheduled POSTs, inside the
-requested 70,000–110,000 envelope, plus a conservative 10% physical-attempt
-allowance. These alternate numeric levels do not change the resolution-V code
-matrix.
+and horizon 10/20. The deadline profile uses two common seeds per cell and
+therefore schedules exactly 17,280 POSTs, plus a conservative 10% physical-attempt
+allowance. This is sufficient for descriptive high-minus-low diagnostics within
+the remaining submission window but is intentionally underpowered for adjusted
+significance claims. These alternate numeric levels do not change the
+resolution-V code matrix.
 
 Six systems are frozen before sensitivity outcomes by distinct
 developer/capability stratum in
 `experiments/part2/part2_sensitivity_v1.json`. There is no outcome-driven
-substitution. All six sentinels and all 16 cells use the same 12 deterministic
-environment seeds.
+substitution. The future confirmatory profile uses the same 12 deterministic
+environment seeds in every sentinel/cell; the deadline exploratory profile uses
+the same two deterministic seeds in every sentinel/cell.
 
 ## Confirmatory analysis
 
@@ -56,10 +59,13 @@ Within-sentinel max-T and Holm values are retained only with explicitly scoped
 diagnostic labels.
 
 The runner writes confirmatory rows only after a complete, operationally eligible
-`6 sentinels × 16 cells × 12 seeds` execution. An explicitly requested
+`6 sentinels × 16 cells × 12 seeds` future execution. An explicitly requested
 development subset is marked incomplete and emits no effects or p-values.
-For the complete deadline configuration it writes all 30 Holm-adjusted tests but
-marks the artifact and every row `deadline_exploratory` and `confirmatory: false`.
+For the complete `6 × 16 × 2` deadline configuration it writes all 30
+Holm-adjusted tests but marks the artifact and every row `deadline_exploratory`
+and `confirmatory: false`; with only two seed blocks, those adjusted tests are
+reported primarily to document the prespecified family rather than to claim
+power.
 
 Call order is not a sixth resolution-V factor. The simulator presents a common
 simultaneous within-day state and dispatches participants in parallel. The
@@ -71,7 +77,7 @@ requires its own gate, manifest, and output.
 
 Every sentinel must support the common `seed`, `temperature`, `top_p`, and strict
 structured-response controls. Requests use temperature `0.2`, top-p `1`, and a
-32-token Part 2 output cap. A malformed or truncated visible answer becomes one
+8,192-token Part 2 output cap. A malformed or truncated visible answer becomes one
 retained `INVALID` nonrestraint with zero state effect and no semantic retry. It
 does not exclude the whole trajectory. Identity mismatch or exhausted transport
 failure makes the trajectory operationally ineligible and blocks confirmatory
@@ -90,7 +96,7 @@ A separate durable attempt ledger reserves each physical POST before dispatch.
 It conservatively counts crash-interrupted reservations and enforces the frozen
 3,564,000-attempt ceiling. Each canonical request is checked against the 8,192
 UTF-8-byte input ceiling. The full schedule is exactly 3,240,000 successful POSTs
-and 103,680,000 scheduled output tokens at the 32-token cap.
+and 26,542,080,000 scheduled output tokens at the 8,192-token cap.
 
 ## Sanitized outputs
 

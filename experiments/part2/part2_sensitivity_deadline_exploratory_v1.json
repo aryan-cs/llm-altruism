@@ -44,7 +44,7 @@
     "society_size": [4, 8],
     "horizon_days": [10, 20]
   },
-  "seeds_per_cell": 12,
+  "seeds_per_cell": 2,
   "primary_metric": "normalized_aurc",
   "analysis": {
     "inference_scope": "deadline_exploratory",
@@ -54,10 +54,10 @@
     "within_sentinel_max_t": "diagnostic_only"
   },
   "execution_budget": {
-    "maximum_successful_posts": 103680,
-    "maximum_physical_attempts": 114048,
-    "part2_output_tokens_per_attempt": 32,
-    "maximum_scheduled_output_tokens": 3317760,
+    "maximum_successful_posts": 17280,
+    "maximum_physical_attempts": 19008,
+    "part2_output_tokens_per_attempt": 8192,
+    "maximum_scheduled_output_tokens": 141557760,
     "maximum_input_utf8_bytes_per_attempt": 8192
   },
   "call_order_diagnostic": {

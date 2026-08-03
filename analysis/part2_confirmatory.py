@@ -373,12 +373,15 @@ def _holm_adjust(raw: Mapping[str, float]) -> dict[str, float]:
 
 def analyze_resolution_v_main_effects(
     observations: Sequence[Mapping[str, object]],
+    *,
+    expected_common_seed_count: int = SENSITIVITY_SEEDS_PER_CELL,
 ) -> list[dict[str, object]]:
     """Analyze five blocked main effects with exact sign-flip Holm/max-T tests.
 
     Exactly one normalized-AURC observation is required for every one of the 16
-    cells under each of twelve common environment seeds.  Anything else is an
-    incomplete or off-protocol design and is rejected before calculation.
+    cells under the required number of common environment seeds. The default is
+    the twelve-seed confirmatory contract; callers analyzing an explicitly
+    exploratory frozen design must pass that design's smaller seed count.
     """
 
     design = resolution_v_half_fraction()
@@ -414,20 +417,26 @@ def analyze_resolution_v_main_effects(
         by_cell_seed[key] = value
         seeds_by_cell[cell_id].add(seed)
 
+    if (
+        isinstance(expected_common_seed_count, bool)
+        or not isinstance(expected_common_seed_count, int)
+        or expected_common_seed_count < 2
+    ):
+        raise ValueError("expected_common_seed_count must be an integer of at least 2")
     if set(seeds_by_cell) != set(expected):
         raise ValueError("sensitivity design is incomplete: all 16 cells are required")
     seed_sets = {tuple(sorted(seeds)) for seeds in seeds_by_cell.values()}
     if len(seed_sets) != 1:
         raise ValueError(
-            f"sensitivity cells must use {SENSITIVITY_SEEDS_PER_CELL} common "
+            f"sensitivity cells must use {expected_common_seed_count} common "
             "environment seeds"
         )
     [common_seeds] = seed_sets
-    if len(common_seeds) != SENSITIVITY_SEEDS_PER_CELL:
+    if len(common_seeds) != expected_common_seed_count:
         raise ValueError(
-            f"each sensitivity cell must use exactly {SENSITIVITY_SEEDS_PER_CELL} seeds"
+            f"each sensitivity cell must use exactly {expected_common_seed_count} seeds"
         )
-    if len(by_cell_seed) != SENSITIVITY_CELL_COUNT * SENSITIVITY_SEEDS_PER_CELL:
+    if len(by_cell_seed) != SENSITIVITY_CELL_COUNT * expected_common_seed_count:
         raise ValueError("sensitivity design has an incorrect observation count")
 
     effects_by_factor: dict[str, list[float]] = {}
@@ -495,7 +504,7 @@ def analyze_resolution_v_main_effects(
                 "holm_adjusted_p": holm_p[factor],
                 "max_t_adjusted_p": max_exceedances[factor] / permutation_count,
                 "cell_count": SENSITIVITY_CELL_COUNT,
-                "common_seed_count": SENSITIVITY_SEEDS_PER_CELL,
+                "common_seed_count": expected_common_seed_count,
                 "permutation_count": permutation_count,
                 "design": "2^(5-1)_resolution_V_I=ABCDE",
                 "analysis_unit": "environment_seed_block",
@@ -508,6 +517,7 @@ def analyze_sentinel_sensitivity(
     observations_by_sentinel: Mapping[str, Sequence[Mapping[str, object]]],
     *,
     expected_sentinel_ids: Sequence[str],
+    expected_common_seed_count: int = SENSITIVITY_SEEDS_PER_CELL,
 ) -> list[dict[str, object]]:
     """Analyze six sentinels with one global 30-hypothesis Holm family.
 
@@ -538,7 +548,10 @@ def analyze_sentinel_sensitivity(
             raise ValueError("sentinel identifiers must be nonempty")
         seeds = tuple(sorted({int(row["environment_seed"]) for row in observations}))
         sentinel_seed_sets.add(seeds)
-        for row in analyze_resolution_v_main_effects(observations):
+        for row in analyze_resolution_v_main_effects(
+            observations,
+            expected_common_seed_count=expected_common_seed_count,
+        ):
             output.append({"sentinel_id": sentinel_id, **row})
     if len(sentinel_seed_sets) != 1:
         raise ValueError("all six sentinels must use the same common environment seeds")

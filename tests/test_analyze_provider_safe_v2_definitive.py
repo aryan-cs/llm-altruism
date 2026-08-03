@@ -201,7 +201,7 @@ def production_bundle(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Pat
     _write_json(path, _seal(manifest), private=True)
     outputs["role"] = path
 
-    # Sensitivity: exact 6 x 16 cells x 12 common seeds and real Holm-30 analysis.
+    # Sensitivity: exact frozen deadline design and real Holm-30 analysis.
     run = root / "sensitivity"
     subjects = [_route(index, "sens") for index in range(6)]
     manifest = _base_manifest("inference_hub_part2_sensitivity_campaign_v1", subjects)
@@ -212,7 +212,7 @@ def production_bundle(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Pat
     refs, trajectory_rows = {}, []
     for subject_index, subject in enumerate(subjects):
         for cell in cells:
-            for seed in range(12):
+            for seed in range(int(design["seeds_per_cell"])):
                 key = f"{cell.cell_id}::{subject['target_id']}::{seed}"
                 refs[key] = _journal(run / "private/trajectories" / f"{subject_index}-{cell.cell_id}-{seed}.jsonl", [])
                 coded_signal = sum(cell.coded_levels.values()) * 0.01

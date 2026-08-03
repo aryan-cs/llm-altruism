@@ -98,7 +98,7 @@ DEFAULT_EXPLORATORY_DESIGN = Path(
     "experiments/part2/part2_sensitivity_deadline_exploratory_v1.json"
 )
 DEFAULT_CAMPAIGN_WORKERS = 24
-SENSITIVITY_OUTPUT_TOKENS = 32
+SENSITIVITY_OUTPUT_TOKENS = 8192
 _SEED_NAMESPACE = "inference_hub_part2_sensitivity_common_environment_v1"
 _SOURCE_PATHS = (
     Path(__file__),
@@ -130,11 +130,13 @@ class SensitivityCondition:
     resource_capacity: int
     coded_levels: Mapping[str, int]
 
-    def contract(self, frozen: Part2Contract) -> Part2Contract:
+    def contract(
+        self, frozen: Part2Contract, *, trajectories: int
+    ) -> Part2Contract:
         return Part2Contract(
             society_size=self.society_size,
             days=self.horizon_days,
-            trajectories=SENSITIVITY_SEEDS_PER_CELL,
+            trajectories=trajectories,
             capacity=self.resource_capacity,
             private_gain=frozen.private_gain,
             reserve_cost=self.depletion_units,
@@ -258,22 +260,29 @@ def load_sensitivity_design(path: Path) -> tuple[dict[str, Any], list[Sensitivit
         raise InferenceHubPart2SensitivityError(
             "Sensitivity analysis must specify five main effects and one 30-test Holm family."
         )
-    if design.get("seeds_per_cell") != SENSITIVITY_SEEDS_PER_CELL:
-        raise InferenceHubPart2SensitivityError("Every sensitivity cell requires exactly 12 seeds.")
+    expected_seeds = (
+        SENSITIVITY_SEEDS_PER_CELL
+        if inference_scope == "future_confirmatory_preregistered"
+        else 2
+    )
+    if design.get("seeds_per_cell") != expected_seeds:
+        raise InferenceHubPart2SensitivityError(
+            f"Sensitivity cells require exactly {expected_seeds} seeds in this profile."
+        )
     budget = design.get("execution_budget")
     budget_profiles = {
         "future_confirmatory_preregistered": {
             "maximum_successful_posts": 3_240_000,
             "maximum_physical_attempts": 3_564_000,
-            "part2_output_tokens_per_attempt": 32,
-            "maximum_scheduled_output_tokens": 103_680_000,
+            "part2_output_tokens_per_attempt": 8192,
+            "maximum_scheduled_output_tokens": 26_542_080_000,
             "maximum_input_utf8_bytes_per_attempt": 8192,
         },
         "deadline_exploratory": {
-            "maximum_successful_posts": 103_680,
-            "maximum_physical_attempts": 114_048,
-            "part2_output_tokens_per_attempt": 32,
-            "maximum_scheduled_output_tokens": 3_317_760,
+            "maximum_successful_posts": 17_280,
+            "maximum_physical_attempts": 19_008,
+            "part2_output_tokens_per_attempt": 8192,
+            "maximum_scheduled_output_tokens": 141_557_760,
             "maximum_input_utf8_bytes_per_attempt": 8192,
         },
     }
@@ -963,7 +972,9 @@ def _analyze_completed_design(
         for sentinel_id in sentinel_ids
     }
     effects = analyze_sentinel_sensitivity(
-        observations_by_sentinel, expected_sentinel_ids=sentinel_ids,
+        observations_by_sentinel,
+        expected_sentinel_ids=sentinel_ids,
+        expected_common_seed_count=int(design["seeds_per_cell"]),
     )
     inference_scope = str(design["analysis"]["inference_scope"])
     for effect in effects:
@@ -1050,21 +1061,22 @@ def run_sensitivity_campaign(
         raise InferenceHubPart2SensitivityError(
             "Selected targets must be unique preregistered sentinels."
         )
+    frozen_trajectory_count = int(design["seeds_per_cell"])
     trajectory_count = (
-        SENSITIVITY_SEEDS_PER_CELL if trajectory_limit is None else trajectory_limit
+        frozen_trajectory_count if trajectory_limit is None else trajectory_limit
     )
     if (
         isinstance(trajectory_count, bool)
         or not isinstance(trajectory_count, int)
-        or not 1 <= trajectory_count <= SENSITIVITY_SEEDS_PER_CELL
+        or not 1 <= trajectory_count <= frozen_trajectory_count
     ):
         raise InferenceHubPart2SensitivityError(
-            "trajectory_limit must be from 1 through 12."
+            f"trajectory_limit must be from 1 through {frozen_trajectory_count}."
         )
     is_full_design = (
         selected == frozen_sentinel_ids
         and condition_ids == [condition.cell_id for condition in all_conditions]
-        and trajectory_count == SENSITIVITY_SEEDS_PER_CELL
+        and trajectory_count == frozen_trajectory_count
     )
     if not is_full_design and not development_subset:
         raise InferenceHubPart2SensitivityError(
@@ -1344,7 +1356,9 @@ def run_sensitivity_campaign(
                     subject=subject,
                     trajectory_index=index,
                     environment_seed=environment_seed,
-                    contract=condition.contract(frozen_contract),
+                    contract=condition.contract(
+                        frozen_contract, trajectories=trajectory_count
+                    ),
                     journal=journals[
                         (condition.cell_id, str(subject["target_id"]), index)
                     ],

@@ -56,8 +56,8 @@
   "execution_budget": {
     "maximum_successful_posts": 3240000,
     "maximum_physical_attempts": 3564000,
-    "part2_output_tokens_per_attempt": 32,
-    "maximum_scheduled_output_tokens": 103680000,
+    "part2_output_tokens_per_attempt": 8192,
+    "maximum_scheduled_output_tokens": 26542080000,
     "maximum_input_utf8_bytes_per_attempt": 8192
   },
   "call_order_diagnostic": {

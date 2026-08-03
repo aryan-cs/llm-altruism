@@ -135,13 +135,13 @@ def test_deadline_design_is_separate_exploratory_and_24_hour_sized() -> None:
         "society_size": [4, 8],
         "horizon_days": [10, 20],
     }
-    scheduled = sum(cell.society_size * cell.horizon_days for cell in deadline_cells) * 6 * 12
-    assert scheduled == 103_680
-    assert 70_000 <= scheduled <= 110_000
+    assert deadline["seeds_per_cell"] == 2
+    scheduled = sum(cell.society_size * cell.horizon_days for cell in deadline_cells) * 6 * 2
+    assert scheduled == 17_280
     assert deadline["execution_budget"]["maximum_successful_posts"] == scheduled
     assert (
         deadline["execution_budget"]["maximum_scheduled_output_tokens"]
-        == scheduled * 32
+        == scheduled * 8192
     )
 
 
@@ -196,7 +196,7 @@ def test_common_seeds_are_deterministic_and_cell_independent() -> None:
     assert len(first) == len(set(first)) == 12
 
 
-def test_request_contract_is_common_and_capped_at_32_tokens() -> None:
+def test_request_contract_is_common_and_capped_at_8192_tokens() -> None:
     body, controls = _sensitivity_request_contract(
         _subject(), prompt="prompt", system_prompt="system", generation_seed=17,
     )
@@ -204,7 +204,7 @@ def test_request_contract_is_common_and_capped_at_32_tokens() -> None:
     assert body["temperature"] == 0.2
     assert body["top_p"] == 1
     assert body["seed"] == 17
-    assert body["max_tokens"] == 32
+    assert body["max_tokens"] == 8192
     assert body["response_format"]["type"] == "json_schema"
     assert controls["common_contract"] is True
 
@@ -249,7 +249,7 @@ def test_raw_journal_resume_and_invalid_nonrestraint_policy(tmp_path: Path) -> N
     assert len(client.calls) == 4
     assert len(budget.records) == 4
     assert all(call["temperature"] == 0.2 for call in client.calls)
-    assert all(call["max_tokens"] == 32 for call in client.calls)
+    assert all(call["max_tokens"] == 8192 for call in client.calls)
     raw = journal.records
     assert any(row["event"] == "semantic_result" and row["raw_response"] for row in raw)
     assert all(row["cell_id"] == condition.cell_id for row in raw)
@@ -297,7 +297,7 @@ def test_deadline_effects_keep_exploratory_levels_and_holm_30() -> None:
     trajectories: list[dict[str, object]] = []
     for sentinel_index, sentinel in enumerate(sentinels):
         for cell in cells:
-            for seed in range(12):
+            for seed in range(2):
                 trajectories.append({
                     **cell.public_dict(), "target_id": sentinel,
                     "environment_seed": seed,

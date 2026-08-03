@@ -51,7 +51,7 @@ transport failure blocks operational eligibility. The two are not pooled.
 
 The adapter requires exactly 30 deadline-exploratory main effects (six sentinels
 by five factors), valid global-Holm metadata, and p-values in `[0,1]`. It
-recomputes the complete main-effect and Holm rows from the hash-bound 1,152
+recomputes the complete main-effect and Holm rows from the hash-bound 192
 trajectory records and rejects any difference. The call-order diagnostic must
 be explicitly outside the Holm-30 family.
 
