@@ -386,6 +386,7 @@ def merge_sota_compatibility_with_judge(
     production_registry: Mapping[str, Any],
     production_compatibility: Mapping[str, Any],
     judge_target_id: str = JUDGE_TARGET_ID,
+    expected_subject_selected_count: int = EXPECTED_SUBJECT_SELECTED_COUNT,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Return a deterministic exploratory registry/evidence pair, without I/O."""
 
@@ -429,13 +430,23 @@ def merge_sota_compatibility_with_judge(
         label="production compatibility",
     )
     if (
-        len(subject_rows) != EXPECTED_SUBJECT_TARGET_COUNT
-        or subject_selected != EXPECTED_SUBJECT_SELECTED_COUNT
-        or subject_unresolved
-        != EXPECTED_SUBJECT_TARGET_COUNT - EXPECTED_SUBJECT_SELECTED_COUNT
+        isinstance(expected_subject_selected_count, bool)
+        or not isinstance(expected_subject_selected_count, int)
+        or not 1 <= expected_subject_selected_count <= EXPECTED_SUBJECT_TARGET_COUNT
     ):
         raise SotaJudgeMergeError(
-            "SOTA bundle must contain exactly 84 targets, 81 selected and 3 unresolved"
+            "expected subject selection count must be an integer from 1 through 84"
+        )
+    if (
+        len(subject_rows) != EXPECTED_SUBJECT_TARGET_COUNT
+        or subject_selected != expected_subject_selected_count
+        or subject_unresolved
+        != EXPECTED_SUBJECT_TARGET_COUNT - expected_subject_selected_count
+    ):
+        raise SotaJudgeMergeError(
+            "SOTA bundle must contain exactly 84 targets with the explicitly "
+            f"expected {expected_subject_selected_count} selected and "
+            f"{EXPECTED_SUBJECT_TARGET_COUNT - expected_subject_selected_count} unresolved"
         )
     if any(value != SUBJECT_COHORT for value in subject_memberships.values()):
         raise SotaJudgeMergeError("Every SOTA subject must belong only to exploratory_sota")
@@ -704,6 +715,15 @@ def _parser() -> argparse.ArgumentParser:
         required=True,
     )
     parser.add_argument("--judge-target-id", default=JUDGE_TARGET_ID)
+    parser.add_argument(
+        "--expected-subject-selected-count",
+        type=int,
+        default=EXPECTED_SUBJECT_SELECTED_COUNT,
+        help=(
+            "Exact selected-subject count sealed by the input compatibility "
+            "snapshot (default: 81 for the original snapshot)."
+        ),
+    )
     return parser
 
 
@@ -736,6 +756,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.production_compatibility, label="production compatibility"
         ),
         judge_target_id=args.judge_target_id,
+        expected_subject_selected_count=args.expected_subject_selected_count,
     )
     _atomic_write_pair(
         args.registry_output,
@@ -744,7 +765,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         compatibility,
     )
     print(
-        "Merged 84 exploratory subjects (81 selected) with one dedicated "
+        "Merged 84 exploratory subjects "
+        f"({args.expected_subject_selected_count} selected) with one dedicated "
         "selected judge; confirmatory, paper, and production promotion are prohibited."
     )
     print(f"Registry: {args.registry_output}")
