@@ -8,6 +8,7 @@ from typing import Any
 
 import pytest
 
+from experiments.misc import inference_hub_part1_role_calibration_v1 as role_runner
 from experiments.misc.inference_hub_part1_panel import (
     InferenceHubPart1PanelError,
     _read_json,
@@ -23,6 +24,7 @@ from experiments.misc.inference_hub_part1_role_calibration_v1 import (
     RoleCalibrationError,
     _recover_ledger,
     _RunLockedJournal,
+    _validate_operational_resume_contract,
     build_frozen_trials,
     load_frozen_config,
     run_calibration,
@@ -137,6 +139,19 @@ class _OneIdentityDriftClient(_FullFakeClient):
             if not self.drift_emitted:
                 response["model"] = "served/transient-wrong-route"
                 self.drift_emitted = True
+        return response
+
+
+class _TwoTransportNullsOneSemanticInvalidClient(_FullFakeClient):
+    def post(self, path: str, body: dict[str, Any]) -> dict[str, Any]:
+        response = super().post(path, body)
+        call_number = len(self.calls)
+        if call_number <= 2:
+            raise RuntimeError("simulated transport failure")
+        if call_number == 3:
+            response["choices"][0]["message"]["content"] = (
+                "This is a retained semantic response without a final X or Y."
+            )
         return response
 
 
@@ -333,11 +348,145 @@ def test_response_identity_drift_is_retried_before_retention(
     assert all(row["model_identity_valid"] is True for row in raw_rows)
 
 
+def test_resume_repairs_only_transport_nulls_in_immutable_overlay(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    registry_path, compatibility_path, _ = _registry_and_compatibility(tmp_path)
+    output_dir = tmp_path / "role-operational-repair"
+    frozen_subset = build_frozen_trials(load_frozen_config())[:2]
+    monkeypatch.setattr(
+        role_runner,
+        "build_frozen_trials",
+        lambda config: frozen_subset,
+    )
+
+    initial_client = _TwoTransportNullsOneSemanticInvalidClient()
+    initial = run_calibration(
+        registry_path=registry_path,
+        compatibility_path=compatibility_path,
+        output_dir=output_dir,
+        client=initial_client,
+        max_workers=1,
+        max_workers_per_provider=1,
+        max_attempts=1,
+        initial_backoff_seconds=0,
+    )
+    assert initial["complete"] is False
+    assert initial["summary"]["planned_generations"] == 12
+    assert initial["summary"]["failed_without_response"] == 2
+    assert initial["summary"]["format_invalid_retained"] == 1
+
+    raw_dir = output_dir / "private/raw_responses"
+    original_bytes = {path.name: path.read_bytes() for path in raw_dir.glob("*.jsonl")}
+    original_rows = [
+        json.loads(line)
+        for path in raw_dir.glob("*.jsonl")
+        for line in path.read_text().splitlines()
+    ]
+    transport_nulls = [row for row in original_rows if row["raw_response"] is None]
+    semantic_invalids = [
+        row
+        for row in original_rows
+        if row["raw_response"] is not None and row["format_valid"] is False
+    ]
+    assert len(transport_nulls) == 2
+    assert len(semantic_invalids) == 1
+
+    repair_client = _FullFakeClient()
+    repaired = run_calibration(
+        registry_path=registry_path,
+        compatibility_path=compatibility_path,
+        output_dir=output_dir,
+        client=repair_client,
+        max_workers=1,
+        max_workers_per_provider=1,
+        max_attempts=1,
+        initial_backoff_seconds=0,
+        resume=True,
+    )
+    assert repaired["complete"] is True
+    assert len(repair_client.calls) == 2
+    assert {path.name: path.read_bytes() for path in raw_dir.glob("*.jsonl")} == (
+        original_bytes
+    )
+    assert repaired["summary"]["failed_without_response"] == 0
+    assert repaired["summary"]["format_invalid_retained"] == 1
+    assert repaired["summary"]["operational_repair_eligible_originals"] == 2
+    assert repaired["summary"]["operational_repairs_succeeded"] == 2
+    assert repaired["summary"]["operational_repairs_unresolved"] == 0
+    assert repaired["summary"]["non_null_format_invalid_originals_not_retried"] == 1
+
+    repair_rows = [
+        json.loads(line)
+        for path in (
+            output_dir / "private/operational_repairs/raw_responses"
+        ).glob("*.jsonl")
+        for line in path.read_text().splitlines()
+    ]
+    assert len(repair_rows) == 2
+    assert {row["artifact_type"] for row in repair_rows} == {
+        "inference_hub_part1_role_calibration_operational_repair_response_v1"
+    }
+    assert {row["replaces_original_record_sha256"] for row in repair_rows} == {
+        row["record_sha256"] for row in transport_nulls
+    }
+    assert semantic_invalids[0]["record_sha256"] not in {
+        row["replaces_original_record_sha256"] for row in repair_rows
+    }
+    sanitized = json.loads(
+        (output_dir / "sanitized/summary.json").read_text(encoding="utf-8")
+    )
+    assert sum(row["estimable_draws"] for row in sanitized["estimates"]) == 11
+    assert sanitized["operational_repair_policy"] == (
+        "transport_null_overlay_only_no_semantic_retry_v1"
+    )
+
+    no_op_client = _FullFakeClient()
+    no_op = run_calibration(
+        registry_path=registry_path,
+        compatibility_path=compatibility_path,
+        output_dir=output_dir,
+        client=no_op_client,
+        max_workers=1,
+        max_workers_per_provider=1,
+        max_attempts=1,
+        initial_backoff_seconds=0,
+        resume=True,
+    )
+    assert no_op["complete"] is True
+    assert no_op_client.calls == []
+
+
 def test_config_path_substitution_is_refused(tmp_path: Path) -> None:
     copied = tmp_path / CONFIG_PATH.name
     copied.write_bytes(CONFIG_PATH.read_bytes())
     with pytest.raises(RoleCalibrationError, match="repository config path"):
         load_frozen_config(copied)
+
+
+def test_operational_resume_allows_only_the_overlay_runner_source_change() -> None:
+    runner_path = str(Path(role_runner.__file__).resolve())
+    sibling_path = str((Path(role_runner.__file__).parent / "sibling.py").resolve())
+    retained = {
+        "panel_id": "frozen-panel",
+        "source_artifacts": {
+            runner_path: "1" * 64,
+            sibling_path: "2" * 64,
+        },
+    }
+    fresh = {
+        "panel_id": "frozen-panel",
+        "source_artifacts": {
+            runner_path: "3" * 64,
+            sibling_path: "2" * 64,
+        },
+    }
+    _validate_operational_resume_contract(retained, fresh)
+
+    changed_sibling = json.loads(json.dumps(fresh))
+    changed_sibling["source_artifacts"][sibling_path] = "4" * 64
+    with pytest.raises(RoleCalibrationError, match="outside the repair runner"):
+        _validate_operational_resume_contract(retained, changed_sibling)
 
 
 def test_provider_safety_refuses_more_than_three_in_flight_calls_per_provider(

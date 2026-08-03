@@ -86,7 +86,7 @@ concurrency 2, global 8 starts/second, and provider 1.5 starts/second. Parts 0
 and 1 use the separately source-bound bounded deadline policies above. Primary
 campaigns have priority over supplemental retries.
 
-### Role calibration (clean identity-safe rerun currently running)
+### Role calibration (complete, identity-safe, operationally repaired)
 
 - Path: `data/private/inference_hub/definitive-part1-role-calibration-v3`.
 - Six frozen sentinels × 96 roots × three distinct frames (advice, observer
@@ -99,9 +99,14 @@ campaigns have priority over supplemental retries.
   route. The v3 runner records such a 200-response identity drift as a failed
   attempt and retries it within the eight-attempt budget before retaining any
   primary row; v2 is excluded from all analysis.
-- Role calibration and sensitivity now run concurrently under distinct bounded
-  limiter scopes; role semantic-invalid repair still waits for the role source
-  manifest to become COMPLETE.
+- V3 is COMPLETE with 6,912 visible responses and zero identity mismatches.
+  Four original transport-null rows were retried through an immutable,
+  hash-bound operational overlay; all four exact retries succeeded. The 375
+  visible format-invalid model responses were not retried and remain in the
+  frozen all-scheduled denominator. Original raw journals remain byte-identical.
+- The definitive analyzer validates overlay source, retry lineage, route,
+  trial, prompt, request, original-record, payload, and response-identity
+  bindings before merging the four operational replacements.
 
 ### Part 2 deadline sensitivity (active, fresh revised panel)
 
@@ -201,11 +206,11 @@ campaigns have priority over supplemental retries.
 
 ## Exact next steps
 
-1. Let primary Part 1 and role calibration reach COMPLETE manifests and finish
-   the active Part 2 sensitivity schedule; if a host wrapper expires, resume
-   with byte-identical arguments. Part 0 and nominal Part 2 are terminal.
-2. Run the two separate semantic-invalid repair campaigns and retain original
-   denominators.
+1. Let primary Part 1 reach a COMPLETE manifest and finish the active Part 2
+   sensitivity schedule; if a host wrapper expires, resume with byte-identical
+   arguments. Part 0, role calibration, and nominal Part 2 are terminal.
+2. Keep any semantic-invalid repair campaigns separate from the primary
+   all-scheduled denominators; never replace visible model-format outcomes.
 3. Resume and complete deadline sensitivity, then resume the three availability
    retry panels; periodically re-probe still-unavailable MiniMax M2.7 and Kimi
    K2.5.

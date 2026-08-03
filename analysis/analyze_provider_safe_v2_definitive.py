@@ -355,6 +355,188 @@ def _validate_standard_journals(run: Path, manifest: Mapping[str, Any]) -> dict[
     }
 
 
+def _validate_role_journals(
+    run: Path, manifest: Mapping[str, Any]
+) -> dict[str, list[dict[str, Any]]]:
+    """Validate and apply the narrow transport-null role overlay, if present.
+
+    The original response journals remain immutable.  An overlay may replace
+    only an original row whose provider payload is null; visible format-invalid
+    model responses are never eligible.  The returned mapping contains one
+    effective row per original scheduled key.
+    """
+
+    originals = _validate_standard_journals(run, manifest)
+    refs = manifest.get("journals")
+    if not isinstance(refs, Mapping):
+        raise DefinitiveAnalysisError("Role manifest journal references are invalid.")
+    overlay = refs.get("operational_repair_overlay")
+    if overlay is None:
+        return originals
+    if not isinstance(overlay, Mapping) or overlay.get("policy") != (
+        "overlay_only_original_retained_raw_response_null_no_semantic_retry_v1"
+    ):
+        raise DefinitiveAnalysisError("Role operational-repair policy is invalid.")
+
+    source_artifacts = overlay.get("implementation_source_artifacts")
+    repair_source = (
+        Path(__file__).resolve().parents[1]
+        / "experiments/misc/inference_hub_part1_role_calibration_v1.py"
+    )
+    if (
+        not isinstance(source_artifacts, Mapping)
+        or _source_digest(source_artifacts, repair_source.name)
+        != _sha256_file(repair_source)
+    ):
+        raise DefinitiveAnalysisError("Role operational-repair source binding failed.")
+
+    private = run / "private"
+    repair_ledger = _read_journal(
+        overlay.get("attempt_ledger"), private, "role operational-repair ledger"
+    )
+    repair_refs = overlay.get("raw_responses")
+    if not isinstance(repair_refs, Mapping) or set(repair_refs) != set(originals):
+        raise DefinitiveAnalysisError("Role operational-repair target set changed.")
+    repair_rows = {
+        str(target): _read_journal(
+            ref, private, f"role operational repairs/{target}"
+        )
+        for target, ref in repair_refs.items()
+    }
+
+    subjects = _subject_index(manifest)
+    original_index: dict[tuple[str, str], dict[str, Any]] = {}
+    for target, rows in originals.items():
+        for row in rows:
+            key = (target, str(row.get("trial_id")))
+            if key in original_index:
+                raise DefinitiveAnalysisError("Role original schedule contains a duplicate key.")
+            original_index[key] = row
+
+    repaired: dict[tuple[str, str], dict[str, Any]] = {}
+    repaired_by_attempt: dict[str, dict[str, Any]] = {}
+    for target, rows in repair_rows.items():
+        subject = subjects.get(target)
+        if subject is None:
+            raise DefinitiveAnalysisError("Role repair target is not a frozen subject.")
+        for row in rows:
+            key = (target, str(row.get("trial_id")))
+            original = original_index.get(key)
+            raw = row.get("raw_response")
+            attempt_id = row.get("attempt_id")
+            if (
+                row.get("schema_version") != 1
+                or row.get("artifact_type")
+                != "inference_hub_part1_role_calibration_operational_repair_response_v1"
+                or row.get("repair_reason")
+                != "original_retained_raw_response_null"
+                or original is None
+                or original.get("raw_response") is not None
+                or row.get("replaces_original_record_sha256")
+                != original.get("record_sha256")
+                or row.get("target_id") != target
+                or row.get("requested_route") != subject.get("route")
+                or row.get("response_model") != subject.get("route")
+                or row.get("model_identity_valid") is not True
+                or row.get("root_id") != original.get("root_id")
+                or row.get("frame_id") != original.get("frame_id")
+                or row.get("generation_block") != original.get("generation_block")
+                or row.get("counterbalance_id") != original.get("counterbalance_id")
+                or row.get("prompt_sha256") != original.get("prompt_sha256")
+                or row.get("request_sha256") != original.get("request_sha256")
+                or raw is None
+                or row.get("raw_response_sha256") != _sha256_json(raw)
+                or not isinstance(attempt_id, str)
+                or not attempt_id
+                or key in repaired
+                or attempt_id in repaired_by_attempt
+            ):
+                raise DefinitiveAnalysisError(
+                    f"Role operational-repair binding failed for {target}."
+                )
+            repaired[key] = row
+            repaired_by_attempt[attempt_id] = row
+
+    reservations: dict[str, dict[str, Any]] = {}
+    completions: dict[str, dict[str, Any]] = {}
+    for row in repair_ledger:
+        attempt_id = row.get("attempt_id")
+        event = row.get("event")
+        if (
+            row.get("schema_version") != 1
+            or row.get("artifact_type")
+            != "inference_hub_part1_role_calibration_operational_repair_attempt_v1"
+            or not isinstance(attempt_id, str)
+            or not attempt_id
+            or event not in {"reserved_before_dispatch", "attempt_completed"}
+        ):
+            raise DefinitiveAnalysisError("Role operational-repair ledger row is invalid.")
+        bucket = reservations if event == "reserved_before_dispatch" else completions
+        if attempt_id in bucket:
+            raise DefinitiveAnalysisError("Role operational-repair attempt event is duplicated.")
+        bucket[attempt_id] = row
+    if set(reservations) != set(completions):
+        raise DefinitiveAnalysisError("Role operational-repair ledger has an open attempt.")
+    for attempt_id, reservation in reservations.items():
+        completion = completions[attempt_id]
+        key = (str(reservation.get("target_id")), str(reservation.get("trial_id")))
+        original = original_index.get(key)
+        if (
+            original is None
+            or original.get("raw_response") is not None
+            or reservation.get("repair_reason")
+            != "original_retained_raw_response_null"
+            or reservation.get("replaces_original_record_sha256")
+            != original.get("record_sha256")
+            or reservation.get("request_sha256") != original.get("request_sha256")
+            or completion.get("repair_reason")
+            != reservation.get("repair_reason")
+            or completion.get("replaces_original_record_sha256")
+            != reservation.get("replaces_original_record_sha256")
+        ):
+            raise DefinitiveAnalysisError("Role operational-repair retry lineage changed.")
+        retained = repaired_by_attempt.get(attempt_id)
+        if completion.get("outcome") == "response_retained":
+            if (
+                retained is None
+                or retained.get("raw_response_sha256")
+                != completion.get("response_payload_sha256")
+                or retained.get("response_text_sha256")
+                != completion.get("response_text_sha256")
+                or retained.get("response_model") != completion.get("response_model")
+            ):
+                raise DefinitiveAnalysisError(
+                    "Role operational-repair success is not response-bound."
+                )
+        elif retained is not None:
+            raise DefinitiveAnalysisError(
+                "Role operational-repair response is bound to a failed attempt."
+            )
+
+    eligible = {
+        key for key, row in original_index.items() if row.get("raw_response") is None
+    }
+    summary = manifest.get("summary")
+    if not isinstance(summary, Mapping):
+        raise DefinitiveAnalysisError("Role manifest summary is missing.")
+    if (
+        set(repaired) - eligible
+        or summary.get("operational_repair_eligible_originals") != len(eligible)
+        or summary.get("operational_repairs_succeeded") != len(repaired)
+        or summary.get("operational_repairs_unresolved")
+        != len(eligible - set(repaired))
+        or summary.get("failed_without_response") != len(eligible - set(repaired))
+    ):
+        raise DefinitiveAnalysisError("Role operational-repair summary does not reconcile.")
+
+    return {
+        target: [
+            repaired.get((target, str(row.get("trial_id"))), row) for row in rows
+        ]
+        for target, rows in originals.items()
+    }
+
+
 def _validate_terminalized_part0_operational_snapshot_unlocked(
     run: Path, manifest: Mapping[str, Any]
 ) -> dict[str, Any]:
@@ -1150,7 +1332,7 @@ def _part2(run: Path, manifest: Mapping[str, Any]) -> tuple[list[dict[str, Any]]
 
 
 def _role(run: Path, manifest: Mapping[str, Any]) -> list[dict[str, Any]]:
-    journals = _validate_standard_journals(run, manifest)
+    journals = _validate_role_journals(run, manifest)
     subjects = _subject_index(manifest)
     summary_path = run / "sanitized" / "summary.json"
     summary = _read_object(summary_path, "role calibration summary")

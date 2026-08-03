@@ -61,6 +61,12 @@ DEFAULT_MAX_WORKERS = 12
 DEFAULT_MAX_WORKERS_PER_PROVIDER = 1
 DEFAULT_MAX_ATTEMPTS = 3
 DEFAULT_BACKOFF_SECONDS = 1.0
+REPAIR_RESPONSE_ARTIFACT_TYPE = (
+    "inference_hub_part1_role_calibration_operational_repair_response_v1"
+)
+REPAIR_ATTEMPT_ARTIFACT_TYPE = (
+    "inference_hub_part1_role_calibration_operational_repair_attempt_v1"
+)
 
 _SOURCE_PATHS = (
     Path(__file__),
@@ -262,13 +268,109 @@ def _completed_index(
     return complete
 
 
+def _repair_overlay_index(
+    journals: Mapping[str, base._ChainedJournal],
+    *,
+    originals: Mapping[tuple[str, str], Mapping[str, Any]],
+    trials_by_id: Mapping[str, Any],
+    subjects_by_id: Mapping[str, Mapping[str, Any]],
+) -> dict[tuple[str, str], dict[str, Any]]:
+    """Validate successful operational repairs and return their immutable overlay.
+
+    A repair can replace only an original retained row whose provider payload is
+    null. A non-null original includes genuine format-invalid responses and is
+    therefore never eligible for this operational repair path.
+    """
+
+    repaired: dict[tuple[str, str], dict[str, Any]] = {}
+    for target_id, journal in journals.items():
+        subject = subjects_by_id[target_id]
+        for row in journal.records:
+            trial_id = str(row.get("trial_id"))
+            trial = trials_by_id.get(trial_id)
+            key = (target_id, trial_id)
+            original = originals.get(key)
+            raw = row.get("raw_response")
+            if (
+                row.get("schema_version") != SCHEMA_VERSION
+                or row.get("artifact_type") != REPAIR_RESPONSE_ARTIFACT_TYPE
+                or row.get("repair_reason")
+                != "original_retained_raw_response_null"
+                or row.get("target_id") != target_id
+                or trial is None
+                or original is None
+                or original.get("raw_response") is not None
+                or row.get("replaces_original_record_sha256")
+                != original.get("record_sha256")
+                or row.get("root_id") != trial.root_id
+                or row.get("frame_id") != trial.frame_id
+                or row.get("generation_block") != trial.generation_block
+                or row.get("prompt_sha256") != trial.prompt_hash
+                or row.get("request_sha256") != original.get("request_sha256")
+                or row.get("requested_route") != subject["route"]
+                or raw is None
+                or row.get("raw_response_sha256") != base._sha256_json(raw)
+                or row.get("model_identity_valid") is not True
+                or key in repaired
+            ):
+                raise RoleCalibrationError(
+                    f"Operational repair overlay binding is invalid for {target_id}."
+                )
+            repaired[key] = row
+    return repaired
+
+
+def _validate_operational_resume_contract(
+    retained: Mapping[str, Any], fresh: Mapping[str, Any]
+) -> None:
+    """Allow only this audited runner to change for an operational repair.
+
+    The original manifest keeps its original source hashes. The repair overlay
+    separately records the current sources, while every other source and every
+    non-mutable campaign binding must remain byte-identical.
+    """
+
+    retained_bindings = base._manifest_bindings(retained)
+    fresh_bindings = base._manifest_bindings(fresh)
+    retained_sources = retained_bindings.pop("source_artifacts", None)
+    fresh_sources = fresh_bindings.pop("source_artifacts", None)
+    if retained_bindings != fresh_bindings:
+        raise RoleCalibrationError("Resume contract differs from immutable v1.")
+    if (
+        not isinstance(retained_sources, Mapping)
+        or not isinstance(fresh_sources, Mapping)
+        or set(retained_sources) != set(fresh_sources)
+    ):
+        raise RoleCalibrationError("Resume source-artifact set changed.")
+    runner_path = str(Path(__file__).resolve())
+    for path, retained_sha256 in retained_sources.items():
+        fresh_sha256 = fresh_sources[path]
+        if (
+            not isinstance(retained_sha256, str)
+            or len(retained_sha256) != 64
+            or not isinstance(fresh_sha256, str)
+            or len(fresh_sha256) != 64
+        ):
+            raise RoleCalibrationError("Resume source-artifact hash is invalid.")
+        if path != runner_path and retained_sha256 != fresh_sha256:
+            raise RoleCalibrationError(
+                f"Resume source artifact changed outside the repair runner: {path}."
+            )
+
+
 def _recover_ledger(
     ledger: base._ChainedJournal,
     raw_journals: Mapping[str, base._ChainedJournal],
+    *,
+    attempt_artifact_type: str = (
+        "inference_hub_part1_role_calibration_attempt_v1"
+    ),
 ) -> None:
     reservations: dict[str, Mapping[str, Any]] = {}
     completions: dict[str, Mapping[str, Any]] = {}
     for row in ledger.records:
+        if row.get("artifact_type") != attempt_artifact_type:
+            raise RoleCalibrationError("An attempt ledger artifact type changed.")
         attempt_id = row.get("attempt_id")
         if row.get("event") == "reserved_before_dispatch" and isinstance(attempt_id, str):
             if attempt_id in reservations:
@@ -298,10 +400,19 @@ def _recover_ledger(
                 raise RoleCalibrationError("A raw success lacks its exact reservation.")
             raw_successes[attempt_id] = row
             if attempt_id not in completions:
+                repair_binding = {
+                    key: reservation[key]
+                    for key in (
+                        "repair_reason",
+                        "replaces_original_record_sha256",
+                        "repair_resume_count",
+                    )
+                    if key in reservation
+                }
                 ledger.append(
                     {
                         "schema_version": SCHEMA_VERSION,
-                        "artifact_type": "inference_hub_part1_role_calibration_attempt_v1",
+                        "artifact_type": attempt_artifact_type,
                         "event": "attempt_completed",
                         "attempt_id": attempt_id,
                         "outcome": "response_retained",
@@ -313,6 +424,7 @@ def _recover_ledger(
                         "response_payload_sha256": row.get("raw_response_sha256"),
                         "response_text_sha256": row.get("response_text_sha256"),
                         "recovered_after_raw_fsync": True,
+                        **repair_binding,
                         "completed_at_utc": base._utc_now(),
                     }
                 )
@@ -323,16 +435,27 @@ def _recover_ledger(
                 "A retained-success completion lacks its raw response; refusing redispatch."
             )
     for attempt_id in sorted(set(reservations) - set(completions)):
+        reservation = reservations[attempt_id]
+        repair_binding = {
+            key: reservation[key]
+            for key in (
+                "repair_reason",
+                "replaces_original_record_sha256",
+                "repair_resume_count",
+            )
+            if key in reservation
+        }
         ledger.append(
             {
                 "schema_version": SCHEMA_VERSION,
-                "artifact_type": "inference_hub_part1_role_calibration_attempt_v1",
+                "artifact_type": attempt_artifact_type,
                 "event": "attempt_completed",
                 "attempt_id": attempt_id,
                 "outcome": "failed",
                 "failure_code": "stale_reservation_retried",
                 "transient": True,
                 "http_status": None,
+                **repair_binding,
                 "completed_at_utc": base._utc_now(),
             }
         )
@@ -344,6 +467,7 @@ def _root_aware_summaries(
     config: Mapping[str, Any],
     schedule_sha256: str,
     journal_tails: Mapping[str, str | None],
+    repair_journal_tails: Mapping[str, str | None] | None = None,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     subject_config = {row["target_id"]: row for row in config["subjects"]}
     grouped: dict[tuple[str, str, str], list[Mapping[str, Any]]] = defaultdict(list)
@@ -425,6 +549,12 @@ def _root_aware_summaries(
         "config_file_sha256": CONFIG_FILE_SHA256,
         "schedule_sha256": schedule_sha256,
         "raw_journal_tail_sha256_by_target": dict(sorted(journal_tails.items())),
+        "operational_repair_policy": (
+            "transport_null_overlay_only_no_semantic_retry_v1"
+        ),
+        "operational_repair_journal_tail_sha256_by_target": dict(
+            sorted((repair_journal_tails or {}).items())
+        ),
         "raw_text_included": False,
         "frames_pooled": False,
         "models_pooled": False,
@@ -474,17 +604,34 @@ def run_calibration(
     trials = build_frozen_trials(config)
     private_dir = output_dir / "private"
     raw_dir = private_dir / "raw_responses"
+    repair_dir = private_dir / "operational_repairs"
+    repair_raw_dir = repair_dir / "raw_responses"
     sanitized_dir = output_dir / "sanitized"
     if resume:
         for directory in (output_dir, private_dir, raw_dir, sanitized_dir):
             if not directory.is_dir():
                 raise RoleCalibrationError(f"Resume directory is missing: {directory}.")
             base._require_mode(directory, 0o700)
+        repair_dir.mkdir(mode=0o700, exist_ok=True)
+        repair_raw_dir.mkdir(mode=0o700, exist_ok=True)
     else:
         output_dir.mkdir(parents=True, mode=0o700)
-        for directory in (private_dir, raw_dir, sanitized_dir):
+        for directory in (
+            private_dir,
+            raw_dir,
+            repair_dir,
+            repair_raw_dir,
+            sanitized_dir,
+        ):
             directory.mkdir(mode=0o700)
-    for directory in (output_dir, private_dir, raw_dir, sanitized_dir):
+    for directory in (
+        output_dir,
+        private_dir,
+        raw_dir,
+        repair_dir,
+        repair_raw_dir,
+        sanitized_dir,
+    ):
         base._secure_mode(directory, 0o700)
         base._require_mode(directory, 0o700)
     run_lock = base._acquire_run_lock(private_dir)
@@ -609,8 +756,7 @@ def run_calibration(
             base._require_mode(manifest_path, 0o600)
             if manifest.get("evidence_sha256") != base._self_hash(manifest):
                 raise RoleCalibrationError("The private manifest self-hash failed.")
-            if base._manifest_bindings(manifest) != base._manifest_bindings(fresh_manifest):
-                raise RoleCalibrationError("Resume contract differs from immutable v1.")
+            _validate_operational_resume_contract(manifest, fresh_manifest)
             manifest["resume_count"] = int(manifest.get("resume_count", 0)) + 1
             manifest["last_resumed_at_utc"] = base._utc_now()
         else:
@@ -620,6 +766,13 @@ def run_calibration(
         raw_journals = {
             subject["target_id"]: _RunLockedJournal(
                 raw_dir / f"{base._safe_file_stem(subject['target_id'])}.jsonl"
+            )
+            for subject in subjects
+        }
+        repair_ledger = _RunLockedJournal(repair_dir / "attempt_ledger.jsonl")
+        repair_journals = {
+            subject["target_id"]: _RunLockedJournal(
+                repair_raw_dir / f"{base._safe_file_stem(subject['target_id'])}.jsonl"
             )
             for subject in subjects
         }
@@ -639,29 +792,113 @@ def run_calibration(
                 base._validate_checkpoint_reference(
                     journal, raw_checkpoints[target_id], label=f"raw responses for {target_id}"
                 )
+            repair_checkpoints = checkpoints.get("operational_repair_overlay")
+            if repair_checkpoints is not None:
+                if not isinstance(repair_checkpoints, Mapping) or repair_checkpoints.get(
+                    "policy"
+                ) != (
+                    "overlay_only_original_retained_raw_response_null_"
+                    "no_semantic_retry_v1"
+                ) or repair_checkpoints.get(
+                    "implementation_source_artifacts"
+                ) != source_artifacts:
+                    raise RoleCalibrationError(
+                        "Operational repair overlay checkpoint is invalid."
+                    )
+                base._validate_checkpoint_reference(
+                    repair_ledger,
+                    repair_checkpoints.get("attempt_ledger"),
+                    label="operational repair attempt ledger",
+                )
+                repair_raw_checkpoints = repair_checkpoints.get("raw_responses")
+                if not isinstance(repair_raw_checkpoints, Mapping) or set(
+                    repair_raw_checkpoints
+                ) != set(repair_journals):
+                    raise RoleCalibrationError(
+                        "Operational repair checkpoints differ from sentinels."
+                    )
+                for target_id, journal in repair_journals.items():
+                    base._validate_checkpoint_reference(
+                        journal,
+                        repair_raw_checkpoints[target_id],
+                        label=f"operational repairs for {target_id}",
+                    )
+            elif repair_ledger.records or any(
+                journal.records for journal in repair_journals.values()
+            ):
+                raise RoleCalibrationError(
+                    "Unbound operational repair evidence already exists."
+                )
         else:
             manifest["journals"] = {
                 "attempt_ledger": ledger.reference(),
                 "raw_responses": {
                     target_id: journal.reference() for target_id, journal in raw_journals.items()
                 },
+                "operational_repair_overlay": {
+                    "policy": (
+                        "overlay_only_original_retained_raw_response_null_"
+                        "no_semantic_retry_v1"
+                    ),
+                    "implementation_source_artifacts": source_artifacts,
+                    "attempt_ledger": repair_ledger.reference(),
+                    "raw_responses": {
+                        target_id: journal.reference()
+                        for target_id, journal in repair_journals.items()
+                    },
+                },
             }
             base._seal(manifest)
             base._atomic_json(manifest_path, manifest)
 
         _recover_ledger(ledger, raw_journals)
-        prior_attempts = base._prior_attempt_numbers(ledger)
         subjects_by_id = {subject["target_id"]: subject for subject in subjects}
         trials_by_id = {trial.trial_id: trial for trial in trials}
-        completed = _completed_index(
+        originals = _completed_index(
             raw_journals, trials_by_id=trials_by_id, subjects_by_id=subjects_by_id
         )
-        work = [
-            _WorkItem(subject, trial)
-            for trial in trials
-            for subject in subjects
-            if (subject["target_id"], trial.trial_id) not in completed
-        ]
+        planned = len(subjects) * len(trials)
+        if resume:
+            if len(originals) != planned:
+                raise RoleCalibrationError(
+                    "Operational-repair resume requires one retained original row "
+                    "for every planned trial; refusing to dispatch missing evidence."
+                )
+            _recover_ledger(
+                repair_ledger,
+                repair_journals,
+                attempt_artifact_type=REPAIR_ATTEMPT_ARTIFACT_TYPE,
+            )
+            repaired = _repair_overlay_index(
+                repair_journals,
+                originals=originals,
+                trials_by_id=trials_by_id,
+                subjects_by_id=subjects_by_id,
+            )
+            work = [
+                _WorkItem(subject, trial)
+                for trial in trials
+                for subject in subjects
+                if originals[(subject["target_id"], trial.trial_id)].get(
+                    "raw_response"
+                )
+                is None
+                and (subject["target_id"], trial.trial_id) not in repaired
+            ]
+            active_ledger = repair_ledger
+            response_journals = repair_journals
+            prior_attempts = base._prior_attempt_numbers(repair_ledger)
+        else:
+            repaired = {}
+            work = [
+                _WorkItem(subject, trial)
+                for trial in trials
+                for subject in subjects
+                if (subject["target_id"], trial.trial_id) not in originals
+            ]
+            active_ledger = ledger
+            response_journals = raw_journals
+            prior_attempts = base._prior_attempt_numbers(ledger)
         provider_locks = {
             str(subject["upstream_provider"]): threading.BoundedSemaphore(
                 max_workers_per_provider
@@ -676,13 +913,39 @@ def run_calibration(
             request_sha256 = hashlib.sha256(request_bytes).hexdigest()
             key = (str(subject["target_id"]), trial.trial_id)
             first_attempt = prior_attempts.get(key, 0) + 1
+            last_attempt = (
+                prior_attempts.get(key, 0) + max_attempts if resume else max_attempts
+            )
+            original = originals.get(key)
+            repair_binding: dict[str, Any] = {}
+            attempt_artifact_type = (
+                REPAIR_ATTEMPT_ARTIFACT_TYPE
+                if resume
+                else "inference_hub_part1_role_calibration_attempt_v1"
+            )
+            response_artifact_type = (
+                REPAIR_RESPONSE_ARTIFACT_TYPE
+                if resume
+                else "inference_hub_part1_role_calibration_raw_response_v1"
+            )
+            if resume:
+                if original is None or original.get("raw_response") is not None:
+                    raise RoleCalibrationError(
+                        "Operational repair dispatch was not bound to an original "
+                        "transport-null row."
+                    )
+                repair_binding = {
+                    "repair_reason": "original_retained_raw_response_null",
+                    "replaces_original_record_sha256": original["record_sha256"],
+                    "repair_resume_count": manifest["resume_count"],
+                }
             last_failure: dict[str, Any] | None = None
-            for attempt_number in range(first_attempt, max_attempts + 1):
+            for attempt_number in range(first_attempt, last_attempt + 1):
                 attempt_id = f"part1_role_v1_{uuid.uuid4().hex}"
-                ledger.append(
+                active_ledger.append(
                     {
                         "schema_version": SCHEMA_VERSION,
-                        "artifact_type": "inference_hub_part1_role_calibration_attempt_v1",
+                        "artifact_type": attempt_artifact_type,
                         "event": "reserved_before_dispatch",
                         "attempt_id": attempt_id,
                         "target_id": subject["target_id"],
@@ -698,6 +961,7 @@ def run_calibration(
                         "request_body_bytes": len(request_bytes),
                         "prompt_sha256": trial.prompt_hash,
                         "controls": controls,
+                        **repair_binding,
                         "reserved_at_utc": base._utc_now(),
                     }
                 )
@@ -719,20 +983,21 @@ def run_calibration(
                         "http_status": http_status,
                         "error_type": type(error).__name__,
                     }
-                    ledger.append(
+                    active_ledger.append(
                         {
                             "schema_version": SCHEMA_VERSION,
-                            "artifact_type": "inference_hub_part1_role_calibration_attempt_v1",
+                            "artifact_type": attempt_artifact_type,
                             "event": "attempt_completed",
                             "attempt_id": attempt_id,
                             "outcome": "failed",
                             "failure_code": failure_code,
                             "transient": retryable,
                             "http_status": http_status,
+                            **repair_binding,
                             "completed_at_utc": base._utc_now(),
                         }
                     )
-                    if retryable and attempt_number < max_attempts:
+                    if retryable and attempt_number < last_attempt:
                         sleep_fn(initial_backoff_seconds * (2 ** (attempt_number - 1)))
                         continue
                     response = None
@@ -745,10 +1010,10 @@ def run_calibration(
                             "http_status": 200,
                             "error_type": "ResponseModelIdentityMismatch",
                         }
-                        ledger.append(
+                        active_ledger.append(
                             {
                                 "schema_version": SCHEMA_VERSION,
-                                "artifact_type": "inference_hub_part1_role_calibration_attempt_v1",
+                                "artifact_type": attempt_artifact_type,
                                 "event": "attempt_completed",
                                 "attempt_id": attempt_id,
                                 "outcome": "failed",
@@ -759,10 +1024,11 @@ def run_calibration(
                                 "response_model": metadata["response_model"],
                                 "response_payload_sha256": response_sha256,
                                 "response_text_sha256": metadata["response_text_sha256"],
+                                **repair_binding,
                                 "completed_at_utc": base._utc_now(),
                             }
                         )
-                        if attempt_number < max_attempts:
+                        if attempt_number < last_attempt:
                             sleep_fn(
                                 initial_backoff_seconds
                                 * (2 ** (attempt_number - 1))
@@ -773,10 +1039,10 @@ def run_calibration(
                     expected_welfare_label = COUNTERBALANCE_BY_ID[
                         trial.counterbalance_id
                     ].label_for(WELFARE_PRESERVING)
-                    row = raw_journals[subject["target_id"]].append(
+                    row = response_journals[subject["target_id"]].append(
                         {
                             "schema_version": SCHEMA_VERSION,
-                            "artifact_type": "inference_hub_part1_role_calibration_raw_response_v1",
+                            "artifact_type": response_artifact_type,
                             "target_id": subject["target_id"],
                             "upstream_provider": subject["upstream_provider"],
                             "model": subject["model"],
@@ -796,6 +1062,7 @@ def run_calibration(
                             "controls": controls,
                             "attempt_id": attempt_id,
                             "attempt_number": attempt_number,
+                            **repair_binding,
                             **metadata,
                             "welfare_preserving": (
                                 metadata["parsed_action"] == expected_welfare_label
@@ -807,10 +1074,10 @@ def run_calibration(
                             "finished_at_utc": base._utc_now(),
                         }
                     )
-                    ledger.append(
+                    active_ledger.append(
                         {
                             "schema_version": SCHEMA_VERSION,
-                            "artifact_type": "inference_hub_part1_role_calibration_attempt_v1",
+                            "artifact_type": attempt_artifact_type,
                             "event": "attempt_completed",
                             "attempt_id": attempt_id,
                             "outcome": "response_retained",
@@ -821,11 +1088,19 @@ def run_calibration(
                             "response_model": metadata["response_model"],
                             "response_payload_sha256": response_sha256,
                             "response_text_sha256": metadata["response_text_sha256"],
+                            **repair_binding,
                             "completed_at_utc": base._utc_now(),
                         }
                     )
                     return row
                 break
+            if resume:
+                return {
+                    "target_id": subject["target_id"],
+                    "trial_id": trial.trial_id,
+                    "repair_succeeded": False,
+                    "failure": last_failure,
+                }
             return raw_journals[subject["target_id"]].append(
                 {
                     "schema_version": SCHEMA_VERSION,
@@ -884,15 +1159,36 @@ def run_calibration(
                                 target_id: journal.reference()
                                 for target_id, journal in raw_journals.items()
                             },
+                            "operational_repair_overlay": {
+                                "policy": (
+                                    "overlay_only_original_retained_raw_response_null_"
+                                    "no_semantic_retry_v1"
+                                ),
+                                "implementation_source_artifacts": source_artifacts,
+                                "attempt_ledger": repair_ledger.reference(),
+                                "raw_responses": {
+                                    target_id: journal.reference()
+                                    for target_id, journal in repair_journals.items()
+                                },
+                            },
                         }
                         base._seal(manifest)
                         base._atomic_json(manifest_path, manifest)
 
-        retained = _completed_index(
+        originals = _completed_index(
             raw_journals, trials_by_id=trials_by_id, subjects_by_id=subjects_by_id
         )
-        rows = list(retained.values())
-        planned = len(subjects) * len(trials)
+        repaired = _repair_overlay_index(
+            repair_journals,
+            originals=originals,
+            trials_by_id=trials_by_id,
+            subjects_by_id=subjects_by_id,
+        )
+        effective = {**originals, **repaired}
+        rows = list(effective.values())
+        repair_eligible = {
+            key for key, row in originals.items() if row.get("raw_response") is None
+        }
         manifest["summary"] = {
             "planned_generations": planned,
             "retained_trial_records": len(rows),
@@ -907,11 +1203,31 @@ def run_calibration(
                 row.get("raw_response") is not None and row.get("model_identity_valid") is not True
                 for row in rows
             ),
+            "operational_repair_eligible_originals": len(repair_eligible),
+            "operational_repairs_succeeded": len(repaired),
+            "operational_repairs_unresolved": len(repair_eligible - set(repaired)),
+            "non_null_format_invalid_originals_not_retried": sum(
+                row.get("raw_response") is not None
+                and row.get("format_valid") is not True
+                for row in originals.values()
+            ),
         }
         manifest["journals"] = {
             "attempt_ledger": ledger.reference(),
             "raw_responses": {
                 target_id: journal.reference() for target_id, journal in raw_journals.items()
+            },
+            "operational_repair_overlay": {
+                "policy": (
+                    "overlay_only_original_retained_raw_response_null_"
+                    "no_semantic_retry_v1"
+                ),
+                "implementation_source_artifacts": source_artifacts,
+                "attempt_ledger": repair_ledger.reference(),
+                "raw_responses": {
+                    target_id: journal.reference()
+                    for target_id, journal in repair_journals.items()
+                },
             },
         }
         manifest["complete"] = (
@@ -930,6 +1246,9 @@ def run_calibration(
             config=config,
             schedule_sha256=schedule_sha256,
             journal_tails={target: journal.tail for target, journal in raw_journals.items()},
+            repair_journal_tails={
+                target: journal.tail for target, journal in repair_journals.items()
+            },
         )
         base._atomic_json(sanitized_dir / "summary.json", summary)
         _atomic_jsonl(sanitized_dir / "root_summaries.jsonl", root_rows)

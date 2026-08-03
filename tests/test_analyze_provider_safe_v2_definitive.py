@@ -20,6 +20,7 @@ from analysis.analyze_provider_safe_v2_definitive import (
     _root_cluster_bootstrap_95,
     _self_hash,
     _stratified_root_bootstrap_95,
+    _validate_role_journals,
     _wilson_95,
     analyze,
 )
@@ -79,6 +80,162 @@ def _journal(path: Path, rows: list[dict[str, Any]]) -> dict[str, Any]:
         "path": str(path.resolve()), "record_count": len(rows),
         "tail_record_sha256": previous, "file_sha256": _sha_file(path),
     }
+
+
+def _canonical_sha(value: Any) -> str:
+    return hashlib.sha256(
+        json.dumps(
+            value, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        ).encode()
+    ).hexdigest()
+
+
+def _role_overlay_fixture(
+    run: Path, *, replace_visible_semantic_invalid: bool = False
+) -> tuple[dict[str, Any], Path, Path]:
+    target = "role/model"
+    route = "route/role/model"
+    subject = {
+        "target_id": target,
+        "route": route,
+        "upstream_provider": "provider",
+        "model": "model",
+    }
+    visible_raw = {"model": route, "choices": [{"message": {"content": "OPTION_X"}}]}
+    original_rows = [
+        {
+            "schema_version": 1,
+            "artifact_type": "inference_hub_part1_role_calibration_raw_response_v1",
+            "target_id": target,
+            "requested_route": route,
+            "trial_id": "visible-invalid",
+            "root_id": "root-visible",
+            "frame_id": "advice",
+            "generation_block": "block-0",
+            "counterbalance_id": "cb-0",
+            "prompt_sha256": "a" * 64,
+            "request_sha256": "b" * 64,
+            "raw_response": visible_raw,
+            "raw_response_sha256": _canonical_sha(visible_raw),
+            "model_identity_valid": True,
+            "format_valid": False,
+            "welfare_preserving": None,
+        },
+        {
+            "schema_version": 1,
+            "artifact_type": "inference_hub_part1_role_calibration_raw_response_v1",
+            "target_id": target,
+            "requested_route": route,
+            "trial_id": "transport-null",
+            "root_id": "root-null",
+            "frame_id": "prediction",
+            "generation_block": "block-0",
+            "counterbalance_id": "cb-1",
+            "prompt_sha256": "c" * 64,
+            "request_sha256": "d" * 64,
+            "raw_response": None,
+            "raw_response_sha256": None,
+            "model_identity_valid": False,
+            "format_valid": False,
+            "welfare_preserving": None,
+        },
+    ]
+    original_path = run / "private/raw/role.jsonl"
+    original_ref = _journal(original_path, original_rows)
+    retained = [json.loads(line) for line in original_path.read_text().splitlines()]
+    selected = retained[0 if replace_visible_semantic_invalid else 1]
+
+    repaired_raw = {
+        "model": route,
+        "choices": [{"message": {"content": "OPTION_A"}}],
+    }
+    attempt_id = "repair-attempt-1"
+    repair_binding = {
+        "repair_reason": "original_retained_raw_response_null",
+        "replaces_original_record_sha256": selected["record_sha256"],
+    }
+    repair_row = {
+        "schema_version": 1,
+        "artifact_type": (
+            "inference_hub_part1_role_calibration_operational_repair_response_v1"
+        ),
+        "target_id": target,
+        "requested_route": route,
+        "response_model": route,
+        "model_identity_valid": True,
+        "trial_id": selected["trial_id"],
+        "root_id": selected["root_id"],
+        "frame_id": selected["frame_id"],
+        "generation_block": selected["generation_block"],
+        "counterbalance_id": selected["counterbalance_id"],
+        "prompt_sha256": selected["prompt_sha256"],
+        "request_sha256": selected["request_sha256"],
+        "attempt_id": attempt_id,
+        **repair_binding,
+        "raw_response": repaired_raw,
+        "raw_response_sha256": _canonical_sha(repaired_raw),
+        "response_text_sha256": "e" * 64,
+        "format_valid": True,
+        "welfare_preserving": True,
+    }
+    repair_path = run / "private/operational_repairs/raw/role.jsonl"
+    repair_ref = _journal(repair_path, [repair_row])
+    reservation = {
+        "schema_version": 1,
+        "artifact_type": (
+            "inference_hub_part1_role_calibration_operational_repair_attempt_v1"
+        ),
+        "event": "reserved_before_dispatch",
+        "attempt_id": attempt_id,
+        "target_id": target,
+        "trial_id": selected["trial_id"],
+        "request_sha256": selected["request_sha256"],
+        **repair_binding,
+    }
+    completion = {
+        "schema_version": 1,
+        "artifact_type": (
+            "inference_hub_part1_role_calibration_operational_repair_attempt_v1"
+        ),
+        "event": "attempt_completed",
+        "attempt_id": attempt_id,
+        "outcome": "response_retained",
+        "response_payload_sha256": repair_row["raw_response_sha256"],
+        "response_text_sha256": repair_row["response_text_sha256"],
+        "response_model": route,
+        **repair_binding,
+    }
+    repair_ledger = _journal(
+        run / "private/operational_repairs/attempt_ledger.jsonl",
+        [reservation, completion],
+    )
+    original_ledger = _journal(run / "private/attempts.jsonl", [])
+    repair_source = ROOT / "experiments/misc/inference_hub_part1_role_calibration_v1.py"
+    manifest = {
+        "subject_routes": [subject],
+        "summary": {
+            "operational_repair_eligible_originals": 1,
+            "operational_repairs_succeeded": 1,
+            "operational_repairs_unresolved": 0,
+            "failed_without_response": 0,
+        },
+        "journals": {
+            "attempt_ledger": original_ledger,
+            "raw_responses": {target: original_ref},
+            "operational_repair_overlay": {
+                "policy": (
+                    "overlay_only_original_retained_raw_response_null_"
+                    "no_semantic_retry_v1"
+                ),
+                "implementation_source_artifacts": {
+                    str(repair_source.resolve()): _sha_file(repair_source)
+                },
+                "attempt_ledger": repair_ledger,
+                "raw_responses": {target: repair_ref},
+            },
+        },
+    }
+    return manifest, original_path, repair_path
 
 
 def _base_manifest(kind: str, subjects: list[dict[str, Any]]) -> dict[str, Any]:
@@ -527,6 +684,37 @@ def test_incomplete_manifest_fails_before_output(tmp_path: Path) -> None:
     with pytest.raises(DefinitiveAnalysisError, match="not COMPLETE"):
         analyze(part0=incomplete, part1=incomplete, part2=incomplete, role_calibration=incomplete, sensitivity=incomplete, output_dir=output)
     assert not output.exists()
+
+
+def test_role_operational_overlay_replaces_only_transport_nulls(tmp_path: Path) -> None:
+    run = tmp_path / "role-overlay"
+    manifest, original_path, _ = _role_overlay_fixture(run)
+    original_sha = _sha_file(original_path)
+
+    effective = _validate_role_journals(run, manifest)
+    rows = effective["role/model"]
+    assert len(rows) == 2
+    assert rows[0]["trial_id"] == "visible-invalid"
+    assert rows[0]["raw_response"] is not None
+    assert rows[0]["format_valid"] is False
+    assert rows[1]["trial_id"] == "transport-null"
+    assert rows[1]["raw_response"] is not None
+    assert rows[1]["format_valid"] is True
+    assert rows[1]["welfare_preserving"] is True
+    assert _sha_file(original_path) == original_sha
+
+
+def test_role_operational_overlay_rejects_visible_semantic_replacement(
+    tmp_path: Path,
+) -> None:
+    run = tmp_path / "role-overlay-semantic"
+    manifest, _, _ = _role_overlay_fixture(
+        run, replace_visible_semantic_invalid=True
+    )
+    with pytest.raises(
+        DefinitiveAnalysisError, match="operational-repair binding failed"
+    ):
+        _validate_role_journals(run, manifest)
 
 
 def test_terminalized_part0_policy_is_explicit_ledger_bound_and_all_scheduled(
