@@ -149,9 +149,10 @@ campaigns have priority over supplemental retries.
   source-bound primary/robustness manifests and produces per-model tables while
   preserving first-attempt invalid denominators.
 - `analysis.build_provider_safe_v2_paper_assets` produces six vector-PDF and
-  300-dpi PNG figure families, full model-row LaTeX tables, and 57 deterministic
-  headline macros. It validates the two-seed sensitivity contract and generates
-  no cross-axis composite.
+  300-dpi PNG figure families, full model-row LaTeX tables, and 66 deterministic
+  headline macros including Part 2 AUPC, reserve-nondepletion, and
+  population-retention summaries. It validates the two-seed sensitivity
+  contract and generates no cross-axis composite.
 - The supplement at commit `c84a841` has 210 payload files plus manifest,
   rebuilds byte-identically, and passes 781 clean-extraction tests with 16
   intentional skips plus Croissant, privacy, anonymity, and manifest checks.

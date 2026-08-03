@@ -369,7 +369,10 @@ def _validate_part2(rows: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
                 "scheduled_agent_days", "restraint_count", "overuse_count",
                 "first_attempt_invalid_count", "repaired_invalid_count",
                 "restraint_rate_all_scheduled", "restraint_rate_among_valid",
-                "mean_aurc_eligible", "primary_denominator", "exploratory_only",
+                "mean_aurc_eligible", "mean_aupc_eligible",
+                "reserve_nondepletion_rate_eligible",
+                "mean_population_retention_eligible",
+                "primary_denominator", "exploratory_only",
             ),
             label,
         )
@@ -388,10 +391,24 @@ def _validate_part2(rows: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
             row, "restraint_rate_among_valid", label, restraint, scheduled - invalid
         )
         if eligible == 0:
-            if row.get("mean_aurc_eligible") is not None:
-                raise PaperAssetsError(f"{label}.mean_aurc_eligible must be null with no eligible trajectories.")
+            for field in (
+                "mean_aurc_eligible",
+                "mean_aupc_eligible",
+                "reserve_nondepletion_rate_eligible",
+                "mean_population_retention_eligible",
+            ):
+                if row.get(field) is not None:
+                    raise PaperAssetsError(
+                        f"{label}.{field} must be null with no eligible trajectories."
+                    )
         else:
-            _number(row, "mean_aurc_eligible", label, minimum=0.0, maximum=1.0)
+            for field in (
+                "mean_aurc_eligible",
+                "mean_aupc_eligible",
+                "reserve_nondepletion_rate_eligible",
+                "mean_population_retention_eligible",
+            ):
+                _number(row, field, label, minimum=0.0, maximum=1.0)
         if not _same_rate(all_rate, restraint, scheduled):
             raise PaperAssetsError(f"{label} scheduled-unit restraint rate does not reconcile.")
         if row.get("primary_denominator") != "all_scheduled_agent_days" or row.get("exploratory_only") is not True:
@@ -890,15 +907,34 @@ def _plot_part2(data: Mapping[str, Any], directory: Path) -> list[Path]:
         None if row["mean_aurc_eligible"] is None else float(row["mean_aurc_eligible"])
         for row in rows
     ]
+    aupc = [
+        None if row["mean_aupc_eligible"] is None else float(row["mean_aupc_eligible"])
+        for row in rows
+    ]
+    nondepletion = [
+        None
+        if row["reserve_nondepletion_rate_eligible"] is None
+        else float(row["reserve_nondepletion_rate_eligible"])
+        for row in rows
+    ]
+    population = [
+        None
+        if row["mean_population_retention_eligible"] is None
+        else float(row["mean_population_retention_eligible"])
+        for row in rows
+    ]
     validity = [1.0 - int(row["first_attempt_invalid_count"]) / int(row["scheduled_agent_days"]) for row in rows]
-    fig, axes = plt.subplots(1, 3, figsize=(17.2, 9.2), sharey=False)
+    fig, axes = plt.subplots(1, 6, figsize=(22.0, 9.2), sharey=False)
     fig.patch.set_facecolor("white")
     fig.suptitle("Part 2 commons outcomes for 19 exact model routes", x=0.075, y=0.995, ha="left", fontsize=15, fontweight="bold", color=INK)
     fig.text(0.075, 0.953, "One row per route; 12 trajectories per route; ordered by within-task restraint rate.", fontsize=9, color=MUTED)
-    _lollipop_panel(axes[0], restraint, labels, title="Restraint / scheduled agent-days", color=BLUE, show_labels=True)
-    _lollipop_panel(axes[1], aurc, labels, title="Mean normalized AURC / eligible trajectories", color=BLUE, show_labels=False)
-    _lollipop_panel(axes[2], validity, labels, title="Valid first-attempt coverage", color=GREEN, show_labels=False)
-    fig.text(0.075, 0.018, "Higher restraint and AURC mean more reserve preservation in this simulator; higher validity means fewer invalid actions. These are not general safety scores.", fontsize=8, color=MUTED)
+    _lollipop_panel(axes[0], restraint, labels, title="Restraint / agent-days", color=BLUE, show_labels=True)
+    _lollipop_panel(axes[1], aurc, labels, title="Mean AURC / eligible", color=BLUE, show_labels=False)
+    _lollipop_panel(axes[2], aupc, labels, title="Mean AUPC / eligible", color=BLUE, show_labels=False)
+    _lollipop_panel(axes[3], nondepletion, labels, title="Nondepletion / eligible", color=GREEN, show_labels=False)
+    _lollipop_panel(axes[4], population, labels, title="Population retained / eligible", color=GREEN, show_labels=False)
+    _lollipop_panel(axes[5], validity, labels, title="Valid coverage", color=GREEN, show_labels=False)
+    fig.text(0.075, 0.018, "Higher restraint, AURC, AUPC, nondepletion, and population retention mean more resource or population preservation in this simulator; higher validity means fewer invalid actions. These are not general safety scores.", fontsize=8, color=MUTED)
     fig.tight_layout(rect=(0.055, 0.045, 0.995, 0.94), w_pad=1.8)
     return _save_figure(fig, directory, "part2_all_models", "Part 2 all-model outcomes")
 
@@ -1229,6 +1265,9 @@ def _write_tables(data: Mapping[str, Any], directory: Path) -> list[Path]:
                 _tex_escape(row["model"]), str(row["trajectory_count"]), str(scheduled),
                 _pct(float(row["restraint_rate_all_scheduled"])),
                 "NE" if row["mean_aurc_eligible"] is None else f"{float(row['mean_aurc_eligible']):.3f}",
+                "NE" if row["mean_aupc_eligible"] is None else f"{float(row['mean_aupc_eligible']):.3f}",
+                "NE" if row["reserve_nondepletion_rate_eligible"] is None else _pct(float(row["reserve_nondepletion_rate_eligible"])),
+                "NE" if row["mean_population_retention_eligible"] is None else _pct(float(row["mean_population_retention_eligible"])),
                 f"{invalid}/{scheduled}", _pct(1.0 - invalid / scheduled),
             ]
         )
@@ -1236,12 +1275,12 @@ def _write_tables(data: Mapping[str, Any], directory: Path) -> list[Path]:
     path.write_text(
         _table_tex(
             caption=(
-                "Part 2 commons outcomes for all 19 exact model routes. Each row is one target route, shown in descending within-task restraint-rate display order; Provider and Model are exact upstream identifiers. Traj. is the trajectory count; Agent-days is the scheduled action denominator; Restraint/agent-days retains first-attempt invalid actions in that denominator; Mean AURC is normalized reserve area over operationally eligible trajectories and NE means no eligible trajectory; Invalid/agent-days gives invalid count and denominator; Valid coverage is one minus that invalid fraction. Higher restraint and AURC mean more reserve preservation in this simulator, while higher validity means fewer invalid actions. These directions apply only within Part 2 and do not imply general safety."
+                "Part 2 commons outcomes for all 19 exact model routes. Each row is one target route, shown in descending within-task restraint-rate display order; Provider and Model are exact upstream identifiers. Traj. is the trajectory count; Agent-days is the scheduled action denominator; Restraint/agent-days retains first-attempt invalid actions in that denominator; Mean AURC and Mean AUPC are normalized reserve and population areas over operationally eligible trajectories; Nondepletion is the share of eligible trajectories whose reserve stays above zero; Population retained is mean final population divided by initial population over eligible trajectories; NE means no eligible trajectory; Invalid/agent-days gives invalid count and denominator; Valid coverage is one minus that invalid fraction. Higher restraint, AURC, AUPC, nondepletion, population retention, and validity mean more preservation or fewer invalid actions within this simulator. These directions do not imply general safety."
             ),
             label="tab:provider-safe-v2-part2-all-models",
-            headers=("Order", "Target route ID", "Provider", "Model ID", "Traj.", "Agent-days", "Restraint/agent-days", "Mean AURC", "Invalid/agent-days", "Valid coverage"),
+            headers=("Order", "Target route ID", "Provider", "Model ID", "Traj.", "Agent-days", "Restraint/agent-days", "Mean AURC", "Mean AUPC", "Nondepletion", "Population retained", "Invalid/agent-days", "Valid coverage"),
             rows=part2_rows,
-            column_spec="rlllrrrrrr",
+            column_spec="rlllrrrrrrrrr",
             chunk_size=19,
         ),
         encoding="utf-8",
@@ -1387,6 +1426,21 @@ def _headline_values(data: Mapping[str, Any]) -> list[tuple[str, str]]:
         for row in part2
         if row["mean_aurc_eligible"] is not None
     ]
+    part2_aupc = [
+        float(row["mean_aupc_eligible"])
+        for row in part2
+        if row["mean_aupc_eligible"] is not None
+    ]
+    part2_nondepletion = [
+        float(row["reserve_nondepletion_rate_eligible"])
+        for row in part2
+        if row["reserve_nondepletion_rate_eligible"] is not None
+    ]
+    part2_population_retention = [
+        float(row["mean_population_retention_eligible"])
+        for row in part2
+        if row["mean_population_retention_eligible"] is not None
+    ]
 
     values: list[tuple[str, str]] = [
         ("ProviderSafePartZeroModelCount", str(len(part0))),
@@ -1421,6 +1475,21 @@ def _headline_values(data: Mapping[str, Any]) -> list[tuple[str, str]]:
             part2_aurc,
             prefix="ProviderSafePartTwoModelNormalizedAURC",
             formatter=lambda value: _decimal_headline(value, 3),
+        ),
+        *_summary_macros(
+            part2_aupc,
+            prefix="ProviderSafePartTwoModelNormalizedAUPC",
+            formatter=lambda value: _decimal_headline(value, 3),
+        ),
+        *_summary_macros(
+            part2_nondepletion,
+            prefix="ProviderSafePartTwoModelReserveNondepletionRatePct",
+            formatter=_percent_headline,
+        ),
+        *_summary_macros(
+            part2_population_retention,
+            prefix="ProviderSafePartTwoModelPopulationRetentionPct",
+            formatter=_percent_headline,
         ),
         *_summary_macros(
             [float(row["restraint_rate_all_scheduled"]) for row in part2],

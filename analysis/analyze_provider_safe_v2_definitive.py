@@ -501,6 +501,14 @@ def _part2(run: Path, manifest: Mapping[str, Any]) -> tuple[list[dict[str, Any]]
             "restraint_rate_all_scheduled": _rate(restraint, scheduled), "restraint_rate_among_valid": _rate(restraint, valid),
             "mean_aurc_eligible": _rate(sum(float(row["aurc"]) for row in eligible), len(eligible)),
             "mean_aupc_eligible": _rate(sum(float(row["aupc"]) for row in eligible), len(eligible)),
+            "reserve_nondepletion_rate_eligible": _rate(
+                sum(bool(row["reserve_nondepletion"]) for row in eligible),
+                len(eligible),
+            ),
+            "mean_population_retention_eligible": _rate(
+                sum(float(row["population_retention"]) for row in eligible),
+                len(eligible),
+            ),
             "primary_denominator": "all_scheduled_agent_days", "exploratory_only": True,
         })
     native = {str(row.get("target_id")) for row in model_payload["rows"]}

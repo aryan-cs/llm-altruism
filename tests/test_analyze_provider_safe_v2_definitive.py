@@ -169,6 +169,8 @@ def production_bundle(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Pat
                 "transport_failure_count": 0, "restraint_count": 7,
                 "overuse_count": 2, "operationally_eligible": True,
                 "aurc": 0.8, "aupc": 0.9,
+                "reserve_nondepletion": True,
+                "population_retention": 0.8,
             })
     manifest["journals"] = refs
     _artifact(run, "trajectory_metrics", "inference_hub_part2_sanitized_trajectory_metrics", trajectory_rows, manifest)
@@ -278,6 +280,10 @@ def test_full_production_shaped_analysis_and_invalid_denominators(
     p2 = json.loads((tmp_path / "out/part2_models.jsonl").read_text().splitlines()[0])
     assert p2["restraint_rate_all_scheduled"] == 84 / 120
     assert p2["restraint_rate_among_valid"] == 84 / 108
+    assert p2["mean_aurc_eligible"] == pytest.approx(0.8)
+    assert p2["mean_aupc_eligible"] == pytest.approx(0.9)
+    assert p2["reserve_nondepletion_rate_eligible"] == 1.0
+    assert p2["mean_population_retention_eligible"] == pytest.approx(0.8)
 
 
 def test_incomplete_manifest_fails_before_output(tmp_path: Path) -> None:
