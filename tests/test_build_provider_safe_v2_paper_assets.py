@@ -644,7 +644,8 @@ def test_latex_tables_preserve_ids_define_directions_and_space_every_float(tmp_p
     assert "\\begin{tabular}{llccc}" in part2
     assert "Mean AUPC" not in part2 and "Nondepletion [95" not in part2
     assert "\\begin{tabular}{llccc}" in role
-    assert "\\begin{tabular}{lllccc}" in sensitivity
+    assert "\\begin{tabular}{lllcc}" in sensitivity
+    assert "& Status" not in sensitivity
     assert "\\begin{tabular}{llc}" in local
     for name in expected_table_counts:
         table = (output / name).read_text()

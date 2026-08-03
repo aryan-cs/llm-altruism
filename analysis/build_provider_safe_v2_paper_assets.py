@@ -1806,19 +1806,18 @@ def _write_tables(data: Mapping[str, Any], directory: Path) -> list[Path]:
                 [
                     _tex_escape(target), _tex_escape(model["model"]), _tex_escape(factor),
                     f"{float(row['effect_high_minus_low']):+.4f}", f"{holm:.4f}",
-                    "H" if holm <= 0.05 else "n.s.",
                 ]
             )
     path = directory / "part2_sensitivity_effects_table.tex"
     path.write_text(
         _table_tex(
             caption=(
-                "Part 2 deadline-exploratory sensitivity effects. Each row is one exact sentinel route and prespecified factor; Model ID is the authenticated upstream model; Effect is mean normalized AURC at the factor's high level minus its low level over the resolution-V design and two common-seed blocks; Holm p adjusts the 30 sentinel-by-factor tests; Status is H when adjusted p is at most 0.05 and n.s. otherwise. The centered effect and significance columns directly assess whether the commons result changes under the prespecified contrast. Positive means the high level increased reserve preservation and negative means it decreased preservation, but sign is not automatically good or bad for the parameter. With two seeds this panel is underpowered and descriptive, not a general safety score."
+                "Part 2 deadline-exploratory sensitivity effects. Each row is one exact sentinel route and prespecified factor; Model ID is the authenticated upstream model; Effect is mean normalized AURC at the factor's high level minus its low level over the resolution-V design and two common-seed blocks; Holm p adjusts the 30 sentinel-by-factor tests, with adjusted p at most 0.05 treated as significant. The two centered result columns directly assess effect size and evidence against the null without a redundant derived status column. Positive means the high level increased reserve preservation and negative means it decreased preservation, but sign is not automatically good or bad for the parameter. With two seeds this panel is underpowered and descriptive, not a general safety score."
             ),
             label="tab:provider-safe-v2-part2-sensitivity",
-            headers=("Target route ID", "Model ID", "Factor", "Effect (high-low AURC)", "Holm p", "Status"),
+            headers=("Target route ID", "Model ID", "Factor", "Effect (high-low AURC)", "Holm p"),
             rows=sensitivity_rows,
-            column_spec="lllccc",
+            column_spec="lllcc",
             chunk_size=15,
         ),
         encoding="utf-8",

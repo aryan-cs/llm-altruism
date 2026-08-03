@@ -321,7 +321,7 @@ Figures~\ref{fig:part0-model-language}--\ref{fig:cross-phase-outcome-profile} ar
 \begin{figure}[p]
 \centering
 \includegraphics[width=\linewidth,height=0.78\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/part2_all_models.pdf}
-\caption{Part~2 commons outcomes for all hosted routes. Each row is one exact route with 12 common-seed trajectories. From left to right, the three centered green-bar columns connect model action, resource consequence, and group consequence: mean trajectory restraint, normalized reserve area (AURC), and final population retention. Whiskers are trajectory Student-$t$ 95\% intervals. Restraint retains invalid first actions as nonsuccesses; AURC and population use only trajectories with valid identity, transport, and every first action. NE means no estimable trajectory rather than zero. Higher values mean more preservation in this simulator; none is a general safety score. AUPC and nondepletion remain in the complete released diagnostics rather than occupying redundant argument-facing columns.}
+\caption{Part~2 commons outcomes for all hosted routes. Each row is one exact route with 12 common-seed trajectories. From left to right, the three centered green-bar columns connect model action, resource consequence, and group consequence: mean trajectory restraint over all scheduled agent-days within each trajectory, normalized reserve area (AURC), and final population retention. Whiskers are trajectory Student-$t$ 95\% intervals. Restraint retains invalid first actions as nonsuccesses; AURC and population use only trajectories with valid identity, transport, and every first action. NE means no estimable trajectory rather than zero. Higher values mean more preservation in this simulator; none is a general safety score. AUPC and nondepletion remain in the complete released diagnostics rather than occupying redundant argument-facing columns.}
 \label{fig:part2-all-models}
 \end{figure}
 \end{landscape}
@@ -365,6 +365,8 @@ Figures~\ref{fig:part0-model-language}--\ref{fig:cross-phase-outcome-profile} ar
 \end{landscape}
 
 \clearpage
+Table~\ref{tab:provider-safe-v2-all-models-cross-phase} gives the compact one-row-per-route cross-phase view requested for model comparison. Tables~\ref{tab:provider-safe-v2-part0-model-language}--\ref{tab:provider-safe-v2-part2-all-models} then expand the three primary axes, while Tables~\ref{tab:provider-safe-v2-part1-role-calibration}--\ref{tab:provider-safe-v2-part1-local-controls} report the distinct role, sensitivity, and local-control checks. Quantitative columns are centered; identity columns remain left-aligned. Every table retains axis-specific denominators and direction, and none defines a composite ranking.
+
 \begin{landscape}
 \begingroup
 \setlength{\textwidth}{\linewidth}
@@ -404,37 +406,7 @@ Primary Part~1 and role-calibration rates count every first-response invalid as 
 \label{app:legacy-evidence}
 The April archive contains 56,382 stored rows, but that number is not an inferential sample size: its repeated languages, prompt renderings, and agent-days are clustered. Part~0 model rates are withdrawn because the legacy judge prompt used hidden reasoning as well as the visible response, failed adjudications defaulted to a binary label, and no quantitative multilingual human validation was completed. Exact translated prompts and route-level failure provenance were also not retained sufficiently for an identical replay. Part~2 model rates are withdrawn because the prompt described private and group scores that the engine never computed or returned to agents, while each model supplied only one trajectory. Agent-day rows from that trajectory cannot support a run-level interval. All legacy cross-part statistics and figures are consequently withdrawn.
 
-The April Part~0 heatmaps, Part~2 trajectories and rasters, behavioral fingerprints, PCA projections, cross-part plots, and role aggregates remain in the research archive for provenance but are not current paper evidence. Table~\ref{tab:legacy-part1} reports the direct self-choice subset: 48 legacy scenario roots per model, with the two presentations nested within each root. Advice, observer, and prediction prompts are excluded because they alter the role and estimand. The current role-calibration panel in Appendix~\ref{app:current-results} replaces those legacy aggregates with a separate, common-scope execution; neither panel validates Part~0 or establishes relationships among the three axes.
-
-\begin{table}[H]
-\centering
-\caption{Legacy April Part~1 self-directed choices. Each row is one legacy local model route; Self-directed welfare-preserving choice is the percentage of its 48 scenario roots on which the model selected the action that sacrifices one focal point to avoid a three-point loss to the counterpart; Root band is the corresponding 5,000-replicate scenario-root sensitivity band. The two presentations of each scenario remain nested within root. Higher percentages are better on this dyadic task because they indicate less cost shifting to the counterpart; lower percentages indicate more focal-advantage choices, not general selfishness or unsafe behavior. These fixed-bank descriptive results are separate from, and are not pooled with, the current-model execution.}
-\label{tab:legacy-part1}
-\scriptsize
-\resizebox{\linewidth}{!}{%
-\begin{tabular}{lcc}
-\toprule
-Legacy local route & Self-directed welfare-preserving choice & Root band \\
-\midrule
-\texttt{gpt-oss:20b} & 32.3 & [21.9, 43.8] \\
-\texttt{gpt-oss-sg} & 49.0 & [35.4, 62.5] \\
-\texttt{gpt-oss-der} & 29.2 & [18.8, 39.6] \\
-\texttt{llama2} & 52.1 & [41.7, 62.5] \\
-\texttt{llama2-uncensored} & 59.4 & [47.9, 69.8] \\
-\texttt{qwen2.5:7b} & 100.0 & [100.0, 100.0] \\
-\texttt{qwen2.5-abl} & 100.0 & [100.0, 100.0] \\
-\texttt{qwen2.5-inst} & 99.0 & [96.9, 100.0] \\
-\texttt{qwen2.5-abl-inst} & 100.0 & [100.0, 100.0] \\
-\texttt{qwen3.5} & 93.8 & [89.6, 97.9] \\
-\texttt{qwen3.5-unc} & 6.2 & [2.1, 11.5] \\
-\texttt{qwen3.5-inst} & 63.5 & [52.1, 74.0] \\
-\texttt{qwen3.5-inst-unc} & 13.5 & [6.2, 21.9] \\
-\bottomrule
-\end{tabular}%
-}
-\end{table}
-
-The legacy advice, observer, and prediction prompts remain useful as provenance for the calibration design, but they do not estimate self-directed cooperation and their aggregate percentages are not reused as current evidence. The provider-safe campaign evaluates these distinct questions on a new common scope. No cross-axis composite or association is promoted while Part~0 lacks human label validation and Part~1 lacks independent prompt approval; exact route overlap alone cannot satisfy either gate.
+The April heatmaps, trajectories, behavioral fingerprints, cross-part plots, and 48-root local Part~1 table remain in the reproducibility archive for provenance but are not reproduced as current manuscript evidence. The new 384-root hosted panel supersedes that legacy display, and the separate role-calibration execution replaces the legacy role aggregates. Advice, observer, and prediction prompts remain distinct estimands rather than evidence of self-directed choice. No legacy result is pooled with the current campaign, and no cross-axis composite or association is promoted while Part~0 lacks human validation and Part~1 lacks independent prompt approval.
 
 \section{Part 1 Structured Contract}
 \label{app:part1-examples}
@@ -462,27 +434,7 @@ The prompt states that two work groups simultaneously select a one-time usage le
 \Needspace{0.34\textheight}
 \section{Model Registry}
 \label{app:model-registry}
-\begin{table}[H]
-\centering
-\caption{Frozen cohort and axis-specific evidence coverage. Each row is one analysis panel; Panel names the task cohort; Planned coverage gives its frozen systems or routes, execution scope, and included, estimable, invalid, or unavailable counts; Weighting states how the panel enters analysis or why it receives no estimate; and Promotion rule states the minimum evidence condition and exclusions governing paper use. More included or estimable systems and larger balanced root or trajectory counts provide broader or more precise coverage, whereas more unavailable, invalid, or non-estimable systems weaken evidence; these quantities are not behavioral performance scores. Exact backend-namespaced routes, versions, smoke evidence, and hashes remain in the campaign registry, and family names describe coverage rather than substitutions.}
-\label{tab:model-registry}
-\footnotesize
-\setlength{\tabcolsep}{3pt}
-\begin{tabular}{p{0.16\linewidth}p{0.31\linewidth}p{0.19\linewidth}p{0.25\linewidth}}
-\toprule
-Panel & Planned coverage & Weighting & Promotion rule \\
-\midrule
-Part~0 & \ProviderSafePartZeroModelCount{} exact systems; 48 roots $\times$ 3 response-language instructions & Separate exploratory axis & All scheduled responses retained; fixed disjoint judge; no benign controls or human validation \\
-Hosted Part~1 & \ProviderSafePartOneModelCount{} exact routes at $n=384$ & Separate exploratory axis & Common 12-stratum bank; invalid first attempts are nonsuccesses; no independent prompt approval \\
-Part~2 & \ProviderSafePartTwoModelCount{} exact systems at 12 trajectories each; \ProviderSafePartTwoEnvironmentallyEstimableTrajectoryCount{} environmentally estimable, \ProviderSafePartTwoSemanticInvalidTrajectoryCount{} semantic-invalid, and \ProviderSafePartTwoOperationallyIneligibleTrajectoryCount{} operationally ineligible trajectories & Separate corrected-engine axis & All-scheduled restraint; environmental outcomes restricted to valid trajectories; non-estimable is not zero \\
-Role calibration & \ProviderSafeRoleAdviceModelCount{} sentinels $\times$ 3 frames $\times$ 384 draws & Separate exploratory calibration & Frames are distinct estimands and are not pooled or interpreted causally \\
-Sensitivity & \ProviderSafeSensitivitySentinelCount{} sentinels $\times$ 5 factors; \ProviderSafeSensitivityTrajectoryCount{} trajectories over \ProviderSafeSensitivityCommonSeedCount{} common seeds & Separate deadline-exploratory panel & Underpowered; 30-test Holm family documents rather than validates robustness \\
-Pinned local controls & Qwen2.5-0.5B; SmolLM2 135M/360M/1.7B at $n=384$ & Separate execution-scale control & Exact offline snapshots; never pooled with or substituted for hosted routes \\
-Availability retries & Exact target-bound retry panels & Separate supplemental accounting & Never replace or merge primary rows; no silent substitution \\
-Historical/local & Legacy GPT, Gemini, Gemma, GPT-OSS, and local routes & Separate descriptive provenance & Never increases primary cross-part coverage \\
-\bottomrule
-\end{tabular}
-\end{table}
+The exact-route rows in Table~\ref{tab:provider-safe-v2-all-models-cross-phase} are the manuscript registry: they preserve authenticated target and upstream model IDs and show whether each route was executed in each primary phase. Complete backend namespaces, versions, compatibility evidence, hashes, unavailable routes, local-control snapshots, and isolated retry records are released in the machine-readable registry and Croissant metadata. Family labels never substitute for exact routes, unavailable routes receive no estimate, and supplemental retries never change primary membership or denominators.
 
 \FloatBarrier
 \Needspace{0.38\textheight}

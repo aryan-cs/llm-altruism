@@ -122,6 +122,10 @@ class ConferenceSubmissionFormatTest(unittest.TestCase):
         tables = tuple(name.replace(".pdf", "_table.tex") for name in figures)
         for name in (*figures, *tables, "all_models_cross_phase_table.tex", "paper_headlines.tex"):
             self.assertEqual(source.count(asset_root + name), 1, name)
+        self.assertEqual(
+            source.count(asset_root + "all_models_cross_phase_outcome_profile.pdf"),
+            1,
+        )
         retry_root = "../../artifacts/availability_retry_analysis_definitive_v1/"
         for name in (
             "part0_availability_retry.tex",
@@ -130,13 +134,15 @@ class ConferenceSubmissionFormatTest(unittest.TestCase):
         ):
             self.assertEqual(source.count(retry_root + name), 1, name)
         repair_root = "../../artifacts/semantic_invalid_repair_analysis_definitive_v1/"
-        for name in ("part1_semantic_repair.tex", "part1_role_semantic_repair.tex"):
-            self.assertEqual(source.count(repair_root + name), 1, name)
+        self.assertNotIn(repair_root, source)
+        self.assertIn("repair tables remain in the reproducibility supplement", source)
 
     def test_rendered_main_text_boundary_when_extractor_is_available(self) -> None:
         extractor = _find_pdftotext()
         if extractor is None or not PDF.is_file():
             self.skipTest("compiled PDF or pdftotext is unavailable")
+        if PDF.stat().st_mtime < TEX.stat().st_mtime:
+            self.skipTest("compiled PDF is older than the manuscript source")
         result = subprocess.run(
             [extractor, "-layout", str(PDF), "-"],
             check=True,
