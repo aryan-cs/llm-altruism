@@ -11,6 +11,7 @@ from analysis.build_final_results import (
     _combine_part1_overlay,
     _cross_axis,
     _overlay_contract,
+    _part0,
     _part0_overlay,
     _part1_manifest,
     _part2,
@@ -99,7 +100,7 @@ def _write_journal(path: Path, payloads: list[dict[str, Any]]) -> dict[str, Any]
     }
 
 
-def _raw(model: str, content: str = "X") -> dict[str, Any]:
+def _raw(model: str, content: str | None = "X") -> dict[str, Any]:
     return {"id": "r", "model": model, "choices": [{"message": {"content": content}, "finish_reason": "stop"}]}
 
 
@@ -109,6 +110,7 @@ def _part0_fixture(
     failed_targets: tuple[str, ...] = (), name: str = "part0",
     operational_failure_targets: tuple[str, ...] = (),
     semantic_invalid_targets: tuple[str, ...] = (),
+    empty_visible_response_targets: tuple[str, ...] = (),
 ) -> Path:
     schedule = [
         {"trial_id": f"trial-{language}", "root_id": "root-1", "language": language}
@@ -137,7 +139,10 @@ def _part0_fixture(
             )
             continue
         for trial in schedule:
-            raw = _raw(subject["route"], "I cannot help.")
+            raw = _raw(
+                subject["route"],
+                None if target_id in empty_visible_response_targets else "I cannot help.",
+            )
             payloads.append({
                 "schema_version": 1,
                 "artifact_type": "inference_hub_part0_private_record",
@@ -147,17 +152,19 @@ def _part0_fixture(
                 "response_model": subject["route"], "model_identity_valid": True,
                 "raw_response": raw, "raw_response_sha256": _sha256_json(raw),
             })
-        judge_raw = _raw(JUDGE["route"], "labels")
-        payloads.append({
-            "schema_version": 1,
-            "artifact_type": "inference_hub_part0_private_record",
-            "event": "judge_batch_retained", "target_id": target_id,
-            "batch_id": "batch-1", "trial_ids": trial_ids,
-            "requested_route": JUDGE["route"], "response_model": JUDGE["route"],
-            "model_identity_valid": True, "raw_response": judge_raw,
-            "raw_response_sha256": _sha256_json(judge_raw),
-        })
+        if target_id not in empty_visible_response_targets:
+            judge_raw = _raw(JUDGE["route"], "labels")
+            payloads.append({
+                "schema_version": 1,
+                "artifact_type": "inference_hub_part0_private_record",
+                "event": "judge_batch_retained", "target_id": target_id,
+                "batch_id": "batch-1", "trial_ids": trial_ids,
+                "requested_route": JUDGE["route"], "response_model": JUDGE["route"],
+                "model_identity_valid": True, "raw_response": judge_raw,
+                "raw_response_sha256": _sha256_json(judge_raw),
+            })
         for trial in schedule:
+            empty_visible_response = target_id in empty_visible_response_targets
             payloads.append({
                 "schema_version": 1,
                 "artifact_type": "inference_hub_part0_private_record",
@@ -165,9 +172,14 @@ def _part0_fixture(
                 "trial_id": trial["trial_id"], "root_id": trial["root_id"],
                 "language": trial["language"],
                 "outcome": (
-                    "INVALID" if target_id in semantic_invalid_targets else "REFUSAL"
+                    "INVALID"
+                    if target_id in semantic_invalid_targets or empty_visible_response
+                    else "REFUSAL"
                 ),
-                "judge_dispatched": True, "judge_batch_id": "batch-1",
+                "judge_dispatched": not empty_visible_response,
+                "judge_batch_id": None if empty_visible_response else "batch-1",
+                "judge_label": None if empty_visible_response else "REFUSAL",
+                "subject_visible_response_present": not empty_visible_response,
             })
         raw_refs[target_id] = _write_journal(
             root / f"{name}/private/raw_responses/{target_id}.jsonl", payloads
@@ -853,6 +865,29 @@ def test_semantic_or_format_invalid_outputs_cannot_be_declared_unavailable(
     )
     with pytest.raises(FinalResultsError, match="no target-bound operational or identity"):
         _part2_overlay(p2, [], [SECOND_TARGET])
+
+
+def test_part0_retains_empty_visible_responses_as_invalid_without_judging(
+    tmp_path: Path,
+) -> None:
+    manifest = _part0_fixture(
+        tmp_path,
+        complete=False,
+        empty_visible_response_targets=(TARGET,),
+        name="empty-visible-p0",
+    )
+
+    rows, identities, _binding = _part0(
+        manifest,
+        target_ids={TARGET},
+        require_complete=False,
+        require_summary=False,
+    )
+
+    assert set(identities) == {TARGET}
+    assert len(rows) == 1
+    assert rows[0]["overall_refusal"]["estimate"] == 0.0
+    assert sum(condition["invalid_count"] for condition in rows[0]["conditions"]) == 3
 
 
 def test_valid_target_cannot_be_excluded_because_another_target_failed(

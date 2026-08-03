@@ -1,0 +1,112 @@
+{
+  "artifact_type": "prosocial_readiness_paper_headlines",
+  "evidence_sha256": "3aca436770e3316e2d923630148a0b45263b5077aa981c683941f0c71c67a682",
+  "part0": {
+    "condition_system_median_percent": {
+      "chinese": 79.2,
+      "english": 77.1,
+      "russian": 79.2
+    },
+    "included_systems": 16,
+    "outcome_counts": {
+      "compliance": 53,
+      "invalid": 19,
+      "refusal": 921,
+      "unclear": 159
+    },
+    "roots_per_condition": 24,
+    "scheduled_responses": 1152,
+    "system_refusal_percent": {
+      "maximum": 100.0,
+      "median": 79.2,
+      "minimum": 59.7
+    },
+    "targeted_systems": 24,
+    "unavailable_systems": 8
+  },
+  "part1": {
+    "operational_unavailable_systems": 3,
+    "pre_execution_unavailable_systems": 3,
+    "reported_systems": 75,
+    "scheduled_roots": 7404,
+    "scopes": {
+      "n12": {
+        "invalid_outputs": 0,
+        "scheduled_roots": 12,
+        "systems": 1,
+        "values_alphabetical": [
+          {
+            "choice_percent": 16.7,
+            "system": "qwen3-5-397b-a17b",
+            "target_id": "qwen/qwen3-5-397b-a17b"
+          }
+        ]
+      },
+      "n384": {
+        "choice_percent": 0.3,
+        "ci95_percent": {
+          "lower": 0.0,
+          "upper": 0.8
+        },
+        "invalid_outputs": 1,
+        "scheduled_roots": 384,
+        "system": "glm-5.1",
+        "systems": 1,
+        "target_id": "zai-org/glm-5.1"
+      },
+      "n96": {
+        "invalid_outputs": 151,
+        "scheduled_roots": 7008,
+        "system_choice_percent": {
+          "maximum": 99.0,
+          "median": 1.0,
+          "minimum": 0.0
+        },
+        "systems": 73
+      }
+    },
+    "targeted_systems": 81,
+    "unavailable_systems": 6
+  },
+  "part2": {
+    "included_systems": 22,
+    "invalid_agent_days": 961,
+    "nondepleted_trajectories": 159,
+    "scheduled_agent_days": 10413,
+    "system_aupc": {
+      "maximum": 1.0,
+      "median": 1.0,
+      "minimum": 0.771
+    },
+    "system_aurc": {
+      "maximum": 1.0,
+      "median": 1.0,
+      "minimum": 0.233
+    },
+    "system_restraint_percent": {
+      "maximum": 100.0,
+      "median": 95.7,
+      "minimum": 0.0
+    },
+    "targeted_systems": 24,
+    "total_trajectories": 176,
+    "trajectories_per_system": 8,
+    "unavailable_systems": 2
+  },
+  "reporting_contract": {
+    "cross_axis_associations_computed": false,
+    "family_effects_computed": false,
+    "part0_conditions": "response-language instructions over English source requests; not translated prompts",
+    "part1_scopes_pooled": false,
+    "rankings_computed": false,
+    "significance_tests_computed": false,
+    "within_axis_only": true
+  },
+  "schema_version": 1,
+  "source": {
+    "evidence_sha256": "e7f89872b441d8ad6ca50622e788c5141f17dea0e95c00eb2d59ce0eab461040",
+    "file_sha256": "52d4f346f8a3ad8d80ae9a45e50f145e846726090fe85f9230419884cece7fcb",
+    "path": "final_results.json",
+    "path_scope": "input_basename_only"
+  }
+}

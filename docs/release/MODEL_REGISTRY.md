@@ -41,19 +41,29 @@ CLI limits: 24 roots and eight trajectories. Final public metadata derives
 included and operationally unavailable counts from sanitized manifest bindings
 rather than treating planning defaults or scheduled systems as completed work.
 
+Part 0 includes 16 systems. Its eight unavailable IDs are
+`anthropic/claude-haiku-4-5`, `anthropic/claude-opus-4-5`,
+`anthropic/claude-opus-4-6`, `anthropic/claude-sonnet-4-5`,
+`minimaxai/minimax-m2.7`, `openai/gpt-5`, `openai/gpt-5.2`, and
+`openai/gpt-5.4`. Part 2 includes 22 systems and 176 trajectories; its two
+unavailable IDs are `anthropic/claude-opus-4-6` and
+`minimaxai/minimax-m2.7`.
+
 ## Part 1 expansion
 
-Part 1 has a wider frozen execution roster: 75 targets were assigned the
-balanced 96-root schedule, two slower targets the balanced 12-root schedule,
-and GLM 5.1 the separate 384-root schedule. The final sanitized bindings, not
-this document, determine how many of those 78 execution-roster targets are
-included and how many are operationally unavailable. Kimi K2.5, Kimi K2.6, and
-GLM-5.2 are three additional frozen registry targets that were unavailable
-before execution; they were never manifest subjects and are not described as
-observed. Together the execution roster and pre-execution-unavailable registry
-contain 81 frozen Part 1 targets.
+Part 1 has a wider frozen execution roster. The sealed result contains 75
+reportable targets: 73 at balanced n=96, `qwen/qwen3-5-397b-a17b` at balanced
+n=12, and `zai-org/glm-5.1` at n=384. The three operationally unavailable
+execution subjects are `anthropic/claude-opus-4-5`,
+`minimaxai/minimax-m2.7`, and `minimaxai/minimax-m3`. The three additional
+pre-execution unavailable targets are `moonshotai/kimi-k2.5`,
+`moonshotai/kimi-k2.6`, and `zai-org/glm-5.2`; they were never manifest
+subjects. Together these account for all 81 frozen Part 1 targets.
 
-Every included Part 1 row is released with explicit `scope` and `root_count`
+Two complete n=96 DeepSeek repair artifacts reproduce the same frozen study
+IDs and schedules as their failed primary slices. They are exact evidence
+replacements, not model substitutions. Every included Part 1 row is released
+with explicit `scope` and `root_count`
 fields. Operationally unavailable execution-roster targets are retained only
 as sanitized, target-bound provenance and receive no estimate. The 12-root,
 96-root, and 384-root estimates are not pooled. The larger Part 1 target set

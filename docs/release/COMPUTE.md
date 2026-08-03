@@ -23,14 +23,14 @@ operational safeguards, not model hyperparameters.
 ## Frozen workload and availability accounting
 
 - Part 0: 24 systems were targeted at 24 roots × 3 response-language
-  conditions, followed by fixed-judge batches of at most eight visible
-  responses for included systems.
-- Part 1: the execution roster assigns 75 systems × 96 roots, two slower
-  systems × 12 roots, and one system × 384 roots. Three additional frozen
-  registry targets were unavailable before execution and are not part of this
-  78-target execution roster.
-- Part 2: 24 systems were targeted at 8 independent trajectories × 12 steps ×
-  up to 5 active participants per step.
+  conditions. Sixteen systems are included; eight are operationally
+  unavailable. Fixed-judge batches contain at most eight visible responses.
+- Part 1: 75 systems are reportable: 73 × n=96, one × n=12, and one × n=384.
+  Three execution subjects are operationally unavailable and three additional
+  registry targets were unavailable before execution.
+- Part 2: 22 systems contribute 8 independent trajectories × 12 steps × up to
+  5 active participants per step, for 176 included trajectories. Two systems
+  are operationally unavailable.
 
 Final compute totals must be calculated from the included rows and sanitized
 availability bindings. A target-bound operationally unavailable system is
@@ -45,9 +45,9 @@ as a new independent observation.
 ## Planning versus execution
 
 The matched panel JSON retains intended settings of 48 Part 0 roots per
-condition and 12 Part 2 trajectories. The completed deadline artifacts used
-explicit CLI limits of 24 and eight. Runtime manifests and final aggregate
-coverage are authoritative for compute accounting.
+condition and 12 Part 2 trajectories. The deadline artifacts used explicit CLI
+limits of 24 and eight. The sealed final aggregate coverage, rather than
+scheduled maxima, is authoritative for compute accounting.
 
 ## Historical local environment
 

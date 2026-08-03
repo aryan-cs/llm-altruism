@@ -35,11 +35,55 @@ the executed CLI limits. The larger 48-root and 12-trajectory values in
 `experiments/sota_cross_axis_panel.json` are intended settings, not completed
 counts.
 
+Sealed coverage is Part 0: 16 included and 8 unavailable; Part 1: 75
+reportable and 6 unavailable of 81 (73 at n=96, one at n=12, one at n=384;
+three operational and three pre-execution unavailable); Part 2: 22 included and
+2 unavailable, with 176 included trajectories. Exact IDs are listed in
+`MODEL_REGISTRY.md`.
+
 All hosted callers use the shared cross-process rate limiter and exact
 compatibility-selected routes. Part 0 and Part 1 subject calls can progress in
 parallel across upstream providers, while provider-specific concurrency remains
 bounded. Part 0 judge batches use one fixed non-subject judge. Only transport
 failures are retried; malformed semantic outputs are retained.
+
+## Fail-closed offline finalization
+
+Offline administration runs only after a writer has stopped and its run lock
+is free. The Part 0/Part 1 retirement tool validates retained target-bound
+transport or identity-failure evidence, performs no network dispatch, and
+assigns no behavioral outcome:
+
+```bash
+uv run python -m experiments.misc.inference_hub_retire_target \
+  --manifest <part0-or-part1-private-manifest> \
+  --target-id <exact-study-target-id> \
+  --reason '<auditable operational reason>' \
+  [--close-all-stale-reservations]
+```
+
+Part 0 records the eight unavailable IDs in `MODEL_REGISTRY.md`. Part 1 records
+the main-shard MiniMax M2.7 retirement; Claude Opus 4.5 and n=12 MiniMax M3
+already had complete target-bound failure evidence and required no invented
+terminal result.
+
+Part 2 was finalized without further dispatch by replaying only retained
+complete trajectories and recording operational evidence for two targets. The
+production invocation verified source bytes from clean Git commit `818414c`:
+
+```bash
+mkdir -p /tmp/sbr-source-818414c
+git archive 818414c | tar -x -C /tmp/sbr-source-818414c
+uv run python -m analysis.finalize_inference_hub_part2_offline \
+  --manifest data/private/inference_hub/part2-sota-matched-v1-n8/private/manifest.json \
+  --unavailable-target anthropic/claude-opus-4-6 \
+  --unavailable-target minimaxai/minimax-m2.7 \
+  --source-verification-root /tmp/sbr-source-818414c
+```
+
+The finalizer checks every journal chain, frozen input, source hash, and replayed
+transition, and fails if replay reaches an unretained unit. Its private output
+is not distributed.
 
 ## Build sanitized final results
 
@@ -48,10 +92,25 @@ Create the immutable public result directory once:
 ```bash
 uv run python -m analysis.build_final_results \
   --part0-manifest data/private/inference_hub/part0-sota-panel-v2-n24/private/manifest.json \
+  --part0-unavailable-target anthropic/claude-haiku-4-5 \
+  --part0-unavailable-target anthropic/claude-opus-4-5 \
+  --part0-unavailable-target anthropic/claude-opus-4-6 \
+  --part0-unavailable-target anthropic/claude-sonnet-4-5 \
+  --part0-unavailable-target minimaxai/minimax-m2.7 \
+  --part0-unavailable-target openai/gpt-5 \
+  --part0-unavailable-target openai/gpt-5.2 \
+  --part0-unavailable-target openai/gpt-5.4 \
   --part1-full-manifest data/private/inference_hub/part1-sota-deadline-glm51-v1/private/manifest.json \
   --part1-partial-manifest data/private/inference_hub/part1-sota-balanced-main75-v1-n96/private/manifest.json \
   --part1-partial-manifest data/private/inference_hub/part1-sota-balanced-slow2-v2-n12/private/manifest.json \
+  --part1-replacement-manifest data/private/inference_hub/part1-sota-repair-deepseek-v4-flash-v1-n96/private/manifest.json \
+  --part1-replacement-manifest data/private/inference_hub/part1-sota-repair-deepseek-v4-pro-v1-n96/private/manifest.json \
+  --part1-unavailable-target anthropic/claude-opus-4-5 \
+  --part1-unavailable-target minimaxai/minimax-m2.7 \
+  --part1-unavailable-target minimaxai/minimax-m3 \
   --part2-manifest data/private/inference_hub/part2-sota-matched-v1-n8/private/manifest.json \
+  --part2-unavailable-target anthropic/claude-opus-4-6 \
+  --part2-unavailable-target minimaxai/minimax-m2.7 \
   --panel-config experiments/sota_cross_axis_panel.json \
   --output-dir data/analysis/final_results
 ```
@@ -73,7 +132,10 @@ ineligible Part 2 trajectory, or any forbidden public text field. It preserves
 each included Part 1 target's observed count and never pools the 12-root,
 96-root, or 384-root rows. Cross-axis
 output is absent unless the exact 24-system overlap and every evidence gate
-pass.
+pass. The two replacement manifests preserve the exact DeepSeek target IDs and
+frozen n=96 schedules; they are not model substitutions. The sealed result
+self-hash is
+`e7f89872b441d8ad6ca50622e788c5141f17dea0e95c00eb2d59ce0eab461040`.
 
 Convert the sealed result graph into the exact, scope-separated values used by
 the manuscript:
@@ -114,12 +176,12 @@ uv run python -m analysis.build_croissant_metadata \
 This command no longer catalogs April raw CSVs. It accepts only the self-hashed
 `prosocial_readiness_final_sanitized_results` artifact and its hash-bound CSVs.
 It checks that included rows plus validated, axis-specific operationally
-unavailable IDs reconstruct the frozen 24-system Part 0 panel, the 78-target
-Part 1 execution roster (75 at n=96, two at n=12, one at n=384), and the
-24-system Part 2 panel. It separately accounts for the three frozen Part 1
+unavailable IDs reconstruct the frozen 24-system Part 0 panel (16+8), the
+78-target Part 1 execution roster (75 reported+3 operationally unavailable),
+and the 24-system Part 2 panel (22+2). It separately accounts for the three frozen Part 1
 registry targets that were unavailable before execution, yielding 81 planned
 Part 1 targets without describing those three as observed. It also verifies 24
-Part 0 roots per condition, eight Part 2 trajectories, scope-separated CSV
+Part 0 roots per condition, 176 Part 2 trajectories, scope-separated CSV
 rows, and public-basename-only provenance. Missing final results, stale hashes,
 sensitive fields, private paths, or a changed frozen scope stop metadata
 emission.
@@ -139,10 +201,11 @@ cd ../..
 uv run python -m analysis.build_supplement
 ```
 
-The supplement allowlists the three hosted runners and their required
-non-secret dependencies and tests. A strict denylist excludes credentials,
-private evidence, harmful content, raw journals, incomplete runs, and deprecated
-legacy artifacts. Completed sanitized aggregate files are remapped under
+The supplement allowlists the three hosted runners, fail-closed retirement and
+Part 2 finalization tools, and their required non-secret dependencies and
+tests. A strict denylist excludes credentials, private evidence, harmful
+content, raw journals, incomplete private artifacts, and deprecated legacy
+artifacts. Sealed sanitized aggregate files are remapped under
 `data/analysis/` in the ZIP and remain bound by `SUPPLEMENT_MANIFEST.json`.
 
 ## Acceptance gate
@@ -150,8 +213,10 @@ legacy artifacts. Completed sanitized aggregate files are remapped under
 A release candidate is ready only when:
 
 - the full test suite passes;
-- every selected private manifest is complete and self-hash-valid;
-- final-result generation succeeds exactly once from the named artifacts;
+- every selected manifest or target-bound overlay is self-hash-valid and passes
+  the applicable complete-unit, failure-evidence, identity, and coverage gates;
+- final-result generation succeeds exactly once from the named artifacts and
+  produces the recorded self-hash;
 - Croissant generation and `--check` succeed against that final directory;
 - the anonymous supplement builds and its audit reports no identity or private
   data leak;

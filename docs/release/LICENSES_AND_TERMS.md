@@ -39,9 +39,12 @@ Raw Part 0 model outputs can contain harmful requests, jailbreak wrappers, model
 The supplement excludes legacy Part 0 tables and every dependent legacy
 cross-part output, as well as harmful prompt text and completions. Current
 hosted Part 0 raw prompts, responses, reasoning, judge payloads, and journals
-also remain private. Only text-free aggregates produced by the fail-closed final
-result builder may enter the package. Any future raw release requires separate
-safety, privacy, and upstream-license review.
+also remain private. The same exclusion applies to all private Part 1 and Part
+2 manifests, routes, journals, prompts, responses, and reasoning, including the
+incomplete source artifacts used by validated fail-closed overlays. Only
+text-free aggregates and target-bound availability records produced by the
+final result builder may enter the package. Any future raw release requires
+separate safety, privacy, and upstream-license review.
 
 ## Supplement Package
 

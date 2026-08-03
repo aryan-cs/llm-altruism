@@ -1,22 +1,29 @@
-# Prosocial Cost-Shifting Bench
+# Safety Beyond Refusal
 
-Prosocial Cost-Shifting Bench is a traceable evaluation suite for measuring
-separate response profiles in harmful-request refusal, focal social-dilemma
-choices, and repeated shared-resource use. It does not assume that performance
-transfers across those domains or combine them into a readiness score.
+**Safety Beyond Refusal** studies three complementary, directly observable
+behaviors: harmful-request refusal, welfare-preserving self-choice in one-shot
+social dilemmas, and restraint in a corrected repeated commons simulation. The
+benchmark reports the axes separately; it does not infer intrinsic altruism,
+moral character, or a single deployment-readiness score.
 
-The project started under the working name `llm-altruism`, but the benchmark does not claim to measure intrinsic altruism or moral character. It measures observable behaviors under explicit task contracts:
+The sealed deadline artifact contains:
 
-- **Part 0: Safety refusal.** Models answer multilingual harmful-request prompts; outputs are scored as refusal or compliance.
-- **Part 1: Focal dilemma choices.** Models produce self-directed choices, advice, observer judgments, and predictions in hypothetical one-shot dilemmas.
-- **Part 2: Prompt--engine contract audit.** Homogeneous same-model populations emitted `OPTION_A`/`OPTION_B` tokens while the prompt described private and group scores that the engine never implemented. The stored trajectories diagnose that mismatch; they do not measure commons preference.
+- **Part 0:** exploratory response-only refusal results for 16 of 24 matched
+  systems. Eight systems are axis-specifically unavailable, and no failed route
+  is silently replaced. The archived inputs are English harmful-request roots
+  crossed with three requested response languages, not translated inputs.
+- **Part 1:** exploratory direct-choice results for 75 of 81 frozen targets: 73
+  systems at 96 balanced roots, one at 12 balanced roots, and one at 384 roots.
+  Three execution-roster targets and three pre-execution registry targets are
+  unavailable. The three scopes are never pooled.
+- **Part 2:** corrected commons results for 22 of 24 matched systems, each with
+  eight independent common-seed trajectories (176 trajectories total). Two
+  systems are axis-specifically unavailable.
 
-The April pilot supports descriptive Part 1 action-label summaries and a Part 2
-prompt--engine contract diagnosis. It does not support behavioral Part 2 results.
-Its legacy Part 0 labels are invalid for model-level refusal claims because the
-old labeler could inspect rationale and default failed adjudications to denial.
-The paper therefore withdraws all Part 0 rates and refusal-based cross-part
-claims pending complete response-only rejudgment and a human criterion audit.
+The April pilot remains historical provenance. Its audit led to the corrected
+response-only judge, balanced Part 1 bank, repeated-commons engine, provenance
+controls, and exclusions used in the current study. Its unsupported rates and
+cross-axis claims are not current paper results.
 
 ## What Is In This Repository
 
@@ -39,9 +46,11 @@ tests/                        Unit and integration tests
 ```
 
 Parts 3-5 are roadmap placeholders. Parts 0-2 are the implemented benchmark
-scope. Only the Part 1/Part 2 pilot artifacts are structurally validated; Part 0
-model-level evidence is withdrawn and confirmatory inputs remain unapproved.
-Do not promote additional parts without implementation, validation, and reruns.
+scope. The current sanitized result graph is
+`data/analysis/final_results/final_results.json`, whose self-hash is
+`e7f89872b441d8ad6ca50622e788c5141f17dea0e95c00eb2d59ce0eab461040`.
+Part 0 and Part 1 remain exploratory because their external validation gates
+are incomplete; Part 2 remains below its intended n=12 promotion threshold.
 
 ## Setup
 
@@ -102,9 +111,7 @@ uv run python -m experiments.part1.part_1 \
   --headless
 ```
 
-Part 2 executes the legacy repeated-resource protocol for contract auditing. Its
-outputs must be interpreted as mismatched prompt--engine traces, not as commons
-preference estimates:
+Part 2 executes the corrected repeated-resource protocol:
 
 ```bash
 uv run python -m experiments.part2.part_2 \
@@ -186,7 +193,8 @@ working tree for forensic replay. Every row is marked invalid/deprecated, and
 those tables and their dependent plots are excluded from Croissant metadata and
 the anonymous supplement.
 
-The legacy campaign remains available for reproducing pilot workflows:
+The legacy campaign remains available only for reproducing historical pilot
+workflows:
 
 ```bash
 uv run python -m experiments.campaign \
@@ -195,32 +203,13 @@ uv run python -m experiments.campaign \
   --dry-run
 ```
 
-New paper-facing collection must use the isolated confirmatory campaign in
-`experiments.confirmatory_campaign`, not the legacy runner. It requires a
-fresh, complete route-evidence bundle, human-approved Part 0 and Part 1 inputs,
-same-target full-path smokes, exact native artifact verification, and the fixed
-24-trajectory Part 2 panel. See
-`docs/CONFIRMATORY_CAMPAIGN.md` and `docs/CONFIRMATORY_PROTOCOL.md` for the
-complete commands and gates. A confirmatory dry run validates all inputs and
-prints the exact job matrix without writing files or calling a provider.
-
-The 24-system `current_sota` and six-system `historical` cohorts are defined in
-`agents/agent_config.registry.json`. Together they cover current GPT-5.6,
-Claude, Gemini/Gemma, Nemotron, DeepSeek, Qwen, Kimi, GLM, Mistral, MiniMax,
-and GPT-OSS systems plus GPT-3.5, GPT-4.1, GPT-5, Gemini 2.5, Gemma 2, and
-GPT-OSS historical comparisons. All 30 evaluated targets and the separate
-judge now use exact backend-namespaced IDs present in the authenticated
-InferenceHub `/models` census and corresponding portal cards. They remain
-`verification_status=unverified` and `route_source=catalog_display_only`, and
-therefore cannot be executed by the production adapter. Preserve discovery and
-smoke-test evidence and mark a route verified only after review. Developer
-Tools display text or a model-card page alone is insufficient. The provider adapter independently
-requires a registered verified route before reading credentials and rejects a
-missing or different response-model identity. Registry membership is a run
-plan, not a claim that a provider route is available or that its results appear
-in the paper. All 30 frozen routes must pass smoke tests, complete native
-artifacts, and validate; one incomplete route leaves the campaign incomplete
-and prevents confirmatory estimator release.
+The paper-facing deadline campaign uses the frozen 24-system matched panel in
+`experiments/sota_cross_axis_panel.json` and the broader 81-target Part 1
+registry. Exact authenticated routes were compatibility-probed before dispatch;
+study target IDs, returned identities, requests, and response hashes remain
+bound in private journals. The final public artifact includes only validated,
+text-free aggregates and explicit availability records. Exact finalization and
+overlay commands are in `docs/release/REPRODUCIBILITY.md`.
 
 After setting the exact InferenceHub base URL and credential, verify the full
 current-plus-historical panel in one fail-closed batch:
@@ -290,15 +279,8 @@ minimal response or missing usage block is recorded but does not erase proof
 that the exact route returned visible chat content; those conditions remain
 fatal in the stricter confirmatory smoke.
 
-This captures the virtual key's authorized `GET /models` catalog, inventories
-every returned route with an explicit include/exclude decision, and runs a
-structured, seeded, identity-checked completion against every exact frozen route. It writes
-each pre-dispatch reservation to the discovery ledger, including failed calls,
-and marks the evidence complete only after all selected routes pass. The bundle
-contains hashes and request IDs, not generated content or credentials. Because the checked-in
-routes are currently display-only placeholders, review the authenticated
-catalog and replace them with exact callable IDs before expecting this gate to
-pass.
+These discovery commands are retained for a new collection. They do not alter
+the sealed deadline results or convert unavailable systems into observations.
 
 Legacy Part 0 exports can be rejudged without exposing stored rationale text to
 the judge:
@@ -373,9 +355,16 @@ This validation does not prove that the automated Part 0 judge is semantically c
 
 ## Data And Safety
 
-Part 0 uses harmful-request prompts and model completions for safety evaluation. Do not casually republish raw harmful prompts or completions. The anonymous supplement excludes raw Part 0 prompt-source CSVs, raw Part 0 metadata sidecars, raw Part 0 harmful completions, and every invalid legacy Part 0 or dependent cross-part table and figure. It includes the sanitized aggregate rejudgment-audit checkpoint plus Part 1/Part 2 raw CSVs and metadata.
+Part 0 uses harmful-request prompts and model completions for safety evaluation.
+Do not republish raw harmful prompts or completions. The anonymous supplement
+excludes all private manifests, journals, prompts, responses, reasoning, routes,
+credentials, interrupted artifacts, and deprecated legacy outputs. It includes
+only reviewed code, documentation, tests, and the sealed text-free aggregates.
 
-Part 1 and Part 2 prompts, traces, and metadata are intended for auditability. Treat the current results as a pilot snapshot, not a final leaderboard. The Part 2 runs in the paper are one contract-mismatched trajectory per model; their stored `OPTION_A` token rates and mechanically downstream state traces are audit records, not behavioral estimates.
+The current results are task-specific descriptive evidence, not a leaderboard.
+Part 2 uses the corrected five-agent, 12-step engine and includes 176 eligible
+independent trajectories across 22 systems; it does not reuse the mismatched
+April pilot trajectories.
 
 ## Useful Release Documents
 

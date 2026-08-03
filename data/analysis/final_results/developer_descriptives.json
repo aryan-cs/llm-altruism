@@ -1,0 +1,247 @@
+{
+  "artifact_type": "prosocial_readiness_developer_route_descriptives",
+  "evidence_sha256": "79d397b144e4b16dc13325bbfab71446798ee9cb853312eb3d1ecd4507bec68b",
+  "part0": {
+    "groups_alphabetical": [
+      {
+        "developer_route_group": "google",
+        "overall_refusal": {
+          "maximum": 0.847222,
+          "median": 0.791667,
+          "minimum": 0.597222
+        },
+        "system_count": 4
+      },
+      {
+        "developer_route_group": "nvidia",
+        "overall_refusal": {
+          "maximum": 0.666667,
+          "median": 0.659722,
+          "minimum": 0.652778
+        },
+        "system_count": 2
+      },
+      {
+        "developer_route_group": "openai",
+        "overall_refusal": {
+          "maximum": 1.0,
+          "median": 0.895833,
+          "minimum": 0.763889
+        },
+        "system_count": 4
+      },
+      {
+        "developer_route_group": "qwen",
+        "overall_refusal": {
+          "maximum": 1.0,
+          "median": 0.944444,
+          "minimum": 0.888889
+        },
+        "system_count": 2
+      }
+    ],
+    "metric_scale": "proportion"
+  },
+  "part1": {
+    "metric_scale": "proportion",
+    "scopes_alphabetical": [
+      {
+        "groups_alphabetical": [],
+        "root_count": 12
+      },
+      {
+        "groups_alphabetical": [
+          {
+            "developer_route_group": "anthropic",
+            "self_choice": {
+              "maximum": 0.958333,
+              "median": 0.328125,
+              "minimum": 0.0
+            },
+            "system_count": 16
+          },
+          {
+            "developer_route_group": "deepseek-ai",
+            "self_choice": {
+              "maximum": 0.0,
+              "median": 0.0,
+              "minimum": 0.0
+            },
+            "system_count": 2
+          },
+          {
+            "developer_route_group": "google",
+            "self_choice": {
+              "maximum": 0.052083,
+              "median": 0.0,
+              "minimum": 0.0
+            },
+            "system_count": 9
+          },
+          {
+            "developer_route_group": "nvidia",
+            "self_choice": {
+              "maximum": 0.010417,
+              "median": 0.005208,
+              "minimum": 0.0
+            },
+            "system_count": 4
+          },
+          {
+            "developer_route_group": "openai",
+            "self_choice": {
+              "maximum": 0.989583,
+              "median": 0.0,
+              "minimum": 0.0
+            },
+            "system_count": 33
+          },
+          {
+            "developer_route_group": "perplexity",
+            "self_choice": {
+              "maximum": 0.197917,
+              "median": 0.041667,
+              "minimum": 0.03125
+            },
+            "system_count": 3
+          },
+          {
+            "developer_route_group": "qwen",
+            "self_choice": {
+              "maximum": 0.03125,
+              "median": 0.0,
+              "minimum": 0.0
+            },
+            "system_count": 5
+          }
+        ],
+        "root_count": 96
+      },
+      {
+        "groups_alphabetical": [],
+        "root_count": 384
+      }
+    ],
+    "scopes_pooled": false
+  },
+  "part2": {
+    "groups_alphabetical": [
+      {
+        "aupc": {
+          "maximum": 1.0,
+          "median": 1.0,
+          "minimum": 1.0
+        },
+        "aurc": {
+          "maximum": 1.0,
+          "median": 1.0,
+          "minimum": 0.833333
+        },
+        "developer_route_group": "anthropic",
+        "restraint_rate": {
+          "maximum": 1.0,
+          "median": 1.0,
+          "minimum": 0.916667
+        },
+        "system_count": 4
+      },
+      {
+        "aupc": {
+          "maximum": 1.0,
+          "median": 1.0,
+          "minimum": 0.895833
+        },
+        "aurc": {
+          "maximum": 0.806667,
+          "median": 0.497083,
+          "minimum": 0.3
+        },
+        "developer_route_group": "google",
+        "restraint_rate": {
+          "maximum": 0.902083,
+          "median": 0.703125,
+          "minimum": 0.648958
+        },
+        "system_count": 4
+      },
+      {
+        "aupc": {
+          "maximum": 1.0,
+          "median": 0.885417,
+          "minimum": 0.770833
+        },
+        "aurc": {
+          "maximum": 1.0,
+          "median": 0.616667,
+          "minimum": 0.233333
+        },
+        "developer_route_group": "nvidia",
+        "restraint_rate": {
+          "maximum": 0.345556,
+          "median": 0.172778,
+          "minimum": 0.0
+        },
+        "system_count": 2
+      },
+      {
+        "aupc": {
+          "maximum": 1.0,
+          "median": 1.0,
+          "minimum": 0.88125
+        },
+        "aurc": {
+          "maximum": 1.0,
+          "median": 1.0,
+          "minimum": 0.337917
+        },
+        "developer_route_group": "openai",
+        "restraint_rate": {
+          "maximum": 1.0,
+          "median": 1.0,
+          "minimum": 0.476394
+        },
+        "system_count": 7
+      },
+      {
+        "aupc": {
+          "maximum": 1.0,
+          "median": 1.0,
+          "minimum": 1.0
+        },
+        "aurc": {
+          "maximum": 0.704583,
+          "median": 0.51,
+          "minimum": 0.315417
+        },
+        "developer_route_group": "qwen",
+        "restraint_rate": {
+          "maximum": 0.725,
+          "median": 0.66875,
+          "minimum": 0.6125
+        },
+        "system_count": 2
+      }
+    ],
+    "metric_scale": "proportion"
+  },
+  "reporting_contract": {
+    "causal_or_vendor_claims_supported": false,
+    "cross_axis_join_performed": false,
+    "grouping_label": "developer_route_group",
+    "groups_order": "alphabetical_by_exact_upstream_provider",
+    "minimum_systems_per_emitted_group": 2,
+    "model_family_effects_computed": false,
+    "outcome_sorting_performed": false,
+    "part1_scopes_pooled": false,
+    "rankings_computed": false,
+    "significance_tests_computed": false,
+    "within_axis_only": true
+  },
+  "schema_version": 1,
+  "source": {
+    "evidence_sha256": "e7f89872b441d8ad6ca50622e788c5141f17dea0e95c00eb2d59ce0eab461040",
+    "file_sha256": "52d4f346f8a3ad8d80ae9a45e50f145e846726090fe85f9230419884cece7fcb",
+    "path": "final_results.json",
+    "path_scope": "input_basename_only"
+  }
+}

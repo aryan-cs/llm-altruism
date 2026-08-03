@@ -30,9 +30,9 @@ uv run python -m analysis.build_supplement
 ```
 
 The supplement includes the reviewed Part 0, Part 1, and Part 2 hosted runners,
-their non-secret reproducibility dependencies and tests, release documentation,
-and sanitized final aggregate artifacts once the fail-closed result builder has
-produced them. It excludes credentials, private manifests, harmful prompts,
-visible responses, reasoning, raw journals, interrupted runs, and deprecated
-legacy evidence. Croissant metadata is generated only from the complete,
+fail-closed offline administration tools, their non-secret dependencies and
+tests, release documentation, and the sealed sanitized aggregate artifacts. It
+excludes credentials, private manifests, harmful prompts, visible responses,
+reasoning, authenticated routes, raw journals, interrupted artifacts, and
+deprecated legacy evidence. Croissant metadata is generated only from the
 self-hashed sanitized final-results directory.

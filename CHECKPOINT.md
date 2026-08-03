@@ -1,21 +1,21 @@
 # Paper completion checkpoint
 
-Updated: 2026-08-02 (America/Los_Angeles)
+Updated: 2026-08-03 (America/Los_Angeles)
 
 ## North star
 
-- The submission is **Safety Beyond Refusal**, a corrected successor to the
-  original Prosocial Readiness Bench manuscript at Git commit `9cdefa4`.
-- The scientific question remains whether multilingual safety refusal,
-  cooperation in one-shot social dilemmas, and restraint in repeated commons
-  environments provide complementary observable evidence about model behavior.
-- The August audit is not the paper's thesis. Its valid findings are incorporated
-  as protocol repairs, provenance controls, exclusions of unsupported legacy
-  results, and explicit limitations.
-- No result is promoted from an incomplete run, an unavailable route is never
+- The submission is **Safety Beyond Refusal**, a corrected and expanded version
+  of the original Prosocial Readiness Bench manuscript at Git commit `9cdefa4`.
+- The scientific question remains whether harmful-request refusal, cooperation
+  in one-shot social dilemmas, and restraint in repeated commons environments
+  provide complementary observable evidence about model behavior.
+- The April audit is not the paper's thesis. Its valid findings appear as
+  protocol repairs, provenance controls, exclusions of unsupported legacy
+  evidence, and explicit limitations.
+- No incomplete sampling unit is promoted, an unavailable route is never
   silently substituted, and a subject model never judges its own output.
 
-## Frozen corrected experiments
+## Sealed corrected experiments
 
 ### Matched cross-axis panel
 
@@ -23,168 +23,122 @@ Updated: 2026-08-02 (America/Los_Angeles)
   OpenAI GPT-3.5/4/5 and GPT-OSS, Anthropic Claude Haiku/Sonnet/Opus, Google
   Gemini 2.5/3.x, Meta Llama, DeepSeek, Qwen, MiniMax, GLM, and NVIDIA
   Nemotron families.
-- The fixed judge is `judge.nvidia-evals-nemotron-3-30b-a3b`. It is outside the
-  subject roster. Selection rejects overlap by target ID, exact route, and
-  provider plus upstream model identity.
-- The panel file records the intended promotion design (Part 0: 48 roots per
-  condition; Part 2: 12 trajectories). The deadline execution is smaller and
-  must always be reported separately: Part 0 uses 24 roots per condition and
-  Part 2 uses eight trajectories per model.
+- The fixed Part 0 judge is `judge.nvidia-evals-nemotron-3-30b-a3b`. It is
+  outside the subject roster; selection rejects target-ID, exact-route, and
+  upstream-identity overlap.
+- The planning file retains intended settings of 48 Part 0 roots per condition
+  and 12 Part 2 trajectories. The executed deadline design is reported
+  separately: 24 Part 0 roots per condition and eight Part 2 trajectories.
 
 ### Part 0: response-only safety refusal
 
-- Live artifact:
+- Source artifact:
   `data/private/inference_hub/part0-sota-panel-v2-n24`.
-- Design: 24 matched systems, 24 archived English harmful-request roots, and
-  three explicit response-language instructions (English, Chinese, Russian),
-  for 72 cells per system and 1,728 subject calls.
-- The inputs are English requests with reconstructed response-language
-  conditions. They are not retained multilingual input translations and must
-  never be described that way.
-- The fixed disjoint judge scores only the visible final response, in batches of
-  eight. Judge failures remain explicitly unjudged and are not converted into
-  refusals or compliance labels.
-- The deadline artifact has no benign controls and no completed blinded human
-  validation. It may support exploratory response-only findings, but not the
-  validated Part 0 promotion or cross-axis gate.
-- The older `part0-sota-panel-v1` partial run is preserved and excluded.
+- Design: 24 archived English harmful-request roots crossed with English,
+  Chinese, and Russian response-language instructions (72 cells per system).
+  These are not retained translated-prompt conditions.
+- Sixteen systems have complete scored cells and enter the sanitized results.
+  Eight have no estimate because of validated target-bound operational failure:
+  `anthropic/claude-haiku-4-5`, `anthropic/claude-opus-4-5`,
+  `anthropic/claude-opus-4-6`, `anthropic/claude-sonnet-4-5`,
+  `minimaxai/minimax-m2.7`, `openai/gpt-5`, `openai/gpt-5.2`, and
+  `openai/gpt-5.4`.
+- The fixed disjoint judge saw only visible response text. Judge failures remain
+  unjudged rather than becoming refusal or compliance labels.
+- With no benign controls and no completed blinded human validation, Part 0 is
+  exploratory and cannot pass the cross-axis promotion gate.
 
 ### Part 1: balanced one-shot cooperation
 
-- Main live artifact:
-  `data/private/inference_hub/part1-sota-balanced-main75-v1-n96`.
-- Main design: 75 routes, 96 roots per route, with exactly eight roots in each
-  of 12 game-by-domain strata.
-- Slow-route live artifact:
-  `data/private/inference_hub/part1-sota-balanced-slow2-v2-n12`.
-- Slow-route design: MiniMax M3 and Qwen3.5 397B, 12 roots per route, with one
-  root in each of the same 12 strata. Earlier n=96 slow-route attempts are
-  preserved and excluded.
-- Full-bank live artifact:
-  `data/private/inference_hub/part1-sota-deadline-glm51-v1`.
-- Full-bank design: GLM-5.1 over all 384 balanced roots.
-- The target roster contains 81 identities. Seventy-eight are being observed:
-  75 at n=96, two at n=12, and GLM-5.1 at n=384. Kimi K2.5, Kimi K2.6, and
-  GLM-5.2 are explicitly unavailable, with no substitutions.
-- Direct self-choice is the primary estimand. Invalid formats are retained as
-  non-cooperation for the executed direct-choice estimand. Advice, observer,
-  and prediction roles are distinct probes and are not pooled with self-choice.
-- The deterministic balanced bank has not received the planned human approval,
-  so hosted Part 1 outcomes are exploratory descriptive results. Unbalanced
-  prefix-limited shards and older partial main runs are preserved and excluded.
+- Source artifacts are the n=96 main shard, the n=12 slow shard, the GLM-5.1
+  n=384 full-bank run, and two complete identity- and schedule-matched n=96
+  DeepSeek repair artifacts listed in `docs/release/REPRODUCIBILITY.md`.
+- Seventy-five of 81 frozen targets are reportable: 73 at n=96, Qwen3.5 397B at
+  n=12, and GLM-5.1 at n=384. The scopes are never pooled.
+- Three execution subjects are operationally unavailable:
+  `anthropic/claude-opus-4-5`, `minimaxai/minimax-m2.7`, and
+  `minimaxai/minimax-m3`. Three additional registry targets were unavailable
+  before execution: `moonshotai/kimi-k2.5`, `moonshotai/kimi-k2.6`, and
+  `zai-org/glm-5.2`. None receives a substitute or estimate.
+- The DeepSeek repair artifacts reproduce the same frozen target identities and
+  schedules. They are replacement evidence for failed primary artifacts, not
+  model substitutions.
+- Direct self-choice is the primary estimand. Invalid formats remain
+  non-cooperation; advice, observer, and prediction roles are separate probes.
+  The bank lacks independent content approval, so results are exploratory.
 
 ### Part 2: corrected repeated commons restraint
 
-- Live artifact:
+- Source artifact:
   `data/private/inference_hub/part2-sota-matched-v1-n8`.
-- Design: 24 matched systems, eight common-seed independent trajectories per
-  system, five agents, 12 days, and resource capacity 50.
-- Option A provides private payoff +1 and no reserve loss. Option B provides
-  private payoff +2 and removes two reserve units. Unanimous A adds five group
-  payoff units and unanimous B removes five.
-- Invalid visible outputs are retained as zero-effect `INVALID` actions with no
-  semantic retry. Transport failures and identity mismatches remain operational
-  failures and prevent a complete evidence lock.
-- Primary trajectory-level metrics are restraint rate, reserve nondepletion,
-  final reserve, population retention, area under the reserve curve, area under
-  the population curve, and cumulative private and group payoffs.
-- Continuous metric uncertainty uses trajectory-level t intervals; reserve
-  nondepletion uses a Wilson interval. The executed n=8 design does not satisfy
-  the intended n=12 cross-axis promotion gate and includes no separate
-  sensitivity panel.
-- `part2-production-smoke-v1` completed a full production-shaped trajectory and
-  verified the repaired dispatch, prompt, and dynamics path before the matched
-  launch.
+- Twenty-two systems enter the sanitized results with eight complete,
+  independent common-seed trajectories each: 176 trajectories total. Two have
+  no estimate: `anthropic/claude-opus-4-6` and
+  `minimaxai/minimax-m2.7`.
+- Each trajectory uses five agents, 12 days, and capacity 50. Option A gives
+  private payoff +1 with no reserve loss; Option B gives private payoff +2 and
+  removes two reserve units. Unanimous A adds five group-payoff units and
+  unanimous B removes five.
+- Invalid visible outputs are zero-effect `INVALID` actions with no semantic
+  retry. Transport and identity failures remain operational failures.
+- The primary unit is the independent trajectory. Continuous metrics use
+  trajectory-level t intervals; reserve nondepletion uses a Wilson interval.
+  The n=8 deadline design remains below n=12 and has no sensitivity panel.
 
-## Execution and provenance controls
+## Evidence and privacy controls
 
-- The four unfinished primary processes run concurrently with a single owner per
-  output directory; the GLM-5.1 full-bank process is complete. Resumption is
-  allowed only when manifest, source, input, identity, and journal bindings
-  match.
-- The shared cross-process limiter enforces durable leases, heartbeats, provider
-  and global concurrency and request-rate ceilings, `Retry-After`, and 30-second
-  cooldowns for HTTP 429 and every HTTP 5xx response. SDK retries are disabled.
-- Private journals reserve attempts before dispatch, append with fsync, and form
-  SHA-256 chains. Manifests bind exact routes, selected compatibility profiles,
-  source hashes, immutable schedules, request hashes, and raw-response hashes.
-- Private prompt, response, reasoning, route, and key material must never enter
-  Git, the paper, public aggregates, Croissant metadata, or the supplement.
-- Four pinned local Hugging Face controls completed 1,536 Part 1 generations in
-  a separate private artifact. They remain exploratory controls and are not
-  substitutes for unavailable hosted systems.
+- The hosted collection is finished; there are no active primary experiment
+  writers. Fail-closed offline tools closed target-bound operational tails or
+  retained complete Part 2 trajectories without dispatching new calls or
+  inventing behavioral outcomes.
+- Durable reservations, fsync-appended SHA-256 journal chains, exact route and
+  returned-model bindings, source/input hashes, frozen schedules, request
+  hashes, raw-response hashes, shared rate limits, and `Retry-After` handling
+  remain in the private evidence.
+- Private prompts, responses, reasoning, routes, manifests, journals, and keys
+  do not enter Git, the paper, Croissant metadata, or the supplement.
+- Four pinned local Hugging Face controls completed 1,536 separate exploratory
+  Part 1 generations. They do not replace unavailable hosted systems.
 
 ## Paper and artifact state
 
-- `docs/conference_submission/conference_submission.tex` has the exact title
-  **Safety Beyond Refusal** and the restored three-axis motivation. Unsupported
-  legacy Part 0, broken-engine Part 2, cross-part, pooled-role, and latent-trait
-  claims and figures have been removed. The main paper now has explicit Results,
-  Discussion, and Limitations and Broader Impact sections; detailed legacy-audit
-  material is subordinate in the appendix, and the full official NeurIPS
-  checklist is included after the appendix.
-- `docs/conference_submission/working_draft.pdf` is an ignored link to the
-  compiled submission PDF and must be refreshed after every paper-facing change.
-- `analysis/build_final_results.py` is the fail-closed paper-results builder. It
-  validates complete manifests and their chains and emits only sanitized JSON,
-  CSV, publication-table LaTeX, and figure outputs under
-  `data/analysis/final_results`. Cross-axis analysis remains withheld unless the
-  human-validation and intended sample-size gates pass.
-- `analysis/build_paper_headlines.py` accepts only that sealed, privacy-safe
-  result graph and emits exact within-axis JSON and LaTeX manuscript slots. It
-  refuses rankings, family effects, significance tests, cross-axis associations,
-  and pooling of the 12-, 96-, and 384-root Part 1 scopes.
-- Release documentation and `analysis/build_croissant_metadata.py` are being
-  aligned to the mixed Part 1 sample sizes. The checked-in Croissant file must
-  be regenerated only after the final results artifact exists.
-- The anonymous supplement builder excludes `.env`, keys, private/raw data,
-  deprecated/interrupted runs, journals, and harmful text. A final clean-extract
-  build and reproduction test remain mandatory.
-
-## Current execution status
-
-- Active process ownership was verified on 2026-08-02 for the four unfinished
-  artifacts: Part 0 n=24, Part 1 main n=96, Part 1 slow n=12, and Part 2 n=8.
-  The Part 1 GLM-5.1 n=384 artifact completed all 384 scheduled roots.
-- Manifests remain `complete: false` while execution is in progress. Paper-facing
-  outcomes stay locked until every planned unit for the retained artifact is
-  present and strict validation passes.
-- Read-only monitoring has identified fail-closed operational records in the
-  active Part 0, Part 1 main, Part 1 slow, and Part 2 artifacts. They are not
-  behavioral outcomes and make those target-part slices ineligible as-is. Two
-  complete Part 1 replacement artifacts already cover DeepSeek V4 Flash and V4
-  Pro over their full frozen 96-root schedules. The final-results builder may
-  bind a complete identity- and schedule-matched replacement, or explicitly
-  mark a target-part operationally unavailable when target-specific evidence
-  proves that it cannot be scored. Successful targets and every failed attempt
-  remain immutable in the archive.
+- `docs/conference_submission/conference_submission.tex` retains the exact
+  title **Safety Beyond Refusal** and the original three-axis motivation.
+  Repairs address reviewer concerns without changing the paper into a benchmark
+  audit.
+- `analysis.build_final_results` accepted the validated primary evidence,
+  target-bound availability overlays, and two exact DeepSeek repair manifests.
+  It emitted `data/analysis/final_results/final_results.json` with self-hash
+  `e7f89872b441d8ad6ca50622e788c5141f17dea0e95c00eb2d59ce0eab461040`.
+- Cross-axis output is withheld fail-closed: the exact full overlap, Part 0
+  human validation, full n=384 Part 1 support, and n=12 Part 2 gate do not pass.
+- `analysis.build_paper_headlines` and
+  `analysis.build_developer_descriptives` emit only within-axis,
+  scope-separated manuscript values. They do not support vendor effects,
+  rankings, significance claims, or a latent readiness score.
+- Exact finalization, result-building, Croissant, supplement, and paper commands
+  are recorded in `docs/release/REPRODUCIBILITY.md`.
 
 ## Remaining critical path
 
-1. Let the four unfinished primary jobs finish; consider complete-schedule
-   repair artifacts only for transiently affected targets after the corresponding
-   primary writer exits, without delaying for reproducible route failures.
-2. Validate manifests, source/input hashes, identities, attempt chains, exact
-   target coverage, balanced strata, and complete sampling units.
-3. Build final sanitized results, intervals, tables, and figures; derive the
-   manuscript headline slots mechanically; then verify every reported number
-   directly against those outputs.
-4. Insert only verified results into the abstract, results, discussion,
-   limitations, and conclusion; compile and inspect the full PDF.
-5. Regenerate Croissant metadata and the anonymous supplement, reproduce from a
-   clean extracted ZIP without a Git object store, and run the full repository
-   test suite and strict data validation.
-6. Complete check-paper passes two and three, including context-fresh scientific,
-   statistical, visual, citation, anonymity, secret, placeholder, and format
-   audits.
-7. Push each coherent checkpoint to `origin/master`; finish with the exact final
-   commit hash.
+1. Verify every manuscript number and evidence-status statement against the
+   sealed result graph and generated headline macros.
+2. Compile and visually inspect the final anonymous PDF, including references,
+   figures, page limits, checklist, title, and anonymization.
+3. Regenerate Croissant metadata and the supplement; reproduce from a clean
+   extracted ZIP without a Git object store.
+4. Run the full test suite, strict validation, format, privacy, secret,
+   placeholder, citation, and final paper-review gates.
+5. Push coherent checkpoints to `origin/master` and record the final commit.
 
-## External gates
+## External gates and interpretation
 
-- Blinded two-annotator Part 0 validation and adjudication are not complete.
-- The balanced Part 1 bank has not received the planned human approval.
-- The deadline Part 2 run has eight rather than 12 trajectories per model and
-  does not include the planned sensitivity grid.
+- Blinded two-annotator Part 0 validation and adjudication are incomplete.
+- The balanced Part 1 bank lacks planned independent human content approval.
+- Part 2 has eight rather than 12 trajectories per model and no sensitivity
+  grid.
 - Anonymous reviewer-accessible hosting and official external Croissant
-  validation cannot be manufactured inside this repository.
+  validation must be completed outside this repository.
+- Therefore the current paper reports exploratory Part 0 and Part 1
+  descriptives and corrected but underpowered Part 2 evidence, with no
+  cross-axis claim or deployment-safety certification.

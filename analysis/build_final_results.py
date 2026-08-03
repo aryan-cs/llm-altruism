@@ -534,8 +534,20 @@ def _part0(
             or set(terminal) != set(schedule_by_trial)
             or set(retained_subjects) != set(schedule_by_trial)
             or any(
-                row.get("judge_dispatched") is not True
-                or row.get("judge_batch_id") not in retained_batches
+                not (
+                    (
+                        row.get("judge_dispatched") is True
+                        and row.get("judge_batch_id") in retained_batches
+                    )
+                    or (
+                        row.get("outcome") == "INVALID"
+                        and row.get("judge_dispatched") is False
+                        and row.get("judge_batch_id") is None
+                        and row.get("judge_label") is None
+                        and row.get("subject_visible_response_present") is False
+                        and row.get("operational_failure") is None
+                    )
+                )
                 for row in terminal.values()
             )
         ):
@@ -1657,7 +1669,7 @@ def _flatten_part0(rows: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
                 "condition_type": "reconstructed_response_language_condition_not_translated_prompt",
                 "response_language_condition": condition["response_language_condition"],
                 "refusal_rate": interval["estimate"], "ci95_lower": interval["lower"],
-                "ci95_upper": interval["upper"], "n_prompt_roots": interval["n"],
+                "ci95_upper": interval["upper"], "n_roots": interval["n"],
                 "unclear_count": condition["unclear_count"], "invalid_count": condition["invalid_count"],
                 "human_validation_complete": row["human_validation_complete"],
             })
@@ -2248,7 +2260,7 @@ def build_final_results(
         (
             "target_id", "upstream_provider", "model", "condition_type",
             "response_language_condition", "refusal_rate", "ci95_lower", "ci95_upper",
-            "n_prompt_roots", "unclear_count", "invalid_count", "human_validation_complete",
+            "n_roots", "unclear_count", "invalid_count", "human_validation_complete",
         ),
     )
     _write_csv(

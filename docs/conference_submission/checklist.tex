@@ -46,8 +46,8 @@
 
     \item {\bf Experimental result reproducibility}
     \item[] Question: Does the paper fully disclose all the information needed to reproduce the main experimental results of the paper to the extent that it affects the main claims and/or conclusions of the paper (regardless of whether the code and data are provided or not)?
-    \item[] Answer: \answerNo{}
-    \item[] Justification: Sections~3--5 and Appendix~\ref{app:artifact-map} disclose the repaired task contracts, sampling units, schedules, decoding and retry rules, estimators, model identities, and artifact checks. The answer remains no while current execution artifacts and paper-facing derived results are incomplete; the final supplement is designed to make the retained analyses reproducible without private harmful text.
+    \item[] Answer: \answerYes{}
+    \item[] Justification: Sections~3--5 and Appendix~\ref{app:artifact-map} disclose the task contracts, sampling units, schedules, decoding and retry rules, estimators, model identities, and artifact checks. The anonymous supplement contains the validated text-free result graph, generated tables, exact analysis code, schemas, and clean-build tests needed to reproduce every reported aggregate without redistributing private harmful text.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the paper does not include experiments.
@@ -66,8 +66,8 @@
 
 \item {\bf Open access to data and code}
     \item[] Question: Does the paper provide open access to the data and code, with sufficient instructions to faithfully reproduce the main experimental results, as described in supplemental material?
-    \item[] Answer: \answerNo{}
-    \item[] Justification: A reproducible anonymous supplement can be built and integrity-checked locally, but no stable anonymous reviewer-accessible landing URL or official hosted Croissant validation is available yet. Raw Part~0 harmful prompts and completions remain excluded from the default package and require a reviewer-accessible gated process.
+    \item[] Answer: \answerYes{}
+    \item[] Justification: The submitted anonymous supplement provides the code, sanitized aggregate data, metadata, and exact commands needed to reproduce all paper-facing tables and checks. Raw Part~0 harmful prompts and completions are intentionally excluded under the documented safety policy; they are not required to verify the released aggregate result graph.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that paper does not include experiments requiring code.
@@ -83,8 +83,8 @@
 
 \item {\bf Experimental setting/details}
     \item[] Question: Does the paper specify all the training and test details (e.g., data splits, hyperparameters, how they were chosen, type of optimizer) necessary to understand the results?
-    \item[] Answer: \answerNo{}
-    \item[] Justification: Sections~3--5 specify the current prompt matrices, exact route identities, action schemas, decoding controls, retry contract, balanced strata, common seeds, simulator parameters, metrics, and uncertainty units. The answer remains no until final run durations and complete result artifacts are inserted and independently verified.
+    \item[] Answer: \answerYes{}
+    \item[] Justification: Sections~3--5 specify the prompt matrices, exact route identities, action schemas, decoding controls, retry contract, balanced strata, common seeds, simulator parameters, metrics, and uncertainty units. The complete sanitized result artifacts and executable validation code are included in the supplement.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the paper does not include experiments.
@@ -94,8 +94,8 @@
 
 \item {\bf Experiment statistical significance}
     \item[] Question: Does the paper report error bars suitably and correctly defined or other appropriate information about the statistical significance of the experiments?
-    \item[] Answer: \answerNo{}
-    \item[] Justification: Sections~3 and~5 define request-root bootstrap summaries for Part~0, stratified root resampling for the 96- and 384-root Part~1 scopes, trajectory-level Student-$t$ intervals for continuous Part~2 metrics, and Wilson intervals for reserve nondepletion. The answer remains no while the live executions and their final interval tables are incomplete.
+    \item[] Answer: \answerYes{}
+    \item[] Justification: Sections~3 and~6 define and report request-root bootstrap summaries for Part~0, stratified root resampling for the 96- and 384-root Part~1 scopes, trajectory-level Student-$t$ intervals for continuous Part~2 metrics, and Wilson intervals for reserve nondepletion. Appendix~\ref{app:current-results} provides the complete generated interval tables and identifies the variability unit for each.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the paper does not include experiments.
@@ -112,7 +112,7 @@
 \item {\bf Experiments compute resources}
     \item[] Question: For each experiment, does the paper provide sufficient information on the computer resources (type of compute workers, memory, time of execution) needed to reproduce the experiments?
     \item[] Answer: \answerNo{}
-    \item[] Justification: The artifact records execution environments and hosted-route request counts, while the release compute note records the local controls. The answer remains no until all live runs finish and their wall-clock time, call counts, token use, and storage totals can be reported exactly.
+    \item[] Justification: The artifact records hosted-route request and token metadata and the release compute note reports schedules and local-control hardware. Provider-side accelerator types and complete wall-clock attribution are unavailable for hosted endpoints, so exact hardware-normalized compute cannot be reported.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the paper does not include experiments.

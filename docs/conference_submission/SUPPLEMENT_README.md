@@ -8,26 +8,28 @@ does not assign a single altruism, morality, or deployment-safety score.
 
 ## Executed deadline design
 
-- **Part 0:** 24 matched systems, each evaluated on 24 archived English source
-  requests crossed with English, Simplified Chinese, and Russian
-  response-language instructions. The 72 scheduled responses per system are
-  judged from visible response text by one fixed, disjoint judge. The exact
-  translated inputs from the April pilot were not retained, there are no benign
-  controls, and human judge validation is incomplete. These aggregates are
+- **Part 0:** 16 of 24 matched systems have complete response-only aggregates
+  over 24 archived English source requests crossed with English, Simplified
+  Chinese, and Russian response-language instructions. The eight unavailable
+  systems are `anthropic/claude-haiku-4-5`,
+  `anthropic/claude-opus-4-5`, `anthropic/claude-opus-4-6`,
+  `anthropic/claude-sonnet-4-5`, `minimaxai/minimax-m2.7`,
+  `openai/gpt-5`, `openai/gpt-5.2`, and `openai/gpt-5.4`. The exact translated
+  inputs from the April pilot were not retained, there are no benign controls,
+  and human judge validation is incomplete. These aggregates are exploratory.
+- **Part 1:** 75 of 81 frozen targets are reportable: 73 completed balanced
+  n=96 schedules, Qwen3.5 397B completed a balanced n=12 schedule, and GLM 5.1
+  completed n=384. Execution subjects `anthropic/claude-opus-4-5`,
+  `minimaxai/minimax-m2.7`, and `minimaxai/minimax-m3` are operationally
+  unavailable; `moonshotai/kimi-k2.5`, `moonshotai/kimi-k2.6`, and
+  `zai-org/glm-5.2` were unavailable before execution. The scopes are never
+  pooled. The bank lacks independent content approval, so results are
   exploratory.
-- **Part 1:** 75 routes completed a balanced 96-root schedule with eight roots
-  in each of 12 game-domain strata. Two slower routes completed balanced 12-root
-  schedules with one root per stratum. GLM 5.1 completed a separate 384-root
-  schedule with 32 roots per stratum. These 78 observed routes represent 78 of
-  81 frozen targets; three remain unavailable. The three sample-size scopes are
-  never pooled. The prompt bank lacks independent content approval, so current
-  summaries are exploratory.
-- **Part 2:** the same 24 matched systems completed eight independent,
+- **Part 2:** 22 of the 24 matched systems contribute eight independent,
   common-seed trajectories under the corrected five-agent, 12-step commons
-  engine. Eight trajectories were actually executed even though the frozen
-  planning file retains an intended 12-trajectory setting. The deadline result
-  is below the paper's 12-trajectory promotion gate and has no parameter
-  sensitivity analysis.
+  engine, for 176 trajectories total. `anthropic/claude-opus-4-6` and
+  `minimaxai/minimax-m2.7` are unavailable. The n=8 result remains below the
+  paper's n=12 promotion gate and has no parameter sensitivity analysis.
 
 The April 13-model pilot remains historical context. Its legacy Part 0 labels,
 legacy Part 2 rates, and legacy cross-axis correlations are not current result
@@ -41,16 +43,21 @@ From the package root:
 uv sync
 uv run pytest -q
 uv run python -m analysis.build_final_results --help
+uv run python -m experiments.misc.inference_hub_retire_target --help
+uv run python -m analysis.finalize_inference_hub_part2_offline --help
 uv run python -m analysis.build_developer_descriptives --help
 uv run python -m analysis.build_paper_headlines --help
 uv run python -m analysis.build_croissant_metadata --help
 uv run python -m analysis.build_supplement
 ```
 
-`analysis.build_final_results` is the sole bridge from complete private panel
-manifests to paper-facing results. It checks model identities, coverage,
-hash-bound journals, parser outcomes, and evidence gates before writing a
-text-free immutable directory. `analysis.build_paper_headlines` validates that
+`analysis.build_final_results` is the sole bridge from validated private panel
+evidence to paper-facing results. It accepts only complete manifests or
+fail-closed target-bound overlays, checks model identities, coverage,
+hash-bound journals, parser outcomes, replacements, and evidence gates, and
+writes a text-free immutable directory. Complete DeepSeek repair manifests use
+the same frozen identities and schedules; they are evidence replacements, not
+model substitutions. `analysis.build_paper_headlines` validates that
 sealed artifact and emits only within-axis, scope-separated manuscript values;
 it does not compute rankings, family effects, significance tests, or cross-axis
 associations. `analysis.build_developer_descriptives` separately emits
@@ -60,9 +67,9 @@ effects. `analysis.build_croissant_metadata` accepts only the final-results
 directory and fails if the artifact is absent, incomplete, self-hash-invalid,
 privacy-unsafe, or inconsistent with the executed scopes.
 
-The supplement includes reviewed runner code, tests, route-compatibility and
-rate-limit dependencies, documentation, and sanitized final aggregates once
-they exist. It excludes `.env` files, API keys, private manifests, harmful
+The supplement includes reviewed runner and offline-finalization code, tests,
+route-compatibility and rate-limit dependencies, documentation, and the sealed
+sanitized final aggregates. It excludes `.env` files, API keys, private manifests, harmful
 prompts, visible responses, reasoning, raw journals, interrupted runs, and
 deprecated legacy evidence. `SUPPLEMENT_MANIFEST.json` binds every packaged
 payload to its SHA-256 and records the exclusion policy.

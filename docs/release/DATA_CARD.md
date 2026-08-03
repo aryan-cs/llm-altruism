@@ -13,9 +13,9 @@ The current deadline collection has three distinct scopes:
 
 | Part | Frozen schedule | Evidence status |
 | --- | --- | --- |
-| Part 0 | 24 matched systems; included systems have 24 English source roots × 3 response-language instructions | Exploratory. No benign controls and no completed human validation of the fixed judge. Axis-specific unavailable systems receive no estimate. |
-| Part 1 | Execution roster: 75 targets × balanced 96 roots; 2 targets × balanced 12 roots; one separate GLM 5.1 target × 384 roots. Registry: 3 additional targets unavailable before execution. | Exploratory. The draft bank lacks independent content approval; the three sample-size scopes are not pooled. |
-| Part 2 | 24 matched systems; included systems have 8 independent common-seed trajectories | Corrected engine, but below the intended 12-trajectory promotion threshold and without parameter sensitivity. Axis-specific unavailable systems receive no estimate. |
+| Part 0 | 16 included of 24 matched systems; 24 English source roots × 3 response-language instructions per included system | Exploratory. Eight systems are unavailable; there are no benign controls and no completed human validation of the fixed judge. |
+| Part 1 | 75 reportable of 81 frozen targets: 73 × balanced n=96, one × balanced n=12, one GLM 5.1 × n=384 | Exploratory. Three execution subjects and three pre-execution registry targets are unavailable. The bank lacks independent content approval; scopes are not pooled. |
+| Part 2 | 22 included of 24 matched systems; 8 independent common-seed trajectories each (176 total) | Corrected engine, but below the intended n=12 promotion threshold and without parameter sensitivity. Two systems are unavailable. |
 
 `experiments/sota_cross_axis_panel.json` preserves the larger intended deadline
 configuration of 48 Part 0 roots per condition and 12 Part 2 trajectories. The
@@ -23,6 +23,18 @@ private execution manifests are authoritative for the lower CLI limits used:
 24 roots and eight trajectories. Sanitized bindings are authoritative for
 included versus operationally unavailable systems. Metadata and reports must
 never substitute intended or scheduled counts for observed counts.
+
+Exact unavailable IDs are:
+
+- Part 0: `anthropic/claude-haiku-4-5`, `anthropic/claude-opus-4-5`,
+  `anthropic/claude-opus-4-6`, `anthropic/claude-sonnet-4-5`,
+  `minimaxai/minimax-m2.7`, `openai/gpt-5`, `openai/gpt-5.2`, and
+  `openai/gpt-5.4`.
+- Part 1 operational: `anthropic/claude-opus-4-5`,
+  `minimaxai/minimax-m2.7`, and `minimaxai/minimax-m3`; Part 1
+  pre-execution: `moonshotai/kimi-k2.5`, `moonshotai/kimi-k2.6`, and
+  `zai-org/glm-5.2`.
+- Part 2: `anthropic/claude-opus-4-6` and `minimaxai/minimax-m2.7`.
 
 The April 13-model local pilot is historical provenance. Its legacy Part 0
 labels, legacy Part 2 estimates, and dependent cross-part correlations are
@@ -61,12 +73,15 @@ sanitized final aggregates only. It excludes:
 - harmful prompts and source prompt banks;
 - visible responses, reasoning, and raw provider payloads;
 - private manifests, attempt ledgers, and journals;
-- incomplete, interrupted, identity-mismatched, or hash-invalid runs;
+- private incomplete, interrupted, identity-mismatched, or hash-invalid runs;
 - deprecated legacy evidence and withdrawn derived outputs.
 
-Croissant metadata is generated only after the sanitized final-results
-directory exists and passes schema, self-hash, privacy, output-hash, and exact
-coverage checks. An old Croissant file is not evidence that these checks pass.
+Fail-closed overlays may contribute only sanitized aggregates from retained
+complete units plus target-bound availability evidence; the underlying private
+artifacts remain excluded. Croissant metadata is generated only after the
+sanitized final-results directory exists and passes schema, self-hash, privacy,
+output-hash, and exact coverage checks. The sealed result self-hash is
+`e7f89872b441d8ad6ca50622e788c5141f17dea0e95c00eb2d59ce0eab461040`.
 
 ## Limitations
 
@@ -74,8 +89,8 @@ coverage checks. An old Croissant file is not evidence that these checks pass.
   instructions, not recovered translated prompts. The task has no benign
   controls and one generation per root-condition cell.
 - The Part 0 judge has not completed quantitative human validation.
-- The Part 1 draft bank lacks independent content approval. The two 12-root
-  routes, 75 96-root routes, and single 384-root route have different support.
+- The Part 1 draft bank lacks independent content approval. The one n=12
+  route, 73 n=96 routes, and one n=384 route have different support.
 - Part 2 uses homogeneous five-agent populations, 12 steps, one parameter
   setting, no communication or memory, and eight trajectories per system.
 - Related routes are not independent samples of developers or model families.
