@@ -640,9 +640,9 @@ def test_latex_tables_preserve_ids_define_directions_and_space_every_float(tmp_p
     assert "\\begin{tabular}{llccc}" in cross_phase
     assert "\\begin{tabular}{llcccc}" in part0
     assert "\\begin{tabular}{llc}" in part1
-    assert "\\begin{tabular}{llccccc}" in (
-        output / "part2_all_models_table.tex"
-    ).read_text()
+    part2 = (output / "part2_all_models_table.tex").read_text()
+    assert "\\begin{tabular}{llccc}" in part2
+    assert "Mean AUPC" not in part2 and "Nondepletion [95" not in part2
     assert "\\begin{tabular}{llccc}" in role
     assert "\\begin{tabular}{lllccc}" in sensitivity
     assert "\\begin{tabular}{llc}" in local

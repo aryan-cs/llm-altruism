@@ -1335,27 +1335,6 @@ def _plot_part2(data: Mapping[str, Any], directory: Path) -> list[Path]:
         (row["mean_aurc_eligible_t95_low"], row["mean_aurc_eligible_t95_high"])
         for row in rows
     ]
-    aupc = [
-        None if row["mean_aupc_eligible"] is None else float(row["mean_aupc_eligible"])
-        for row in rows
-    ]
-    aupc_intervals = [
-        (row["mean_aupc_eligible_t95_low"], row["mean_aupc_eligible_t95_high"])
-        for row in rows
-    ]
-    nondepletion = [
-        None
-        if row["reserve_nondepletion_rate_eligible"] is None
-        else float(row["reserve_nondepletion_rate_eligible"])
-        for row in rows
-    ]
-    nondepletion_intervals = [
-        (
-            row["reserve_nondepletion_rate_eligible_wilson95_low"],
-            row["reserve_nondepletion_rate_eligible_wilson95_high"],
-        )
-        for row in rows
-    ]
     population = [
         None
         if row["mean_population_retention_eligible"] is None
@@ -1369,16 +1348,14 @@ def _plot_part2(data: Mapping[str, Any], directory: Path) -> list[Path]:
         )
         for row in rows
     ]
-    fig, axes = plt.subplots(1, 5, figsize=(19.5, 9.2), sharey=False)
+    fig, axes = plt.subplots(1, 3, figsize=(14.8, 9.2), sharey=False)
     fig.patch.set_facecolor("white")
     fig.suptitle("Part 2 commons outcomes for 19 exact model routes", x=0.075, y=0.995, ha="left", fontsize=15, fontweight="bold", color=INK)
     fig.text(0.075, 0.953, "One row per route; 12 trajectories per route; ordered by within-task restraint rate.", fontsize=9, color=MUTED)
     _lollipop_panel(axes[0], restraint, labels, title="Mean trajectory restraint [t95]", color=GREEN, show_labels=True, intervals=restraint_intervals)
     _lollipop_panel(axes[1], aurc, labels, title="Mean AURC [t95] / env.", color=GREEN, show_labels=False, intervals=aurc_intervals)
-    _lollipop_panel(axes[2], aupc, labels, title="Mean AUPC [t95] / env.", color=GREEN, show_labels=False, intervals=aupc_intervals)
-    _lollipop_panel(axes[3], nondepletion, labels, title="Nondepletion [Wilson95] / env.", color=GREEN, show_labels=False, intervals=nondepletion_intervals)
-    _lollipop_panel(axes[4], population, labels, title="Population retained [t95] / env.", color=GREEN, show_labels=False, intervals=population_intervals)
-    fig.text(0.075, 0.018, "Bars show task outcomes and whiskers are trajectory-level Student-t 95% intervals (Wilson 95% for nondepletion). Higher values mean more resource or population preservation in this simulator. Invalid actions remain in all-scheduled restraint denominators and environmental eligibility checks, but are not a separate argument-facing panel.", fontsize=8, color=MUTED)
+    _lollipop_panel(axes[2], population, labels, title="Population retained [t95] / env.", color=GREEN, show_labels=False, intervals=population_intervals)
+    fig.text(0.075, 0.018, "The three centered bar columns connect model action (restraint), resource consequence (AURC), and group consequence (final population retained). Whiskers are trajectory-level Student-t 95% intervals. Higher values mean more preservation in this simulator. AUPC and nondepletion remain in the released diagnostics; invalid actions remain in denominators and eligibility checks rather than a separate argument-facing panel.", fontsize=8, color=MUTED)
     fig.tight_layout(rect=(0.055, 0.045, 0.995, 0.94), w_pad=1.8)
     return _save_figure(fig, directory, "part2_all_models", "Part 2 all-model outcomes")
 
@@ -1773,15 +1750,6 @@ def _write_tables(data: Mapping[str, Any], directory: Path) -> list[Path]:
                     row["mean_aurc_eligible_t95_high"], percent=False,
                 ),
                 _optional_interval_cell(
-                    row["mean_aupc_eligible"], row["mean_aupc_eligible_t95_low"],
-                    row["mean_aupc_eligible_t95_high"], percent=False,
-                ),
-                _optional_interval_cell(
-                    row["reserve_nondepletion_rate_eligible"],
-                    row["reserve_nondepletion_rate_eligible_wilson95_low"],
-                    row["reserve_nondepletion_rate_eligible_wilson95_high"], percent=True,
-                ),
-                _optional_interval_cell(
                     row["mean_population_retention_eligible"],
                     row["mean_population_retention_eligible_t95_low"],
                     row["mean_population_retention_eligible_t95_high"], percent=True,
@@ -1792,12 +1760,12 @@ def _write_tables(data: Mapping[str, Any], directory: Path) -> list[Path]:
     path.write_text(
         _table_tex(
             caption=(
-                "Part 2 commons outcomes for all 19 exact model routes. Each row is one authenticated target route and exact upstream Model ID, shown in descending all-scheduled restraint-rate order. Restraint is the restrained-action share over scheduled agent-days. Mean AURC and AUPC are normalized reserve and population areas; Nondepletion is the share of environmentally estimable trajectories ending with reserve above zero; Population retained is final population divided by initial population. Brackets are trajectory-level Student-t 95\\% intervals, except the Wilson 95\\% interval for nondepletion. All result columns are centered. Higher values mean more resource or population preservation in this simulator. NE means no environmentally estimable trajectory, not zero. Eligibility and invalid-action counts remain in Methods and the reproducibility artifacts rather than as separate result columns. None of these columns is a general safety score."
+                "Part 2 commons outcomes for all 19 exact model routes. Each row is one authenticated target route and exact upstream Model ID, shown in descending all-scheduled restraint-rate order. The three centered result columns connect model action, resource consequence, and group consequence: Restraint is the restrained-action share over scheduled agent-days; Mean AURC [95\\%] is normalized reserve area with its trajectory Student-t interval; Population retained [95\\%] is final population divided by initial population with the corresponding interval. Higher values mean more preservation in this simulator. NE means no environmentally estimable trajectory, not zero. AUPC, nondepletion, eligibility, and invalid-action counts remain in Methods and the reproducibility artifacts rather than as separate result columns. None of these columns is a general safety score."
             ),
             label="tab:provider-safe-v2-part2-all-models",
-            headers=("Target route ID", "Model ID", "Restraint", "Mean AURC [95\\%]", "Mean AUPC [95\\%]", "Nondepletion [95\\%]", "Population retained [95\\%]"),
+            headers=("Target route ID", "Model ID", "Restraint", "Mean AURC [95\\%]", "Population retained [95\\%]"),
             rows=part2_rows,
-            column_spec="llccccc",
+            column_spec="llccc",
             chunk_size=19,
         ),
         encoding="utf-8",
