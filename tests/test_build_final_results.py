@@ -83,6 +83,8 @@ def _part0_fixture(
     root: Path, *, human_validated: bool = False,
     subjects: tuple[dict[str, Any], ...] = (SUBJECT,), complete: bool = True,
     failed_targets: tuple[str, ...] = (), name: str = "part0",
+    operational_failure_targets: tuple[str, ...] = (),
+    semantic_invalid_targets: tuple[str, ...] = (),
 ) -> Path:
     schedule = [
         {"trial_id": f"trial-{language}", "root_id": "root-1", "language": language}
@@ -95,16 +97,36 @@ def _part0_fixture(
         if target_id in failed_targets:
             continue
         payloads: list[dict[str, Any]] = []
+        if target_id in operational_failure_targets:
+            for trial in schedule:
+                payloads.append({
+                    "schema_version": 1,
+                    "artifact_type": "inference_hub_part0_private_record",
+                    "event": "unit_completed", "target_id": target_id,
+                    "trial_id": trial["trial_id"], "root_id": trial["root_id"],
+                    "language": trial["language"], "outcome": "INVALID",
+                    "judge_dispatched": False,
+                    "operational_failure": {"failure_code": "transport_exhausted"},
+                })
+            raw_refs[target_id] = _write_journal(
+                root / f"{name}/private/raw_responses/{target_id}.jsonl", payloads
+            )
+            continue
         for trial in schedule:
             raw = _raw(subject["route"], "I cannot help.")
             payloads.append({
+                "schema_version": 1,
+                "artifact_type": "inference_hub_part0_private_record",
                 "event": "subject_response_retained", "target_id": target_id,
-                "trial_id": trial["trial_id"], "requested_route": subject["route"],
+                "trial_id": trial["trial_id"], "root_id": trial["root_id"],
+                "language": trial["language"], "requested_route": subject["route"],
                 "response_model": subject["route"], "model_identity_valid": True,
                 "raw_response": raw, "raw_response_sha256": _sha256_json(raw),
             })
         judge_raw = _raw(JUDGE["route"], "labels")
         payloads.append({
+            "schema_version": 1,
+            "artifact_type": "inference_hub_part0_private_record",
             "event": "judge_batch_retained", "target_id": target_id,
             "batch_id": "batch-1", "trial_ids": trial_ids,
             "requested_route": JUDGE["route"], "response_model": JUDGE["route"],
@@ -113,9 +135,14 @@ def _part0_fixture(
         })
         for trial in schedule:
             payloads.append({
+                "schema_version": 1,
+                "artifact_type": "inference_hub_part0_private_record",
                 "event": "unit_completed", "target_id": target_id,
                 "trial_id": trial["trial_id"], "root_id": trial["root_id"],
-                "language": trial["language"], "outcome": "REFUSAL",
+                "language": trial["language"],
+                "outcome": (
+                    "INVALID" if target_id in semantic_invalid_targets else "REFUSAL"
+                ),
                 "judge_dispatched": True, "judge_batch_id": "batch-1",
             })
         raw_refs[target_id] = _write_journal(
@@ -129,7 +156,10 @@ def _part0_fixture(
         "selected_roots_per_language": 1, "languages": ["english", "chinese", "russian"],
         "schedule": schedule, "subject_routes": list(subjects), "judge": JUDGE,
         "summary": {
-            "subject_transport_failures": len(failed_targets), "judge_failed_units": 0,
+            "subject_transport_failures": (
+                len(failed_targets) + len(schedule) * len(operational_failure_targets)
+            ),
+            "judge_failed_units": 0,
             "subject_model_identity_mismatches": 0, "judge_model_identity_mismatches": 0,
         },
         "journals": {"raw_responses": raw_refs},
@@ -143,6 +173,9 @@ def _part1_fixture(
     root: Path, *, count: int, name: str, balanced: bool = True,
     subjects: tuple[dict[str, Any], ...] = (SUBJECT,), complete: bool = True,
     failed_targets: tuple[str, ...] = (),
+    operational_failure_targets: tuple[str, ...] = (),
+    semantic_invalid_targets: tuple[str, ...] = (),
+    identity_failure_targets: tuple[str, ...] = (),
 ) -> Path:
     cells = [(game, domain) for game in GAMES for domain in DOMAINS]
     raw_refs: dict[str, Any] = {}
@@ -153,16 +186,41 @@ def _part1_fixture(
         payloads = []
         for index in range(count):
             game, domain = cells[index % len(cells)] if balanced else cells[0]
-            raw = _raw(subject["route"], "X")
+            if target_id in operational_failure_targets:
+                payloads.append({
+                    "schema_version": 1,
+                    "artifact_type": "inference_hub_part1_raw_response",
+                    "target_id": target_id,
+                    "upstream_provider": subject["upstream_provider"],
+                    "model": subject["model"], "requested_route": subject["route"],
+                    "response_model": None, "model_identity_valid": False,
+                    "trial_id": f"trial-{index:03d}",
+                    "root_id": f"root-{index:03d}", "game": game,
+                    "domain": domain, "counterbalance_id": "CB_X_FIRST",
+                    "parsed_action": None, "format_valid": False,
+                    "raw_response": None, "raw_response_sha256": None,
+                    "failure": {"failure_code": "transport_exhausted"},
+                })
+                continue
+            response_route = (
+                "region/unexpected-model"
+                if target_id in identity_failure_targets else subject["route"]
+            )
+            raw = _raw(response_route, "X")
+            parsed_action = (
+                None if target_id in semantic_invalid_targets else "X"
+            )
             payloads.append({
                 "schema_version": 1, "artifact_type": "inference_hub_part1_raw_response",
                 "target_id": target_id,
                 "upstream_provider": subject["upstream_provider"],
                 "model": subject["model"], "requested_route": subject["route"],
-                "response_model": subject["route"], "model_identity_valid": True,
+                "response_model": response_route,
+                "model_identity_valid": target_id not in identity_failure_targets,
                 "trial_id": f"trial-{index:03d}", "root_id": f"root-{index:03d}",
                 "game": game, "domain": domain,
-                "counterbalance_id": "CB_X_FIRST", "parsed_action": "X", "format_valid": True,
+                "counterbalance_id": "CB_X_FIRST", "parsed_action": parsed_action,
+                "format_valid": parsed_action == "X",
                 "raw_response": raw, "raw_response_sha256": _sha256_json(raw),
             })
         raw_refs[target_id] = _write_journal(
@@ -174,8 +232,12 @@ def _part1_fixture(
         "complete": complete, "executed_trial_count_per_subject": count,
         "trial_limit": None if full else count, "subject_routes": list(subjects),
         "summary": {
-            "failed_without_response": len(failed_targets),
-            "response_model_identity_mismatches": 0,
+            "failed_without_response": (
+                len(failed_targets) + count * len(operational_failure_targets)
+            ),
+            "response_model_identity_mismatches": (
+                count * len(identity_failure_targets)
+            ),
         },
         "journals": {"raw_responses": raw_refs},
     })
@@ -188,7 +250,10 @@ def _part2_fixture(
     root: Path, *, tamper: bool = False,
     subjects: tuple[dict[str, Any], ...] = (SUBJECT,), complete: bool = True,
     failed_targets: tuple[str, ...] = (), name: str = "part2",
+    operational_failures: dict[str, str] | None = None,
+    semantic_invalid_targets: tuple[str, ...] = (),
 ) -> Path:
+    operational_failures = operational_failures or {}
     trajectory_count = 8
     intervals = {
         "aurc": {"mean": 0.625, "lower": 0.5, "upper": 0.75, "n": trajectory_count, "method": "trajectory_t_95"},
@@ -209,17 +274,29 @@ def _part2_fixture(
         target_id = subject["target_id"]
         if target_id in failed_targets:
             continue
+        failure_kind = operational_failures.get(target_id)
+        identity_count = trajectory_count if failure_kind == "identity" else 0
+        transport_count = trajectory_count if failure_kind == "transport" else 0
+        eligible_count = 0 if failure_kind else trajectory_count
         model_rows.append({
             "target_id": target_id,
             "upstream_provider": subject["upstream_provider"],
             "model": subject["model"], "trajectory_count": trajectory_count,
-            "eligible_trajectory_count": trajectory_count, "complete_matched_panel": True,
+            "eligible_trajectory_count": eligible_count,
+            "complete_matched_panel": failure_kind is None,
             "total_scheduled_agent_days": 73, "total_invalid_count": 3,
+            "total_identity_mismatch_count": identity_count,
+            "total_transport_failure_count": transport_count,
             "trajectory_level_95_percent_t_intervals": intervals,
         })
         trajectory_rows.extend({
             "target_id": target_id, "trajectory_index": index,
-            "operationally_eligible": True,
+            "operationally_eligible": failure_kind is None,
+            "identity_mismatch_count": 1 if failure_kind == "identity" else 0,
+            "transport_failure_count": 1 if failure_kind == "transport" else 0,
+            "invalid_count": 1 if (
+                failure_kind or target_id in semantic_invalid_targets
+            ) else 0,
         } for index in range(trajectory_count))
     models = _seal({
         "schema_version": 1, "artifact_type": "inference_hub_part2_sanitized_model_metrics",
@@ -242,8 +319,16 @@ def _part2_fixture(
             "option_b_private_gain": 2, "option_b_reserve_cost": 2,
         },
         "summary": {
-            "identity_mismatch_count": 0,
-            "transport_failure_count": len(failed_targets),
+            "identity_mismatch_count": sum(
+                trajectory_count for kind in operational_failures.values()
+                if kind == "identity"
+            ),
+            "transport_failure_count": (
+                len(failed_targets) + sum(
+                    trajectory_count for kind in operational_failures.values()
+                    if kind == "transport"
+                )
+            ),
         },
         "sanitized_artifacts": {
             "model_metrics": {"path": str(model_path.resolve()), "file_sha256": _sha256_file(model_path), "evidence_sha256": models["evidence_sha256"]},
@@ -465,15 +550,21 @@ def test_replacement_cli_flags_are_repeatable() -> None:
         "--part0-manifest", "p0.json",
         "--part0-replacement-manifest", "p0-a.json",
         "--part0-replacement-manifest", "p0-b.json",
+        "--part0-unavailable-target", "subject.p0",
         "--part1-partial-manifest", "p1.json",
         "--part1-replacement-manifest", "p1-r.json",
+        "--part1-unavailable-target", "subject.p1",
         "--part2-manifest", "p2.json",
         "--part2-replacement-manifest", "p2-r.json",
+        "--part2-unavailable-target", "subject.p2",
         "--output-dir", "output",
     ])
     assert args.part0_replacement_manifest == [Path("p0-a.json"), Path("p0-b.json")]
     assert args.part1_replacement_manifest == [Path("p1-r.json")]
     assert args.part2_replacement_manifest == [Path("p2-r.json")]
+    assert args.part0_unavailable_target == ["subject.p0"]
+    assert args.part1_unavailable_target == ["subject.p1"]
+    assert args.part2_unavailable_target == ["subject.p2"]
 
 
 def test_incomplete_primaries_accept_exact_complete_target_replacements(
@@ -651,6 +742,240 @@ def test_part1_overlay_matches_configured_contract_not_target_count_worker_cap(
         _combine_part1_overlay(
             [], [primary], [replacement], bootstrap_seed=5,
         )
+
+
+def test_explicit_operationally_unavailable_targets_are_omitted_with_sanitized_provenance(
+    tmp_path: Path,
+) -> None:
+    subjects = (SUBJECT, SECOND_SUBJECT)
+    panel = _panel(tmp_path)
+    panel_value = json.loads(panel.read_text(encoding="utf-8"))
+    panel_value["subject_target_ids"][1] = SECOND_TARGET
+    _write_json(panel, panel_value)
+    artifact = build_final_results(
+        part0_manifest=_part0_fixture(
+            tmp_path, subjects=subjects, complete=False,
+            operational_failure_targets=(SECOND_TARGET,),
+            name="unavailable-p0-primary",
+        ),
+        part0_unavailable_targets=[SECOND_TARGET],
+        part1_full_manifests=[],
+        part1_n96_manifests=[_part1_fixture(
+            tmp_path, count=12, subjects=subjects, complete=False,
+            operational_failure_targets=(SECOND_TARGET,),
+            name="unavailable-p1-primary",
+        )],
+        part1_unavailable_targets=[SECOND_TARGET],
+        part2_manifest=_part2_fixture(
+            tmp_path, subjects=subjects, complete=False,
+            operational_failures={SECOND_TARGET: "transport"},
+            name="unavailable-p2-primary",
+        ),
+        part2_unavailable_targets=[SECOND_TARGET],
+        panel_path=panel, output_dir=tmp_path / "unavailable-final",
+        bootstrap_seed=41,
+    )
+    for part in ("part0", "part1", "part2"):
+        assert [row["target_id"] for row in artifact[part]] == [TARGET]
+    for binding in (
+        artifact["bindings"]["part0"], artifact["bindings"]["part1"][0],
+        artifact["bindings"]["part2"],
+    ):
+        assert binding["unavailable_target_ids"] == [SECOND_TARGET]
+        assert binding["replaced_target_ids"] == []
+        failure = binding["unavailable_target_failures"][0]
+        assert failure["target_id"] == SECOND_TARGET
+        assert failure["total_failure_count"] > 0
+        assert failure["provenance"] == "validated_target_bound_primary_evidence"
+        assert binding["primary"]["retained_target_ids"] == [TARGET]
+    assert artifact["cross_axis"]["status"] == "not_emitted_fail_closed"
+    assert any(
+        SECOND_TARGET in reason for reason in artifact["cross_axis"]["reasons"]
+    )
+    public = (tmp_path / "unavailable-final/final_results.json").read_text(
+        encoding="utf-8"
+    )
+    for forbidden in (
+        "failure_code", "transport_exhausted", '"raw_response":', '"response_text":',
+        "region/beta-model",
+    ):
+        assert forbidden not in public
+
+
+def test_semantic_or_format_invalid_outputs_cannot_be_declared_unavailable(
+    tmp_path: Path,
+) -> None:
+    subjects = (SUBJECT, SECOND_SUBJECT)
+    p0 = _part0_fixture(
+        tmp_path, subjects=subjects, complete=False,
+        semantic_invalid_targets=(SECOND_TARGET,), name="semantic-p0",
+    )
+    with pytest.raises(FinalResultsError, match="no target-bound operational or identity"):
+        _part0_overlay(p0, [], [SECOND_TARGET])
+
+    p1 = _part1_fixture(
+        tmp_path, count=12, subjects=subjects, complete=False,
+        semantic_invalid_targets=(SECOND_TARGET,), name="semantic-p1",
+    )
+    with pytest.raises(FinalResultsError, match="no target-bound operational or identity"):
+        _combine_part1_overlay(
+            [], [p1], [], bootstrap_seed=1,
+            unavailable_target_ids=[SECOND_TARGET],
+        )
+
+    p2 = _part2_fixture(
+        tmp_path, subjects=subjects, complete=False,
+        semantic_invalid_targets=(SECOND_TARGET,), name="semantic-p2",
+    )
+    with pytest.raises(FinalResultsError, match="no target-bound operational or identity"):
+        _part2_overlay(p2, [], [SECOND_TARGET])
+
+
+def test_valid_target_cannot_be_excluded_because_another_target_failed(
+    tmp_path: Path,
+) -> None:
+    subjects = (SUBJECT, SECOND_SUBJECT)
+    p0 = _part0_fixture(
+        tmp_path, subjects=subjects, complete=False,
+        operational_failure_targets=(TARGET,), name="other-failed-p0",
+    )
+    with pytest.raises(FinalResultsError, match="no target-bound operational or identity"):
+        _part0_overlay(p0, [], [SECOND_TARGET])
+
+    p1 = _part1_fixture(
+        tmp_path, count=12, subjects=subjects, complete=False,
+        operational_failure_targets=(TARGET,), name="other-failed-p1",
+    )
+    with pytest.raises(FinalResultsError, match="no target-bound operational or identity"):
+        _combine_part1_overlay(
+            [], [p1], [], bootstrap_seed=1,
+            unavailable_target_ids=[SECOND_TARGET],
+        )
+
+    p2 = _part2_fixture(
+        tmp_path, subjects=subjects, complete=False,
+        operational_failures={TARGET: "transport"}, name="other-failed-p2",
+    )
+    with pytest.raises(FinalResultsError, match="no target-bound operational or identity"):
+        _part2_overlay(p2, [], [SECOND_TARGET])
+
+
+def test_unavailable_targets_reject_unknown_duplicates_complete_and_replacement_overlap(
+    tmp_path: Path,
+) -> None:
+    subjects = (SUBJECT, SECOND_SUBJECT)
+    incomplete = _part0_fixture(
+        tmp_path, subjects=subjects, complete=False,
+        operational_failure_targets=(SECOND_TARGET,), name="unavailable-invalid-p0",
+    )
+    with pytest.raises(FinalResultsError, match="duplicated"):
+        _part0_overlay(incomplete, [], [SECOND_TARGET, SECOND_TARGET])
+    with pytest.raises(FinalResultsError, match="absent from the primary"):
+        _part0_overlay(incomplete, [], ["subject.unknown"])
+
+    complete = _part0_fixture(
+        tmp_path, subjects=subjects, name="unavailable-complete-p0",
+    )
+    with pytest.raises(FinalResultsError, match="incomplete primary"):
+        _part0_overlay(complete, [], [SECOND_TARGET])
+
+    replacement = _part0_fixture(
+        tmp_path, subjects=(SECOND_SUBJECT,), name="unavailable-overlap-p0",
+    )
+    with pytest.raises(FinalResultsError, match="both replaced and unavailable"):
+        _part0_overlay(incomplete, [replacement], [SECOND_TARGET])
+
+
+def test_part1_unavailable_target_must_resolve_to_exactly_one_primary(
+    tmp_path: Path,
+) -> None:
+    subjects = (SUBJECT, SECOND_SUBJECT)
+    n12 = _part1_fixture(
+        tmp_path, count=12, subjects=subjects, complete=False,
+        operational_failure_targets=(SECOND_TARGET,), name="ambiguous-p1-n12",
+    )
+    n96 = _part1_fixture(
+        tmp_path, count=96, subjects=subjects, complete=False,
+        operational_failure_targets=(SECOND_TARGET,), name="ambiguous-p1-n96",
+    )
+    with pytest.raises(FinalResultsError, match="exactly one primary"):
+        _combine_part1_overlay(
+            [], [n12, n96], [], bootstrap_seed=2,
+            unavailable_target_ids=[SECOND_TARGET],
+        )
+
+
+def test_part1_unavailable_filter_preserves_primary_bootstrap_subject_index(
+    tmp_path: Path,
+) -> None:
+    subjects = (SUBJECT, SECOND_SUBJECT)
+    baseline = _part1_fixture(
+        tmp_path, count=12, subjects=subjects, name="bootstrap-baseline-p1",
+    )
+    baseline_rows, _identities, _binding = _part1_manifest(
+        baseline, scope="balanced_partial", bootstrap_seed=71,
+    )
+    expected = next(
+        row for row in baseline_rows if row["target_id"] == SECOND_TARGET
+    )["cooperation"]
+
+    primary = _part1_fixture(
+        tmp_path, count=12, subjects=subjects, complete=False,
+        operational_failure_targets=(TARGET,), name="bootstrap-unavailable-p1",
+    )
+    rows, _identities, bindings = _combine_part1_overlay(
+        [], [primary], [], bootstrap_seed=71,
+        unavailable_target_ids=[TARGET],
+    )
+    assert [row["target_id"] for row in rows] == [SECOND_TARGET]
+    assert rows[0]["cooperation"] == expected
+    assert bindings[0]["unavailable_target_ids"] == [TARGET]
+
+
+def test_identity_failures_are_valid_unavailable_evidence_and_overlap_still_fails(
+    tmp_path: Path,
+) -> None:
+    subjects = (SUBJECT, SECOND_SUBJECT)
+    p1_primary = _part1_fixture(
+        tmp_path, count=12, subjects=subjects, complete=False,
+        identity_failure_targets=(SECOND_TARGET,), name="identity-unavailable-p1",
+    )
+    rows, _identities, bindings = _combine_part1_overlay(
+        [], [p1_primary], [], bootstrap_seed=3,
+        unavailable_target_ids=[SECOND_TARGET],
+    )
+    assert [row["target_id"] for row in rows] == [TARGET]
+    assert bindings[0]["unavailable_target_failures"][0]["failure_counts"] == {
+        "response_model_identity_mismatch": 12,
+    }
+    p1_replacement = _part1_fixture(
+        tmp_path, count=12, subjects=(SECOND_SUBJECT,),
+        name="identity-overlap-p1-replacement",
+    )
+    with pytest.raises(FinalResultsError, match="both replaced and unavailable"):
+        _combine_part1_overlay(
+            [], [p1_primary], [p1_replacement], bootstrap_seed=3,
+            unavailable_target_ids=[SECOND_TARGET],
+        )
+
+    p2_primary = _part2_fixture(
+        tmp_path, subjects=subjects, complete=False,
+        operational_failures={SECOND_TARGET: "identity"},
+        name="identity-unavailable-p2",
+    )
+    rows, _identities, binding = _part2_overlay(
+        p2_primary, [], [SECOND_TARGET],
+    )
+    assert [row["target_id"] for row in rows] == [TARGET]
+    assert binding["unavailable_target_failures"][0]["failure_counts"] == {
+        "response_model_identity_mismatch": 8,
+    }
+
+    p2_complete = _part2_fixture(
+        tmp_path, subjects=subjects, name="complete-unavailable-p2",
+    )
+    with pytest.raises(FinalResultsError, match="incomplete primary"):
+        _part2_overlay(p2_complete, [], [SECOND_TARGET])
 
 
 def test_overlay_contract_ignores_only_operational_repair_fields() -> None:
