@@ -103,6 +103,8 @@ EXCLUDED_RELATIVE_PATHS = {
     Path("data") / "graphs" / "paper_visuals" / "behavioral_fingerprint_heatmap.png",
     Path("data") / "graphs" / "paper_visuals" / "model_behavior_pca.png",
     Path("data") / "raw" / "part_2" / "legacy_structural_provenance.json",
+    Path("analysis") / "build_legacy_part2_provenance.py",
+    Path("tests") / "test_legacy_part2_provenance.py",
     Path("tests") / "test_campaign.py",
     # Hosted aggregate analyzers are private until their outputs have passed the
     # completed-run sanitization gate below. Local scale controls remain outside

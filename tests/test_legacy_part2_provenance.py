@@ -1,7 +1,5 @@
 import json
 import shutil
-import subprocess
-import sys
 import zipfile
 from pathlib import Path
 
@@ -102,31 +100,21 @@ def test_legacy_part2_provenance_rejects_tampered_portable_archive(
         build_provenance(raw_dir=raw_dir)
 
 
-def test_provenance_check_succeeds_in_extracted_supplement_without_git(
+def test_deprecated_provenance_replay_is_excluded_from_supplement(
     tmp_path: Path,
 ) -> None:
     supplement_path = tmp_path / "supplement.zip"
     build_supplement(PROJECT_ROOT, supplement_path)
-    extracted = tmp_path / "extracted"
     with zipfile.ZipFile(supplement_path) as archive:
-        archive.extractall(extracted)
+        names = set(archive.namelist())
 
-    assert not (extracted / ".git").exists()
-    completed = subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "analysis.build_legacy_part2_provenance",
-            "--check",
-        ],
-        cwd=extracted,
-        check=False,
-        capture_output=True,
-        text=True,
+    assert "analysis/build_legacy_part2_provenance.py" not in names
+    assert "tests/test_legacy_part2_provenance.py" not in names
+    assert not any(
+        name.startswith("data/raw/part_2/legacy_execution_archive/")
+        for name in names
     )
-
-    assert completed.returncode == 0, completed.stderr
-    assert "Verified data/raw/part_2/legacy_structural_provenance.json" in completed.stdout
+    assert "data/raw/part_2/legacy_structural_provenance.json" not in names
 
 
 def test_checked_in_legacy_part2_trajectory_replays_under_sealed_rate() -> None:
