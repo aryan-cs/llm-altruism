@@ -74,14 +74,19 @@ concurrency 2, global 8 starts/second, and provider 1.5 starts/second. Parts 0
 and 1 use the separately source-bound bounded deadline policies above. Primary
 campaigns have priority over supplemental retries.
 
-### Role calibration (currently running)
+### Role calibration (clean identity-safe rerun currently running)
 
-- Path: `data/private/inference_hub/definitive-part1-role-calibration-v2`.
+- Path: `data/private/inference_hub/definitive-part1-role-calibration-v3`.
 - Six frozen sentinels × 96 roots × three distinct frames (advice, observer
   evaluation, prediction) × four counterbalances = 6,912 requests.
 - Frames remain separate estimands and are never pooled into self-choice.
 - The exploratory accelerated policy is source-bound at global concurrency 12,
   provider concurrency 3, global 8 starts/second, and provider 2 starts/second.
+- The preserved v2 campaign retained all 6,912 rows but correctly remained
+  incomplete after five DeepSeek V4 Pro responses named a different served
+  route. The v3 runner records such a 200-response identity drift as a failed
+  attempt and retries it within the eight-attempt budget before retaining any
+  primary row; v2 is excluded from all analysis.
 - Role calibration and sensitivity now run concurrently under distinct bounded
   limiter scopes; role semantic-invalid repair still waits for the role source
   manifest to become COMPLETE.
