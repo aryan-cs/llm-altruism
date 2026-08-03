@@ -339,3 +339,26 @@ def test_supplement_manifest_hashes_every_included_payload(tmp_path: Path) -> No
             assert hashlib.sha256(archive.read(name)).hexdigest() == manifest[
                 "file_sha256s"
             ][name]
+
+
+def test_rebuild_preserves_anonymous_model_registry_archive_alias(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "extracted-supplement"
+    registry = root / "docs" / "release" / "MODEL_REGISTRY.md"
+    registry.parent.mkdir(parents=True)
+    registry.write_text("# Anonymous model registry\n", encoding="utf-8")
+    monkeypatch.setattr(
+        build_supplement,
+        "INCLUDE_PATHS",
+        (Path("docs/conference_submission/SUPPLEMENT_MODEL_REGISTRY.md"),),
+    )
+
+    output, files = build_supplement.build_supplement(
+        project_root=root,
+        output_path=tmp_path / "rebuilt.zip",
+    )
+
+    assert files == [Path("docs/release/MODEL_REGISTRY.md")]
+    with zipfile.ZipFile(output) as archive:
+        assert "docs/release/MODEL_REGISTRY.md" in archive.namelist()

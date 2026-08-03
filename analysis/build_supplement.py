@@ -432,7 +432,14 @@ def collect_supplement_files(
 
         for candidate in candidates:
             rel_path = candidate.relative_to(project_root)
-            if not _should_exclude(rel_path, output_rel_path):
+            archive_registry_fallback = (
+                include_path
+                == Path("docs") / "conference_submission" / "SUPPLEMENT_MODEL_REGISTRY.md"
+                and rel_path == Path("docs") / "release" / "MODEL_REGISTRY.md"
+            )
+            if archive_registry_fallback or not _should_exclude(
+                rel_path, output_rel_path
+            ):
                 files.add(rel_path)
 
     files.update(_completed_sanitized_aggregates(project_root))
