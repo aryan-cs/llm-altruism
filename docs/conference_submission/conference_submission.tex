@@ -351,6 +351,10 @@ The repeated environment adds information that static choice cannot.
 Restraint is a model action, AURC is a resource consequence, and population retention is a group consequence.
 Reporting all three exposes whether similar action rates produce different trajectories under collapse dynamics and whether a result depends on one nominal parameterization.
 
+The same contracts extend naturally to tool-using and multi-agent systems.
+A Part~0 extension can score whether an agent withholds a harmful tool call; Part~1 can offer authorized actions that trade the focal user's benefit against a third party's cost; Part~2 can expose several agents to a shared budget, quota, or service capacity across independent episodes.
+In each case, the primary observation should be the executed action and resulting state transition, with communication, memory, and tool feedback introduced as explicit experimental factors rather than folded into a single agent score.
+
 \section{Limitations and Broader Impact}
 \label{sec:scope}
 The benchmark measures outputs in artificial tasks, not intent or real-world trustworthiness.

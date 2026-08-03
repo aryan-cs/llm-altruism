@@ -640,6 +640,26 @@ def test_deterministic_headline_macros_match_full_production_fixture_exactly(
     assert "CrossAxis" not in text and "Composite" not in text
 
 
+def test_headlines_emit_pairwise_diagnostics_for_matched_exact_routes(
+    tmp_path: Path,
+) -> None:
+    data = _load_and_validate(_write_source(tmp_path))
+    for index in range(19):
+        shared_target = data["part0"][index]["target_id"]
+        data["part1"][index]["target_id"] = shared_target
+        data["part2"][index]["target_id"] = shared_target
+    output = tmp_path / "matched-headlines"
+    output.mkdir()
+    macros = _headline_macros(_write_headlines(data, output))
+    assert macros["ProviderSafePairwisePartZeroPartOneMatchedRouteCount"] == "19"
+    assert macros["ProviderSafePairwisePartZeroPartTwoMatchedRouteCount"] == "19"
+    assert macros["ProviderSafePairwisePartOnePartTwoMatchedRouteCount"] == "19"
+    for pair in ("PartZeroPartOne", "PartZeroPartTwo", "PartOnePartTwo"):
+        assert f"ProviderSafePairwise{pair}SpearmanRho" in macros
+        assert f"ProviderSafePairwise{pair}KendallTauB" in macros
+        assert f"ProviderSafePairwise{pair}MaximumAbsoluteRankShift" in macros
+
+
 def test_latex_tables_preserve_ids_define_directions_and_space_every_float(tmp_path: Path) -> None:
     output = tmp_path / "paper-assets"
     build_paper_assets(
