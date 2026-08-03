@@ -24,6 +24,11 @@ SCHEMA_VERSION = 1
 SOURCE_ARTIFACT_TYPE = "prosocial_readiness_final_sanitized_results"
 OUTPUT_ARTIFACT_TYPE = "prosocial_readiness_paper_headlines"
 LANGUAGES = ("english", "chinese", "russian")
+PART1_PRE_EXECUTION_UNAVAILABLE_TARGET_IDS = frozenset({
+    "moonshotai/kimi-k2.5",
+    "moonshotai/kimi-k2.6",
+    "zai-org/glm-5.2",
+})
 FORBIDDEN_KEYS = {
     "assistant_response",
     "completion",
@@ -433,6 +438,11 @@ def _part1(source: Mapping[str, Any]) -> dict[str, Any]:
         raise PaperHeadlineError("Part 1 requires exactly one preferred row per reported system.")
     if set(unavailable) & included_ids:
         raise PaperHeadlineError("Part 1 included and unavailable systems overlap.")
+    if (set(unavailable) | included_ids) & PART1_PRE_EXECUTION_UNAVAILABLE_TARGET_IDS:
+        raise PaperHeadlineError(
+            "A pre-execution-unavailable Part 1 registry target appears in the "
+            "execution roster."
+        )
 
     def scope_totals(root_count: int) -> dict[str, Any]:
         scope_rows = grouped[root_count]
@@ -475,8 +485,18 @@ def _part1(source: Mapping[str, Any]) -> dict[str, Any]:
     }
     return {
         "reported_systems": len(included_ids),
-        "unavailable_systems": len(unavailable),
-        "targeted_systems": len(included_ids) + len(unavailable),
+        "operational_unavailable_systems": len(unavailable),
+        "pre_execution_unavailable_systems": len(
+            PART1_PRE_EXECUTION_UNAVAILABLE_TARGET_IDS
+        ),
+        "unavailable_systems": (
+            len(unavailable) + len(PART1_PRE_EXECUTION_UNAVAILABLE_TARGET_IDS)
+        ),
+        "targeted_systems": (
+            len(included_ids)
+            + len(unavailable)
+            + len(PART1_PRE_EXECUTION_UNAVAILABLE_TARGET_IDS)
+        ),
         "scheduled_roots": sum(row["root_count"] for row in rows),
         "scopes": {"n96": n96, "n12": n12, "n384": n384},
     }
@@ -604,6 +624,15 @@ def _macro_lines(artifact: Mapping[str, Any]) -> list[str]:
         ("PaperPartZeroRussianMedianPct", f"{p0['condition_system_median_percent']['russian']:.1f}"),
         ("PaperPartOneReportedSystems", p1["reported_systems"]),
         ("PaperPartOneUnavailableSystems", p1["unavailable_systems"]),
+        (
+            "PaperPartOneOperationalUnavailableSystems",
+            p1["operational_unavailable_systems"],
+        ),
+        (
+            "PaperPartOnePreExecutionUnavailableSystems",
+            p1["pre_execution_unavailable_systems"],
+        ),
+        ("PaperPartOneTargetedSystems", p1["targeted_systems"]),
         ("PaperPartOneScheduledRoots", p1["scheduled_roots"]),
         ("PaperPartOneNNinetySixSystems", p1_n96["systems"]),
         ("PaperPartOneNNinetySixScheduledRoots", p1_n96["scheduled_roots"]),

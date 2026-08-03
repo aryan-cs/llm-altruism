@@ -277,7 +277,10 @@ def test_builds_exact_within_axis_headlines_and_latex_macros(tmp_path: Path) -> 
     }
 
     p1 = artifact["part1"]
-    assert (p1["reported_systems"], p1["unavailable_systems"]) == (5, 1)
+    assert (p1["reported_systems"], p1["unavailable_systems"]) == (5, 4)
+    assert p1["operational_unavailable_systems"] == 1
+    assert p1["pre_execution_unavailable_systems"] == 3
+    assert p1["targeted_systems"] == 9
     assert p1["scheduled_roots"] == 600
     assert p1["scopes"]["n96"] == {
         "systems": 2,
@@ -317,6 +320,8 @@ def test_builds_exact_within_axis_headlines_and_latex_macros(tmp_path: Path) -> 
     assert r"\newcommand{\PaperPartZeroRefusalMedianPct}{66.7}" in tex
     assert r"Alpha \& Co: 25.0\%; Zulu: 50.0\%" in tex
     assert r"\newcommand{\PaperPartOneNThreeEightyFourScheduledRoots}{384}" in tex
+    assert r"\newcommand{\PaperPartOneUnavailableSystems}{4}" in tex
+    assert r"\newcommand{\PaperPartOneTargetedSystems}{9}" in tex
     assert r"\newcommand{\PaperPartTwoTrajectoriesPerSystem}{8}" in tex
     assert "Spearman" not in tex
 
