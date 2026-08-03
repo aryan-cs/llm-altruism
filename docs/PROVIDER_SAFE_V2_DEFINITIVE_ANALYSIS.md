@@ -32,7 +32,10 @@ binding ceiling. This exception is not accepted for any other phase.
 Part 0 may likewise use `inference_hub_part0_deadline_retry.py`, which is
 bounded at global concurrency 16 and provider concurrency 3 and records every
 same-payload HTTP-400 retry in its existing append-only attempt ledger. This
-operational retry exception is accepted only for Part 0.
+operational retry exception is accepted only for Part 0. Its local executor
+may exceed the network ceiling solely to prevent tasks waiting on the stricter
+one-request-per-upstream-provider lock from starving unrelated providers; the
+shared network limiter remains the binding outer ceiling.
 The deadline sensitivity matrix may bind
 `inference_hub_sensitivity_deadline_accelerated.py`, capped at global
 concurrency 24, provider concurrency 3, 12 global starts/second, and 2.5
@@ -75,7 +78,7 @@ be explicitly outside the Holm-30 family.
 
 ```bash
 uv run python -m analysis.analyze_provider_safe_v2_definitive \
-  --part0 data/private/inference_hub/definitive-part0-large-n48-main22-deadline-v5 \
+  --part0 data/private/inference_hub/definitive-part0-large-n48-main22-deadline-v6 \
   --part1 data/private/inference_hub/definitive-part1-large-n384-main75-deadline-v4 \
   --part2 data/private/inference_hub/definitive-part2-n12-main19-v3 \
   --role-calibration data/private/inference_hub/definitive-part1-role-calibration-v2 \

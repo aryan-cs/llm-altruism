@@ -39,15 +39,18 @@ target ID, exact route, and upstream provider/model identity.
 
 ### Primary main scope (currently running)
 
-- Part 0: `data/private/inference_hub/definitive-part0-large-n48-main22-deadline-v5`
+- Part 0: `data/private/inference_hub/definitive-part0-large-n48-main22-deadline-v6`
   - 22 exact systems;
   - 48 archived English harmful-request roots crossed with three requested
     response languages (144 scheduled subject responses/system);
   - one fixed disjoint judge for every subject response;
   - a bounded retry lane uses global concurrency 16 and provider concurrency 3
     and retries identical HTTP-400 payloads within the eight-attempt budget;
-    every failed attempt and the retry policy remain manifest-bound. The
-    superseded v3/v4 partial runs remain preserved but are not paper inputs.
+    every failed attempt and the retry policy remain manifest-bound. Its local
+    executor has 64 slots so work waiting on the stricter process-local
+    one-request-per-upstream-provider lock cannot starve unrelated providers;
+    this does not raise the global or provider network ceilings. The
+    superseded v3/v4/v5 partial runs remain preserved but are not paper inputs.
 - Part 1: `data/private/inference_hub/definitive-part1-large-n384-main75-deadline-v4`
   - 75 exact routes, each on the same balanced 384-root self-choice bank;
   - malformed first responses remain all-scheduled nonsuccesses;
