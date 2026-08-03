@@ -531,6 +531,8 @@ def test_latex_tables_preserve_ids_define_directions_and_space_every_float(tmp_p
     assert "Part 0: R; V" in cross_phase
     assert "Part 1: W; V" in cross_phase
     assert "Part 2: R; A; V" in cross_phase
+    assert "environmentally estimable-trajectory normalized AURC" in cross_phase
+    assert "no environmentally estimable AURC trajectory" in cross_phase
     assert "no composite or general safety ranking is computed" in cross_phase
     assert "-- (not in panel)" in cross_phase
 
