@@ -87,43 +87,42 @@ Our contributions are:
 
 \begin{figure}[!htbp]
 \centering
-\resizebox{\linewidth}{!}{%
+\resizebox{0.88\linewidth}{!}{%
 \begin{tikzpicture}[
     font=\small\rmfamily,
-    phase/.style={font=\footnotesize\bfseries\rmfamily, text=black!58, align=center},
-    part/.style={draw=#1!75!black, fill=#1!12, rounded corners=3pt, text width=3.05cm, minimum height=1.18cm, align=center, line width=0.8pt},
-    trace/.style={draw=black!45, fill=black!4, rounded corners=3pt, text width=2.65cm, minimum height=1.10cm, align=center, line width=0.7pt},
-    metric/.style={draw=#1!60!black, fill=#1!7, rounded corners=3pt, text width=2.65cm, minimum height=1.10cm, align=center, line width=0.7pt},
-    package/.style={draw=prbGreen!60!black, fill=prbGreen!8, rounded corners=4pt, text width=2.95cm, minimum height=4.45cm, align=center, line width=0.9pt},
-    arrow/.style={-{Latex[length=2.1mm]}, line width=0.75pt, draw=black!62}
+    stage/.style={draw=#1!75!black, fill=#1!10, rounded corners=4pt,
+      text width=11.5cm, minimum height=1.78cm, align=left,
+      inner xsep=8pt, inner ysep=6pt, line width=0.9pt},
+    sharedbox/.style={draw=black!55, fill=black!4, rounded corners=4pt,
+      text width=11.5cm, minimum height=1.05cm, align=left,
+      inner xsep=8pt, inner ysep=6pt, line width=0.8pt},
+    arrow/.style={-{Latex[length=2.3mm]}, line width=0.85pt, draw=black!62}
 ]
-\node[phase] at (0,3.35) {Prompted conflict};
-\node[phase] at (3.45,3.35) {Affected party};
-\node[phase] at (6.75,3.35) {Primary outcome};
-\node[phase] at (10.10,3.35) {Evidence unit};
+\node[stage=prbBlue] (p0) {\textbf{Part 0: Explicit harmful-request refusal}\\
+\textbf{Prompted conflict:} a harmful request, with an explicit safety rule.\quad
+\textbf{Affected party:} an identifiable target, facing direct harm.\\
+\textbf{Primary outcome:} material refusal, stratified by response language.\quad
+\textbf{Independent unit:} one harmful-request root.};
 
-\node[part=prbBlue] (p0) at (0,2.35) {\textbf{Part 0}\\Harmful request\\{\footnotesize explicit safety rule}};
-\node[part=prbOrange] (p1) at (0,0.75) {\textbf{Part 1}\\Dyadic dilemma\\{\footnotesize unilateral advantage}};
-\node[part=prbGreen] (p2) at (0,-0.85) {\textbf{Part 2}\\Repeated commons\\{\footnotesize individually attractive overuse}};
+\node[stage=prbOrange, below=7mm of p0] (p1) {\textbf{Part 1: Dyadic cooperation under bilateral cost shifting}\\
+\textbf{Prompted conflict:} a one-shot dilemma, with a unilateral advantage.\quad
+\textbf{Affected party:} one counterpart, bearing the bilateral cost.\\
+\textbf{Primary outcome:} welfare-preserving self-choice, rather than focal advantage.\quad
+\textbf{Independent unit:} one scenario root.};
 
-\node[trace] (t0) at (3.45,2.35) {identifiable target\\direct harm};
-\node[trace] (t1) at (3.45,0.75) {one counterpart\\bilateral cost};
-\node[trace] (t2) at (3.45,-0.85) {whole group\\diffuse cumulative cost};
+\node[stage=prbGreen, below=7mm of p1] (p2) {\textbf{Part 2: Repeated commons restraint}\\
+\textbf{Prompted conflict:} individually attractive overuse, repeated across days.\quad
+\textbf{Affected party:} the whole group, facing diffuse and cumulative costs.\\
+\textbf{Primary outcomes:} restraint, reserve preservation, and population retention.\quad
+\textbf{Independent unit:} one common-seed trajectory.};
 
-\node[metric=prbBlue] (m0) at (6.75,2.35) {material refusal\\by response language};
-\node[metric=prbOrange] (m1) at (6.75,0.75) {welfare-preserving\\self-choice};
-\node[metric=prbGreen] (m2) at (6.75,-0.85) {restraint, reserve\\population retention};
+\node[sharedbox, below=7mm of p2] (shared) {\textbf{Shared controls:} exact route identity, bounded concurrent execution, disjoint judging, and verifiable provenance.};
 
-\node[package] (unit) at (10.10,0.75) {\textbf{Independent units}\\request root\\scenario root\\trajectory\\[0.4em]\textbf{Shared controls}\\exact route identity\\bounded execution\\verifiable provenance};
-
-\draw[arrow] (p0.east) -- (t0.west); \draw[arrow] (t0.east) -- (m0.west);
-\draw[arrow] (p1.east) -- (t1.west); \draw[arrow] (t1.east) -- (m1.west);
-\draw[arrow] (p2.east) -- (t2.west); \draw[arrow] (t2.east) -- (m2.west);
-\draw[arrow] (m0.east) -- ([yshift=1.60cm]unit.west);
-\draw[arrow] (m1.east) -- (unit.west);
-\draw[arrow] (m2.east) -- ([yshift=-1.60cm]unit.west);
+\draw[arrow] (p0.south) -- (p1.north);
+\draw[arrow] (p1.south) -- (p2.north);
+\draw[arrow] (p2.south) -- (shared.north);
 \end{tikzpicture}}
-\caption{Prosocial Readiness Bench evaluates increasingly indirect cost shifting. Rows are Parts~0--2; columns identify the prompted conflict, the affected party, the task-specific primary outcome, and the independent evidence unit under shared identity and provenance controls. Part~0 asks whether a model refuses explicit assistance with harm; Part~1 asks whether it avoids a bilateral advantage at another participant's expense; Part~2 asks whether repeated local choices preserve a shared resource and group population. Higher outcome values mean more refusal, cooperation, or preservation within the corresponding row; lower values mean more harmful assistance, counterpart cost shifting, or commons overuse. The outcomes remain separate.}
+\caption{Prosocial Readiness Bench evaluates increasingly indirect cost shifting in a vertical progression. Each stage box names the prompted conflict, affected party, primary outcome, and independent evidence unit. Part~0 tests explicit harmful assistance; Part~1 tests bilateral cost shifting; Part~2 tests diffuse, cumulative commons harm. Higher task-specific values mean more refusal, cooperation, or preservation, while lower values mean more harmful assistance, focal advantage, or commons overuse. The outcomes remain separate.}
 \label{fig:overview}
 \end{figure}
 
