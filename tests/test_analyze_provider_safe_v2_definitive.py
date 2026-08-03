@@ -12,14 +12,17 @@ import pytest
 from analysis.analyze_provider_safe_v2_definitive import (
     DefinitiveAnalysisError,
     _provider_safe_contract,
+    _root_cluster_bootstrap_95,
     _self_hash,
+    _stratified_root_bootstrap_95,
+    _wilson_95,
     analyze,
 )
 from experiments.misc.inference_hub_part2_sensitivity_v1 import (
     _analyze_completed_design,
     load_sensitivity_design,
 )
-from experiments.part1.confirmatory_design import COUNTERBALANCES
+from experiments.part1.confirmatory_design import COUNTERBALANCES, DOMAINS, GAMES
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -121,9 +124,16 @@ def production_bundle(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Pat
     raw = {}
     for subject in subjects:
         rows = []
-        for unit in range(144):
-            outcome = "INVALID" if unit == 0 else ("REFUSAL" if unit % 2 else "COMPLIANCE")
-            rows.append({"event": "unit_completed", "target_id": subject["target_id"], "trial_id": f"trial-{unit}", "language": ("english", "chinese", "russian")[unit % 3], "outcome": outcome})
+        for root_index in range(48):
+            for language_index, language in enumerate(("english", "chinese", "russian")):
+                unit = root_index * 3 + language_index
+                outcome = "INVALID" if unit == 0 else ("REFUSAL" if unit % 2 else "COMPLIANCE")
+                rows.append({
+                    "event": "unit_completed", "target_id": subject["target_id"],
+                    "trial_id": f"trial-{root_index}-{language}",
+                    "root_id": f"root-{root_index}", "language": language,
+                    "outcome": outcome,
+                })
         raw[subject["target_id"]] = _journal(run / "private/raw" / f"{subject['model']}.jsonl", rows)
     manifest["journals"] = {"attempt_ledger": _journal(run / "private/attempts.jsonl", []), "raw_responses": raw}
     path = run / "private/manifest.json"
@@ -138,15 +148,20 @@ def production_bundle(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Pat
     raw = {}
     for subject in subjects:
         rows = []
-        for unit in range(384):
-            counterbalance = COUNTERBALANCES[unit % len(COUNTERBALANCES)]
-            rows.append({
-                "target_id": subject["target_id"], "trial_id": f"trial-{unit}",
-                "counterbalance_id": counterbalance.counterbalance_id,
-                "game": ("prisoners_dilemma", "stag_hunt")[unit % 2],
-                "domain": ("education", "health")[unit % 2],
-                "format_valid": unit != 0, "parsed_action": counterbalance.welfare_preserving_label,
-            })
+        unit = 0
+        for game in GAMES:
+            for domain in DOMAINS:
+                for root_index in range(32):
+                    counterbalance = COUNTERBALANCES[root_index % len(COUNTERBALANCES)]
+                    rows.append({
+                        "target_id": subject["target_id"], "trial_id": f"trial-{unit}",
+                        "root_id": f"{game}-{domain}-{root_index}",
+                        "counterbalance_id": counterbalance.counterbalance_id,
+                        "game": game, "domain": domain,
+                        "format_valid": unit != 0,
+                        "parsed_action": counterbalance.welfare_preserving_label,
+                    })
+                    unit += 1
         raw[subject["target_id"]] = _journal(run / "private/raw" / f"{subject['model']}.jsonl", rows)
     manifest["journals"] = {"attempt_ledger": _journal(run / "private/attempts.jsonl", []), "raw_responses": raw}
     path = run / "private/manifest.json"
@@ -260,6 +275,29 @@ def _run(bundle: Mapping[str, Path], output: Path) -> dict[str, Any]:
     )
 
 
+def test_uncertainty_helpers_are_deterministic_and_use_independent_units() -> None:
+    clusters = [0.0, 1.0 / 3.0, 2.0 / 3.0, 1.0] * 12
+    first = _root_cluster_bootstrap_95(
+        clusters, namespace="part0-overall-root-cluster", target_id="route/exact"
+    )
+    second = _root_cluster_bootstrap_95(
+        clusters, namespace="part0-overall-root-cluster", target_id="route/exact"
+    )
+    assert first == second
+    assert first[0] < 0.5 < first[1]
+
+    strata = [[float((root + stratum) % 3 == 0) for root in range(32)] for stratum in range(12)]
+    stratified_first = _stratified_root_bootstrap_95(strata, target_id="route/exact")
+    stratified_second = _stratified_root_bootstrap_95(strata, target_id="route/exact")
+    assert stratified_first == stratified_second
+    assert stratified_first[0] < sum(map(sum, strata)) / 384 < stratified_first[1]
+
+    zero_low, zero_high = _wilson_95(0, 48)
+    full_low, full_high = _wilson_95(48, 48)
+    assert zero_low == 0.0 < zero_high < 1.0
+    assert 0.0 < full_low < full_high == 1.0
+
+
 def test_full_production_shaped_analysis_and_invalid_denominators(
     production_bundle: Mapping[str, Path], tmp_path: Path,
 ) -> None:
@@ -277,8 +315,12 @@ def test_full_production_shaped_analysis_and_invalid_denominators(
     assert p0["first_attempt_invalid_count"] == 1
     assert p0["repaired_invalid_count"] == 0
     assert p0["refusal_rate_all_scheduled"] == p0["refusal_count"] / 144
+    assert p0["finite_bank_sensitivity_replicates"] == 5_000
+    assert p0["refusal_rate_all_scheduled_finite_bank_sensitivity_low"] <= p0["refusal_rate_all_scheduled"] <= p0["refusal_rate_all_scheduled_finite_bank_sensitivity_high"]
     p1 = json.loads((tmp_path / "out/part1_models.jsonl").read_text().splitlines()[0])
     assert p1["welfare_preserving_rate_all_scheduled"] == 383 / 384
+    assert p1["finite_bank_sensitivity_strata"] == 12
+    assert p1["finite_bank_sensitivity_replicates"] == 5_000
     p2 = json.loads((tmp_path / "out/part2_models.jsonl").read_text().splitlines()[0])
     assert p2["restraint_rate_all_scheduled"] == 84 / 120
     assert p2["restraint_rate_among_valid"] == 84 / 119
@@ -289,6 +331,24 @@ def test_full_production_shaped_analysis_and_invalid_denominators(
     assert p2["mean_aupc_eligible"] == pytest.approx(0.9)
     assert p2["reserve_nondepletion_rate_eligible"] == 1.0
     assert p2["mean_population_retention_eligible"] == pytest.approx(0.8)
+    assert p2["mean_aurc_eligible_t95_low"] == pytest.approx(0.8)
+    assert p2["mean_aurc_eligible_t95_high"] == pytest.approx(0.8)
+    assert p2["reserve_nondepletion_rate_eligible_wilson95_low"] < 1.0
+    assert p2["reserve_nondepletion_rate_eligible_wilson95_high"] == 1.0
+    assert p2["restraint_interval_trajectory_count"] == 12
+
+    manifest = json.loads((tmp_path / "out/analysis_manifest.json").read_text())
+    assert manifest["path_policy"] == "portable_basenames_only_no_host_absolute_paths_in_public_manifest"
+    assert all("path" not in binding for binding in manifest["input_manifests"].values())
+    assert all(not Path(binding["basename"]).is_absolute() for binding in manifest["input_manifests"].values())
+    assert len(manifest["public_outputs"]) == 13
+    for binding in manifest["public_outputs"]:
+        public_path = tmp_path / "out" / binding["basename"]
+        assert binding["file_sha256"] == _sha_file(public_path)
+        assert binding["kind"].startswith("machine_readable_")
+    serialized_manifest = json.dumps(manifest, sort_keys=True)
+    assert "/Users/" not in serialized_manifest
+    assert "/private/" not in serialized_manifest
 
 
 def test_incomplete_manifest_fails_before_output(tmp_path: Path) -> None:

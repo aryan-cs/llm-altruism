@@ -189,6 +189,32 @@ def _optional_reconciled_rate(
     return value
 
 
+def _interval(
+    row: Mapping[str, Any], low_field: str, high_field: str, label: str,
+    *, estimate: float | None, bounded: bool, allow_nonestimable: bool = False,
+) -> tuple[float | None, float | None]:
+    """Validate an interval pair, including the explicit nonestimable case."""
+
+    low_raw, high_raw = row.get(low_field), row.get(high_field)
+    if estimate is None:
+        if low_raw is not None or high_raw is not None:
+            raise PaperAssetsError(f"{label} interval must be null when its estimate is null.")
+        return None, None
+    if low_raw is None and high_raw is None and allow_nonestimable:
+        return None, None
+    low = _number(
+        row, low_field, label, minimum=0.0 if bounded else None,
+        maximum=1.0 if bounded else None,
+    )
+    high = _number(
+        row, high_field, label, minimum=0.0 if bounded else None,
+        maximum=1.0 if bounded else None,
+    )
+    if low > estimate or estimate > high:
+        raise PaperAssetsError(f"{label} interval does not contain its estimate.")
+    return low, high
+
+
 def _required(row: Mapping[str, Any], fields: Sequence[str], label: str) -> None:
     missing = [field for field in fields if field not in row]
     if missing:
@@ -224,6 +250,76 @@ def _validate_manifest(input_dir: Path) -> dict[str, Any]:
         raise PaperAssetsError("Analysis manifest type, schema, or self-hash failed.")
     if manifest.get("row_counts") != EXPECTED_ROW_COUNTS:
         raise PaperAssetsError("Analysis manifest does not declare the production row matrix.")
+    if manifest.get("path_policy") != "portable_basenames_only_no_host_absolute_paths_in_public_manifest":
+        raise PaperAssetsError("Analysis manifest path policy is not release-safe.")
+    if manifest.get("privacy_policy") != {
+        "contains_prompt_text": False,
+        "contains_response_text_or_reasoning": False,
+        "contains_private_journal_paths": False,
+        "contains_only_identifiers_hash_bindings_and_derived_aggregates": True,
+    }:
+        raise PaperAssetsError("Analysis manifest privacy policy changed.")
+    inputs = manifest.get("input_manifests")
+    if not isinstance(inputs, Mapping) or set(inputs) != {
+        "part0", "part1", "part2", "role", "sensitivity"
+    }:
+        raise PaperAssetsError("Analysis manifest input bindings are incomplete.")
+    for phase, binding in inputs.items():
+        if not isinstance(binding, Mapping) or set(binding) != {
+            "basename", "file_sha256", "evidence_sha256"
+        }:
+            raise PaperAssetsError(f"Analysis input binding is malformed: {phase}.")
+        basename = binding.get("basename")
+        if (
+            not isinstance(basename, str)
+            or Path(basename).name != basename
+            or Path(basename).is_absolute()
+        ):
+            raise PaperAssetsError("Analysis manifest contains a nonportable input path.")
+    expected_public = {
+        *(f"{name}.jsonl" for name in EXPECTED_ROW_COUNTS),
+        *(f"{name}.csv" for name in EXPECTED_ROW_COUNTS),
+        "figure_aggregates.json",
+    }
+    outputs = manifest.get("public_outputs")
+    if manifest.get("public_output_inventory_scope") != (
+        "all_nonmanifest_outputs_created_before_manifest_self_seal"
+    ):
+        raise PaperAssetsError("Analysis public-output inventory scope changed.")
+    if not isinstance(outputs, list) or len(outputs) != len(expected_public):
+        raise PaperAssetsError("Analysis manifest public-output inventory is incomplete.")
+    seen: set[str] = set()
+    for binding in outputs:
+        if not isinstance(binding, Mapping):
+            raise PaperAssetsError("Analysis public-output binding is malformed.")
+        basename = binding.get("basename")
+        if (
+            not isinstance(basename, str)
+            or basename not in expected_public
+            or Path(basename).name != basename
+            or basename in seen
+        ):
+            raise PaperAssetsError("Analysis public-output basename is invalid or duplicated.")
+        seen.add(basename)
+        path = input_dir / basename
+        expected_kind = (
+            "machine_readable_table_jsonl" if path.suffix == ".jsonl" else
+            "machine_readable_table_csv" if path.suffix == ".csv" else
+            "machine_readable_figure_aggregates_json"
+        )
+        if binding.get("kind") != expected_kind:
+            raise PaperAssetsError(f"Analysis public-output kind failed: {basename}.")
+        if binding.get("file_sha256") != _sha256_file(path):
+            raise PaperAssetsError(f"Analysis public-output hash failed: {basename}.")
+        expected_rows = EXPECTED_ROW_COUNTS.get(path.stem)
+        if expected_rows is None:
+            declared_rows = binding.get("row_count")
+            if isinstance(declared_rows, bool) or not isinstance(declared_rows, int) or declared_rows < 0:
+                raise PaperAssetsError(f"Analysis public-output row count failed: {basename}.")
+        elif binding.get("row_count") != expected_rows:
+            raise PaperAssetsError(f"Analysis public-output row count failed: {basename}.")
+    if seen != expected_public:
+        raise PaperAssetsError("Analysis public-output inventory changed.")
     if (
         manifest.get("invalid_policy") != INVALID_POLICY
         or manifest.get("human_labels_generated") is not False
@@ -231,6 +327,11 @@ def _validate_manifest(input_dir: Path) -> dict[str, Any]:
         or manifest.get("confirmatory_or_paper_promotion_permitted") is not False
     ):
         raise PaperAssetsError("Analysis manifest safety/status contract changed.")
+    uncertainty = manifest.get("uncertainty_policy")
+    if not isinstance(uncertainty, Mapping) or uncertainty.get("bootstrap_replicates") != 5_000 or uncertainty.get("finite_bank_scope") != (
+        "part0_and_part1_bootstrap_intervals_are_descriptive_frozen_bank_sensitivity_intervals_not_population_confidence_intervals"
+    ):
+        raise PaperAssetsError("Analysis uncertainty/scope contract changed.")
     return manifest
 
 
@@ -246,6 +347,10 @@ def _validate_part0(
                 "scheduled_units", "refusal_count", "compliance_count", "unclear_count",
                 "first_attempt_invalid_count", "repaired_invalid_count",
                 "refusal_rate_all_scheduled", "primary_denominator", "exploratory_only",
+                "refusal_rate_all_scheduled_finite_bank_sensitivity_low",
+                "refusal_rate_all_scheduled_finite_bank_sensitivity_high",
+                "finite_bank_sensitivity_method", "finite_bank_sensitivity_unit",
+                "finite_bank_sensitivity_replicates", "finite_bank_sensitivity_seed",
             ),
             label,
         )
@@ -264,6 +369,23 @@ def _validate_part0(
         refusal_rate = _rate(row, "refusal_rate_all_scheduled", label)
         if sum(counts) != scheduled or not _same_rate(refusal_rate, counts[0], scheduled):
             raise PaperAssetsError(f"{label} counts or scheduled-unit refusal rate do not reconcile.")
+        _interval(
+            row,
+            "refusal_rate_all_scheduled_finite_bank_sensitivity_low",
+            "refusal_rate_all_scheduled_finite_bank_sensitivity_high",
+            label,
+            estimate=refusal_rate,
+            bounded=True,
+        )
+        if (
+            row.get("finite_bank_sensitivity_method")
+            != "percentile_root_cluster_bootstrap_95"
+            or row.get("finite_bank_sensitivity_unit")
+            != "harmful_request_root_with_three_languages_retained"
+            or _integer(row, "finite_bank_sensitivity_replicates", label) != 5_000
+            or _integer(row, "finite_bank_sensitivity_seed", label) < 1
+        ):
+            raise PaperAssetsError(f"{label} changed its root-cluster sensitivity interval.")
         if row.get("primary_denominator") != "all_scheduled_units" or row.get("exploratory_only") is not True:
             raise PaperAssetsError(f"{label} changed its denominator/status contract.")
 
@@ -279,6 +401,9 @@ def _validate_part0(
                 "target_id", "model", "language", "scheduled_units", "refusal_count",
                 "compliance_count", "unclear_count", "invalid_count",
                 "refusal_rate_all_scheduled",
+                "refusal_rate_all_scheduled_wilson95_low",
+                "refusal_rate_all_scheduled_wilson95_high",
+                "interval_method", "interval_unit",
             ),
             label,
         )
@@ -300,6 +425,17 @@ def _validate_part0(
         refusal_rate = _rate(row, "refusal_rate_all_scheduled", label)
         if sum(counts) != scheduled or not _same_rate(refusal_rate, counts[0], scheduled):
             raise PaperAssetsError(f"{label} counts or rate do not reconcile.")
+        _interval(
+            row, "refusal_rate_all_scheduled_wilson95_low",
+            "refusal_rate_all_scheduled_wilson95_high", label,
+            estimate=refusal_rate, bounded=True,
+        )
+        if (
+            row.get("interval_method") != "wilson_score_binomial_95"
+            or row.get("interval_unit")
+            != "harmful_request_root_within_response_language"
+        ):
+            raise PaperAssetsError(f"{label} changed its Wilson interval contract.")
         by_key[key] = row
     expected_keys = {(target, language) for target in models for language in PART0_LANGUAGES}
     if set(by_key) != expected_keys:
@@ -332,6 +468,12 @@ def _validate_part1(rows: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
                 "welfare_preserving_count_first_attempt",
                 "welfare_preserving_rate_all_scheduled",
                 "welfare_preserving_rate_among_first_attempt_valid",
+                "welfare_preserving_rate_all_scheduled_finite_bank_sensitivity_low",
+                "welfare_preserving_rate_all_scheduled_finite_bank_sensitivity_high",
+                "finite_bank_sensitivity_method", "finite_bank_sensitivity_unit",
+                "finite_bank_sensitivity_strata",
+                "finite_bank_sensitivity_roots_per_stratum",
+                "finite_bank_sensitivity_replicates", "finite_bank_sensitivity_seed",
                 "primary_denominator", "exploratory_only",
             ),
             label,
@@ -350,6 +492,24 @@ def _validate_part1(rows: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
         )
         if not _same_rate(all_rate, welfare, scheduled):
             raise PaperAssetsError(f"{label} welfare rates do not reconcile.")
+        _interval(
+            row,
+            "welfare_preserving_rate_all_scheduled_finite_bank_sensitivity_low",
+            "welfare_preserving_rate_all_scheduled_finite_bank_sensitivity_high",
+            label,
+            estimate=all_rate,
+            bounded=True,
+        )
+        if (
+            row.get("finite_bank_sensitivity_method")
+            != "percentile_root_bootstrap_stratified_by_game_domain_95"
+            or row.get("finite_bank_sensitivity_unit") != "one_shot_scenario_root"
+            or _integer(row, "finite_bank_sensitivity_strata", label) != 12
+            or _integer(row, "finite_bank_sensitivity_roots_per_stratum", label) != 32
+            or _integer(row, "finite_bank_sensitivity_replicates", label) != 5_000
+            or _integer(row, "finite_bank_sensitivity_seed", label) < 1
+        ):
+            raise PaperAssetsError(f"{label} changed its stratified-root sensitivity interval.")
         if row.get("primary_denominator") != "all_scheduled_units" or row.get("exploratory_only") is not True:
             raise PaperAssetsError(f"{label} changed its denominator/status contract.")
     return sorted(
@@ -371,9 +531,22 @@ def _validate_part2(rows: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
                 "scheduled_agent_days", "restraint_count", "overuse_count",
                 "first_attempt_invalid_count", "repaired_invalid_count",
                 "restraint_rate_all_scheduled", "restraint_rate_among_valid",
+                "mean_trajectory_restraint_rate_all_scheduled",
+                "mean_trajectory_restraint_rate_all_scheduled_t95_low",
+                "mean_trajectory_restraint_rate_all_scheduled_t95_high",
                 "mean_aurc_eligible", "mean_aupc_eligible",
+                "mean_aurc_eligible_t95_low", "mean_aurc_eligible_t95_high",
+                "mean_aupc_eligible_t95_low", "mean_aupc_eligible_t95_high",
                 "reserve_nondepletion_rate_eligible",
+                "reserve_nondepletion_rate_eligible_wilson95_low",
+                "reserve_nondepletion_rate_eligible_wilson95_high",
                 "mean_population_retention_eligible",
+                "mean_population_retention_eligible_t95_low",
+                "mean_population_retention_eligible_t95_high",
+                "trajectory_interval_method", "trajectory_interval_unit",
+                "restraint_interval_trajectory_count",
+                "environmental_interval_trajectory_count",
+                "nondepletion_interval_method",
                 "primary_denominator", "exploratory_only",
             ),
             label,
@@ -404,28 +577,72 @@ def _validate_part2(rows: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
         if _integer(row, "repaired_invalid_count", label) != 0:
             raise PaperAssetsError("Part 2 repaired outcomes are outside this frozen asset contract.")
         all_rate = _rate(row, "restraint_rate_all_scheduled", label)
+        mean_trajectory_restraint = _rate(
+            row, "mean_trajectory_restraint_rate_all_scheduled", label
+        )
         _optional_reconciled_rate(
             row, "restraint_rate_among_valid", label, restraint, scheduled - invalid
         )
         if eligible == 0:
             for field in (
                 "mean_aurc_eligible",
+                "mean_aurc_eligible_t95_low",
+                "mean_aurc_eligible_t95_high",
                 "mean_aupc_eligible",
+                "mean_aupc_eligible_t95_low",
+                "mean_aupc_eligible_t95_high",
                 "reserve_nondepletion_rate_eligible",
+                "reserve_nondepletion_rate_eligible_wilson95_low",
+                "reserve_nondepletion_rate_eligible_wilson95_high",
                 "mean_population_retention_eligible",
+                "mean_population_retention_eligible_t95_low",
+                "mean_population_retention_eligible_t95_high",
             ):
                 if row.get(field) is not None:
                     raise PaperAssetsError(
                         f"{label}.{field} must be null with no eligible trajectories."
                     )
         else:
-            for field in (
-                "mean_aurc_eligible",
-                "mean_aupc_eligible",
-                "reserve_nondepletion_rate_eligible",
-                "mean_population_retention_eligible",
-            ):
-                _number(row, field, label, minimum=0.0, maximum=1.0)
+            aurc = _rate(row, "mean_aurc_eligible", label)
+            aupc = _rate(row, "mean_aupc_eligible", label)
+            nondepletion = _rate(row, "reserve_nondepletion_rate_eligible", label)
+            population = _rate(row, "mean_population_retention_eligible", label)
+            _interval(
+                row, "mean_aurc_eligible_t95_low", "mean_aurc_eligible_t95_high",
+                label, estimate=aurc, bounded=False, allow_nonestimable=eligible < 2,
+            )
+            _interval(
+                row, "mean_aupc_eligible_t95_low", "mean_aupc_eligible_t95_high",
+                label, estimate=aupc, bounded=False, allow_nonestimable=eligible < 2,
+            )
+            _interval(
+                row, "reserve_nondepletion_rate_eligible_wilson95_low",
+                "reserve_nondepletion_rate_eligible_wilson95_high", label,
+                estimate=nondepletion, bounded=True,
+            )
+            _interval(
+                row, "mean_population_retention_eligible_t95_low",
+                "mean_population_retention_eligible_t95_high", label,
+                estimate=population, bounded=False, allow_nonestimable=eligible < 2,
+            )
+        _interval(
+            row, "mean_trajectory_restraint_rate_all_scheduled_t95_low",
+            "mean_trajectory_restraint_rate_all_scheduled_t95_high", label,
+            estimate=mean_trajectory_restraint, bounded=False,
+        )
+        if (
+            row.get("trajectory_interval_method")
+            != "student_t_95_over_independent_trajectories"
+            or row.get("trajectory_interval_unit")
+            != "matched_environment_seed_trajectory"
+            or _integer(row, "restraint_interval_trajectory_count", label)
+            != trajectories
+            or _integer(row, "environmental_interval_trajectory_count", label)
+            != eligible
+            or row.get("nondepletion_interval_method")
+            != "wilson_score_binomial_95"
+        ):
+            raise PaperAssetsError(f"{label} changed its trajectory interval contract.")
         if not _same_rate(all_rate, restraint, scheduled):
             raise PaperAssetsError(f"{label} scheduled-unit restraint rate does not reconcile.")
         if row.get("primary_denominator") != "all_scheduled_agent_days" or row.get("exploratory_only") is not True:
@@ -724,6 +941,13 @@ def _load_and_validate(input_dir: Path) -> dict[str, Any]:
         raise PaperAssetsError("Figure aggregates are missing a required schema member.")
     if not all(isinstance(aggregates[key], list) for key in required_aggregates):
         raise PaperAssetsError("Figure aggregate members must be arrays.")
+    figure_binding = next(
+        binding
+        for binding in manifest["public_outputs"]
+        if binding["basename"] == "figure_aggregates.json"
+    )
+    if figure_binding["row_count"] != sum(len(aggregates[key]) for key in aggregates):
+        raise PaperAssetsError("Figure aggregate row count differs from its hash binding.")
     if _canonical_bytes(aggregates["role_calibration_by_model_frame"]) != _canonical_bytes(tables["role_calibration_model_frames"]):
         raise PaperAssetsError("Role table and figure aggregate rows disagree.")
     if _canonical_bytes(aggregates["sensitivity_main_effects"]) != _canonical_bytes(tables["sensitivity_main_effects"]):
@@ -802,6 +1026,7 @@ def _heatmap(
     vmin: float,
     vmax: float,
     percent: bool = True,
+    intervals: Sequence[Sequence[tuple[float, float]]] | None = None,
 ) -> None:
     mesh = ax.pcolormesh(
         matrix, cmap=cmap, vmin=vmin, vmax=vmax, shading="flat",
@@ -818,9 +1043,16 @@ def _heatmap(
     for row_index, values in enumerate(matrix):
         for column_index, value in enumerate(values):
             label = f"{value:.0%}" if percent else f"{value:+.3f}"
+            if intervals is not None:
+                low, high = intervals[row_index][column_index]
+                label += f"\n[{low:.0%}, {high:.0%}]"
             midpoint = (vmin + vmax) / 2.0
             color = "white" if abs(value - midpoint) > (vmax - vmin) * 0.34 else INK
-            ax.text(column_index + 0.5, row_index + 0.5, label, ha="center", va="center", fontsize=6, color=color)
+            ax.text(
+                column_index + 0.5, row_index + 0.5, label,
+                ha="center", va="center", fontsize=5.1 if intervals is not None else 6,
+                color=color, linespacing=0.9,
+            )
     colorbar = ax.figure.colorbar(mesh, ax=ax, fraction=0.035, pad=0.02)
     # Matplotlib rasterizes colorbar solids above its internal segment count by
     # default.  These paper PDFs promise vector-only marks, so override that
@@ -841,6 +1073,16 @@ def _plot_part0(data: Mapping[str, Any], directory: Path) -> list[Path]:
         [float(by_key[(row["target_id"], language)]["refusal_rate_all_scheduled"]) for language in PART0_LANGUAGES]
         for row in rows
     ]
+    refusal_intervals = [
+        [
+            (
+                float(by_key[(row["target_id"], language)]["refusal_rate_all_scheduled_wilson95_low"]),
+                float(by_key[(row["target_id"], language)]["refusal_rate_all_scheduled_wilson95_high"]),
+            )
+            for language in PART0_LANGUAGES
+        ]
+        for row in rows
+    ]
     validity = [
         [1.0 - int(by_key[(row["target_id"], language)]["invalid_count"]) / int(by_key[(row["target_id"], language)]["scheduled_units"]) for language in PART0_LANGUAGES]
         for row in rows
@@ -849,10 +1091,14 @@ def _plot_part0(data: Mapping[str, Any], directory: Path) -> list[Path]:
     fig.patch.set_facecolor("white")
     fig.suptitle("Part 0 response-language outcomes by exact model route", x=0.08, ha="left", fontsize=15, fontweight="bold", color=INK)
     fig.text(0.08, 0.955, "Each cell uses 48 scheduled harmful-request roots; rows are ordered by overall within-task refusal rate.", fontsize=9, color=MUTED)
-    _heatmap(axes[0], refusal, PART0_LANGUAGES, labels, title="Refusal rate / all scheduled roots", cmap=RATE_CMAP, vmin=0.0, vmax=1.0)
+    _heatmap(
+        axes[0], refusal, PART0_LANGUAGES, labels,
+        title="Refusal rate [Wilson 95%] / 48 roots", cmap=RATE_CMAP,
+        vmin=0.0, vmax=1.0, intervals=refusal_intervals,
+    )
     _heatmap(axes[1], validity, PART0_LANGUAGES, labels, title="Valid-output coverage", cmap=VALID_CMAP, vmin=0.0, vmax=1.0)
     axes[1].tick_params(axis="y", labelleft=False)
-    fig.text(0.08, 0.018, "Higher refusal means less assistance on this harmful-request task; higher validity means fewer invalid outputs. Neither panel is a general safety score.", fontsize=8, color=MUTED)
+    fig.text(0.08, 0.018, "Brackets are condition-specific Wilson 95% intervals over 48 roots. Higher refusal means less assistance on this harmful-request task; higher validity means fewer invalid outputs. Neither panel is a general safety score.", fontsize=8, color=MUTED)
     fig.tight_layout(rect=(0.06, 0.045, 0.99, 0.94), w_pad=2.2)
     return _save_figure(fig, directory, "part0_model_language", "Part 0 model by language outcomes")
 
@@ -865,6 +1111,7 @@ def _lollipop_panel(
     title: str,
     color: str,
     show_labels: bool,
+    intervals: Sequence[tuple[float | None, float | None]] | None = None,
 ) -> None:
     positions = list(range(len(values)))
     estimable = [(position, value) for position, value in zip(positions, values, strict=True) if value is not None]
@@ -876,6 +1123,17 @@ def _lollipop_panel(
         [value for _, value in estimable], [position for position, _ in estimable],
         s=19, color=color, edgecolor=INK, linewidth=0.35, zorder=2,
     )
+    if intervals is not None:
+        for position, value, interval in zip(positions, values, intervals, strict=True):
+            low, high = interval
+            if value is None or low is None or high is None:
+                continue
+            ax.errorbar(
+                [value], [position],
+                xerr=[[max(0.0, value - low)], [max(0.0, high - value)]],
+                fmt="none", ecolor=INK, elinewidth=0.7, capsize=1.6,
+                capthick=0.7, zorder=1.5,
+            )
     ax.set_xlim(0.0, 1.0)
     ax.set_ylim(-0.8, len(values) - 0.2)
     ax.invert_yaxis()
@@ -902,6 +1160,13 @@ def _plot_part1(data: Mapping[str, Any], directory: Path) -> list[Path]:
     rows = data["part1"]
     labels = [_label(row) for row in rows]
     welfare = [float(row["welfare_preserving_rate_all_scheduled"]) for row in rows]
+    welfare_intervals = [
+        (
+            float(row["welfare_preserving_rate_all_scheduled_finite_bank_sensitivity_low"]),
+            float(row["welfare_preserving_rate_all_scheduled_finite_bank_sensitivity_high"]),
+        )
+        for row in rows
+    ]
     validity = [1.0 - int(row["first_attempt_invalid_count"]) / int(row["scheduled_units"]) for row in rows]
     # Keep separate y-axis formatters: sharing the formatter allows an unlabeled
     # right panel to erase the exact route/model labels on the left panel.
@@ -909,9 +1174,13 @@ def _plot_part1(data: Mapping[str, Any], directory: Path) -> list[Path]:
     fig.patch.set_facecolor("white")
     fig.suptitle("Part 1 self-choice outcomes for all 75 exact model routes", x=0.08, y=0.995, ha="left", fontsize=15, fontweight="bold", color=INK)
     fig.text(0.08, 0.973, "One row per route; 384 scheduled units per route; ordered by within-task welfare-preserving rate.", fontsize=9, color=MUTED)
-    _lollipop_panel(axes[0], welfare, labels, title="Welfare-preserving / all scheduled units", color=BLUE, show_labels=True)
+    _lollipop_panel(
+        axes[0], welfare, labels,
+        title="Welfare-preserving [root sensitivity 95%]", color=BLUE,
+        show_labels=True, intervals=welfare_intervals,
+    )
     _lollipop_panel(axes[1], validity, labels, title="Valid first-attempt coverage", color=GREEN, show_labels=False)
-    fig.text(0.08, 0.012, "Higher welfare preservation means fewer counterpart costs in this self-choice task; higher validity means fewer invalid outputs. Neither is a general safety ranking.", fontsize=8, color=MUTED)
+    fig.text(0.08, 0.012, "Whiskers are deterministic 5,000-replicate stratified frozen-root-bank sensitivity intervals, not population CIs. Higher welfare preservation means fewer counterpart costs; higher validity means fewer invalid outputs.", fontsize=8, color=MUTED)
     fig.tight_layout(rect=(0.055, 0.028, 0.99, 0.965), w_pad=2.0)
     return _save_figure(fig, directory, "part1_all_models", "Part 1 all-model outcomes")
 
@@ -919,13 +1188,30 @@ def _plot_part1(data: Mapping[str, Any], directory: Path) -> list[Path]:
 def _plot_part2(data: Mapping[str, Any], directory: Path) -> list[Path]:
     rows = data["part2"]
     labels = [_label(row) for row in rows]
-    restraint = [float(row["restraint_rate_all_scheduled"]) for row in rows]
+    restraint = [
+        float(row["mean_trajectory_restraint_rate_all_scheduled"]) for row in rows
+    ]
+    restraint_intervals = [
+        (
+            row["mean_trajectory_restraint_rate_all_scheduled_t95_low"],
+            row["mean_trajectory_restraint_rate_all_scheduled_t95_high"],
+        )
+        for row in rows
+    ]
     aurc = [
         None if row["mean_aurc_eligible"] is None else float(row["mean_aurc_eligible"])
         for row in rows
     ]
+    aurc_intervals = [
+        (row["mean_aurc_eligible_t95_low"], row["mean_aurc_eligible_t95_high"])
+        for row in rows
+    ]
     aupc = [
         None if row["mean_aupc_eligible"] is None else float(row["mean_aupc_eligible"])
+        for row in rows
+    ]
+    aupc_intervals = [
+        (row["mean_aupc_eligible_t95_low"], row["mean_aupc_eligible_t95_high"])
         for row in rows
     ]
     nondepletion = [
@@ -934,10 +1220,24 @@ def _plot_part2(data: Mapping[str, Any], directory: Path) -> list[Path]:
         else float(row["reserve_nondepletion_rate_eligible"])
         for row in rows
     ]
+    nondepletion_intervals = [
+        (
+            row["reserve_nondepletion_rate_eligible_wilson95_low"],
+            row["reserve_nondepletion_rate_eligible_wilson95_high"],
+        )
+        for row in rows
+    ]
     population = [
         None
         if row["mean_population_retention_eligible"] is None
         else float(row["mean_population_retention_eligible"])
+        for row in rows
+    ]
+    population_intervals = [
+        (
+            row["mean_population_retention_eligible_t95_low"],
+            row["mean_population_retention_eligible_t95_high"],
+        )
         for row in rows
     ]
     validity = [1.0 - int(row["first_attempt_invalid_count"]) / int(row["scheduled_agent_days"]) for row in rows]
@@ -945,13 +1245,13 @@ def _plot_part2(data: Mapping[str, Any], directory: Path) -> list[Path]:
     fig.patch.set_facecolor("white")
     fig.suptitle("Part 2 commons outcomes for 19 exact model routes", x=0.075, y=0.995, ha="left", fontsize=15, fontweight="bold", color=INK)
     fig.text(0.075, 0.953, "One row per route; 12 trajectories per route; ordered by within-task restraint rate.", fontsize=9, color=MUTED)
-    _lollipop_panel(axes[0], restraint, labels, title="Restraint / agent-days", color=BLUE, show_labels=True)
-    _lollipop_panel(axes[1], aurc, labels, title="Mean AURC / env. estimable", color=BLUE, show_labels=False)
-    _lollipop_panel(axes[2], aupc, labels, title="Mean AUPC / env. estimable", color=BLUE, show_labels=False)
-    _lollipop_panel(axes[3], nondepletion, labels, title="Nondepletion / env. estimable", color=GREEN, show_labels=False)
-    _lollipop_panel(axes[4], population, labels, title="Population retained / env. estimable", color=GREEN, show_labels=False)
+    _lollipop_panel(axes[0], restraint, labels, title="Mean trajectory restraint [t95]", color=BLUE, show_labels=True, intervals=restraint_intervals)
+    _lollipop_panel(axes[1], aurc, labels, title="Mean AURC [t95] / env.", color=BLUE, show_labels=False, intervals=aurc_intervals)
+    _lollipop_panel(axes[2], aupc, labels, title="Mean AUPC [t95] / env.", color=BLUE, show_labels=False, intervals=aupc_intervals)
+    _lollipop_panel(axes[3], nondepletion, labels, title="Nondepletion [Wilson95] / env.", color=GREEN, show_labels=False, intervals=nondepletion_intervals)
+    _lollipop_panel(axes[4], population, labels, title="Population retained [t95] / env.", color=GREEN, show_labels=False, intervals=population_intervals)
     _lollipop_panel(axes[5], validity, labels, title="Valid coverage", color=GREEN, show_labels=False)
-    fig.text(0.075, 0.018, "Higher restraint, AURC, AUPC, nondepletion, and population retention mean more resource or population preservation in this simulator; higher validity means fewer invalid actions. These are not general safety scores.", fontsize=8, color=MUTED)
+    fig.text(0.075, 0.018, "Whiskers are trajectory-level Student-t 95% intervals (Wilson 95% for nondepletion). Higher values mean more resource/population preservation; higher validity means fewer invalid actions. These are not general safety scores.", fontsize=8, color=MUTED)
     fig.tight_layout(rect=(0.055, 0.045, 0.995, 0.94), w_pad=1.8)
     return _save_figure(fig, directory, "part2_all_models", "Part 2 all-model outcomes")
 
@@ -1063,6 +1363,30 @@ def _pct(value: float) -> str:
     return f"{100.0 * value:.1f}\\%"
 
 
+def _pct_interval(estimate: float, low: float, high: float) -> str:
+    return f"{_pct(estimate)} [{_pct(low)}, {_pct(high)}]"
+
+
+def _decimal_interval(estimate: float, low: float, high: float) -> str:
+    return f"{estimate:.3f} [{low:.3f}, {high:.3f}]"
+
+
+def _optional_interval_cell(
+    estimate: object, low: object, high: object, *, percent: bool
+) -> str:
+    if estimate is None:
+        return "NE"
+    if low is None or high is None:
+        return (_pct(float(estimate)) if percent else f"{float(estimate):.3f}") + " [NE]"
+    if percent:
+        return _pct_interval(float(estimate), float(low), float(high))
+    return _decimal_interval(float(estimate), float(low), float(high))
+
+
+def _markdown_escape(value: object) -> str:
+    return str(value).replace("|", "\\|").replace("\n", " ")
+
+
 def _table_tex(
     *,
     caption: str,
@@ -1120,6 +1444,7 @@ def _write_tables(data: Mapping[str, Any], directory: Path) -> list[Path]:
         "part2": {str(row["target_id"]): row for row in data["part2"]},
     }
     cross_phase_rows = []
+    cross_phase_markdown_rows = []
     all_targets = sorted(set().union(*(set(index) for index in phase_indices.values())))
     for target in all_targets:
         present = [index[target] for index in phase_indices.values() if target in index]
@@ -1139,7 +1464,13 @@ def _write_tables(data: Mapping[str, Any], directory: Path) -> list[Path]:
             scheduled = int(p0["scheduled_units"])
             invalid = int(p0["first_attempt_invalid_count"])
             p0_cell = (
-                f"R {_pct(float(p0['refusal_rate_all_scheduled']))}; "
+                "R "
+                + _pct_interval(
+                    float(p0["refusal_rate_all_scheduled"]),
+                    float(p0["refusal_rate_all_scheduled_finite_bank_sensitivity_low"]),
+                    float(p0["refusal_rate_all_scheduled_finite_bank_sensitivity_high"]),
+                )
+                + "; "
                 f"V {_pct(1.0 - invalid / scheduled)}"
             )
         p1_cell = "-- (not in panel)"
@@ -1147,7 +1478,13 @@ def _write_tables(data: Mapping[str, Any], directory: Path) -> list[Path]:
             scheduled = int(p1["scheduled_units"])
             invalid = int(p1["first_attempt_invalid_count"])
             p1_cell = (
-                f"W {_pct(float(p1['welfare_preserving_rate_all_scheduled']))}; "
+                "W "
+                + _pct_interval(
+                    float(p1["welfare_preserving_rate_all_scheduled"]),
+                    float(p1["welfare_preserving_rate_all_scheduled_finite_bank_sensitivity_low"]),
+                    float(p1["welfare_preserving_rate_all_scheduled_finite_bank_sensitivity_high"]),
+                )
+                + "; "
                 f"V {_pct(1.0 - invalid / scheduled)}"
             )
         p2_cell = "-- (not in panel)"
@@ -1157,7 +1494,10 @@ def _write_tables(data: Mapping[str, Any], directory: Path) -> list[Path]:
             aurc = (
                 "NE"
                 if p2["mean_aurc_eligible"] is None
-                else f"{float(p2['mean_aurc_eligible']):.3f}"
+                else _optional_interval_cell(
+                    p2["mean_aurc_eligible"], p2["mean_aurc_eligible_t95_low"],
+                    p2["mean_aurc_eligible_t95_high"], percent=False,
+                )
             )
             p2_cell = (
                 f"R {_pct(float(p2['restraint_rate_all_scheduled']))}; "
@@ -1173,11 +1513,15 @@ def _write_tables(data: Mapping[str, Any], directory: Path) -> list[Path]:
                 p2_cell,
             ]
         )
+        cross_phase_markdown_rows.append(
+            [target, provider, model, p0_cell.replace("\\%", "%"),
+             p1_cell.replace("\\%", "%"), p2_cell.replace("\\%", "%")]
+        )
     path = directory / "all_models_cross_phase_table.tex"
     path.write_text(
         _table_tex(
             caption=(
-                "Exact-route cross-phase result matrix. Each row is one exact target route in the union of the three primary hosted panels; Provider and Model ID preserve the authenticated upstream identity. Part 0 reports material refusal R and valid first-attempt coverage V over 144 scheduled responses; higher R means less harmful-request assistance and higher V means fewer invalid outputs. Part 1 reports welfare-preserving self-choice W and V over 384 scheduled roots; higher W means fewer counterpart costs and higher V means fewer invalid outputs. Part 2 reports all-scheduled restraint R, environmentally estimable-trajectory normalized AURC A, and V over 12 common-seed trajectories; higher restraint and AURC mean greater reserve preservation and higher V means fewer invalid actions. A trajectory supplies AURC only when its model identity and transport are valid and every first action is semantically valid. NE means no environmentally estimable AURC trajectory, while -- means the exact route was not in that phase panel. The columns are juxtaposed for coverage and inspection only: they remain different estimands, no cell is imputed, and no composite or general safety ranking is computed."
+                "Exact-route cross-phase result matrix. Each row is one exact target route in the union of the three primary hosted panels; Provider and Model ID preserve authenticated upstream identity. Part 0 reports refusal R as estimate [95\\% frozen-root-bank sensitivity interval] and valid first-attempt coverage V over 144 responses; higher R means less harmful-request assistance and higher V means fewer invalid outputs. Part 1 reports welfare-preserving self-choice W as estimate [95\\% stratified frozen-root-bank sensitivity interval] and V over 384 roots; higher W means fewer counterpart costs. These two bootstrap intervals describe the fixed banks, not population confidence intervals. Part 2 reports pooled all-scheduled restraint R, environmentally estimable-trajectory normalized AURC A as estimate [trajectory Student-t 95\\% interval], and V over 12 common-seed trajectories; higher restraint and AURC mean greater reserve preservation and higher V means fewer invalid actions. A trajectory supplies AURC only when model identity and transport are valid and every first action is semantically valid. NE means no environmentally estimable AURC trajectory, while -- means the exact route was not in that phase panel. Columns remain different estimands: no cell is imputed and no composite or general safety ranking is computed."
             ),
             label="tab:provider-safe-v2-all-models-cross-phase",
             headers=("Target route ID", "Provider", "Model ID", "Part 0: R; V", "Part 1: W; V", "Part 2: R; A; V"),
@@ -1188,15 +1532,58 @@ def _write_tables(data: Mapping[str, Any], directory: Path) -> list[Path]:
         encoding="utf-8",
     )
     output.append(path)
+    markdown_path = directory / "all_models_cross_phase_table.md"
+    markdown_headers = (
+        "Target route ID", "Provider", "Model ID", "Part 0: R [95%]; V",
+        "Part 1: W [95%]; V", "Part 2: R; A [95%]; V",
+    )
+    markdown_lines = [
+        "# Exact-route cross-phase results",
+        "",
+        (
+            "Each row is one authenticated exact route. Part 0 R is refusal over all scheduled "
+            "responses with a deterministic 5,000-replicate frozen-root-bank sensitivity interval; "
+            "higher is less harmful-request assistance. Part 1 W is welfare preservation over all "
+            "scheduled roots with the analogous 12-stratum frozen-bank sensitivity interval; higher "
+            "means fewer counterpart costs. These Part 0/1 intervals describe sensitivity to the "
+            "fixed prompt banks, not population confidence intervals. Part 2 R is all-scheduled "
+            "restraint and A is mean environmentally estimable AURC with a trajectory-level Student-t "
+            "95% interval; higher means more reserve preservation. V is valid first-attempt coverage "
+            "in every phase, so higher means fewer invalid outputs/actions. NE means no estimable "
+            "trajectory; -- means the route was not tested in that phase. Columns remain distinct "
+            "estimands and are not a composite or general safety ranking."
+        ),
+        "",
+        "| " + " | ".join(markdown_headers) + " |",
+        "| " + " | ".join("---" for _ in markdown_headers) + " |",
+        *(
+            "| " + " | ".join(_markdown_escape(value) for value in row) + " |"
+            for row in cross_phase_markdown_rows
+        ),
+        "",
+    ]
+    markdown_path.write_text("\n".join(markdown_lines), encoding="utf-8")
+    output.append(markdown_path)
 
     part0_rows = []
     for order, row in enumerate(data["part0"], start=1):
         values = [str(order), _tex_escape(row["target_id"]), _tex_escape(row["upstream_provider"]), _tex_escape(row["model"])]
+        values.append(
+            _pct_interval(
+                float(row["refusal_rate_all_scheduled"]),
+                float(row["refusal_rate_all_scheduled_finite_bank_sensitivity_low"]),
+                float(row["refusal_rate_all_scheduled_finite_bank_sensitivity_high"]),
+            )
+        )
         for language in PART0_LANGUAGES:
             aggregate = data["part0_matrix"][(row["target_id"], language)]
             values.extend(
                 [
-                    _pct(float(aggregate["refusal_rate_all_scheduled"])),
+                    _pct_interval(
+                        float(aggregate["refusal_rate_all_scheduled"]),
+                        float(aggregate["refusal_rate_all_scheduled_wilson95_low"]),
+                        float(aggregate["refusal_rate_all_scheduled_wilson95_high"]),
+                    ),
                     f"{aggregate['invalid_count']}/{aggregate['scheduled_units']}",
                 ]
             )
@@ -1205,12 +1592,12 @@ def _write_tables(data: Mapping[str, Any], directory: Path) -> list[Path]:
     path.write_text(
         _table_tex(
             caption=(
-                "Part 0 exact-route response-language outcomes. Each row is one target route, shown in descending overall refusal-rate display order; Provider and Model are the exact upstream identifiers. For each response-language column (english, chinese, russian), R is REFUSAL divided by all 48 scheduled harmful-request roots and Invalid/scheduled is invalid-output coverage. Higher R means less assistance on this harmful-request task; lower R means more compliance, unclear, or invalid outcomes. Lower invalid coverage is operationally preferable. These directions apply only within Part 0 and are not a general safety ranking."
+                "Part 0 exact-route response-language outcomes. Each row is one target route, shown in descending overall refusal-rate display order; Provider and Model are exact upstream identifiers. Overall R [95\\%] is REFUSAL over 144 responses followed by a deterministic 5,000-replicate percentile interval that resamples 48 harmful-request roots while retaining each root's three languages. Each language R [95\\%] is REFUSAL over 48 roots followed by a Wilson interval; Invalid/scheduled is invalid-output coverage. The root-bootstrap interval is frozen-bank sensitivity, not a population confidence interval. Higher R means less harmful-request assistance; lower invalid coverage is operationally preferable. These directions are within-task only and do not imply general safety."
             ),
             label="tab:provider-safe-v2-part0-model-language",
-            headers=("Order", "Target route ID", "Provider", "Model ID", "english R", "english invalid/scheduled", "chinese R", "chinese invalid/scheduled", "russian R", "russian invalid/scheduled"),
+            headers=("Order", "Target route ID", "Provider", "Model ID", "Overall R [95\\%]", "english R [95\\%]", "english invalid/scheduled", "chinese R [95\\%]", "chinese invalid/scheduled", "russian R [95\\%]", "russian invalid/scheduled"),
             rows=part0_rows,
-            column_spec="rlllrrrrrr",
+            column_spec="rlllrrrrrrr",
             chunk_size=22,
         ),
         encoding="utf-8",
@@ -1252,7 +1639,11 @@ def _write_tables(data: Mapping[str, Any], directory: Path) -> list[Path]:
             [
                 str(order), _tex_escape(row["target_id"]), _tex_escape(row["upstream_provider"]),
                 _tex_escape(row["model"]), str(scheduled),
-                _pct(float(row["welfare_preserving_rate_all_scheduled"])),
+                _pct_interval(
+                    float(row["welfare_preserving_rate_all_scheduled"]),
+                    float(row["welfare_preserving_rate_all_scheduled_finite_bank_sensitivity_low"]),
+                    float(row["welfare_preserving_rate_all_scheduled_finite_bank_sensitivity_high"]),
+                ),
                 f"{invalid}/{scheduled}", _pct(1.0 - invalid / scheduled),
             ]
         )
@@ -1260,10 +1651,10 @@ def _write_tables(data: Mapping[str, Any], directory: Path) -> list[Path]:
     path.write_text(
         _table_tex(
             caption=(
-                "Part 1 self-choice outcomes for all 75 exact model routes. Each row is one target route, shown in descending within-task welfare-preserving-rate display order; Provider and Model are exact upstream identifiers. Scheduled is the number of retained trial units. Welfare/scheduled is the first-attempt welfare-preserving count divided by all scheduled units; Invalid/scheduled gives the invalid count and denominator; Valid coverage is one minus that invalid fraction. Higher welfare preservation means fewer counterpart costs in this task, and higher validity means fewer invalid outputs. These are separate operational/behavioral measures within Part 1, not a general safety or cross-axis ranking."
+                "Part 1 self-choice outcomes for all 75 exact model routes. Each row is one target route, shown in descending within-task welfare-preserving-rate display order; Provider and Model are exact upstream identifiers. Scheduled is the number of retained roots. Welfare/scheduled [95\\%] is the first-attempt welfare-preserving count over all 384 roots followed by a deterministic 5,000-replicate percentile interval that resamples roots separately within all 12 game-domain strata (32 roots each). This is frozen-bank sensitivity, not a population confidence interval. Invalid/scheduled gives the invalid count and denominator; Valid coverage is one minus that fraction. Higher welfare preservation means fewer counterpart costs and higher validity means fewer invalid outputs within this task, not general safety."
             ),
             label="tab:provider-safe-v2-part1-all-models",
-            headers=("Order", "Target route ID", "Provider", "Model ID", "Scheduled", "Welfare/scheduled", "Invalid/scheduled", "Valid coverage"),
+            headers=("Order", "Target route ID", "Provider", "Model ID", "Scheduled", "Welfare/scheduled [95\\%]", "Invalid/scheduled", "Valid coverage"),
             rows=part1_rows,
             column_spec="rlllrrrr",
             chunk_size=25,
@@ -1283,10 +1674,30 @@ def _write_tables(data: Mapping[str, Any], directory: Path) -> list[Path]:
                 str(row["environmentally_estimable_trajectory_count"]),
                 str(scheduled),
                 _pct(float(row["restraint_rate_all_scheduled"])),
-                "NE" if row["mean_aurc_eligible"] is None else f"{float(row['mean_aurc_eligible']):.3f}",
-                "NE" if row["mean_aupc_eligible"] is None else f"{float(row['mean_aupc_eligible']):.3f}",
-                "NE" if row["reserve_nondepletion_rate_eligible"] is None else _pct(float(row["reserve_nondepletion_rate_eligible"])),
-                "NE" if row["mean_population_retention_eligible"] is None else _pct(float(row["mean_population_retention_eligible"])),
+                _optional_interval_cell(
+                    row["mean_trajectory_restraint_rate_all_scheduled"],
+                    row["mean_trajectory_restraint_rate_all_scheduled_t95_low"],
+                    row["mean_trajectory_restraint_rate_all_scheduled_t95_high"],
+                    percent=True,
+                ),
+                _optional_interval_cell(
+                    row["mean_aurc_eligible"], row["mean_aurc_eligible_t95_low"],
+                    row["mean_aurc_eligible_t95_high"], percent=False,
+                ),
+                _optional_interval_cell(
+                    row["mean_aupc_eligible"], row["mean_aupc_eligible_t95_low"],
+                    row["mean_aupc_eligible_t95_high"], percent=False,
+                ),
+                _optional_interval_cell(
+                    row["reserve_nondepletion_rate_eligible"],
+                    row["reserve_nondepletion_rate_eligible_wilson95_low"],
+                    row["reserve_nondepletion_rate_eligible_wilson95_high"], percent=True,
+                ),
+                _optional_interval_cell(
+                    row["mean_population_retention_eligible"],
+                    row["mean_population_retention_eligible_t95_low"],
+                    row["mean_population_retention_eligible_t95_high"], percent=True,
+                ),
                 f"{invalid}/{scheduled}", _pct(1.0 - invalid / scheduled),
             ]
         )
@@ -1294,12 +1705,12 @@ def _write_tables(data: Mapping[str, Any], directory: Path) -> list[Path]:
     path.write_text(
         _table_tex(
             caption=(
-                "Part 2 commons outcomes for all 19 exact model routes. Each row is one target route, shown in descending within-task restraint-rate display order; Provider and Model are exact upstream identifiers. Traj. is the completed trajectory count; Env. traj. is the subset with operationally valid identity and transport and no invalid first action, which supplies environmental estimates; Agent-days is the scheduled action denominator; Restraint/agent-days retains first-attempt invalid actions in that denominator; Mean AURC and Mean AUPC are normalized reserve and population areas over environmentally estimable trajectories; Nondepletion is the share of those trajectories whose reserve stays above zero; Population retained is mean final population divided by initial population; NE means no estimable trajectory; Invalid/agent-days gives invalid count and denominator; Valid coverage is one minus that invalid fraction. Higher restraint, AURC, AUPC, nondepletion, population retention, and validity mean more preservation or fewer invalid actions within this simulator. These directions do not imply general safety."
+                "Part 2 commons outcomes for all 19 exact model routes. Each row is one target route, shown in descending within-task pooled restraint-rate order; Provider and Model are exact upstream identifiers. Traj. is completed trajectories; Env. traj. is the identity-valid, transport-valid subset with no invalid first action used for environmental estimates; Agent-days is the scheduled action denominator. Pooled restraint/agent-days retains invalid actions as nonsuccesses. Mean trajectory restraint [95\\%], Mean AURC [95\\%], Mean AUPC [95\\%], and Population retained [95\\%] report the mean and trajectory-level Student-t interval; Nondepletion [95\\%] reports the proportion and Wilson interval. Environmental columns use Env. traj.; restraint uses all trajectories. NE means not estimable. Invalid/agent-days and Valid coverage describe operational validity. Higher restraint, AURC, AUPC, nondepletion, population retention, and validity mean more preservation or fewer invalid actions within this simulator, not general safety."
             ),
             label="tab:provider-safe-v2-part2-all-models",
-            headers=("Order", "Target route ID", "Provider", "Model ID", "Traj.", "Env. traj.", "Agent-days", "Restraint/agent-days", "Mean AURC", "Mean AUPC", "Nondepletion", "Population retained", "Invalid/agent-days", "Valid coverage"),
+            headers=("Order", "Target route ID", "Provider", "Model ID", "Traj.", "Env. traj.", "Agent-days", "Pooled restraint/agent-days", "Mean traj. restraint [95\\%]", "Mean AURC [95\\%]", "Mean AUPC [95\\%]", "Nondepletion [95\\%]", "Population retained [95\\%]", "Invalid/agent-days", "Valid coverage"),
             rows=part2_rows,
-            column_spec="rlllrrrrrrrrrr",
+            column_spec="rlllrrrrrrrrrrr",
             chunk_size=19,
         ),
         encoding="utf-8",
@@ -1650,6 +2061,7 @@ def build_paper_assets(
                     "vector_pdf" if path.suffix == ".pdf" else
                     "raster_png" if path.suffix == ".png" else
                     "latex_macros" if path.name == "paper_headlines.tex" else
+                    "markdown_table" if path.suffix == ".md" else
                     "latex_table"
                 ),
                 "file_sha256": _sha256_file(path),

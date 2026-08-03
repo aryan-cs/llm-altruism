@@ -70,6 +70,10 @@ def _source_payload() -> tuple[dict[str, list[dict[str, Any]]], dict[str, Any]]:
                 "unclear_count": unclear,
                 "invalid_count": invalid,
                 "refusal_rate_all_scheduled": refusal / 48,
+                "refusal_rate_all_scheduled_wilson95_low": max(0.0, refusal / 48 - 0.1),
+                "refusal_rate_all_scheduled_wilson95_high": min(1.0, refusal / 48 + 0.1),
+                "interval_method": "wilson_score_binomial_95",
+                "interval_unit": "harmful_request_root_within_response_language",
             }
             language_rows.append(row)
             part0_language.append(row)
@@ -90,6 +94,12 @@ def _source_payload() -> tuple[dict[str, list[dict[str, Any]]], dict[str, Any]]:
                 "first_attempt_invalid_count": invalid,
                 "repaired_invalid_count": 0,
                 "refusal_rate_all_scheduled": refusal / 144,
+                "refusal_rate_all_scheduled_finite_bank_sensitivity_low": max(0.0, refusal / 144 - 0.05),
+                "refusal_rate_all_scheduled_finite_bank_sensitivity_high": min(1.0, refusal / 144 + 0.05),
+                "finite_bank_sensitivity_method": "percentile_root_cluster_bootstrap_95",
+                "finite_bank_sensitivity_unit": "harmful_request_root_with_three_languages_retained",
+                "finite_bank_sensitivity_replicates": 5_000,
+                "finite_bank_sensitivity_seed": 1000 + model_index,
                 "primary_denominator": "all_scheduled_units",
                 "exploratory_only": True,
             }
@@ -115,6 +125,14 @@ def _source_payload() -> tuple[dict[str, list[dict[str, Any]]], dict[str, Any]]:
                 "welfare_preserving_count_first_attempt": welfare,
                 "welfare_preserving_rate_all_scheduled": welfare / scheduled,
                 "welfare_preserving_rate_among_first_attempt_valid": None if valid == 0 else welfare / valid,
+                "welfare_preserving_rate_all_scheduled_finite_bank_sensitivity_low": max(0.0, welfare / scheduled - 0.05),
+                "welfare_preserving_rate_all_scheduled_finite_bank_sensitivity_high": min(1.0, welfare / scheduled + 0.05),
+                "finite_bank_sensitivity_method": "percentile_root_bootstrap_stratified_by_game_domain_95",
+                "finite_bank_sensitivity_unit": "one_shot_scenario_root",
+                "finite_bank_sensitivity_strata": 12,
+                "finite_bank_sensitivity_roots_per_stratum": 32,
+                "finite_bank_sensitivity_replicates": 5_000,
+                "finite_bank_sensitivity_seed": 2000 + model_index,
                 "primary_denominator": "all_scheduled_units",
                 "exploratory_only": True,
             }
@@ -152,10 +170,26 @@ def _source_payload() -> tuple[dict[str, list[dict[str, Any]]], dict[str, Any]]:
                 "repaired_invalid_count": 0,
                 "restraint_rate_all_scheduled": restraint / scheduled,
                 "restraint_rate_among_valid": None if invalid == scheduled else restraint / (scheduled - invalid),
+                "mean_trajectory_restraint_rate_all_scheduled": restraint / scheduled,
+                "mean_trajectory_restraint_rate_all_scheduled_t95_low": max(0.0, restraint / scheduled - 0.05),
+                "mean_trajectory_restraint_rate_all_scheduled_t95_high": min(1.0, restraint / scheduled + 0.05),
                 "mean_aurc_eligible": None if model_index == 0 else 0.31 + model_index * 0.025,
+                "mean_aurc_eligible_t95_low": None if model_index == 0 else 0.29 + model_index * 0.025,
+                "mean_aurc_eligible_t95_high": None if model_index == 0 else 0.33 + model_index * 0.025,
                 "mean_aupc_eligible": None if model_index == 0 else 0.7,
+                "mean_aupc_eligible_t95_low": None if model_index == 0 else 0.65,
+                "mean_aupc_eligible_t95_high": None if model_index == 0 else 0.75,
                 "reserve_nondepletion_rate_eligible": None if model_index == 0 else 0.75,
+                "reserve_nondepletion_rate_eligible_wilson95_low": None if model_index == 0 else 0.45,
+                "reserve_nondepletion_rate_eligible_wilson95_high": None if model_index == 0 else 0.92,
                 "mean_population_retention_eligible": None if model_index == 0 else 0.8,
+                "mean_population_retention_eligible_t95_low": None if model_index == 0 else 0.75,
+                "mean_population_retention_eligible_t95_high": None if model_index == 0 else 0.85,
+                "trajectory_interval_method": "student_t_95_over_independent_trajectories",
+                "trajectory_interval_unit": "matched_environment_seed_trajectory",
+                "restraint_interval_trajectory_count": 12,
+                "environmental_interval_trajectory_count": 0 if model_index == 0 else 11 if invalid > 0 else 12,
+                "nondepletion_interval_method": "wilson_score_binomial_95",
                 "primary_denominator": "all_scheduled_agent_days",
                 "exploratory_only": True,
             }
@@ -263,17 +297,60 @@ def _write_source(root: Path, *, mutate=None) -> Path:
         mutate(tables, aggregates)
     for name, rows in tables.items():
         _write_jsonl(source / f"{name}.jsonl", rows)
+        (source / f"{name}.csv").write_text(
+            "row\n" + "".join(f"{index}\n" for index in range(len(rows))),
+            encoding="utf-8",
+        )
     (source / "figure_aggregates.json").write_text(
         json.dumps(aggregates, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    public_paths = sorted(
+        [*source.glob("*.jsonl"), *source.glob("*.csv"), source / "figure_aggregates.json"],
+        key=lambda value: value.name,
     )
     manifest: dict[str, Any] = {
         "schema_version": 1,
         "artifact_type": "provider_safe_v2_definitive_descriptive_analysis",
         "generated_at_utc": "2026-08-03T12:00:00Z",
-        "input_manifests": {"intentionally": "not dereferenced by paper generator"},
+        "input_manifests": {
+            phase: {
+                "basename": "manifest.json", "file_sha256": "a" * 64,
+                "evidence_sha256": "b" * 64,
+            }
+            for phase in ("part0", "part1", "part2", "role", "sensitivity")
+        },
+        "path_policy": "portable_basenames_only_no_host_absolute_paths_in_public_manifest",
+        "privacy_policy": {
+            "contains_prompt_text": False,
+            "contains_response_text_or_reasoning": False,
+            "contains_private_journal_paths": False,
+            "contains_only_identifiers_hash_bindings_and_derived_aggregates": True,
+        },
+        "public_outputs": [
+            {
+                "basename": path.name,
+                "file_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+                "row_count": (
+                    len(tables[path.stem])
+                    if path.stem in tables
+                    else sum(len(value) for value in aggregates.values())
+                ),
+                "kind": (
+                    "machine_readable_table_jsonl" if path.suffix == ".jsonl" else
+                    "machine_readable_table_csv" if path.suffix == ".csv" else
+                    "machine_readable_figure_aggregates_json"
+                ),
+            }
+            for path in public_paths
+        ],
+        "public_output_inventory_scope": "all_nonmanifest_outputs_created_before_manifest_self_seal",
         "judge_disjointness": [],
         "row_counts": copy.deepcopy(EXPECTED_ROW_COUNTS),
         "invalid_policy": INVALID_POLICY,
+        "uncertainty_policy": {
+            "bootstrap_replicates": 5_000,
+            "finite_bank_scope": "part0_and_part1_bootstrap_intervals_are_descriptive_frozen_bank_sensitivity_intervals_not_population_confidence_intervals",
+        },
         "human_labels_generated": False,
         "exploratory_only": True,
         "confirmatory_or_paper_promotion_permitted": False,
@@ -359,7 +436,7 @@ def test_builds_full_production_shaped_vector_png_and_latex_assets(tmp_path: Pat
         "directional_caption_position_and_printed_values"
     )
     assert result["route_and_model_ids_preserved_exactly"] is True
-    assert len(result["assets"]) == 20
+    assert len(result["assets"]) == 21
     assert result["local_controls_pooled_with_hosted_routes"] is False
     assert {path.suffix for path in output.iterdir()} >= {".pdf", ".png", ".tex", ".json"}
 
@@ -390,6 +467,26 @@ def test_builds_full_production_shaped_vector_png_and_latex_assets(tmp_path: Pat
         assert row["file_sha256"] == digest
     headline_asset = next(row for row in manifest["assets"] if row["name"] == "paper_headlines.tex")
     assert headline_asset["kind"] == "latex_macros"
+    markdown_asset = next(
+        row for row in manifest["assets"] if row["name"] == "all_models_cross_phase_table.md"
+    )
+    assert markdown_asset["kind"] == "markdown_table"
+    markdown = (output / "all_models_cross_phase_table.md").read_text(encoding="utf-8")
+    assert "not population confidence intervals" in markdown
+    assert "Part 0: R [95%]; V" in markdown
+    assert "Part 2: R; A [95%]; V" in markdown
+    assert len([line for line in markdown.splitlines() if line.startswith("|")]) == 118
+
+
+def test_hash_bound_public_analysis_output_tamper_fails_closed(tmp_path: Path) -> None:
+    source = _write_source(tmp_path)
+    path = source / "part1_models.jsonl"
+    path.write_text(path.read_text(encoding="utf-8") + "{}\n", encoding="utf-8")
+    with pytest.raises(PaperAssetsError, match="public-output hash failed"):
+        build_paper_assets(
+            source, tmp_path / "must-not-exist", tmp_path / "local_controls.json"
+        )
+    assert not (tmp_path / "must-not-exist").exists()
 
 
 def test_deterministic_headline_macros_match_full_production_fixture_exactly(
