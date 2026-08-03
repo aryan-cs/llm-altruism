@@ -306,13 +306,30 @@ Figures~\ref{fig:part0-model-language}--\ref{fig:cross-phase-outcome-profile} ar
 \end{figure}
 \end{landscape}
 
+\newcommand{\PartOneBlockCaption}[1]{Part~1 self-choice outcomes for all hosted routes, block #1 of 3 in the global display order. Each row is one exact target route and authenticated upstream Model ID evaluated on 384 scheduled roots. The horizontal orange bar is its welfare-preserving first-attempt share over that full denominator and the whisker is its 5,000-replicate stratified frozen-bank sensitivity interval. Higher values mean fewer costs shifted to the counterpart in this task; lower values mean more focal-advantage choices. Invalid outputs remain nonsuccesses in the denominator but are not a separate argument-facing panel. The draft bank lacks independent content approval, so this is neither a general safety ranking nor confirmatory evidence.}
 \clearpage
 \begin{landscape}
 \begin{figure}[p]
 \centering
-\includegraphics[width=\linewidth,height=0.84\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/part1_all_models.pdf}
-\caption{Part~1 self-choice outcomes for all hosted routes. Each row is one exact route evaluated on 384 scheduled roots; the horizontal orange bar is its welfare-preserving first-attempt share over that full denominator and the whisker is its 5,000-replicate stratified frozen-bank sensitivity interval. Higher values mean fewer costs shifted to the counterpart in this task; lower values mean more focal-advantage choices. Invalid outputs remain nonsuccesses in the denominator but are not a separate argument-facing panel. Rows are ordered only within Part~1; the draft bank lacks independent content approval, so this is neither a general safety ranking nor confirmatory evidence.}
+\includegraphics[width=\linewidth,height=0.78\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/part1_all_models_block1.pdf}
+\caption{\PartOneBlockCaption{1}}
 \label{fig:part1-all-models}
+\end{figure}
+\end{landscape}
+\clearpage
+\begin{landscape}
+\begin{figure}[p]
+\centering
+\includegraphics[width=\linewidth,height=0.78\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/part1_all_models_block2.pdf}
+\caption{\PartOneBlockCaption{2}}
+\end{figure}
+\end{landscape}
+\clearpage
+\begin{landscape}
+\begin{figure}[p]
+\centering
+\includegraphics[width=\linewidth,height=0.78\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/part1_all_models_block3.pdf}
+\caption{\PartOneBlockCaption{3}}
 \end{figure}
 \end{landscape}
 
@@ -321,7 +338,7 @@ Figures~\ref{fig:part0-model-language}--\ref{fig:cross-phase-outcome-profile} ar
 \begin{figure}[p]
 \centering
 \includegraphics[width=\linewidth,height=0.78\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/part2_all_models.pdf}
-\caption{Part~2 commons outcomes for all hosted routes. Each row is one exact route with 12 common-seed trajectories. From left to right, the three centered green-bar columns connect model action, resource consequence, and group consequence: mean trajectory restraint over all scheduled agent-days within each trajectory, normalized reserve area (AURC), and final population retention. Whiskers are trajectory Student-$t$ 95\% intervals. Restraint retains invalid first actions as nonsuccesses; AURC and population use only trajectories with valid identity, transport, and every first action. NE means no estimable trajectory rather than zero. Higher values mean more preservation in this simulator; none is a general safety score. AUPC and nondepletion remain in the complete released diagnostics rather than occupying redundant argument-facing columns.}
+\caption{Part~2 commons outcomes for all hosted routes. Each row is one exact route with 12 common-seed trajectories. From left to right, the three centered green-bar columns connect model action, resource consequence, and group consequence: mean trajectory restraint over all scheduled agent-days within each trajectory, normalized reserve area (AURC), and final population retention, defined as final divided by initial population. Whiskers are trajectory Student-$t$ 95\% intervals. Restraint retains invalid first actions as nonsuccesses; AURC and population use only trajectories with valid identity, transport, and every first action. NE means no estimable trajectory rather than zero. Higher values mean more preservation in this simulator; none is a general safety score. AUPC and nondepletion remain in the complete released diagnostics rather than occupying redundant argument-facing columns.}
 \label{fig:part2-all-models}
 \end{figure}
 \end{landscape}
@@ -341,7 +358,7 @@ Figures~\ref{fig:part0-model-language}--\ref{fig:cross-phase-outcome-profile} ar
 \begin{figure}[p]
 \centering
 \includegraphics[width=\linewidth,height=0.78\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/part2_sensitivity_effects.pdf}
-\caption{Part~2 deadline-exploratory sensitivity. Each cell is one exact sentinel route by one varied factor and shows mean normalized AURC at the high level minus the mean at the low level over the 16-cell resolution-V design and two common-seed blocks. ``H'' denotes global Holm-adjusted $p\leq0.05$ across the 30 sentinel-by-factor tests; ``n.s.'' denotes otherwise. Positive effects mean that the high level increased reserve preservation and negative effects mean that it decreased preservation in this simulator, but the sign is not automatically good or bad for a parameter. With only two common seeds, the panel is underpowered and does not establish robustness or general safety.}
+\caption{Part~2 deadline-exploratory sensitivity. Each cell is one exact sentinel route by one varied factor and shows mean normalized AURC at the high level minus the mean at the low level over the 16-cell resolution-V design and two common-seed blocks. The low$\rightarrow$high pairs are capacity per initial agent $5\rightarrow15$, depletion units $1\rightarrow2$, collapse death rate $0.1\rightarrow0.4$, society size $4\rightarrow8$, and horizon days $10\rightarrow20$. ``H'' denotes global Holm-adjusted $p\leq0.05$ across the 30 sentinel-by-factor tests; ``n.s.'' denotes otherwise. Positive effects mean that the high level increased reserve preservation and negative effects mean that it decreased preservation in this simulator, but the sign is not automatically good or bad for a parameter. With only two common seeds, the panel is underpowered and does not establish robustness or general safety.}
 \label{fig:part2-sensitivity}
 \end{figure}
 \end{landscape}
@@ -354,13 +371,38 @@ Figures~\ref{fig:part0-model-language}--\ref{fig:cross-phase-outcome-profile} ar
 \label{fig:part1-local-controls}
 \end{figure}
 
+\newcommand{\CrossPhaseBlockCaption}[1]{Task-specific outcome profile for authenticated routes, block #1 of 4 in exact target-route order. Each row is one exact target route; the adjacent table supplies its authenticated upstream Model ID. The centered panels are Part~0, Part~1, and Part~2. Horizontal position is a share of 144 scheduled responses in Part~0, 384 scheduled roots in Part~1, or all scheduled agent-days across 12 common-seed trajectories in Part~2. Green circles denote refusal, welfare-preserving self-choice, or commons restraint; red diamonds denote compliance, focal-advantage choice, or overuse. Higher green and lower red support the named within-task claim; the reverse weakens it, and shape preserves that distinction in grayscale. Green and red may not sum to 100\% because unclear or invalid outputs remain in the denominator but are omitted as visual bookkeeping. A gray cross means the route was not in that phase panel, not zero. Panels are not pooled into a composite or general safety ranking.}
 \clearpage
 \begin{landscape}
 \begin{figure}[p]
 \centering
-\includegraphics[width=\linewidth,height=0.84\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/all_models_cross_phase_outcome_profile.pdf}
-\caption{Task-specific red/green outcome profile for every authenticated route in the union of the three hosted panels. Each row is one exact route. The three centered panels are Part~0, Part~1, and Part~2; within each panel, horizontal position is a share of that phase's scheduled denominator. Green denotes the task-preferable recorded outcome: refusal of the harmful request, welfare-preserving self-choice, or commons restraint. Red denotes the corresponding task-adverse recorded outcome: compliance, focal-advantage choice, or overuse. Higher green and lower red support the named within-task claim; the reverse weakens it. Green and red may not sum to 100\% because unclear or invalid outputs remain in the denominator but are omitted as visual bookkeeping. A gray cross means that exact route was not in that phase panel, not a zero. The three panels are not pooled into a composite or general safety ranking.}
+\includegraphics[width=\linewidth,height=0.78\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/all_models_cross_phase_outcome_profile_block1.pdf}
+\caption{\CrossPhaseBlockCaption{1}}
 \label{fig:cross-phase-outcome-profile}
+\end{figure}
+\end{landscape}
+\clearpage
+\begin{landscape}
+\begin{figure}[p]
+\centering
+\includegraphics[width=\linewidth,height=0.78\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/all_models_cross_phase_outcome_profile_block2.pdf}
+\caption{\CrossPhaseBlockCaption{2}}
+\end{figure}
+\end{landscape}
+\clearpage
+\begin{landscape}
+\begin{figure}[p]
+\centering
+\includegraphics[width=\linewidth,height=0.78\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/all_models_cross_phase_outcome_profile_block3.pdf}
+\caption{\CrossPhaseBlockCaption{3}}
+\end{figure}
+\end{landscape}
+\clearpage
+\begin{landscape}
+\begin{figure}[p]
+\centering
+\includegraphics[width=\linewidth,height=0.78\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/all_models_cross_phase_outcome_profile_block4.pdf}
+\caption{\CrossPhaseBlockCaption{4}}
 \end{figure}
 \end{landscape}
 

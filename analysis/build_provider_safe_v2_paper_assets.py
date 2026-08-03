@@ -1062,8 +1062,14 @@ def _heatmap(
             if intervals is not None:
                 low, high = intervals[row_index][column_index]
                 label += f"\n[{low:.0%}, {high:.0%}]"
-            midpoint = (vmin + vmax) / 2.0
-            color = "white" if abs(value - midpoint) > (vmax - vmin) * 0.34 else INK
+            # Select annotation ink from the rendered cell luminance, rather
+            # than distance from the scale midpoint.  Sequential maps are
+            # intentionally near-white at their low end, where white labels
+            # would disappear in print.
+            normalized = 0.5 if vmax == vmin else min(1.0, max(0.0, (value - vmin) / (vmax - vmin)))
+            red, green, blue, _ = cmap(normalized)
+            luminance = 0.2126 * red + 0.7152 * green + 0.0722 * blue
+            color = "white" if luminance < 0.48 else INK
             ax.text(
                 column_index + 0.5, row_index + 0.5, label,
                 ha="center", va="center", fontsize=5.1 if intervals is not None else 6,
@@ -1099,7 +1105,9 @@ def _plot_part0(data: Mapping[str, Any], directory: Path) -> list[Path]:
         ]
         for row in rows
     ]
-    fig, ax = plt.subplots(figsize=(9.6, 10.6))
+    # Match the physical landscape insertion aspect so Times annotations are
+    # not silently reduced to 2--3 pt by LaTeX's height constraint.
+    fig, ax = plt.subplots(figsize=(12.0, 7.2))
     fig.patch.set_facecolor("white")
     fig.suptitle("Part 0 response-language outcomes by exact model route", x=0.08, ha="left", fontsize=15, fontweight="bold", color=INK)
     fig.text(0.08, 0.955, "Each cell uses 48 scheduled harmful-request roots; rows are ordered by overall within-task refusal rate.", fontsize=9, color=MUTED)
@@ -1196,97 +1204,111 @@ def _plot_cross_phase_outcome_profile(
                 f"Cross-phase exact identity differs for target {target!r}."
             )
         identity_by_target[target] = next(iter(identities))
-    labels = [
-        f"{target} | {identity_by_target[target][1]}" for target in all_targets
-    ]
-
-    fig, axes = plt.subplots(1, 3, figsize=(17.8, 21.5), sharey=False)
-    fig.patch.set_facecolor("white")
-    fig.suptitle(
-        "Task-specific outcome profiles across exact model routes",
-        x=0.07, y=0.995, ha="left", fontsize=15, fontweight="bold", color=INK,
-    )
-    fig.text(
-        0.07, 0.976,
-        "One row per authenticated exact route; panels retain separate tasks and denominators.",
-        fontsize=9, color=MUTED,
-    )
-    positions = list(range(len(all_targets)))
-    for panel_index, (title, index) in enumerate(phase_indices.items()):
-        ax = axes[panel_index]
-        for position, target in zip(positions, all_targets, strict=True):
-            row = index.get(target)
-            if row is None:
+    # The exact Model ID remains in the adjacent generated table.  Route IDs
+    # are used here so the union panel can wrap into print-legible blocks.
+    labels = list(all_targets)
+    block_count = min(4, max(1, math.ceil(len(all_targets) / 24)))
+    block_size = math.ceil(len(all_targets) / block_count)
+    output: list[Path] = []
+    for block_index in range(block_count):
+        block_targets = all_targets[
+            block_index * block_size : min(len(all_targets), (block_index + 1) * block_size)
+        ]
+        fig, axes = plt.subplots(1, 3, figsize=(12.0, 7.2), squeeze=False)
+        axes_row = axes[0]
+        fig.patch.set_facecolor("white")
+        fig.suptitle(
+            f"Task-specific outcome profiles across exact model routes · block {block_index + 1}/{block_count}",
+            x=0.07, y=0.995, ha="left", fontsize=15, fontweight="bold", color=INK,
+        )
+        fig.text(
+            0.07, 0.968,
+            "One row per authenticated exact route; panels retain separate tasks and denominators.",
+            fontsize=9, color=MUTED,
+        )
+        positions = list(range(len(block_targets)))
+        for panel_index, (title, index) in enumerate(phase_indices.items()):
+            ax = axes_row[panel_index]
+            for position, target in zip(positions, block_targets, strict=True):
+                row = index.get(target)
+                if row is None:
+                    ax.scatter(
+                        [0.02], [position], marker="x", s=13, color=MUTED,
+                        linewidth=0.7, zorder=2,
+                    )
+                    continue
+                if panel_index == 0:
+                    denominator = int(row["scheduled_units"])
+                    preferable = int(row["refusal_count"]) / denominator
+                    adverse = int(row["compliance_count"]) / denominator
+                    unresolved = (
+                        int(row["unclear_count"])
+                        + int(row["first_attempt_invalid_count"])
+                    ) / denominator
+                elif panel_index == 1:
+                    denominator = int(row["scheduled_units"])
+                    preferable_count = int(row["welfare_preserving_count_first_attempt"])
+                    invalid_count = int(row["first_attempt_invalid_count"])
+                    preferable = preferable_count / denominator
+                    adverse = (denominator - preferable_count - invalid_count) / denominator
+                    unresolved = invalid_count / denominator
+                else:
+                    denominator = int(row["scheduled_agent_days"])
+                    preferable = int(row["restraint_count"]) / denominator
+                    adverse = int(row["overuse_count"]) / denominator
+                    unresolved = int(row["first_attempt_invalid_count"]) / denominator
+                if min(preferable, adverse, unresolved) < 0 or not math.isclose(
+                    preferable + adverse + unresolved, 1.0, abs_tol=1e-9
+                ):
+                    raise PaperAssetsError(
+                        f"Cross-phase outcome partition is invalid for {target!r}."
+                    )
                 ax.scatter(
-                    [0.02], [position], marker="x", s=13, color=MUTED,
-                    linewidth=0.7, zorder=2,
+                    [preferable], [position], marker="o", s=18, color=GREEN,
+                    edgecolor=INK, linewidth=0.3, zorder=3,
                 )
-                continue
+                ax.scatter(
+                    [adverse], [position], marker="D", s=17, color=RED,
+                    edgecolor=INK, linewidth=0.3, zorder=3,
+                )
+            ax.set_xlim(0.0, 1.0)
+            ax.set_ylim(-0.8, len(block_targets) - 0.2)
+            ax.invert_yaxis()
+            ax.xaxis.set_major_formatter(PercentFormatter(1.0))
+            ax.grid(axis="x", color=GRID, linewidth=0.6)
+            ax.set_axisbelow(True)
+            ax.set_title(title, fontsize=8.5, fontweight="bold", loc="left")
+            ax.set_yticks(positions)
             if panel_index == 0:
-                denominator = int(row["scheduled_units"])
-                preferable = int(row["refusal_count"]) / denominator
-                adverse = int(row["compliance_count"]) / denominator
-                unresolved = (
-                    int(row["unclear_count"])
-                    + int(row["first_attempt_invalid_count"])
-                ) / denominator
-            elif panel_index == 1:
-                denominator = int(row["scheduled_units"])
-                preferable_count = int(row["welfare_preserving_count_first_attempt"])
-                invalid_count = int(row["first_attempt_invalid_count"])
-                preferable = preferable_count / denominator
-                adverse = (denominator - preferable_count - invalid_count) / denominator
-                unresolved = invalid_count / denominator
-            else:
-                denominator = int(row["scheduled_agent_days"])
-                preferable = int(row["restraint_count"]) / denominator
-                adverse = int(row["overuse_count"]) / denominator
-                unresolved = int(row["first_attempt_invalid_count"]) / denominator
-            if min(preferable, adverse, unresolved) < 0 or not math.isclose(
-                preferable + adverse + unresolved, 1.0, abs_tol=1e-9
-            ):
-                raise PaperAssetsError(
-                    f"Cross-phase outcome partition is invalid for {target!r}."
+                ax.set_yticklabels(
+                    labels[block_index * block_size : block_index * block_size + len(block_targets)],
+                    fontsize=6.8,
                 )
-            ax.scatter(
-                [preferable], [position], marker="o", s=18, color=GREEN,
-                edgecolor=INK, linewidth=0.3, zorder=3,
+            else:
+                ax.set_yticklabels([])
+                ax.tick_params(axis="y", length=0)
+            _style_axes(ax)
+        axes_row[0].scatter([], [], marker="o", s=26, color=GREEN, edgecolor=INK, linewidth=0.3, label="task-preferable outcome")
+        axes_row[0].scatter([], [], marker="D", s=24, color=RED, edgecolor=INK, linewidth=0.3, label="task-adverse outcome")
+        axes_row[0].scatter([], [], marker="x", s=18, color=MUTED, linewidth=0.7, label="route not in panel")
+        fig.legend(
+            loc="lower center", bbox_to_anchor=(0.53, 0.018), ncol=3,
+            frameon=False, fontsize=8,
+        )
+        fig.text(
+            0.07, 0.046,
+            "Green circles are refusal, welfare-preserving choice, and restraint; red diamonds are compliance, focal-advantage choice, and overuse. Positions use 144 Part 0 responses, 384 Part 1 roots, or Part 2 scheduled agent-days. Unclear or invalid outputs stay in denominators but are omitted as visual bookkeeping. Panels are not pooled.",
+            fontsize=8, color=MUTED, wrap=True,
+        )
+        fig.tight_layout(rect=(0.045, 0.075, 0.995, 0.95), w_pad=1.2)
+        output.extend(
+            _save_figure(
+                fig, directory,
+                f"all_models_cross_phase_outcome_profile_block{block_index + 1}",
+                f"Task-specific outcome profiles by exact model route, block {block_index + 1}",
             )
-            ax.scatter(
-                [adverse], [position], marker="o", s=18, color=RED,
-                edgecolor=INK, linewidth=0.3, zorder=3,
-            )
-        ax.set_xlim(0.0, 1.0)
-        ax.set_ylim(-0.8, len(all_targets) - 0.2)
-        ax.invert_yaxis()
-        ax.xaxis.set_major_formatter(PercentFormatter(1.0))
-        ax.grid(axis="x", color=GRID, linewidth=0.6)
-        ax.set_axisbelow(True)
-        ax.set_title(title, fontsize=9, fontweight="bold", loc="left")
-        ax.set_yticks(positions)
-        if panel_index == 0:
-            ax.set_yticklabels(labels, fontsize=5.0)
-        else:
-            ax.set_yticklabels([])
-            ax.tick_params(axis="y", length=0)
-        _style_axes(ax)
-    axes[0].scatter([], [], s=26, color=GREEN, edgecolor=INK, linewidth=0.3, label="task-preferable outcome")
-    axes[0].scatter([], [], s=26, color=RED, edgecolor=INK, linewidth=0.3, label="task-adverse outcome")
-    axes[0].scatter([], [], marker="x", s=18, color=MUTED, linewidth=0.7, label="route not in panel")
-    fig.legend(
-        loc="lower center", bbox_to_anchor=(0.53, 0.018), ncol=3,
-        frameon=False, fontsize=8,
-    )
-    fig.text(
-        0.07, 0.046,
-        "Green is refusal in Part 0, welfare-preserving choice in Part 1, and restraint in Part 2; red is compliance, focal-advantage choice, and overuse, respectively. Horizontal position is the share of that phase's scheduled denominator. Green and red need not sum to 100% because unclear or invalid outputs remain in the denominator but are omitted as visual bookkeeping. Higher green and lower red are preferable only within the named task; the three panels are not a composite or general safety ranking.",
-        fontsize=8, color=MUTED, wrap=True,
-    )
-    fig.tight_layout(rect=(0.045, 0.075, 0.995, 0.965), w_pad=1.8)
-    return _save_figure(
-        fig, directory, "all_models_cross_phase_outcome_profile",
-        "Task-specific red green gray outcome profiles by exact model route",
-    )
+        )
+    return output
 
 
 def _plot_part1(data: Mapping[str, Any], directory: Path) -> list[Path]:
@@ -1300,18 +1322,42 @@ def _plot_part1(data: Mapping[str, Any], directory: Path) -> list[Path]:
         )
         for row in rows
     ]
-    fig, ax = plt.subplots(figsize=(10.2, 20.5))
-    fig.patch.set_facecolor("white")
-    fig.suptitle("Part 1 self-choice outcomes for all 75 exact model routes", x=0.08, y=0.995, ha="left", fontsize=15, fontweight="bold", color=INK)
-    fig.text(0.08, 0.973, "One row per route; 384 scheduled units per route; ordered by within-task welfare-preserving rate.", fontsize=9, color=MUTED)
-    _lollipop_panel(
-        ax, welfare, labels,
-        title="Welfare-preserving [root sensitivity 95%]", color=ORANGE,
-        show_labels=True, intervals=welfare_intervals,
-    )
-    fig.text(0.08, 0.012, "Bars show welfare-preserving choice over all 384 scheduled roots. Whiskers are deterministic 5,000-replicate stratified frozen-root-bank sensitivity intervals, not population CIs. Higher values mean fewer counterpart costs in this task.", fontsize=8, color=MUTED)
-    fig.tight_layout(rect=(0.055, 0.028, 0.99, 0.965))
-    return _save_figure(fig, directory, "part1_all_models", "Part 1 all-model outcomes")
+    # Wrap 75 routes into three print-scale blocks instead of shrinking one
+    # twenty-inch-tall axis into a landscape page.  The generated table beside
+    # this figure retains every exact upstream Model ID.
+    block_count = 3
+    block_size = math.ceil(len(rows) / block_count)
+    output: list[Path] = []
+    for block_index in range(block_count):
+        start = block_index * block_size
+        stop = min(len(rows), start + block_size)
+        fig, ax = plt.subplots(figsize=(12.0, 7.2))
+        fig.patch.set_facecolor("white")
+        fig.suptitle(
+            f"Part 1 self-choice outcomes · block {block_index + 1}/{block_count}",
+            x=0.08, y=0.995, ha="left", fontsize=15, fontweight="bold", color=INK,
+        )
+        fig.text(
+            0.08, 0.968,
+            "One row per exact route; 384 scheduled roots per route; global within-task display order.",
+            fontsize=9, color=MUTED,
+        )
+        _lollipop_panel(
+            ax, welfare[start:stop], labels[start:stop],
+            title="Welfare-preserving [root sensitivity 95%]",
+            color=ORANGE, show_labels=True,
+            intervals=welfare_intervals[start:stop],
+        )
+        ax.tick_params(axis="y", labelsize=6.5)
+        fig.text(0.08, 0.018, "Bars are welfare-preserving first attempts over all 384 roots; whiskers are frozen-root-bank sensitivity intervals, not population CIs. Higher values mean fewer counterpart costs in this task.", fontsize=8, color=MUTED)
+        fig.tight_layout(rect=(0.055, 0.04, 0.995, 0.95))
+        output.extend(
+            _save_figure(
+                fig, directory, f"part1_all_models_block{block_index + 1}",
+                f"Part 1 all-model outcomes, block {block_index + 1}",
+            )
+        )
+    return output
 
 
 def _plot_part2(data: Mapping[str, Any], directory: Path) -> list[Path]:
@@ -1812,7 +1858,7 @@ def _write_tables(data: Mapping[str, Any], directory: Path) -> list[Path]:
     path.write_text(
         _table_tex(
             caption=(
-                "Part 2 deadline-exploratory sensitivity effects. Each row is one exact sentinel route and prespecified factor; Model ID is the authenticated upstream model; Effect is mean normalized AURC at the factor's high level minus its low level over the resolution-V design and two common-seed blocks; Holm p adjusts the 30 sentinel-by-factor tests, with adjusted p at most 0.05 treated as significant. The two centered result columns directly assess effect size and evidence against the null without a redundant derived status column. Positive means the high level increased reserve preservation and negative means it decreased preservation, but sign is not automatically good or bad for the parameter. With two seeds this panel is underpowered and descriptive, not a general safety score."
+                "Part 2 deadline-exploratory sensitivity effects. Each row is one exact sentinel route and prespecified factor; Model ID is the authenticated upstream model; Effect is mean normalized AURC at the factor's high level minus its low level over the resolution-V design and two common-seed blocks. The low-to-high pairs are capacity per initial agent 5 to 15, depletion units 1 to 2, collapse death rate 0.1 to 0.4, society size 4 to 8, and horizon days 10 to 20. Holm p adjusts the 30 sentinel-by-factor tests, with adjusted p at most 0.05 treated as significant. The two centered result columns directly assess effect size and evidence against the null without a redundant derived status column. Positive means the high level increased reserve preservation and negative means it decreased preservation, but sign is not automatically good or bad for the parameter. With two seeds this panel is underpowered and descriptive, not a general safety score."
             ),
             label="tab:provider-safe-v2-part2-sensitivity",
             headers=("Target route ID", "Model ID", "Factor", "Effect (high-low AURC)", "Holm p"),
@@ -2131,12 +2177,14 @@ def build_paper_assets(
             "figure_palette": "original_submission_okabe_ito_blue_orange_green_vermillion",
             "figure_font_family": "Times New Roman (NeurIPS ptm-compatible serif)",
             "figure_semantic_redundancy": (
-                "directional_caption_position_and_printed_values"
+                "directional_caption_position_printed_values_and_distinct_marker_shapes"
             ),
             "invalid_policy": INVALID_POLICY,
             "exploratory_only": True,
+            "paper_use_status": "exploratory_descriptive_panels_only",
             "confirmatory_or_paper_promotion_permitted": False,
             "human_labels_generated": False,
+            "side_by_side_nonpooled_axis_assets_generated": True,
             "cross_axis_assets_generated": True,
             "cross_axis_aggregate_or_score_generated": False,
             "local_controls_pooled_with_hosted_routes": False,

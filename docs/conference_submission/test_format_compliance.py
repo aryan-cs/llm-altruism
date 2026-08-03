@@ -113,18 +113,30 @@ class ConferenceSubmissionFormatTest(unittest.TestCase):
         asset_root = "../../data/processed/provider-safe-v2-paper-assets/"
         figures = (
             "part0_model_language.pdf",
-            "part1_all_models.pdf",
+            "part1_all_models_block1.pdf",
+            "part1_all_models_block2.pdf",
+            "part1_all_models_block3.pdf",
             "part2_all_models.pdf",
             "part1_role_calibration.pdf",
             "part2_sensitivity_effects.pdf",
             "part1_local_controls.pdf",
         )
-        tables = tuple(name.replace(".pdf", "_table.tex") for name in figures)
+        tables = (
+            "part0_model_language_table.tex",
+            "part1_all_models_table.tex",
+            "part2_all_models_table.tex",
+            "part1_role_calibration_table.tex",
+            "part2_sensitivity_effects_table.tex",
+            "part1_local_controls_table.tex",
+        )
         for name in (*figures, *tables, "all_models_cross_phase_table.tex", "paper_headlines.tex"):
             self.assertEqual(source.count(asset_root + name), 1, name)
         self.assertEqual(
-            source.count(asset_root + "all_models_cross_phase_outcome_profile.pdf"),
-            1,
+            sum(
+                source.count(asset_root + f"all_models_cross_phase_outcome_profile_block{block}.pdf")
+                for block in range(1, 5)
+            ),
+            4,
         )
         retry_root = "../../artifacts/availability_retry_analysis_definitive_v1/"
         for name in (
