@@ -8,9 +8,13 @@ import pytest
 
 from analysis.build_final_results import (
     FinalResultsError,
+    _combine_part1_overlay,
     _cross_axis,
+    _overlay_contract,
+    _part0_overlay,
     _part1_manifest,
     _part2,
+    _part2_overlay,
     _parser,
     _preferred_part1,
     _reject_text_keys,
@@ -28,6 +32,11 @@ SUBJECT = {
     "target_id": TARGET, "upstream_provider": "alpha_&_lab",
     "model": "alpha_model%{v1}#", "route": "region/alpha-model",
 }
+SECOND_TARGET = "subject.beta"
+SECOND_SUBJECT = {
+    "target_id": SECOND_TARGET, "upstream_provider": "beta_lab",
+    "model": "beta-model", "route": "region/beta-model",
+}
 JUDGE = {"target_id": "judge.route", "upstream_provider": "judge", "model": "judge-model", "route": "region/judge-model"}
 
 
@@ -40,6 +49,13 @@ def _write_json(path: Path, value: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     os.chmod(path, 0o600)
+
+
+def _mutate_manifest(path: Path, mutation: Any) -> None:
+    value = json.loads(path.read_text(encoding="utf-8"))
+    value.pop("evidence_sha256")
+    mutation(value)
+    _write_json(path, _seal(value))
 
 
 def _write_journal(path: Path, payloads: list[dict[str, Any]]) -> dict[str, Any]:
@@ -63,89 +79,116 @@ def _raw(model: str, content: str = "X") -> dict[str, Any]:
     return {"id": "r", "model": model, "choices": [{"message": {"content": content}, "finish_reason": "stop"}]}
 
 
-def _part0_fixture(root: Path, *, human_validated: bool = False) -> Path:
+def _part0_fixture(
+    root: Path, *, human_validated: bool = False,
+    subjects: tuple[dict[str, Any], ...] = (SUBJECT,), complete: bool = True,
+    failed_targets: tuple[str, ...] = (), name: str = "part0",
+) -> Path:
     schedule = [
         {"trial_id": f"trial-{language}", "root_id": "root-1", "language": language}
         for language in ("english", "chinese", "russian")
     ]
-    payloads: list[dict[str, Any]] = []
     trial_ids = [row["trial_id"] for row in schedule]
-    for trial in schedule:
-        raw = _raw(SUBJECT["route"], "I cannot help.")
+    raw_refs: dict[str, Any] = {}
+    for subject in subjects:
+        target_id = subject["target_id"]
+        if target_id in failed_targets:
+            continue
+        payloads: list[dict[str, Any]] = []
+        for trial in schedule:
+            raw = _raw(subject["route"], "I cannot help.")
+            payloads.append({
+                "event": "subject_response_retained", "target_id": target_id,
+                "trial_id": trial["trial_id"], "requested_route": subject["route"],
+                "response_model": subject["route"], "model_identity_valid": True,
+                "raw_response": raw, "raw_response_sha256": _sha256_json(raw),
+            })
+        judge_raw = _raw(JUDGE["route"], "labels")
         payloads.append({
-            "event": "subject_response_retained", "target_id": TARGET,
-            "trial_id": trial["trial_id"], "requested_route": SUBJECT["route"],
-            "response_model": SUBJECT["route"], "model_identity_valid": True,
-            "raw_response": raw, "raw_response_sha256": _sha256_json(raw),
+            "event": "judge_batch_retained", "target_id": target_id,
+            "batch_id": "batch-1", "trial_ids": trial_ids,
+            "requested_route": JUDGE["route"], "response_model": JUDGE["route"],
+            "model_identity_valid": True, "raw_response": judge_raw,
+            "raw_response_sha256": _sha256_json(judge_raw),
         })
-    judge_raw = _raw(JUDGE["route"], "labels")
-    payloads.append({
-        "event": "judge_batch_retained", "target_id": TARGET, "batch_id": "batch-1",
-        "trial_ids": trial_ids, "requested_route": JUDGE["route"],
-        "response_model": JUDGE["route"], "model_identity_valid": True,
-        "raw_response": judge_raw, "raw_response_sha256": _sha256_json(judge_raw),
-    })
-    for trial in schedule:
-        payloads.append({
-            "event": "unit_completed", "target_id": TARGET,
-            "trial_id": trial["trial_id"], "root_id": trial["root_id"],
-            "language": trial["language"], "outcome": "REFUSAL",
-            "judge_dispatched": True, "judge_batch_id": "batch-1",
-        })
-    raw_ref = _write_journal(root / "part0/private/raw_responses/subject.alpha.jsonl", payloads)
+        for trial in schedule:
+            payloads.append({
+                "event": "unit_completed", "target_id": target_id,
+                "trial_id": trial["trial_id"], "root_id": trial["root_id"],
+                "language": trial["language"], "outcome": "REFUSAL",
+                "judge_dispatched": True, "judge_batch_id": "batch-1",
+            })
+        raw_refs[target_id] = _write_journal(
+            root / f"{name}/private/raw_responses/{target_id}.jsonl", payloads
+        )
     manifest = _seal({
         "schema_version": 1, "artifact_type": "inference_hub_part0_accelerated_private_panel",
-        "complete": True,
+        "complete": complete,
         "stimulus_reconstruction": "archived_english_source_prompt_crossed_with_explicit_response_language_instruction;legacy_translated_input_not_retained",
         "human_validation_complete": human_validated,
         "selected_roots_per_language": 1, "languages": ["english", "chinese", "russian"],
-        "schedule": schedule, "subject_routes": [SUBJECT], "judge": JUDGE,
+        "schedule": schedule, "subject_routes": list(subjects), "judge": JUDGE,
         "summary": {
-            "subject_transport_failures": 0, "judge_failed_units": 0,
+            "subject_transport_failures": len(failed_targets), "judge_failed_units": 0,
             "subject_model_identity_mismatches": 0, "judge_model_identity_mismatches": 0,
         },
-        "journals": {"raw_responses": {TARGET: raw_ref}},
-    })
-    path = root / "part0/private/manifest.json"
-    _write_json(path, manifest)
-    return path
-
-
-def _part1_fixture(
-    root: Path, *, count: int, name: str, balanced: bool = True
-) -> Path:
-    payloads = []
-    cells = [(game, domain) for game in GAMES for domain in DOMAINS]
-    for index in range(count):
-        game, domain = cells[index % len(cells)] if balanced else cells[0]
-        raw = _raw(SUBJECT["route"], "X")
-        payloads.append({
-            "schema_version": 1, "artifact_type": "inference_hub_part1_raw_response",
-            "target_id": TARGET, "upstream_provider": SUBJECT["upstream_provider"],
-            "model": SUBJECT["model"], "requested_route": SUBJECT["route"],
-            "response_model": SUBJECT["route"], "model_identity_valid": True,
-            "trial_id": f"trial-{index:03d}", "root_id": f"root-{index:03d}",
-            "game": game, "domain": domain,
-            "counterbalance_id": "CB_X_FIRST", "parsed_action": "X", "format_valid": True,
-            "raw_response": raw, "raw_response_sha256": _sha256_json(raw),
-        })
-    raw_ref = _write_journal(root / f"{name}/private/raw_responses/subject.alpha.jsonl", payloads)
-    full = count == 384
-    manifest = _seal({
-        "schema_version": 1, "artifact_type": "inference_hub_part1_large_n_exploratory_panel",
-        "complete": True, "executed_trial_count_per_subject": count,
-        "trial_limit": None if full else count, "subject_routes": [SUBJECT],
-        "summary": {
-            "failed_without_response": 0, "response_model_identity_mismatches": 0,
-        },
-        "journals": {"raw_responses": {TARGET: raw_ref}},
+        "journals": {"raw_responses": raw_refs},
     })
     path = root / f"{name}/private/manifest.json"
     _write_json(path, manifest)
     return path
 
 
-def _part2_fixture(root: Path, *, tamper: bool = False) -> Path:
+def _part1_fixture(
+    root: Path, *, count: int, name: str, balanced: bool = True,
+    subjects: tuple[dict[str, Any], ...] = (SUBJECT,), complete: bool = True,
+    failed_targets: tuple[str, ...] = (),
+) -> Path:
+    cells = [(game, domain) for game in GAMES for domain in DOMAINS]
+    raw_refs: dict[str, Any] = {}
+    for subject in subjects:
+        target_id = subject["target_id"]
+        if target_id in failed_targets:
+            continue
+        payloads = []
+        for index in range(count):
+            game, domain = cells[index % len(cells)] if balanced else cells[0]
+            raw = _raw(subject["route"], "X")
+            payloads.append({
+                "schema_version": 1, "artifact_type": "inference_hub_part1_raw_response",
+                "target_id": target_id,
+                "upstream_provider": subject["upstream_provider"],
+                "model": subject["model"], "requested_route": subject["route"],
+                "response_model": subject["route"], "model_identity_valid": True,
+                "trial_id": f"trial-{index:03d}", "root_id": f"root-{index:03d}",
+                "game": game, "domain": domain,
+                "counterbalance_id": "CB_X_FIRST", "parsed_action": "X", "format_valid": True,
+                "raw_response": raw, "raw_response_sha256": _sha256_json(raw),
+            })
+        raw_refs[target_id] = _write_journal(
+            root / f"{name}/private/raw_responses/{target_id}.jsonl", payloads
+        )
+    full = count == 384
+    manifest = _seal({
+        "schema_version": 1, "artifact_type": "inference_hub_part1_large_n_exploratory_panel",
+        "complete": complete, "executed_trial_count_per_subject": count,
+        "trial_limit": None if full else count, "subject_routes": list(subjects),
+        "summary": {
+            "failed_without_response": len(failed_targets),
+            "response_model_identity_mismatches": 0,
+        },
+        "journals": {"raw_responses": raw_refs},
+    })
+    path = root / f"{name}/private/manifest.json"
+    _write_json(path, manifest)
+    return path
+
+
+def _part2_fixture(
+    root: Path, *, tamper: bool = False,
+    subjects: tuple[dict[str, Any], ...] = (SUBJECT,), complete: bool = True,
+    failed_targets: tuple[str, ...] = (), name: str = "part2",
+) -> Path:
     trajectory_count = 8
     intervals = {
         "aurc": {"mean": 0.625, "lower": 0.5, "upper": 0.75, "n": trajectory_count, "method": "trajectory_t_95"},
@@ -160,39 +203,54 @@ def _part2_fixture(root: Path, *, tamper: bool = False) -> Path:
         "cumulative_private_payoff": {"mean": 10.0, "lower": 8.0, "upper": 12.0, "n": trajectory_count, "method": "trajectory_t_95"},
         "cumulative_group_payoff": {"mean": 10.0, "lower": 8.0, "upper": 12.0, "n": trajectory_count, "method": "trajectory_t_95"},
     }
-    models = _seal({
-        "schema_version": 1, "artifact_type": "inference_hub_part2_sanitized_model_metrics",
-        "rows": [{
-            "target_id": TARGET, "upstream_provider": SUBJECT["upstream_provider"],
-            "model": SUBJECT["model"], "trajectory_count": trajectory_count,
+    model_rows = []
+    trajectory_rows = []
+    for subject in subjects:
+        target_id = subject["target_id"]
+        if target_id in failed_targets:
+            continue
+        model_rows.append({
+            "target_id": target_id,
+            "upstream_provider": subject["upstream_provider"],
+            "model": subject["model"], "trajectory_count": trajectory_count,
             "eligible_trajectory_count": trajectory_count, "complete_matched_panel": True,
             "total_scheduled_agent_days": 73, "total_invalid_count": 3,
             "trajectory_level_95_percent_t_intervals": intervals,
-        }],
+        })
+        trajectory_rows.extend({
+            "target_id": target_id, "trajectory_index": index,
+            "operationally_eligible": True,
+        } for index in range(trajectory_count))
+    models = _seal({
+        "schema_version": 1, "artifact_type": "inference_hub_part2_sanitized_model_metrics",
+        "rows": model_rows,
     })
     trajectories = _seal({
         "schema_version": 1, "artifact_type": "inference_hub_part2_sanitized_trajectory_metrics",
-        "rows": [{"target_id": TARGET, "trajectory_index": index, "operationally_eligible": True} for index in range(trajectory_count)],
+        "rows": trajectory_rows,
     })
-    model_path = root / "part2/sanitized/model_metrics.json"
-    trajectory_path = root / "part2/sanitized/trajectory_metrics.json"
+    model_path = root / f"{name}/sanitized/model_metrics.json"
+    trajectory_path = root / f"{name}/sanitized/trajectory_metrics.json"
     _write_json(model_path, models)
     _write_json(trajectory_path, trajectories)
     manifest = _seal({
         "schema_version": 1, "artifact_type": "inference_hub_part2_corrected_matched_panel",
-        "complete": True, "subject_routes": [SUBJECT],
+        "complete": complete, "subject_routes": list(subjects),
         "part2_contract": {
             "independent_trajectories": trajectory_count, "society_size": 5, "days": 12,
             "resource_capacity": 50, "option_a_private_gain": 1,
             "option_b_private_gain": 2, "option_b_reserve_cost": 2,
         },
-        "summary": {"identity_mismatch_count": 0, "transport_failure_count": 0},
+        "summary": {
+            "identity_mismatch_count": 0,
+            "transport_failure_count": len(failed_targets),
+        },
         "sanitized_artifacts": {
             "model_metrics": {"path": str(model_path.resolve()), "file_sha256": _sha256_file(model_path), "evidence_sha256": models["evidence_sha256"]},
             "trajectory_metrics": {"path": str(trajectory_path.resolve()), "file_sha256": _sha256_file(trajectory_path), "evidence_sha256": trajectories["evidence_sha256"]},
         },
     })
-    manifest_path = root / "part2/private/manifest.json"
+    manifest_path = root / f"{name}/private/manifest.json"
     _write_json(manifest_path, manifest)
     if tamper:
         model_path.write_text(model_path.read_text() + " ", encoding="utf-8")
@@ -400,6 +458,248 @@ def test_legacy_n96_cli_flag_remains_an_alias_for_balanced_partials() -> None:
     current = _parser().parse_args([*common, "--part1-partial-manifest", "n12.json"])
     assert legacy.part1_n96_manifest == [Path("n96.json")]
     assert current.part1_n96_manifest == [Path("n12.json")]
+
+
+def test_replacement_cli_flags_are_repeatable() -> None:
+    args = _parser().parse_args([
+        "--part0-manifest", "p0.json",
+        "--part0-replacement-manifest", "p0-a.json",
+        "--part0-replacement-manifest", "p0-b.json",
+        "--part1-partial-manifest", "p1.json",
+        "--part1-replacement-manifest", "p1-r.json",
+        "--part2-manifest", "p2.json",
+        "--part2-replacement-manifest", "p2-r.json",
+        "--output-dir", "output",
+    ])
+    assert args.part0_replacement_manifest == [Path("p0-a.json"), Path("p0-b.json")]
+    assert args.part1_replacement_manifest == [Path("p1-r.json")]
+    assert args.part2_replacement_manifest == [Path("p2-r.json")]
+
+
+def test_incomplete_primaries_accept_exact_complete_target_replacements(
+    tmp_path: Path,
+) -> None:
+    subjects = (SUBJECT, SECOND_SUBJECT)
+    p0_primary = _part0_fixture(
+        tmp_path, subjects=subjects, complete=False,
+        failed_targets=(SECOND_TARGET,), name="overlay-p0-primary",
+    )
+    p0_replacement = _part0_fixture(
+        tmp_path, subjects=(SECOND_SUBJECT,), name="overlay-p0-replacement",
+    )
+    p1_primary = _part1_fixture(
+        tmp_path, count=12, subjects=subjects, complete=False,
+        failed_targets=(SECOND_TARGET,), name="overlay-p1-primary",
+    )
+    p1_replacement = _part1_fixture(
+        tmp_path, count=12, subjects=(SECOND_SUBJECT,),
+        name="overlay-p1-replacement",
+    )
+    p2_primary = _part2_fixture(
+        tmp_path, subjects=subjects, complete=False,
+        failed_targets=(SECOND_TARGET,), name="overlay-p2-primary",
+    )
+    p2_replacement = _part2_fixture(
+        tmp_path, subjects=(SECOND_SUBJECT,), name="overlay-p2-replacement",
+    )
+    artifact = build_final_results(
+        part0_manifest=p0_primary,
+        part0_replacement_manifests=[p0_replacement],
+        part1_full_manifests=[], part1_n96_manifests=[p1_primary],
+        part1_replacement_manifests=[p1_replacement],
+        part2_manifest=p2_primary,
+        part2_replacement_manifests=[p2_replacement],
+        panel_path=_panel(tmp_path), output_dir=tmp_path / "overlay-final",
+        bootstrap_seed=31,
+    )
+    for part in ("part0", "part1", "part2"):
+        assert [row["target_id"] for row in artifact[part]] == [TARGET, SECOND_TARGET]
+    for binding in (
+        artifact["bindings"]["part0"], artifact["bindings"]["part1"][0],
+        artifact["bindings"]["part2"],
+    ):
+        assert binding["overlay_schema_version"] == 1
+        assert binding["primary"]["complete"] is False
+        assert binding["primary"]["retained_target_ids"] == [TARGET]
+        assert binding["replaced_target_ids"] == [SECOND_TARGET]
+        assert binding["replacements"][0]["replacement_target_ids"] == [SECOND_TARGET]
+        assert binding["primary"]["file_sha256"]
+        assert binding["replacements"][0]["file_sha256"]
+    public = (tmp_path / "overlay-final/final_results.json").read_text(encoding="utf-8")
+    assert str(tmp_path) not in public
+    assert "region/alpha-model" not in public
+    assert "region/beta-model" not in public
+    assert artifact["evidence_sha256"] == _self_hash(artifact)
+
+
+def test_part0_overlay_rejects_identity_contract_duplicates_and_incomplete_replacements(
+    tmp_path: Path,
+) -> None:
+    subjects = (SUBJECT, SECOND_SUBJECT)
+    primary = _part0_fixture(
+        tmp_path, subjects=subjects, complete=False,
+        failed_targets=(SECOND_TARGET,), name="overlay-failure-primary",
+    )
+    replacement = _part0_fixture(
+        tmp_path, subjects=(SECOND_SUBJECT,), name="overlay-good-replacement",
+    )
+    with pytest.raises(FinalResultsError, match="duplicated"):
+        _part0_overlay(primary, [replacement, replacement])
+
+    incomplete = _part0_fixture(
+        tmp_path, subjects=(SECOND_SUBJECT,), complete=False,
+        name="overlay-incomplete-replacement",
+    )
+    with pytest.raises(FinalResultsError, match="incomplete"):
+        _part0_overlay(primary, [incomplete])
+
+    mismatched_subject = {**SECOND_SUBJECT, "route": "region/wrong-beta-model"}
+    identity_mismatch = _part0_fixture(
+        tmp_path, subjects=(mismatched_subject,), name="overlay-identity-replacement",
+    )
+    with pytest.raises(FinalResultsError, match="identity differs"):
+        _part0_overlay(primary, [identity_mismatch])
+
+    contract_mismatch = _part0_fixture(
+        tmp_path, subjects=(SECOND_SUBJECT,), name="overlay-contract-replacement",
+    )
+    _mutate_manifest(
+        contract_mismatch,
+        lambda value: value["schedule"][0].update({"root_id": "changed-root"}),
+    )
+    with pytest.raises(FinalResultsError, match="schedule or scientific contract differs"):
+        _part0_overlay(primary, [contract_mismatch])
+
+
+def test_overlay_cannot_hide_a_nonreplaced_primary_failure(tmp_path: Path) -> None:
+    subjects = (SUBJECT, SECOND_SUBJECT)
+    primary = _part0_fixture(
+        tmp_path, subjects=subjects, complete=False,
+        failed_targets=(SECOND_TARGET,), name="overlay-retained-failure-primary",
+    )
+    wrong_target_replacement = _part0_fixture(
+        tmp_path, subjects=(SUBJECT,), name="overlay-wrong-target-replacement",
+    )
+    with pytest.raises(FinalResultsError, match="Raw journal binding is absent"):
+        _part0_overlay(primary, [wrong_target_replacement])
+
+
+def test_part1_and_part2_overlay_helpers_reject_complete_primary_replacement(
+    tmp_path: Path,
+) -> None:
+    p1_primary = _part1_fixture(
+        tmp_path, count=12, subjects=(SUBJECT, SECOND_SUBJECT),
+        name="overlay-complete-p1-primary",
+    )
+    p1_replacement = _part1_fixture(
+        tmp_path, count=12, subjects=(SECOND_SUBJECT,),
+        name="overlay-complete-p1-replacement",
+    )
+    with pytest.raises(FinalResultsError, match="incomplete primary"):
+        _combine_part1_overlay(
+            [], [p1_primary], [p1_replacement], bootstrap_seed=1,
+        )
+
+    p2_primary = _part2_fixture(
+        tmp_path, subjects=(SUBJECT, SECOND_SUBJECT),
+        name="overlay-complete-p2-primary",
+    )
+    p2_replacement = _part2_fixture(
+        tmp_path, subjects=(SECOND_SUBJECT,), name="overlay-complete-p2-replacement",
+    )
+    with pytest.raises(FinalResultsError, match="incomplete primary"):
+        _part2_overlay(p2_primary, [p2_replacement])
+
+
+def test_part1_overlay_matches_configured_contract_not_target_count_worker_cap(
+    tmp_path: Path,
+) -> None:
+    primary = _part1_fixture(
+        tmp_path, count=12, subjects=(SUBJECT, SECOND_SUBJECT), complete=False,
+        failed_targets=(SECOND_TARGET,), name="overlay-worker-primary",
+    )
+    replacement = _part1_fixture(
+        tmp_path, count=12, subjects=(SECOND_SUBJECT,),
+        name="overlay-worker-replacement",
+    )
+    _mutate_manifest(primary, lambda value: value.update({
+        "execution_contract": {
+            "configured_max_workers": 8, "effective_max_workers": 8,
+            "max_attempts_per_trial": 3,
+            "initial_exponential_backoff_seconds": 1.0,
+            "response_parser": "exact-final-token",
+        },
+    }))
+    _mutate_manifest(replacement, lambda value: value.update({
+        "execution_contract": {
+            "configured_max_workers": 1, "effective_max_workers": 1,
+            "max_attempts_per_trial": 6,
+            "initial_exponential_backoff_seconds": 2.0,
+            "response_parser": "exact-final-token",
+        },
+    }))
+    rows, _identities, bindings = _combine_part1_overlay(
+        [], [primary], [replacement], bootstrap_seed=5,
+    )
+    assert [row["target_id"] for row in rows] == [TARGET, SECOND_TARGET]
+    assert bindings[0]["replaced_target_ids"] == [SECOND_TARGET]
+
+    _mutate_manifest(replacement, lambda value: value["execution_contract"].update({
+        "response_parser": "different-parser",
+    }))
+    with pytest.raises(FinalResultsError, match="must match exactly one primary"):
+        _combine_part1_overlay(
+            [], [primary], [replacement], bootstrap_seed=5,
+        )
+
+
+def test_overlay_contract_ignores_only_operational_repair_fields() -> None:
+    common_inputs = {"registry": {"sha256": "r"}, "compatibility": {"sha256": "c"}}
+    p0_primary = {
+        "execution_contract": {
+            "max_workers": 32, "max_attempts_per_request": 3,
+            "initial_exponential_backoff_seconds": 1.0,
+            "judge_batch_parser": "exact",
+        },
+        "input_artifacts": {**common_inputs, "cross_axis_panel": {"sha256": "panel"}},
+    }
+    p0_repair = {
+        "execution_contract": {
+            "max_workers": 2, "max_attempts_per_request": 6,
+            "initial_exponential_backoff_seconds": 2.0,
+            "judge_batch_parser": "exact",
+        },
+        "input_artifacts": common_inputs,
+    }
+    assert _overlay_contract(p0_primary, part="part0") == _overlay_contract(
+        p0_repair, part="part0"
+    )
+    p0_repair["execution_contract"]["judge_batch_parser"] = "changed"
+    assert _overlay_contract(p0_primary, part="part0") != _overlay_contract(
+        p0_repair, part="part0"
+    )
+
+    p2_primary = {
+        "execution_contract": {
+            "trajectory_workers": 24, "max_transport_attempts": 3,
+            "initial_exponential_backoff_seconds": 1.0,
+            "participant_workers": 5, "identity_check": "exact",
+        },
+    }
+    p2_repair = {
+        "execution_contract": {
+            "trajectory_workers": 1, "max_transport_attempts": 10,
+            "initial_exponential_backoff_seconds": 4.0,
+            "participant_workers": 5, "identity_check": "exact",
+        },
+    }
+    assert _overlay_contract(p2_primary, part="part2") == _overlay_contract(
+        p2_repair, part="part2"
+    )
+    p2_repair["execution_contract"]["participant_workers"] = 1
+    assert _overlay_contract(p2_primary, part="part2") != _overlay_contract(
+        p2_repair, part="part2"
+    )
 
 
 def test_forbidden_text_fields_are_rejected_recursively() -> None:

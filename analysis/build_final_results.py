@@ -52,7 +52,9 @@ class FinalResultsError(RuntimeError):
     """An input cannot support a sanitized final-results artifact."""
 
 
-def _manifest(path: Path, artifact_type: str) -> dict[str, Any]:
+def _manifest(
+    path: Path, artifact_type: str, *, require_complete: bool = True,
+) -> dict[str, Any]:
     value = _read_json(path.resolve(), f"{artifact_type} manifest")
     if (
         value.get("schema_version") != 1
@@ -60,7 +62,7 @@ def _manifest(path: Path, artifact_type: str) -> dict[str, Any]:
         or value.get("evidence_sha256") != _self_hash(value)
     ):
         raise FinalResultsError(f"{artifact_type} manifest schema/type/self-hash failed.")
-    if value.get("complete") is not True:
+    if require_complete and value.get("complete") is not True:
         raise FinalResultsError(f"{artifact_type} manifest is incomplete.")
     return value
 
@@ -81,6 +83,129 @@ def _subject_routes(manifest: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
             raise FinalResultsError("Manifest subject identity is incomplete or duplicated.")
         result[target_id] = dict(row)
     return result
+
+
+def _manifest_binding(path: Path, manifest: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "manifest_path": path.name,
+        "path_scope": "input_manifest_basename_only",
+        "file_sha256": _sha256_file(path),
+        "evidence_sha256": manifest["evidence_sha256"],
+    }
+
+
+def _selected_subject_routes(
+    manifest: Mapping[str, Any], target_ids: set[str] | None,
+) -> dict[str, dict[str, Any]]:
+    subjects = _subject_routes(manifest)
+    if target_ids is None:
+        return subjects
+    unknown = target_ids - set(subjects)
+    if unknown:
+        raise FinalResultsError(
+            "Selected replacement-overlay targets are absent from the manifest: "
+            + ",".join(sorted(unknown))
+        )
+    return {target_id: row for target_id, row in subjects.items() if target_id in target_ids}
+
+
+def _overlay_contract(
+    manifest: Mapping[str, Any], *, part: str,
+) -> dict[str, Any]:
+    keys_by_part = {
+        "part0": (
+            "stimulus_reconstruction", "selected_roots_per_language", "languages",
+            "schedule", "schedule_sha256", "executed_trial_count_per_subject",
+            "base_seed", "judge", "judge_batch_size", "judge_scoring_input",
+            "execution_contract", "input_artifacts", "source_artifacts",
+        ),
+        "part1": (
+            "executed_trial_count_per_subject", "trial_limit",
+            "executed_schedule_sha256", "full_primary_schedule_sha256",
+            "full_primary_root_count", "base_seed", "execution_contract",
+            "input_artifacts", "source_artifacts",
+        ),
+        "part2": (
+            "panel_id", "base_seed", "common_environment_seeds", "part2_contract",
+            "execution_contract", "input_artifacts", "source_artifacts",
+        ),
+    }
+    try:
+        keys = keys_by_part[part]
+    except KeyError as error:
+        raise FinalResultsError(f"Unknown overlay part: {part}.") from error
+    contract = {key: manifest.get(key) for key in keys}
+    if isinstance(contract["execution_contract"], Mapping):
+        # Replacement runs may increase transport resilience or reduce worker
+        # fan-out.  These fields affect availability and wall-clock time, not
+        # prompts, decoding controls, seeds, parsing, model identity, or task
+        # dynamics.  The unnormalized contracts remain hash-bound in each
+        # manifest and are preserved in the output provenance.
+        execution_contract = dict(contract["execution_contract"])
+        operational_fields = {
+            "part0": {
+                "max_workers", "max_attempts_per_request",
+                "initial_exponential_backoff_seconds",
+            },
+            "part1": {
+                "configured_max_workers", "effective_max_workers",
+                "max_attempts_per_trial", "initial_exponential_backoff_seconds",
+            },
+            "part2": {
+                "trajectory_workers", "max_transport_attempts",
+                "initial_exponential_backoff_seconds",
+            },
+        }[part]
+        for key in operational_fields:
+            execution_contract.pop(key, None)
+        contract["execution_contract"] = execution_contract
+    if part == "part0" and isinstance(contract["input_artifacts"], Mapping):
+        # The cross-axis panel selects the primary roster but does not define a
+        # Part 0 prompt, schedule, judge, or model identity.  A one-target repair
+        # is selected explicitly and validated against the primary identity.
+        input_artifacts = dict(contract["input_artifacts"])
+        input_artifacts.pop("cross_axis_panel", None)
+        contract["input_artifacts"] = input_artifacts
+    return contract
+
+
+def _validate_replacement_manifest(
+    *, primary: Mapping[str, Any], replacement: Mapping[str, Any], part: str,
+    seen_target_ids: set[str],
+) -> set[str]:
+    if replacement.get("complete") is not True:
+        raise FinalResultsError(f"Part {part[-1]} replacement manifest is incomplete.")
+    primary_subjects = _subject_routes(primary)
+    replacement_subjects = _subject_routes(replacement)
+    replacement_ids = set(replacement_subjects)
+    duplicated = seen_target_ids & replacement_ids
+    if duplicated:
+        raise FinalResultsError(
+            f"Part {part[-1]} replacement target is duplicated: "
+            + ",".join(sorted(duplicated))
+        )
+    unknown = replacement_ids - set(primary_subjects)
+    if unknown:
+        raise FinalResultsError(
+            f"Part {part[-1]} replacement target is absent from the primary manifest: "
+            + ",".join(sorted(unknown))
+        )
+    for target_id in replacement_ids:
+        primary_identity = primary_subjects[target_id]
+        replacement_identity = replacement_subjects[target_id]
+        if any(
+            replacement_identity.get(key) != primary_identity.get(key)
+            for key in ("target_id", "upstream_provider", "model", "route")
+        ):
+            raise FinalResultsError(
+                f"Part {part[-1]} replacement identity differs for {target_id}."
+            )
+    if _overlay_contract(primary, part=part) != _overlay_contract(replacement, part=part):
+        raise FinalResultsError(
+            f"Part {part[-1]} replacement schedule or scientific contract differs."
+        )
+    seen_target_ids.update(replacement_ids)
+    return replacement_ids
 
 
 def _journal_rows(manifest: Mapping[str, Any], target_id: str) -> list[dict[str, Any]]:
@@ -172,21 +297,28 @@ def _cluster_bootstrap_binary(
     }
 
 
-def _part0(path: Path) -> tuple[list[dict[str, Any]], dict[str, tuple[str, str, str]], dict[str, Any]]:
-    manifest = _manifest(path, "inference_hub_part0_accelerated_private_panel")
+def _part0(
+    path: Path, *, target_ids: set[str] | None = None,
+    require_complete: bool = True, require_summary: bool = True,
+) -> tuple[list[dict[str, Any]], dict[str, tuple[str, str, str]], dict[str, Any]]:
+    manifest = _manifest(
+        path, "inference_hub_part0_accelerated_private_panel",
+        require_complete=require_complete,
+    )
     if manifest.get("stimulus_reconstruction") != (
         "archived_english_source_prompt_crossed_with_explicit_response_language_instruction;"
         "legacy_translated_input_not_retained"
     ):
         raise FinalResultsError("Part 0 reconstructed-condition provenance changed.")
-    summary = manifest.get("summary")
-    if not isinstance(summary, Mapping) or any(
-        summary.get(key) != 0 for key in (
-            "subject_transport_failures", "judge_failed_units",
-            "subject_model_identity_mismatches", "judge_model_identity_mismatches",
-        )
-    ):
-        raise FinalResultsError("Part 0 contains an operational or identity failure.")
+    if require_summary:
+        summary = manifest.get("summary")
+        if not isinstance(summary, Mapping) or any(
+            summary.get(key) != 0 for key in (
+                "subject_transport_failures", "judge_failed_units",
+                "subject_model_identity_mismatches", "judge_model_identity_mismatches",
+            )
+        ):
+            raise FinalResultsError("Part 0 contains an operational or identity failure.")
     schedule = manifest.get("schedule")
     if not isinstance(schedule, list) or not schedule:
         raise FinalResultsError("Part 0 schedule is absent.")
@@ -195,7 +327,7 @@ def _part0(path: Path) -> tuple[list[dict[str, Any]], dict[str, tuple[str, str, 
     }
     if len(schedule_by_trial) != len(schedule):
         raise FinalResultsError("Part 0 schedule ids are invalid or duplicated.")
-    subjects = _subject_routes(manifest)
+    subjects = _selected_subject_routes(manifest, target_ids)
     judge = manifest.get("judge")
     if not isinstance(judge, Mapping) or not isinstance(judge.get("route"), str):
         raise FinalResultsError("Part 0 judge identity is absent.")
@@ -262,7 +394,6 @@ def _part0(path: Path) -> tuple[list[dict[str, Any]], dict[str, tuple[str, str, 
         by_condition: dict[str, list[Mapping[str, Any]]] = defaultdict(list)
         for trial_id, row in terminal.items():
             by_condition[str(schedule_by_trial[trial_id]["language"])].append(row)
-        all_rows = list(terminal.values())
         condition_rows = []
         for condition in manifest.get("languages", []):
             values = by_condition.get(str(condition), [])
@@ -301,18 +432,79 @@ def _part0(path: Path) -> tuple[list[dict[str, Any]], dict[str, tuple[str, str, 
         })
         identities[target_id] = (str(subject["upstream_provider"]), str(subject["model"]), str(subject["route"]))
     return output, identities, {
-        "manifest_path": str(path.resolve()), "file_sha256": _sha256_file(path),
-        "evidence_sha256": manifest["evidence_sha256"],
+        **_manifest_binding(path, manifest),
         "human_validation_complete": manifest.get("human_validation_complete") is True,
     }
 
 
+def _part0_overlay(
+    primary_path: Path, replacement_paths: Sequence[Path],
+) -> tuple[list[dict[str, Any]], dict[str, tuple[str, str, str]], dict[str, Any]]:
+    if not replacement_paths:
+        return _part0(primary_path)
+    artifact_type = "inference_hub_part0_accelerated_private_panel"
+    primary = _manifest(primary_path, artifact_type, require_complete=False)
+    if primary.get("complete") is True:
+        raise FinalResultsError(
+            "Part 0 replacements may only repair an incomplete primary manifest."
+        )
+    primary_subjects = _subject_routes(primary)
+    seen_replacements: set[str] = set()
+    replacements: list[tuple[Path, dict[str, Any], set[str]]] = []
+    for path in replacement_paths:
+        replacement = _manifest(path, artifact_type)
+        replacement_ids = _validate_replacement_manifest(
+            primary=primary, replacement=replacement, part="part0",
+            seen_target_ids=seen_replacements,
+        )
+        replacements.append((path, replacement, replacement_ids))
+
+    retained_ids = set(primary_subjects) - seen_replacements
+    if retained_ids:
+        rows, identities, primary_binding = _part0(
+            primary_path, target_ids=retained_ids,
+            require_complete=False, require_summary=False,
+        )
+    else:
+        rows, identities = [], {}
+        primary_binding = _manifest_binding(primary_path, primary)
+    primary_binding.update({
+        "complete": primary.get("complete") is True,
+        "retained_target_ids": sorted(retained_ids),
+    })
+    replacement_bindings: list[dict[str, Any]] = []
+    for path, _replacement, replacement_ids in replacements:
+        new_rows, new_identities, binding = _part0(
+            path, target_ids=replacement_ids,
+        )
+        rows.extend(new_rows)
+        identities.update(new_identities)
+        replacement_bindings.append({
+            **binding, "replacement_target_ids": sorted(replacement_ids),
+        })
+    row_by_target = {str(row["target_id"]): row for row in rows}
+    if set(row_by_target) != set(primary_subjects):
+        raise FinalResultsError("Part 0 overlay does not cover every primary target exactly once.")
+    rows = [row_by_target[target_id] for target_id in primary_subjects]
+    return rows, identities, {
+        "overlay_schema_version": 1,
+        "primary": primary_binding,
+        "replacements": replacement_bindings,
+        "replaced_target_ids": sorted(seen_replacements),
+    }
+
+
 def _part1_manifest(
-    path: Path, *, scope: str, bootstrap_seed: int
+    path: Path, *, scope: str, bootstrap_seed: int,
+    target_ids: set[str] | None = None, require_complete: bool = True,
+    require_summary: bool = True, subject_indices: Mapping[str, int] | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, tuple[str, str, str]], dict[str, Any]]:
     if scope not in {"full_384", "balanced_partial"}:
         raise FinalResultsError("Unknown Part 1 scope.")
-    manifest = _manifest(path, "inference_hub_part1_large_n_exploratory_panel")
+    manifest = _manifest(
+        path, "inference_hub_part1_large_n_exploratory_panel",
+        require_complete=require_complete,
+    )
     observed_roots = manifest.get("executed_trial_count_per_subject")
     expected_roots = 384 if scope == "full_384" else observed_roots
     if (
@@ -327,13 +519,24 @@ def _part1_manifest(
         or (scope == "balanced_partial" and manifest.get("trial_limit") != expected_roots)
     ):
         raise FinalResultsError(f"Part 1 {scope} manifest has the wrong root count/scope.")
-    summary = manifest.get("summary")
-    if not isinstance(summary, Mapping) or summary.get("failed_without_response") != 0 or summary.get("response_model_identity_mismatches") != 0:
-        raise FinalResultsError("Part 1 contains an operational or identity failure.")
-    subjects = _subject_routes(manifest)
+    if require_summary:
+        summary = manifest.get("summary")
+        if not isinstance(summary, Mapping) or summary.get("failed_without_response") != 0 or summary.get("response_model_identity_mismatches") != 0:
+            raise FinalResultsError("Part 1 contains an operational or identity failure.")
+    all_subjects = _subject_routes(manifest)
+    subjects = _selected_subject_routes(manifest, target_ids)
+    manifest_indices = {
+        target_id: index for index, target_id in enumerate(all_subjects)
+    }
+    if subject_indices is not None and not set(subjects) <= set(subject_indices):
+        raise FinalResultsError("Part 1 overlay subject-index binding is incomplete.")
     output: list[dict[str, Any]] = []
     identities: dict[str, tuple[str, str, str]] = {}
-    for subject_index, (target_id, subject) in enumerate(subjects.items()):
+    for target_id, subject in subjects.items():
+        subject_index = (
+            int(subject_indices[target_id])
+            if subject_indices is not None else manifest_indices[target_id]
+        )
         journal_rows = _journal_rows(manifest, target_id)
         retained: dict[str, Mapping[str, Any]] = {}
         derived: list[dict[str, Any]] = []
@@ -398,8 +601,7 @@ def _part1_manifest(
         })
         identities[target_id] = (str(subject["upstream_provider"]), str(subject["model"]), str(subject["route"]))
     return output, identities, {
-        "manifest_path": str(path.resolve()), "file_sha256": _sha256_file(path),
-        "evidence_sha256": manifest["evidence_sha256"], "scope": scope,
+        **_manifest_binding(path, manifest), "scope": scope,
         "root_count": expected_roots,
     }
 
@@ -448,6 +650,149 @@ def _combine_part1(
     return rows, identities, bindings
 
 
+def _part1_scope(manifest: Mapping[str, Any]) -> str:
+    observed = manifest.get("executed_trial_count_per_subject")
+    trial_limit = manifest.get("trial_limit")
+    if observed == 384 and trial_limit is None:
+        return "full_384"
+    if (
+        isinstance(observed, int) and not isinstance(observed, bool)
+        and 12 <= observed < 384 and observed % 12 == 0
+        and trial_limit == observed
+    ):
+        return "balanced_partial"
+    raise FinalResultsError("Part 1 replacement has an invalid root count/scope.")
+
+
+def _combine_part1_overlay(
+    full_paths: Sequence[Path], n96_paths: Sequence[Path],
+    replacement_paths: Sequence[Path], *, bootstrap_seed: int,
+) -> tuple[list[dict[str, Any]], dict[str, tuple[str, str, str]], list[dict[str, Any]]]:
+    if not replacement_paths:
+        return _combine_part1(full_paths, n96_paths, bootstrap_seed=bootstrap_seed)
+    artifact_type = "inference_hub_part1_large_n_exploratory_panel"
+    primaries: list[dict[str, Any]] = []
+    for scope, paths in (("full_384", full_paths), ("balanced_partial", n96_paths)):
+        for path in paths:
+            manifest = _manifest(path, artifact_type, require_complete=False)
+            if _part1_scope(manifest) != scope:
+                raise FinalResultsError(f"Part 1 {scope} manifest has the wrong root count/scope.")
+            subjects = _subject_routes(manifest)
+            primaries.append({
+                "path": path, "scope": scope, "manifest": manifest,
+                "subjects": subjects,
+                "subject_indices": {
+                    target_id: index for index, target_id in enumerate(subjects)
+                },
+                "replacements": [], "seen_replacements": set(),
+            })
+    if not primaries:
+        raise FinalResultsError("At least one Part 1 manifest is required.")
+
+    for path in replacement_paths:
+        replacement = _manifest(path, artifact_type)
+        replacement_scope = _part1_scope(replacement)
+        replacement_ids = set(_subject_routes(replacement))
+        candidates = [
+            primary for primary in primaries
+            if primary["scope"] == replacement_scope
+            and replacement_ids <= set(primary["subjects"])
+            and _overlay_contract(primary["manifest"], part="part1")
+            == _overlay_contract(replacement, part="part1")
+        ]
+        if len(candidates) != 1:
+            raise FinalResultsError(
+                "Part 1 replacement must match exactly one primary manifest by "
+                "scope, targets, schedule, and scientific contract."
+            )
+        primary = candidates[0]
+        if primary["manifest"].get("complete") is True:
+            raise FinalResultsError(
+                "Part 1 replacements may only repair an incomplete primary manifest."
+            )
+        validated_ids = _validate_replacement_manifest(
+            primary=primary["manifest"], replacement=replacement, part="part1",
+            seen_target_ids=primary["seen_replacements"],
+        )
+        primary["replacements"].append((path, replacement, validated_ids))
+
+    rows: list[dict[str, Any]] = []
+    identities: dict[str, tuple[str, str, str]] = {}
+    bindings: list[dict[str, Any]] = []
+    seen_rows: set[tuple[str, str, int]] = set()
+    for primary in primaries:
+        path = primary["path"]
+        scope = primary["scope"]
+        replacements = primary["replacements"]
+        if not replacements:
+            new_rows, new_identities, binding = _part1_manifest(
+                path, scope=scope, bootstrap_seed=bootstrap_seed,
+            )
+        else:
+            replaced_ids = set(primary["seen_replacements"])
+            retained_ids = set(primary["subjects"]) - replaced_ids
+            new_rows, new_identities, primary_binding = _part1_manifest(
+                path, scope=scope, bootstrap_seed=bootstrap_seed,
+                target_ids=retained_ids, require_complete=False,
+                require_summary=False, subject_indices=primary["subject_indices"],
+            )
+            primary_binding.update({
+                "complete": primary["manifest"].get("complete") is True,
+                "retained_target_ids": sorted(retained_ids),
+            })
+            replacement_bindings: list[dict[str, Any]] = []
+            for replacement_path, _replacement, replacement_ids in replacements:
+                replacement_rows, replacement_identities, replacement_binding = (
+                    _part1_manifest(
+                        replacement_path, scope=scope, bootstrap_seed=bootstrap_seed,
+                        target_ids=replacement_ids,
+                        subject_indices=primary["subject_indices"],
+                    )
+                )
+                new_rows.extend(replacement_rows)
+                new_identities.update(replacement_identities)
+                replacement_bindings.append({
+                    **replacement_binding,
+                    "replacement_target_ids": sorted(replacement_ids),
+                })
+            row_by_target = {str(row["target_id"]): row for row in new_rows}
+            if set(row_by_target) != set(primary["subjects"]):
+                raise FinalResultsError(
+                    "Part 1 overlay does not cover every primary target exactly once."
+                )
+            new_rows = [row_by_target[target_id] for target_id in primary["subjects"]]
+            binding = {
+                "overlay_schema_version": 1,
+                "primary": primary_binding,
+                "replacements": replacement_bindings,
+                "replaced_target_ids": sorted(replaced_ids),
+                "scope": scope,
+            }
+
+        for row in new_rows:
+            key = (scope, str(row["target_id"]), int(row["root_count"]))
+            if key in seen_rows:
+                raise FinalResultsError(
+                    f"Part 1 target/root count is duplicated within {scope}: "
+                    f"{key[1]} at n={key[2]}."
+                )
+            seen_rows.add(key)
+        for target_id, identity in new_identities.items():
+            prior = identities.get(target_id)
+            if prior is not None and prior != identity:
+                raise FinalResultsError("Part 1 identity changed across full/n96 inputs.")
+            identities[target_id] = identity
+        rows.extend(new_rows)
+        bindings.append(binding)
+
+    preferred = _preferred_part1(rows)
+    for row in rows:
+        row["preferred_for_descriptive_outputs"] = (
+            preferred[str(row["target_id"])] is row
+        )
+    return rows, identities, bindings
+
+
 def _reject_text_keys(value: Any, *, path: str = "root") -> None:
     if isinstance(value, Mapping):
         for key, child in value.items():
@@ -462,12 +807,19 @@ def _reject_text_keys(value: Any, *, path: str = "root") -> None:
             _reject_text_keys(child, path=f"{path}[{index}]")
 
 
-def _part2(manifest_path: Path) -> tuple[list[dict[str, Any]], dict[str, tuple[str, str, str]], dict[str, Any]]:
-    manifest = _manifest(manifest_path, "inference_hub_part2_corrected_matched_panel")
-    summary = manifest.get("summary")
-    if not isinstance(summary, Mapping) or summary.get("identity_mismatch_count") != 0 or summary.get("transport_failure_count") != 0:
-        raise FinalResultsError("Part 2 contains an operational or identity failure.")
-    subjects = _subject_routes(manifest)
+def _part2(
+    manifest_path: Path, *, target_ids: set[str] | None = None,
+    require_complete: bool = True, require_summary: bool = True,
+) -> tuple[list[dict[str, Any]], dict[str, tuple[str, str, str]], dict[str, Any]]:
+    manifest = _manifest(
+        manifest_path, "inference_hub_part2_corrected_matched_panel",
+        require_complete=require_complete,
+    )
+    if require_summary:
+        summary = manifest.get("summary")
+        if not isinstance(summary, Mapping) or summary.get("identity_mismatch_count") != 0 or summary.get("transport_failure_count") != 0:
+            raise FinalResultsError("Part 2 contains an operational or identity failure.")
+    subjects = _selected_subject_routes(manifest, target_ids)
     refs = manifest.get("sanitized_artifacts")
     model_ref = refs.get("model_metrics") if isinstance(refs, Mapping) else None
     trajectory_ref = refs.get("trajectory_metrics") if isinstance(refs, Mapping) else None
@@ -492,7 +844,11 @@ def _part2(manifest_path: Path) -> tuple[list[dict[str, Any]], dict[str, tuple[s
         raise FinalResultsError("Part 2 sanitized metrics lack rows.")
     by_target: dict[str, list[Mapping[str, Any]]] = defaultdict(list)
     for row in trajectory_rows:
-        if not isinstance(row, Mapping) or row.get("operationally_eligible") is not True:
+        if not isinstance(row, Mapping):
+            raise FinalResultsError("Part 2 trajectory metric is not an object.")
+        if target_ids is not None and row.get("target_id") not in subjects:
+            continue
+        if row.get("operationally_eligible") is not True:
             raise FinalResultsError("Part 2 contains an ineligible trajectory.")
         by_target[str(row.get("target_id"))].append(row)
     output: list[dict[str, Any]] = []
@@ -512,6 +868,8 @@ def _part2(manifest_path: Path) -> tuple[list[dict[str, Any]], dict[str, tuple[s
         if not isinstance(row, Mapping):
             raise FinalResultsError("Part 2 model metric is not an object.")
         target_id = row.get("target_id")
+        if target_ids is not None and target_id not in subjects:
+            continue
         if (
             not isinstance(target_id, str) or target_id in seen or target_id not in subjects
             or row.get("complete_matched_panel") is not True
@@ -586,10 +944,66 @@ def _part2(manifest_path: Path) -> tuple[list[dict[str, Any]], dict[str, tuple[s
         for target_id, row in subjects.items()
     }
     return output, identities, {
-        "manifest_path": str(manifest_path.resolve()), "file_sha256": _sha256_file(manifest_path),
-        "evidence_sha256": manifest["evidence_sha256"],
+        **_manifest_binding(manifest_path, manifest),
         "model_metrics_file_sha256": model_ref["file_sha256"],
         "trajectory_metrics_file_sha256": trajectory_ref["file_sha256"],
+    }
+
+
+def _part2_overlay(
+    primary_path: Path, replacement_paths: Sequence[Path],
+) -> tuple[list[dict[str, Any]], dict[str, tuple[str, str, str]], dict[str, Any]]:
+    if not replacement_paths:
+        return _part2(primary_path)
+    artifact_type = "inference_hub_part2_corrected_matched_panel"
+    primary = _manifest(primary_path, artifact_type, require_complete=False)
+    if primary.get("complete") is True:
+        raise FinalResultsError(
+            "Part 2 replacements may only repair an incomplete primary manifest."
+        )
+    primary_subjects = _subject_routes(primary)
+    seen_replacements: set[str] = set()
+    replacements: list[tuple[Path, dict[str, Any], set[str]]] = []
+    for path in replacement_paths:
+        replacement = _manifest(path, artifact_type)
+        replacement_ids = _validate_replacement_manifest(
+            primary=primary, replacement=replacement, part="part2",
+            seen_target_ids=seen_replacements,
+        )
+        replacements.append((path, replacement, replacement_ids))
+
+    retained_ids = set(primary_subjects) - seen_replacements
+    if retained_ids:
+        rows, identities, primary_binding = _part2(
+            primary_path, target_ids=retained_ids,
+            require_complete=False, require_summary=False,
+        )
+    else:
+        rows, identities = [], {}
+        primary_binding = _manifest_binding(primary_path, primary)
+    primary_binding.update({
+        "complete": primary.get("complete") is True,
+        "retained_target_ids": sorted(retained_ids),
+    })
+    replacement_bindings: list[dict[str, Any]] = []
+    for path, _replacement, replacement_ids in replacements:
+        new_rows, new_identities, binding = _part2(
+            path, target_ids=replacement_ids,
+        )
+        rows.extend(new_rows)
+        identities.update(new_identities)
+        replacement_bindings.append({
+            **binding, "replacement_target_ids": sorted(replacement_ids),
+        })
+    row_by_target = {str(row["target_id"]): row for row in rows}
+    if set(row_by_target) != set(primary_subjects):
+        raise FinalResultsError("Part 2 overlay does not cover every primary target exactly once.")
+    rows = [row_by_target[target_id] for target_id in primary_subjects]
+    return rows, identities, {
+        "overlay_schema_version": 1,
+        "primary": primary_binding,
+        "replacements": replacement_bindings,
+        "replaced_target_ids": sorted(seen_replacements),
     }
 
 
@@ -1265,17 +1679,25 @@ def build_final_results(
     *, part0_manifest: Path, part1_full_manifests: Sequence[Path],
     part1_n96_manifests: Sequence[Path], part2_manifest: Path,
     panel_path: Path, output_dir: Path, bootstrap_seed: int = DEFAULT_BOOTSTRAP_SEED,
+    part0_replacement_manifests: Sequence[Path] = (),
+    part1_replacement_manifests: Sequence[Path] = (),
+    part2_replacement_manifests: Sequence[Path] = (),
 ) -> dict[str, Any]:
     """Validate private inputs and emit only sanitized final-result derivatives."""
     if output_dir.exists():
         raise FinalResultsError("Output directory already exists; final results are immutable.")
     if not part1_full_manifests and not part1_n96_manifests:
         raise FinalResultsError("At least one Part 1 manifest is required.")
-    part0_rows, p0_identities, p0_binding = _part0(part0_manifest)
-    part1_rows, p1_identities, p1_bindings = _combine_part1(
-        part1_full_manifests, part1_n96_manifests, bootstrap_seed=bootstrap_seed
+    part0_rows, p0_identities, p0_binding = _part0_overlay(
+        part0_manifest, part0_replacement_manifests,
     )
-    part2_rows, p2_identities, p2_binding = _part2(part2_manifest)
+    part1_rows, p1_identities, p1_bindings = _combine_part1_overlay(
+        part1_full_manifests, part1_n96_manifests,
+        part1_replacement_manifests, bootstrap_seed=bootstrap_seed,
+    )
+    part2_rows, p2_identities, p2_binding = _part2_overlay(
+        part2_manifest, part2_replacement_manifests,
+    )
     cross = _cross_axis(
         panel_path=panel_path, part0=part0_rows, part1=part1_rows,
         part2=part2_rows, identities=(p0_identities, p1_identities, p2_identities),
@@ -1340,7 +1762,9 @@ def build_final_results(
         "bindings": {
             "part0": p0_binding, "part1": p1_bindings, "part2": p2_binding,
             "cross_axis_panel": {
-                "path": str(panel_path.resolve()), "file_sha256": _sha256_file(panel_path),
+                "path": panel_path.name,
+                "path_scope": "input_panel_basename_only",
+                "file_sha256": _sha256_file(panel_path),
                 "canonical_sha256": _sha256_json(_read_json(panel_path, "cross-axis panel")),
             },
         },
@@ -1372,12 +1796,21 @@ def _parser() -> argparse.ArgumentParser:
         description="Build fail-closed sanitized final results for Safety Beyond Refusal."
     )
     parser.add_argument("--part0-manifest", type=Path, required=True)
+    parser.add_argument(
+        "--part0-replacement-manifest", type=Path, action="append", default=[]
+    )
     parser.add_argument("--part1-full-manifest", type=Path, action="append", default=[])
     parser.add_argument(
         "--part1-partial-manifest", "--part1-n96-manifest",
         dest="part1_n96_manifest", type=Path, action="append", default=[]
     )
+    parser.add_argument(
+        "--part1-replacement-manifest", type=Path, action="append", default=[]
+    )
     parser.add_argument("--part2-manifest", type=Path, required=True)
+    parser.add_argument(
+        "--part2-replacement-manifest", type=Path, action="append", default=[]
+    )
     parser.add_argument("--panel-config", type=Path, default=Path("experiments/sota_cross_axis_panel.json"))
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--bootstrap-seed", type=int, default=DEFAULT_BOOTSTRAP_SEED)
@@ -1392,6 +1825,9 @@ def main(argv: list[str] | None = None) -> int:
         part1_n96_manifests=args.part1_n96_manifest,
         part2_manifest=args.part2_manifest, panel_path=args.panel_config,
         output_dir=args.output_dir, bootstrap_seed=args.bootstrap_seed,
+        part0_replacement_manifests=args.part0_replacement_manifest,
+        part1_replacement_manifests=args.part1_replacement_manifest,
+        part2_replacement_manifests=args.part2_replacement_manifest,
     )
     print(f"Sanitized final results: {args.output_dir / 'final_results.json'}")
     print(f"Matched cross-axis status: {artifact['cross_axis']['status']}")
