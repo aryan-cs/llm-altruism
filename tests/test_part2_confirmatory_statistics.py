@@ -285,5 +285,30 @@ def test_sentinel_analysis_requires_six_systems_and_common_seeds() -> None:
         analyze_sentinel_sensitivity(mixed, expected_sentinel_ids=frozen)
 
 
+def test_exploratory_five_sentinel_analysis_requires_explicit_count() -> None:
+    complete = _sensitivity_observations(seeds=(101, 102))
+    five = {f"sentinel-{index}": complete for index in range(5)}
+    frozen = tuple(five)
+
+    with pytest.raises(ValueError, match="exactly 6"):
+        analyze_sentinel_sensitivity(
+            five,
+            expected_sentinel_ids=frozen,
+            expected_common_seed_count=2,
+        )
+
+    results = analyze_sentinel_sensitivity(
+        five,
+        expected_sentinel_ids=frozen,
+        expected_common_seed_count=2,
+        expected_sentinel_count=5,
+    )
+    assert len(results) == 25
+    assert {row["holm_family_size"] for row in results} == {25}
+    assert {row["holm_family"] for row in results} == {
+        "25_prespecified_sentinel_by_factor_main_effects"
+    }
+
+
 def test_default_bca_replicates_is_confirmatory_scale() -> None:
     assert DEFAULT_BCA_REPLICATES >= 2000

@@ -24,7 +24,7 @@ from typing import Any, Iterable, Mapping, Sequence
 
 import numpy as np
 
-from analysis.part2_confirmatory import student_t_975
+from analysis.part2_confirmatory import SENSITIVITY_FACTORS, student_t_975
 from experiments.part1.confirmatory_design import (
     COUNTERBALANCE_BY_ID,
     DOMAINS,
@@ -39,6 +39,16 @@ BOOTSTRAP_BASE_SEED = 20_260_803
 CONFIDENCE_LEVEL = 0.95
 PART0_LANGUAGES = ("english", "chinese", "russian")
 WILSON_Z_95 = 1.959963984540054
+SENSITIVITY_SENTINEL_COUNT = 5
+SENSITIVITY_HOLM_FAMILY_SIZE = SENSITIVITY_SENTINEL_COUNT * len(
+    SENSITIVITY_FACTORS
+)
+SENSITIVITY_HOLM_FAMILY = (
+    f"{SENSITIVITY_HOLM_FAMILY_SIZE}_prespecified_sentinel_by_factor_main_effects"
+)
+SENSITIVITY_DIAGNOSTIC_FAMILY = (
+    f"separate_diagnostic_not_in_{SENSITIVITY_HOLM_FAMILY_SIZE}_test_global_holm"
+)
 EXPECTED_TYPES = {
     "part0": "inference_hub_part0_accelerated_private_panel",
     "part1": "inference_hub_part1_large_n_exploratory_panel",
@@ -1173,40 +1183,111 @@ def _normalized(rows: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
     return [dict(row) for row in rows]
 
 
+def _analyze_deadline_sensitivity(
+    trajectory_rows: Sequence[Mapping[str, Any]], *,
+    sentinel_ids: Sequence[str], design: Mapping[str, Any],
+) -> list[dict[str, object]]:
+    """Reproduce the complete five-sentinel deadline panel and its Holm-25 family.
+
+    The revised public panel contains the five exact routes compatible with
+    every frozen cell, with no replacement route. The design-bound analyzer
+    recomputes five effects per sentinel from the 16-cell, two-seed trajectory
+    blocks and adjusts them together as one 25-effect family.
+    """
+
+    exact_ids = [str(value).strip() for value in sentinel_ids]
+    if (
+        len(exact_ids) != SENSITIVITY_SENTINEL_COUNT
+        or any(not value for value in exact_ids)
+        or len(set(exact_ids)) != len(exact_ids)
+    ):
+        raise DefinitiveAnalysisError(
+            "Sensitivity requires five unique compatible sentinel routes."
+        )
+    from experiments.misc.inference_hub_part2_sensitivity_v1 import (
+        _analyze_completed_design,
+    )
+
+    try:
+        output = _analyze_completed_design(
+            trajectory_rows, sentinel_ids=exact_ids, design=design
+        )
+    except (KeyError, TypeError, ValueError) as error:
+        raise DefinitiveAnalysisError(
+            "Five-sentinel sensitivity effects do not reproduce."
+        ) from error
+    if len(output) != SENSITIVITY_HOLM_FAMILY_SIZE:
+        raise DefinitiveAnalysisError(
+            "Sensitivity does not contain the complete 25-effect family."
+        )
+    return output
+
+
 def _sensitivity(run: Path, manifest: Mapping[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     _validate_flat_journals(run, manifest, sensitivity=True)
     trajectories = _load_sanitized(run, manifest, "trajectory_metrics", "part2_sensitivity_trajectory_metrics_v1")
     _load_sanitized(run, manifest, "sentinel_cell_metrics", "part2_sensitivity_sentinel_cell_metrics_v1")
     effects = _load_sanitized(run, manifest, "main_effects", "part2_sensitivity_main_effects_v1")
     diagnostic = _load_sanitized(run, manifest, "call_order_diagnostic", "part2_sensitivity_call_order_diagnostic_v1")
-    if diagnostic.get("analysis_family") != "separate_diagnostic_not_in_30_test_global_holm":
-        raise DefinitiveAnalysisError("Call-order diagnostic was not excluded from Holm-30.")
+    if diagnostic.get("analysis_family") != SENSITIVITY_DIAGNOSTIC_FAMILY:
+        raise DefinitiveAnalysisError(
+            "Call-order diagnostic was not excluded from the Holm-25 family."
+        )
     if (
         effects.get("analysis_status") != "complete_deadline_exploratory"
         or effects.get("confirmatory") is not False
-        or effects.get("global_holm_family_size") != 30
-        or len(effects["rows"]) != 30
+        or effects.get("global_holm_family") != SENSITIVITY_HOLM_FAMILY
+        or effects.get("global_holm_family_size") != SENSITIVITY_HOLM_FAMILY_SIZE
+        or len(effects["rows"]) != SENSITIVITY_HOLM_FAMILY_SIZE
     ):
         raise DefinitiveAnalysisError("Sensitivity main-effects/Holm contract is incomplete.")
     subjects = _subject_index(manifest, "sensitivity")
-    design_path = next((Path(str(path)) for path in manifest["source_artifacts"] if Path(str(path)).name == "part2_sensitivity_deadline_exploratory_v1.json"), None)
+    if len(subjects) != SENSITIVITY_SENTINEL_COUNT:
+        raise DefinitiveAnalysisError(
+            "Sensitivity manifest must contain exactly five compatible sentinels."
+        )
+    design_path = next(
+        (
+            Path(str(path))
+            for path in manifest["source_artifacts"]
+            if Path(str(path)).name
+            == "part2_sensitivity_deadline_exploratory_v2.json"
+        ),
+        None,
+    )
     if design_path is None:
-        raise DefinitiveAnalysisError("Sensitivity deadline design binding is missing.")
+        raise DefinitiveAnalysisError(
+            "Revised five-sentinel sensitivity design binding is missing."
+        )
     design = _read_object(design_path, "deadline sensitivity design")
-    from experiments.misc.inference_hub_part2_sensitivity_v1 import _analyze_completed_design
-    recomputed = _analyze_completed_design(trajectories["rows"], sentinel_ids=list(subjects), design=design)
+    recomputed = _analyze_deadline_sensitivity(
+        trajectories["rows"], sentinel_ids=list(subjects), design=design
+    )
     if _canonical_bytes(_normalized(recomputed)) != _canonical_bytes(_normalized(effects["rows"])):
         raise DefinitiveAnalysisError("Sensitivity main effects/Holm values do not reproduce.")
     seen = set()
     for row in effects["rows"]:
         key = (row.get("sentinel_id"), row.get("factor"))
-        if key in seen or row.get("confirmatory") is not False or row.get("holm_family_size") != 30:
+        if (
+            key in seen
+            or row.get("sentinel_id") not in subjects
+            or row.get("confirmatory") is not False
+            or row.get("holm_family") != SENSITIVITY_HOLM_FAMILY
+            or row.get("holm_family_size") != SENSITIVITY_HOLM_FAMILY_SIZE
+        ):
             raise DefinitiveAnalysisError("Sensitivity effect family accounting is invalid.")
         seen.add(key)
         for field in ("raw_exact_p", "holm_adjusted_p", "within_sentinel_holm_adjusted_p", "within_sentinel_max_t_adjusted_p"):
             value = row.get(field)
             if not isinstance(value, (int, float)) or isinstance(value, bool) or not 0 <= value <= 1:
                 raise DefinitiveAnalysisError(f"Sensitivity p-value is invalid: {field}.")
+    expected_effects = {
+        (target, factor) for target in subjects for factor in SENSITIVITY_FACTORS
+    }
+    if seen != expected_effects:
+        raise DefinitiveAnalysisError(
+            "Sensitivity effect rows do not match the five exact compatible sentinels."
+        )
     model_audit = []
     for target, subject in sorted(subjects.items()):
         group = [row for row in trajectories["rows"] if row.get("target_id") == target]

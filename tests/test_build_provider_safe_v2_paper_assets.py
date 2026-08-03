@@ -18,8 +18,12 @@ from analysis.build_provider_safe_v2_paper_assets import (
     ORANGE,
     RED,
     PaperAssetsError,
+    ROLE_SENTINEL_COUNT,
     SENSITIVITY_FACTORS,
+    SENSITIVITY_HOLM_FAMILY,
+    SENSITIVITY_HOLM_FAMILY_SIZE,
     SENSITIVITY_LEVELS,
+    SENSITIVITY_SENTINEL_COUNT,
     _load_and_validate,
     _annotation_color,
     _fixed_panel_pair_diagnostic,
@@ -244,8 +248,11 @@ def _source_payload() -> tuple[dict[str, list[dict[str, Any]]], dict[str, Any]]:
     role_rows: list[dict[str, Any]] = []
     sensitivity_models: list[dict[str, Any]] = []
     frames = ("advice", "observer_evaluation", "prediction")
-    sentinel_targets = [f"route/sentinel_{index:02d}:exact" for index in range(6)]
-    for model_index, target in enumerate(sentinel_targets):
+    role_targets = [
+        f"route/role_sentinel_{index:02d}:exact"
+        for index in range(ROLE_SENTINEL_COUNT)
+    ]
+    for model_index, target in enumerate(role_targets):
         provider = f"sentinel_provider_{model_index}"
         model = f"sentinel/model_{model_index:02d}_exact"
         for frame_index, frame in enumerate(frames):
@@ -272,12 +279,19 @@ def _source_payload() -> tuple[dict[str, list[dict[str, Any]]], dict[str, Any]]:
                     "frames_pooled": False,
                 }
             )
+    tables["role_calibration_model_frames"] = role_rows
+
+    sensitivity_targets = [
+        f"route/sensitivity_compatible_{index:02d}:exact"
+        for index in range(SENSITIVITY_SENTINEL_COUNT)
+    ]
+    for model_index, target in enumerate(sensitivity_targets):
         sensitivity_models.append(
             {
                 "phase": "part2_sensitivity",
                 "target_id": target,
-                "upstream_provider": provider,
-                "model": model,
+                "upstream_provider": f"sensitivity_provider_{model_index}",
+                "model": f"sensitivity/model_{model_index:02d}_exact",
                 "trajectory_count": 32,
                 "scheduled_agent_days": 2880,
                 "first_attempt_invalid_count": model_index,
@@ -287,11 +301,10 @@ def _source_payload() -> tuple[dict[str, list[dict[str, Any]]], dict[str, Any]]:
                 "exploratory_only": True,
             }
         )
-    tables["role_calibration_model_frames"] = role_rows
     tables["sensitivity_models"] = sensitivity_models
 
     sensitivity_rows: list[dict[str, Any]] = []
-    for model_index, target in enumerate(sentinel_targets):
+    for model_index, target in enumerate(sensitivity_targets):
         for factor_index, factor in enumerate(SENSITIVITY_FACTORS):
             low, high = SENSITIVITY_LEVELS[factor]
             effect = (factor_index - 2) * 0.018 + model_index * 0.001
@@ -315,8 +328,8 @@ def _source_payload() -> tuple[dict[str, list[dict[str, Any]]], dict[str, Any]]:
                     "permutation_count": 4,
                     "design": "2^(5-1)_resolution_V_I=ABCDE",
                     "analysis_unit": "environment_seed_block",
-                    "holm_family": "30_prespecified_sentinel_by_factor_main_effects",
-                    "holm_family_size": 30,
+                    "holm_family": SENSITIVITY_HOLM_FAMILY,
+                    "holm_family_size": SENSITIVITY_HOLM_FAMILY_SIZE,
                     "max_t_family": "five_main_effects_within_sentinel_diagnostic",
                     "inference_scope": "deadline_exploratory",
                     "confirmatory": False,
@@ -628,12 +641,12 @@ def test_deterministic_headline_macros_match_full_production_fixture_exactly(
         "ProviderSafeRolePredictionValidCoveragePctMinimum": "99.2",
         "ProviderSafeRolePredictionValidCoveragePctMedian": "99.3",
         "ProviderSafeRolePredictionValidCoveragePctMaximum": "99.5",
-        "ProviderSafeSensitivitySentinelCount": "6",
-        "ProviderSafeSensitivityTrajectoryCount": "192",
+        "ProviderSafeSensitivitySentinelCount": "5",
+        "ProviderSafeSensitivityTrajectoryCount": "160",
         "ProviderSafeSensitivityCommonSeedCount": "2",
-        "ProviderSafeSensitivityEffectCount": "30",
-        "ProviderSafeSensitivityMaximumAbsoluteEffect": "0.0410",
-        "ProviderSafeSensitivityHolmSignificantCount": "4",
+        "ProviderSafeSensitivityEffectCount": "25",
+        "ProviderSafeSensitivityMaximumAbsoluteEffect": "0.0400",
+        "ProviderSafeSensitivityHolmSignificantCount": "3",
     }
     text = first_path.read_text(encoding="utf-8")
     assert "no cross-axis aggregate, score, population inference, or promotion is defined" in text

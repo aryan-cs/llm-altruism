@@ -40,14 +40,8 @@ INVALID_POLICY = (
     "first_attempt_invalids_retained_in_all_primary_scheduled_unit_denominators;"
     "repairs_reported_separately"
 )
-EXPECTED_ROW_COUNTS = {
-    "part0_models": 22,
-    "part1_models": 75,
-    "part2_models": 19,
-    "role_calibration_model_frames": 18,
-    "sensitivity_models": 6,
-    "sensitivity_main_effects": 30,
-}
+ROLE_SENTINEL_COUNT = 6
+SENSITIVITY_SENTINEL_COUNT = 5
 PART0_LANGUAGES = ("english", "chinese", "russian")
 ROLE_FRAMES = ("advice", "observer_evaluation", "prediction")
 SENSITIVITY_LEVELS: dict[str, tuple[int | float, int | float]] = {
@@ -58,6 +52,20 @@ SENSITIVITY_LEVELS: dict[str, tuple[int | float, int | float]] = {
     "horizon_days": (10, 20),
 }
 SENSITIVITY_FACTORS = tuple(SENSITIVITY_LEVELS)
+SENSITIVITY_HOLM_FAMILY_SIZE = SENSITIVITY_SENTINEL_COUNT * len(
+    SENSITIVITY_FACTORS
+)
+SENSITIVITY_HOLM_FAMILY = (
+    f"{SENSITIVITY_HOLM_FAMILY_SIZE}_prespecified_sentinel_by_factor_main_effects"
+)
+EXPECTED_ROW_COUNTS = {
+    "part0_models": 22,
+    "part1_models": 75,
+    "part2_models": 19,
+    "role_calibration_model_frames": ROLE_SENTINEL_COUNT * len(ROLE_FRAMES),
+    "sensitivity_models": SENSITIVITY_SENTINEL_COUNT,
+    "sensitivity_main_effects": SENSITIVITY_HOLM_FAMILY_SIZE,
+}
 DEFAULT_LOCAL_CONTROLS_PATH = (
     Path(__file__).resolve().parents[1] / "data/analysis/local_hf_part1_controls.json"
 )
@@ -702,8 +710,11 @@ def _validate_part2(rows: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _validate_role(rows: Sequence[Mapping[str, Any]]) -> tuple[list[str], dict[tuple[str, str], dict[str, Any]]]:
-    if len(rows) != 18:
-        raise PaperAssetsError("Role calibration requires exactly 18 model-frame rows.")
+    expected_rows = ROLE_SENTINEL_COUNT * len(ROLE_FRAMES)
+    if len(rows) != expected_rows:
+        raise PaperAssetsError(
+            f"Role calibration requires exactly {expected_rows} model-frame rows."
+        )
     by_key: dict[tuple[str, str], dict[str, Any]] = {}
     identity: dict[str, tuple[str, str]] = {}
     for index, raw in enumerate(rows):
@@ -753,7 +764,9 @@ def _validate_role(rows: Sequence[Mapping[str, Any]]) -> tuple[list[str], dict[t
         ):
             raise PaperAssetsError(f"{label} changed its separate ancillary-frame contract.")
         by_key[key] = row
-    if len(identity) != 6 or set(by_key) != {(target, frame) for target in identity for frame in ROLE_FRAMES}:
+    if len(identity) != ROLE_SENTINEL_COUNT or set(by_key) != {
+        (target, frame) for target in identity for frame in ROLE_FRAMES
+    }:
         raise PaperAssetsError("Role calibration is not a complete six-model x three-frame matrix.")
     return sorted(identity), by_key
 
@@ -761,7 +774,9 @@ def _validate_role(rows: Sequence[Mapping[str, Any]]) -> tuple[list[str], dict[t
 def _validate_sensitivity(
     model_rows: Sequence[Mapping[str, Any]], effect_rows: Sequence[Mapping[str, Any]]
 ) -> tuple[list[str], dict[str, dict[str, Any]], dict[tuple[str, str], dict[str, Any]]]:
-    models = _model_index(model_rows, "sensitivity_models", 6)
+    models = _model_index(
+        model_rows, "sensitivity_models", SENSITIVITY_SENTINEL_COUNT
+    )
     for target, row in models.items():
         label = f"sensitivity_models[{target}]"
         _required(
@@ -785,8 +800,11 @@ def _validate_sensitivity(
         if row.get("inference_scope") != "deadline_exploratory" or row.get("confirmatory") is not False or row.get("exploratory_only") is not True:
             raise PaperAssetsError(f"{label} changed its exploratory sensitivity scope.")
 
-    if len(effect_rows) != 30:
-        raise PaperAssetsError("Sensitivity requires exactly 30 main-effect rows.")
+    expected_effect_count = len(models) * len(SENSITIVITY_FACTORS)
+    if len(effect_rows) != expected_effect_count:
+        raise PaperAssetsError(
+            f"Sensitivity requires exactly {expected_effect_count} main-effect rows."
+        )
     effects: dict[tuple[str, str], dict[str, Any]] = {}
     for index, raw in enumerate(effect_rows):
         row = dict(raw)
@@ -826,8 +844,9 @@ def _validate_sensitivity(
             or _integer(row, "permutation_count", label) != 4
             or row.get("design") != "2^(5-1)_resolution_V_I=ABCDE"
             or row.get("analysis_unit") != "environment_seed_block"
-            or row.get("holm_family") != "30_prespecified_sentinel_by_factor_main_effects"
-            or _integer(row, "holm_family_size", label) != 30
+            or row.get("holm_family") != SENSITIVITY_HOLM_FAMILY
+            or _integer(row, "holm_family_size", label)
+            != expected_effect_count
             or row.get("max_t_family") != "five_main_effects_within_sentinel_diagnostic"
             or row.get("inference_scope") != "deadline_exploratory"
             or row.get("confirmatory") is not False
@@ -836,7 +855,9 @@ def _validate_sensitivity(
         effects[key] = row
     expected = {(target, factor) for target in models for factor in SENSITIVITY_FACTORS}
     if set(effects) != expected:
-        raise PaperAssetsError("Sensitivity is not a complete six-model x five-factor matrix.")
+        raise PaperAssetsError(
+            "Sensitivity is not a complete five-compatible-sentinel x five-factor matrix."
+        )
     return sorted(models), models, effects
 
 
@@ -1010,16 +1031,6 @@ def _load_and_validate(input_dir: Path) -> dict[str, Any]:
     sensitivity_targets, sensitivity_models, sensitivity = _validate_sensitivity(
         tables["sensitivity_models"], tables["sensitivity_main_effects"]
     )
-    if role_targets != sensitivity_targets:
-        raise PaperAssetsError("Role and sensitivity sentinel target sets differ.")
-    for target in role_targets:
-        role_row = role[(target, ROLE_FRAMES[0])]
-        sensitivity_row = sensitivity_models[target]
-        if (
-            role_row["upstream_provider"] != sensitivity_row["upstream_provider"]
-            or role_row["model"] != sensitivity_row["model"]
-        ):
-            raise PaperAssetsError(f"Role/sensitivity identity differs for {target!r}.")
     return {
         "manifest": manifest,
         "part0": part0,
@@ -1477,7 +1488,13 @@ def _plot_role(data: Mapping[str, Any], directory: Path) -> list[Path]:
     fig, ax = plt.subplots(figsize=(11.2, 5.6))
     fig.patch.set_facecolor("white")
     fig.suptitle("Part 1 role-calibration outcomes by exact sentinel route and frame", x=0.08, ha="left", fontsize=15, fontweight="bold", color=INK)
-    fig.text(0.08, 0.91, "Six sentinels x three separate frames; 384 scheduled draws per route-frame; frames are not pooled.", fontsize=9, color=MUTED)
+    fig.text(
+        0.08,
+        0.91,
+        f"{len(targets)} sentinels x three separate frames; 384 scheduled draws per route-frame; frames are not pooled.",
+        fontsize=9,
+        color=MUTED,
+    )
     _heatmap(ax, welfare, ROLE_FRAMES, labels, title="Welfare-preserving / all scheduled draws", cmap=P1_CMAP, vmin=0.0, vmax=1.0)
     _figure_footer(fig, "Higher welfare preservation means fewer counterpart costs within that role-conditioned task. Frame differences are descriptive, not causal; invalid outputs remain in each scheduled denominator.", y=0.02)
     fig.tight_layout(rect=(0.055, 0.09, 0.995, 0.87))
@@ -1494,7 +1511,13 @@ def _plot_sensitivity(data: Mapping[str, Any], directory: Path) -> list[Path]:
     fig, ax = plt.subplots(figsize=(14.8, 6.5))
     fig.patch.set_facecolor("white")
     fig.suptitle("Part 2 exploratory sensitivity: high-minus-low normalized-AURC effects", x=0.09, ha="left", fontsize=15, fontweight="bold", color=INK)
-    fig.text(0.09, 0.91, "Six sentinels x five prespecified factors; 16 resolution-V cells and two common seeds per sentinel; Holm family = 30.", fontsize=9, color=MUTED)
+    fig.text(
+        0.09,
+        0.91,
+        f"{len(targets)} compatible sentinels x five prespecified factors; 16 resolution-V cells and two common seeds per sentinel; Holm family = {len(targets) * len(SENSITIVITY_FACTORS)}.",
+        fontsize=9,
+        color=MUTED,
+    )
     mesh = ax.pcolormesh(
         matrix, cmap=SIGNED_CMAP, norm=TwoSlopeNorm(vmin=-limit, vcenter=0.0, vmax=limit),
         shading="flat", edgecolors="white", linewidth=1.0, rasterized=False,
@@ -1896,7 +1919,7 @@ def _write_tables(data: Mapping[str, Any], directory: Path) -> list[Path]:
     path.write_text(
         _table_tex(
             caption=(
-                "Part 1 exploratory role calibration for six exact sentinel routes. Each row is one authenticated target route and exact upstream Model ID; Advice, Observer evaluation, and Prediction report welfare-preserving first attempts over all 384 scheduled draws in that named frame. The three centered columns are separate estimands and are never pooled. Higher values mean fewer counterpart costs only within the named frame; lower values mean the response more often favors the focal actor's unilateral advantage. Differences are descriptive rather than causal, and no frame is a general safety score."
+                f"Part 1 exploratory role calibration for {len(data['role_targets'])} exact sentinel routes. Each row is one authenticated target route and exact upstream Model ID; Advice, Observer evaluation, and Prediction report welfare-preserving first attempts over all 384 scheduled draws in that named frame. The three centered columns are separate estimands and are never pooled. Higher values mean fewer counterpart costs only within the named frame; lower values mean the response more often favors the focal actor's unilateral advantage. Differences are descriptive rather than causal, and no frame is a general safety score."
             ),
             label="tab:provider-safe-v2-part1-role-calibration",
             headers=("Target route ID", "Model ID", "Advice W/scheduled", "Observer evaluation W/scheduled", "Prediction W/scheduled"),
@@ -1924,7 +1947,7 @@ def _write_tables(data: Mapping[str, Any], directory: Path) -> list[Path]:
     path.write_text(
         _table_tex(
             caption=(
-                "Part 2 deadline-exploratory sensitivity effects. Each row is one exact sentinel route and prespecified factor; Model ID is the authenticated upstream model; Effect is mean normalized AURC at the factor's high level minus its low level over the resolution-V design and two common-seed blocks. The low-to-high pairs are capacity per initial agent 5 to 15, depletion units 1 to 2, collapse death rate 0.1 to 0.4, society size 4 to 8, and horizon days 10 to 20. Holm p adjusts the 30 sentinel-by-factor tests, with adjusted p at most 0.05 treated as significant. The two centered result columns directly assess effect size and evidence against the null without a redundant derived status column. Positive means the high level increased reserve preservation and negative means it decreased preservation, but sign is not automatically good or bad for the parameter. With two seeds this panel is underpowered and descriptive, not a general safety score."
+                f"Part 2 deadline-exploratory sensitivity effects for {len(data['sensitivity_targets'])} exact compatible sentinel routes, with no route substitution. Each row is one sentinel route and prespecified factor; Model ID is the authenticated upstream model; Effect is mean normalized AURC at the factor's high level minus its low level over the resolution-V design and two common-seed blocks. The low-to-high pairs are capacity per initial agent 5 to 15, depletion units 1 to 2, collapse death rate 0.1 to 0.4, society size 4 to 8, and horizon days 10 to 20. Holm p adjusts the {len(sensitivity_rows)} sentinel-by-factor tests, with adjusted p at most 0.05 treated as significant. The two centered result columns directly assess effect size and evidence against the null without a redundant derived status column. Positive means the high level increased reserve preservation and negative means it decreased preservation, but sign is not automatically good or bad for the parameter. With two seeds this panel is underpowered and descriptive, not a general safety score."
             ),
             label="tab:provider-safe-v2-part2-sensitivity",
             headers=("Target route ID", "Model ID", "Factor", "Effect (high-low AURC)", "Holm p"),

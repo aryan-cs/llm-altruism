@@ -30,6 +30,7 @@ from experiments.misc.inference_hub_provider_safe_v2 import provider_round_robin
 from experiments.misc.inference_hub_part2_sensitivity_v1 import (
     DEFAULT_DESIGN,
     DEFAULT_EXPLORATORY_DESIGN,
+    DEFAULT_REVISED_EXPLORATORY_DESIGN,
     InferenceHubPart2SensitivityError,
     SensitivityCondition,
     _AttemptBudget,
@@ -145,6 +146,71 @@ def test_deadline_design_is_separate_exploratory_and_24_hour_sized() -> None:
     )
 
 
+def test_revised_deadline_design_excludes_only_incompatible_sentinel() -> None:
+    original, original_cells = load_sensitivity_design(DEFAULT_EXPLORATORY_DESIGN)
+    revised, revised_cells = load_sensitivity_design(
+        DEFAULT_REVISED_EXPLORATORY_DESIGN
+    )
+
+    original_ids = [row["target_id"] for row in original["sentinels"]]
+    revised_ids = [row["target_id"] for row in revised["sentinels"]]
+    assert revised["campaign_id"] == "part2_resolution_v_deadline_exploratory_v2"
+    assert revised["analysis"]["inference_scope"] == "deadline_exploratory"
+    assert revised["seed_policy"] == (
+        "two_common_environment_seeds_across_cells_and_sentinels_v2"
+    )
+    assert len(revised_ids) == 5
+    assert set(original_ids) - set(revised_ids) == {
+        "anthropic/claude-sonnet-4-6"
+    }
+    assert revised["revision_from"] == {
+        "campaign_id": original["campaign_id"],
+        "excluded_target_ids": ["anthropic/claude-sonnet-4-6"],
+        "exclusion_code": "frozen_exact_route_missing_required_common_control_top_p",
+        "exclusion_stage": "pre_analysis_execution_contract_validation",
+        "outcome_information_used": False,
+        "substitution_permitted": False,
+    }
+    assert [cell.public_dict() for cell in revised_cells] == [
+        cell.public_dict() for cell in original_cells
+    ]
+    assert revised["analysis"]["global_holm_family_size"] == 25
+    scheduled = (
+        sum(cell.society_size * cell.horizon_days for cell in revised_cells)
+        * len(revised_ids)
+        * revised["seeds_per_cell"]
+    )
+    assert scheduled == 14_400
+    assert revised["execution_budget"] == {
+        "maximum_successful_posts": 14_400,
+        "maximum_physical_attempts": 15_840,
+        "part2_output_tokens_per_attempt": 8192,
+        "maximum_scheduled_output_tokens": 117_964_800,
+        "maximum_input_utf8_bytes_per_attempt": 8192,
+    }
+
+
+def test_revised_deadline_design_rejects_substitution_or_wrong_holm(
+    tmp_path: Path,
+) -> None:
+    document = json.loads(DEFAULT_REVISED_EXPLORATORY_DESIGN.read_text())
+    document["revision_from"]["substitution_permitted"] = True
+    substituted = tmp_path / "substituted.json"
+    substituted.write_text(json.dumps(document))
+    with pytest.raises(
+        InferenceHubPart2SensitivityError,
+        match="no-substitution exclusion contract",
+    ):
+        load_sensitivity_design(substituted)
+
+    document = json.loads(DEFAULT_REVISED_EXPLORATORY_DESIGN.read_text())
+    document["analysis"]["global_holm_family_size"] = 30
+    wrong_holm = tmp_path / "wrong-holm.json"
+    wrong_holm.write_text(json.dumps(document))
+    with pytest.raises(InferenceHubPart2SensitivityError, match="25-test Holm"):
+        load_sensitivity_design(wrong_holm)
+
+
 def test_sentinels_select_exact_routes_from_combined_registry() -> None:
     if not DEFAULT_REGISTRY.is_file() or not DEFAULT_COMPATIBILITY.is_file():
         pytest.skip("Private combined route evidence is intentionally not distributed.")
@@ -182,6 +248,38 @@ def test_sentinels_select_exact_routes_from_combined_registry() -> None:
             "nvidia/nvidia/nemotron-3-super-v3",
         ),
     ]
+
+
+def test_revised_sentinels_all_satisfy_common_request_controls() -> None:
+    if not DEFAULT_REGISTRY.is_file() or not DEFAULT_COMPATIBILITY.is_file():
+        pytest.skip("Private combined route evidence is intentionally not distributed.")
+    design, _ = load_sensitivity_design(DEFAULT_REVISED_EXPLORATORY_DESIGN)
+    sentinel_ids = [row["target_id"] for row in design["sentinels"]]
+    panel, _ = _load_panel(DEFAULT_PANEL)
+    registry = _read_json(DEFAULT_REGISTRY, "combined registry")
+    compatibility = _read_json(DEFAULT_COMPATIBILITY, "combined compatibility")
+    subjects, _ = select_routes(
+        registry=registry,
+        compatibility=compatibility,
+        selected_ids=sentinel_ids,
+        judge_target_id=str(panel["judge_target_id"]),
+    )
+
+    assert {row["target_id"] for row in subjects} == set(sentinel_ids)
+    assert all(
+        {"seed", "temperature", "top_p", "structured_response"}
+        <= set(row["supported_controls"])
+        for row in subjects
+    )
+    for subject in subjects:
+        body, controls = _sensitivity_request_contract(
+            subject,
+            prompt="prompt",
+            system_prompt="system",
+            generation_seed=17,
+        )
+        assert body["top_p"] == 1
+        assert controls["common_contract"] is True
 
 
 def test_common_seeds_are_deterministic_and_cell_independent() -> None:
@@ -319,6 +417,46 @@ def test_deadline_effects_keep_exploratory_levels_and_holm_30() -> None:
     for row in effects:
         assert [row["low_level"], row["high_level"]] == design["factors"][row["factor"]]
         assert row["holm_family_size"] == 30
+
+
+def test_revised_deadline_effects_use_exact_holm_25_family() -> None:
+    design, cells = load_sensitivity_design(DEFAULT_REVISED_EXPLORATORY_DESIGN)
+    sentinels = [row["target_id"] for row in design["sentinels"]]
+    trajectories: list[dict[str, object]] = []
+    for sentinel_index, sentinel in enumerate(sentinels):
+        for cell in cells:
+            for seed in range(2):
+                trajectories.append({
+                    **cell.public_dict(),
+                    "target_id": sentinel,
+                    "environment_seed": seed,
+                    "normalized_aurc": (
+                        0.5
+                        + 0.004 * seed
+                        + 0.002 * sentinel_index
+                        + sum(
+                            0.008 * cell.coded_levels[factor]
+                            for factor in SENSITIVITY_FACTORS
+                        )
+                    ),
+                })
+
+    effects = _analyze_completed_design(
+        trajectories,
+        sentinel_ids=sentinels,
+        design=design,
+    )
+    assert len(effects) == 25
+    assert {(row["sentinel_id"], row["factor"]) for row in effects} == {
+        (sentinel, factor)
+        for sentinel in sentinels
+        for factor in SENSITIVITY_FACTORS
+    }
+    assert {row["holm_family_size"] for row in effects} == {25}
+    assert {row["holm_family"] for row in effects} == {
+        "25_prespecified_sentinel_by_factor_main_effects"
+    }
+    assert all(row["confirmatory"] is False for row in effects)
 
 
 def test_call_order_is_separate_and_not_in_global_holm() -> None:

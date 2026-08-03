@@ -5,15 +5,17 @@ unchanged.  It reuses that runner's strict request, simulator, and journal
 primitives while binding every raw record to one immutable sensitivity cell.
 The design is the frozen 2^(5-1) resolution-V half-fraction (I=ABCDE): sixteen
 cells vary capacity per initial agent, depletion, collapse death rate, population,
-and horizon. Six outcome-blind developer/capability sentinels receive the same
-twelve common environment seeds in every cell.
+and horizon. The six-sentinel preregistered design remains the default. A
+separately versioned deadline-exploratory design may freeze a smaller panel only
+when it records an outcome-blind exact-route incompatibility and forbids model
+substitution.
 
 Raw prompts, responses, reasoning, routes, and request bodies remain in private,
 append-only journals.  Sanitized outputs contain only trajectory metrics and
 per-sentinel/per-cell estimates plus exactly five AURC main effects per sentinel.
-The 30 sentinel-by-factor exact tests form one global Holm family; within-sentinel
-max-T values remain explicitly diagnostic. INVALID actions are retained as
-nonrestraints under the authoritative confirmatory contract and are never retried.
+All sentinel-by-factor exact tests form one design-bound global Holm family;
+within-sentinel max-T values remain explicitly diagnostic. INVALID actions are
+retained as nonrestraints under the authoritative contract and are never retried.
 """
 
 from __future__ import annotations
@@ -97,6 +99,27 @@ DEFAULT_DESIGN = Path("experiments/part2/part2_sensitivity_v1.json")
 DEFAULT_EXPLORATORY_DESIGN = Path(
     "experiments/part2/part2_sensitivity_deadline_exploratory_v1.json"
 )
+DEFAULT_REVISED_EXPLORATORY_DESIGN = Path(
+    "experiments/part2/part2_sensitivity_deadline_exploratory_v2.json"
+)
+_CONFIRMATORY_CAMPAIGN_ID = "part2_resolution_v_sentinel_sensitivity_v1"
+_DEADLINE_CAMPAIGN_ID = "part2_resolution_v_deadline_exploratory_v1"
+_REVISED_DEADLINE_CAMPAIGN_ID = "part2_resolution_v_deadline_exploratory_v2"
+_REVISED_DEADLINE_SENTINEL_IDS = (
+    "openai/gpt-5.4",
+    "google/gemini-3.1-pro-preview",
+    "meta/llama-3.3-70b-instruct",
+    "qwen/qwen3.6-27b",
+    "nvidia/nemotron-3-super-v3",
+)
+_REVISED_DEADLINE_REVISION = {
+    "campaign_id": _DEADLINE_CAMPAIGN_ID,
+    "excluded_target_ids": ["anthropic/claude-sonnet-4-6"],
+    "exclusion_code": "frozen_exact_route_missing_required_common_control_top_p",
+    "exclusion_stage": "pre_analysis_execution_contract_validation",
+    "outcome_information_used": False,
+    "substitution_permitted": False,
+}
 DEFAULT_CAMPAIGN_WORKERS = 24
 SENSITIVITY_OUTPUT_TOKENS = 8192
 _SEED_NAMESPACE = "inference_hub_part2_sensitivity_common_environment_v1"
@@ -104,6 +127,7 @@ _SOURCE_PATHS = (
     Path(__file__),
     DEFAULT_DESIGN,
     DEFAULT_EXPLORATORY_DESIGN,
+    DEFAULT_REVISED_EXPLORATORY_DESIGN,
     Path(__file__).with_name("inference_hub_part2_panel.py"),
     Path(__file__).with_name("inference_hub_provider_safe.py"),
     Path(__file__).with_name("inference_hub_provider_safe_v2.py"),
@@ -194,18 +218,25 @@ def load_sensitivity_design(path: Path) -> tuple[dict[str, Any], list[Sensitivit
     if design.get("schema_version") != SENSITIVITY_SCHEMA_VERSION:
         raise InferenceHubPart2SensitivityError("Unsupported sensitivity design schema.")
     campaign_id = design.get("campaign_id")
-    if not isinstance(campaign_id, str) or not campaign_id.endswith("_v1"):
+    supported_campaigns = {
+        _CONFIRMATORY_CAMPAIGN_ID,
+        _DEADLINE_CAMPAIGN_ID,
+        _REVISED_DEADLINE_CAMPAIGN_ID,
+    }
+    if campaign_id not in supported_campaigns:
         raise InferenceHubPart2SensitivityError(
-            "Sensitivity campaign_id must be versioned with _v1."
+            "Sensitivity campaign_id is not a supported frozen design."
         )
     if design.get("design") != "2^(5-1)_resolution_V_I=ABCDE":
         raise InferenceHubPart2SensitivityError("Sensitivity design must be I=ABCDE.")
-    if (
-        design.get("seed_policy")
-        != "twelve_common_environment_seeds_across_cells_and_sentinels_v1"
-    ):
+    expected_seed_policy = (
+        "two_common_environment_seeds_across_cells_and_sentinels_v2"
+        if campaign_id == _REVISED_DEADLINE_CAMPAIGN_ID
+        else "twelve_common_environment_seeds_across_cells_and_sentinels_v1"
+    )
+    if design.get("seed_policy") != expected_seed_policy:
         raise InferenceHubPart2SensitivityError(
-            "Sensitivity seed policy is not the frozen v1 policy."
+            "Sensitivity seed policy is not the frozen campaign policy."
         )
     factors = design.get("factors")
     analysis = design.get("analysis")
@@ -226,9 +257,24 @@ def load_sensitivity_design(path: Path) -> tuple[dict[str, Any], list[Sensitivit
         raise InferenceHubPart2SensitivityError(
             "Sensitivity factor levels differ from the selected frozen profile."
         )
+    revised_deadline = campaign_id == _REVISED_DEADLINE_CAMPAIGN_ID
+    expected_sentinel_count = 5 if revised_deadline else SENSITIVITY_SENTINEL_COUNT
+    expected_holm_family_size = expected_sentinel_count * len(SENSITIVITY_FACTORS)
+    if revised_deadline:
+        if (
+            inference_scope != "deadline_exploratory"
+            or design.get("revision_from") != _REVISED_DEADLINE_REVISION
+            or design.get("sentinel_selection_policy")
+            != "outcome_blind_v1_panel_minus_exact_route_control_incompatibility_no_substitution_v2"
+        ):
+            raise InferenceHubPart2SensitivityError(
+                "Revised deadline design lacks the exact no-substitution exclusion contract."
+            )
     sentinels = design.get("sentinels")
-    if not isinstance(sentinels, list) or len(sentinels) != SENSITIVITY_SENTINEL_COUNT:
-        raise InferenceHubPart2SensitivityError("Sensitivity requires exactly six sentinels.")
+    if not isinstance(sentinels, list) or len(sentinels) != expected_sentinel_count:
+        raise InferenceHubPart2SensitivityError(
+            f"Sensitivity requires exactly {expected_sentinel_count} sentinels."
+        )
     sentinel_ids: list[str] = []
     sentinel_strata: list[str] = []
     for sentinel in sentinels:
@@ -251,14 +297,19 @@ def load_sensitivity_design(path: Path) -> tuple[dict[str, Any], list[Sensitivit
         raise InferenceHubPart2SensitivityError(
             "Sentinel identities and developer/capability strata must be unique."
         )
+    if revised_deadline and tuple(sentinel_ids) != _REVISED_DEADLINE_SENTINEL_IDS:
+        raise InferenceHubPart2SensitivityError(
+            "Revised deadline sentinels differ from the frozen five-route panel."
+        )
     if (
         not isinstance(analysis, Mapping)
         or analysis.get("main_effects_per_sentinel") != 5
-        or analysis.get("global_holm_family_size") != 30
+        or analysis.get("global_holm_family_size") != expected_holm_family_size
         or analysis.get("interactions_confirmatory") is not False
     ):
         raise InferenceHubPart2SensitivityError(
-            "Sensitivity analysis must specify five main effects and one 30-test Holm family."
+            "Sensitivity analysis must specify five main effects per sentinel "
+            f"and one {expected_holm_family_size}-test Holm family."
         )
     expected_seeds = (
         SENSITIVITY_SEEDS_PER_CELL
@@ -269,30 +320,7 @@ def load_sensitivity_design(path: Path) -> tuple[dict[str, Any], list[Sensitivit
         raise InferenceHubPart2SensitivityError(
             f"Sensitivity cells require exactly {expected_seeds} seeds in this profile."
         )
-    budget = design.get("execution_budget")
-    budget_profiles = {
-        "future_confirmatory_preregistered": {
-            "maximum_successful_posts": 3_240_000,
-            "maximum_physical_attempts": 3_564_000,
-            "part2_output_tokens_per_attempt": 8192,
-            "maximum_scheduled_output_tokens": 26_542_080_000,
-            "maximum_input_utf8_bytes_per_attempt": 8192,
-        },
-        "deadline_exploratory": {
-            "maximum_successful_posts": 17_280,
-            "maximum_physical_attempts": 19_008,
-            "part2_output_tokens_per_attempt": 8192,
-            "maximum_scheduled_output_tokens": 141_557_760,
-            "maximum_input_utf8_bytes_per_attempt": 8192,
-        },
-    }
-    if not isinstance(budget, Mapping) or any(
-        budget.get(key) != value
-        for key, value in budget_profiles[inference_scope].items()
-    ):
-        raise InferenceHubPart2SensitivityError(
-            "Sensitivity budget differs from the authoritative ceiling."
-        )
+    expanded_cells = _factorial_cells(factor_profiles[inference_scope])
     conditions = [
         SensitivityCondition(
             cell_id=str(cell["cell_id"]),
@@ -304,8 +332,30 @@ def load_sensitivity_design(path: Path) -> tuple[dict[str, Any], list[Sensitivit
             resource_capacity=int(cell["resource_capacity"]),
             coded_levels=dict(cell["coded_levels"]),
         )
-        for cell in _factorial_cells(factor_profiles[inference_scope])
+        for cell in expanded_cells
     ]
+    maximum_successful_posts = (
+        sum(cell.society_size * cell.horizon_days for cell in conditions)
+        * expected_sentinel_count
+        * expected_seeds
+    )
+    expected_budget = {
+        "maximum_successful_posts": maximum_successful_posts,
+        "maximum_physical_attempts": (maximum_successful_posts * 11 + 9) // 10,
+        "part2_output_tokens_per_attempt": SENSITIVITY_OUTPUT_TOKENS,
+        "maximum_scheduled_output_tokens": (
+            maximum_successful_posts * SENSITIVITY_OUTPUT_TOKENS
+        ),
+        "maximum_input_utf8_bytes_per_attempt": 8192,
+    }
+    budget = design.get("execution_budget")
+    if not isinstance(budget, Mapping) or any(
+        budget.get(key) != value
+        for key, value in expected_budget.items()
+    ):
+        raise InferenceHubPart2SensitivityError(
+            "Sensitivity budget differs from the authoritative ceiling."
+        )
     if len(conditions) != SENSITIVITY_CELL_COUNT:
         raise AssertionError("Authoritative resolution-V generator did not return 16 cells.")
     return design, conditions
@@ -948,7 +998,7 @@ def _analyze_completed_design(
     trajectory_rows: Sequence[Mapping[str, Any]], *,
     sentinel_ids: Sequence[str], design: Mapping[str, Any],
 ) -> list[dict[str, object]]:
-    """Run Holm-30 analysis while retaining the campaign's numeric factor levels."""
+    """Run the design-bound Holm family and retain numeric factor levels."""
 
     canonical_by_cell = {
         str(cell["cell_id"]): cell for cell in resolution_v_half_fraction()
@@ -975,6 +1025,7 @@ def _analyze_completed_design(
         observations_by_sentinel,
         expected_sentinel_ids=sentinel_ids,
         expected_common_seed_count=int(design["seeds_per_cell"]),
+        expected_sentinel_count=len(sentinel_ids),
     )
     inference_scope = str(design["analysis"]["inference_scope"])
     for effect in effects:
@@ -1001,7 +1052,7 @@ def run_sensitivity_campaign(
     resume: bool = False, development_subset: bool = False,
     sleep_fn: Callable[[float], None] = time.sleep,
 ) -> dict[str, Any]:
-    """Execute or resume the six-sentinel resolution-V campaign.
+    """Execute or resume a frozen resolution-V sentinel campaign.
 
     Any subset is explicitly development-only and cannot emit confirmatory
     effects or p-values.
@@ -1449,8 +1500,13 @@ def run_sensitivity_campaign(
                 == "future_confirmatory_preregistered"
             ),
             "estimands": "five_main_effects_per_sentinel_only",
-            "global_holm_family": "30_prespecified_sentinel_by_factor_main_effects",
-            "global_holm_family_size": 30,
+            "global_holm_family": (
+                f"{int(design['analysis']['global_holm_family_size'])}_"
+                "prespecified_sentinel_by_factor_main_effects"
+            ),
+            "global_holm_family_size": int(
+                design["analysis"]["global_holm_family_size"]
+            ),
             "interactions_confirmatory": False,
             "rows": effect_rows,
         }
@@ -1460,7 +1516,10 @@ def run_sensitivity_campaign(
             "campaign_id": design["campaign_id"], "generated_at_utc": _utc_now(),
             "inference_scope": design["analysis"]["inference_scope"],
             **dict(design["call_order_diagnostic"]),
-            "analysis_family": "separate_diagnostic_not_in_30_test_global_holm",
+            "analysis_family": (
+                "separate_diagnostic_not_in_"
+                f"{int(design['analysis']['global_holm_family_size'])}_test_global_holm"
+            ),
             "rows": [],
         }
         _seal(trajectory_payload)
@@ -1515,7 +1574,8 @@ def run_sensitivity_campaign(
         )
         manifest["summary"]["confirmatory_analysis_complete"] = (
             analysis_status == "complete_future_confirmatory"
-            and len(effect_rows) == 30
+            and len(effect_rows)
+            == int(design["analysis"]["global_holm_family_size"])
         )
         manifest["journals"] = _journal_references(journals)
         manifest["attempt_ledger"] = attempt_budget.reference()
@@ -1575,7 +1635,7 @@ def _nonnegative_float(value: str) -> float:
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Run the provider-safe six-sentinel Part 2 resolution-V "
+            "Run a provider-safe frozen-sentinel Part 2 resolution-V "
             "sensitivity campaign v1."
         )
     )

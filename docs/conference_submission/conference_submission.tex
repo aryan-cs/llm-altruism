@@ -221,7 +221,7 @@ For a trajectory of horizon $T$,
   \mathrm{PopulationRetention}=\frac{P_T}{P_0}.
 \]
 Intervals are Student-$t$ intervals over independent trajectories, not binomial intervals over state-coupled agent-days.
-A separate resolution-V panel varies capacity, depletion units, collapse death rate, society size, and horizon for six sentinel routes.
+A separate resolution-V panel varies capacity, depletion units, collapse death rate, society size, and horizon for five exact routes compatible with every frozen cell; no replacement route is substituted.
 
 \section{Experimental Setup}
 \subsection{Model Coverage and Exact Identity}
@@ -280,7 +280,7 @@ Seven systems preserve the resource, population, and every scheduled action perf
 The exact-route display connects model action, resource consequence, and group consequence without treating any one column as a general safety score.
 
 \subsection{Environmental Sensitivity}
-The six-route sensitivity panel estimates 30 prespecified high-minus-low AURC contrasts across five environmental factors.
+The five-compatible-sentinel sensitivity panel estimates 25 prespecified high-minus-low AURC contrasts across five environmental factors, with no route substitution.
 With two common seeds per design cell, the panel is a diagnostic of parameter dependence rather than a high-powered robustness claim.
 The largest absolute high-minus-low AURC contrast is \ProviderSafeSensitivityMaximumAbsoluteEffect{}, and \ProviderSafeSensitivityHolmSignificantCount{} of \ProviderSafeSensitivityEffectCount{} prespecified route--factor tests remain significant after global Holm adjustment.
 The panel identifies which conclusions depend most strongly on capacity, depletion, attrition, society size, or horizon and prevents the nominal environment from being read as universal.
@@ -436,7 +436,7 @@ Times-compatible typography matches the submission template; the original blue, 
 \begin{landscape}
 \begin{figure}[p]\centering
 \includegraphics[width=\linewidth,height=0.76\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/part2_sensitivity_effects.pdf}
-\caption{Part~2 sensitivity effects. Rows are exact sentinel routes and columns are the five manipulated environmental factors. Each cell is high-minus-low normalized AURC: positive values mean the high factor level preserves more reserve area, while negative values mean it preserves less. Neither sign is universally good or bad for a parameter; it identifies which setting is more resource-preserving. Holm-adjusted significance is computed across the 30 prespecified route--factor tests.}
+\caption{Part~2 sensitivity effects for five exact compatible sentinel routes, with no route substitution. Rows are routes and columns are the five manipulated environmental factors. Each cell is high-minus-low normalized AURC: positive values mean the high factor level preserves more reserve area, while negative values mean it preserves less. Neither sign is universally good or bad for a parameter; it identifies which setting is more resource-preserving. Holm-adjusted significance is computed across the 25 prespecified route--factor tests.}
 \end{figure}
 \end{landscape}
 

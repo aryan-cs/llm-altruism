@@ -11,6 +11,10 @@ import pytest
 
 from analysis.analyze_provider_safe_v2_definitive import (
     DefinitiveAnalysisError,
+    SENSITIVITY_DIAGNOSTIC_FAMILY,
+    SENSITIVITY_HOLM_FAMILY,
+    SENSITIVITY_HOLM_FAMILY_SIZE,
+    _analyze_deadline_sensitivity,
     _provider_safe_contract,
     _mean_t_95,
     _root_cluster_bootstrap_95,
@@ -19,15 +23,12 @@ from analysis.analyze_provider_safe_v2_definitive import (
     _wilson_95,
     analyze,
 )
-from experiments.misc.inference_hub_part2_sensitivity_v1 import (
-    _analyze_completed_design,
-    load_sensitivity_design,
-)
+from experiments.misc.inference_hub_part2_sensitivity_v1 import load_sensitivity_design
 from experiments.part1.confirmatory_design import COUNTERBALANCES, DOMAINS, GAMES
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DESIGN_PATH = ROOT / "experiments/part2/part2_sensitivity_deadline_exploratory_v1.json"
+DESIGN_PATH = ROOT / "experiments/part2/part2_sensitivity_deadline_exploratory_v2.json"
 JUDGE = {
     "target_id": "judge.nemotron", "route": "judge/nemotron",
     "upstream_provider": "judge-provider", "model": "nemotron-judge",
@@ -221,9 +222,9 @@ def production_bundle(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Pat
     _write_json(path, _seal(manifest), private=True)
     outputs["role"] = path
 
-    # Sensitivity: exact frozen deadline design and real Holm-30 analysis.
+    # Sensitivity: five exact compatible sentinels and one real Holm-25 family.
     run = root / "sensitivity"
-    subjects = [_route(index, "sens") for index in range(6)]
+    subjects = [_route(index, "sens") for index in range(5)]
     manifest = _base_manifest("inference_hub_part2_sensitivity_campaign_v1", subjects)
     manifest["selected_subject_routes"] = manifest.pop("subject_routes")
     manifest["execution_contract"]["provider_concurrency_required"] = 1
@@ -246,19 +247,25 @@ def production_bundle(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Pat
                 })
     manifest["journals"] = refs
     manifest["attempt_ledger"] = _journal(run / "private/attempts.jsonl", [])
-    effects = _analyze_completed_design(trajectory_rows, sentinel_ids=[row["target_id"] for row in subjects], design=design)
+    effects = _analyze_deadline_sensitivity(
+        trajectory_rows,
+        sentinel_ids=[row["target_id"] for row in subjects],
+        design=design,
+    )
     _artifact(run, "trajectory_metrics", "part2_sensitivity_trajectory_metrics_v1", trajectory_rows, manifest)
     _artifact(run, "sentinel_cell_metrics", "part2_sensitivity_sentinel_cell_metrics_v1", [], manifest)
     effect_payload = _seal({
         "schema_version": 1, "artifact_type": "part2_sensitivity_main_effects_v1",
         "analysis_status": "complete_deadline_exploratory", "confirmatory": False,
-        "inference_scope": "deadline_exploratory", "global_holm_family_size": 30,
+        "inference_scope": "deadline_exploratory",
+        "global_holm_family": SENSITIVITY_HOLM_FAMILY,
+        "global_holm_family_size": SENSITIVITY_HOLM_FAMILY_SIZE,
         "rows": effects,
     })
     effect_path = run / "sanitized/main_effects.json"
     _write_json(effect_path, effect_payload)
     manifest["sanitized_artifacts"]["main_effects"] = {"path": str(effect_path.resolve()), "file_sha256": _sha_file(effect_path), "evidence_sha256": effect_payload["evidence_sha256"]}
-    diagnostic = _seal({"schema_version": 1, "artifact_type": "part2_sensitivity_call_order_diagnostic_v1", "analysis_family": "separate_diagnostic_not_in_30_test_global_holm", "rows": []})
+    diagnostic = _seal({"schema_version": 1, "artifact_type": "part2_sensitivity_call_order_diagnostic_v1", "analysis_family": SENSITIVITY_DIAGNOSTIC_FAMILY, "rows": []})
     diagnostic_path = run / "sanitized/call_order_diagnostic.json"
     _write_json(diagnostic_path, diagnostic)
     manifest["sanitized_artifacts"]["call_order_diagnostic"] = {"path": str(diagnostic_path.resolve()), "file_sha256": _sha_file(diagnostic_path), "evidence_sha256": diagnostic["evidence_sha256"]}
@@ -466,8 +473,8 @@ def test_full_production_shaped_analysis_and_invalid_denominators(
 
     assert result["row_counts"] == {
         "part0_models": 22, "part1_models": 75, "part2_models": 19,
-        "role_calibration_model_frames": 18, "sensitivity_models": 6,
-        "sensitivity_main_effects": 30,
+        "role_calibration_model_frames": 18, "sensitivity_models": 5,
+        "sensitivity_main_effects": 25,
     }
     assert result["human_labels_generated"] is False
     assert result["confirmatory_or_paper_promotion_permitted"] is False

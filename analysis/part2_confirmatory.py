@@ -518,26 +518,37 @@ def analyze_sentinel_sensitivity(
     *,
     expected_sentinel_ids: Sequence[str],
     expected_common_seed_count: int = SENSITIVITY_SEEDS_PER_CELL,
+    expected_sentinel_count: int = SENSITIVITY_SENTINEL_COUNT,
 ) -> list[dict[str, object]]:
-    """Analyze six sentinels with one global 30-hypothesis Holm family.
+    """Analyze a frozen sentinel panel with one global Holm family.
 
     The five-factor Holm and max-T values produced for an individual sentinel
-    remain useful diagnostics, but they do not control selection across all six
-    sentinels.  This wrapper therefore makes the global Holm value the published
+    remain useful diagnostics, but they do not control selection across all
+    sentinels. This wrapper therefore makes the global Holm value the published
     ``holm_adjusted_p`` and retains the narrower adjustments under explicitly
-    scoped field names.
+    scoped field names. The six-sentinel confirmatory contract remains the
+    default; a revised exploratory design must pass its frozen count explicitly.
     """
 
+    if (
+        isinstance(expected_sentinel_count, bool)
+        or not isinstance(expected_sentinel_count, int)
+        or expected_sentinel_count < 1
+    ):
+        raise ValueError("expected_sentinel_count must be a positive integer")
     expected = [str(sentinel).strip() for sentinel in expected_sentinel_ids]
-    if len(expected) != SENSITIVITY_SENTINEL_COUNT or any(
+    if len(expected) != expected_sentinel_count or any(
         not sentinel for sentinel in expected
     ):
-        raise ValueError("the frozen sensitivity list must contain exactly 6 sentinels")
+        raise ValueError(
+            "the frozen sensitivity list must contain exactly "
+            f"{expected_sentinel_count} sentinels"
+        )
     if len(set(expected)) != len(expected):
         raise ValueError("the frozen sensitivity sentinel list contains duplicates")
-    if len(observations_by_sentinel) != SENSITIVITY_SENTINEL_COUNT:
+    if len(observations_by_sentinel) != expected_sentinel_count:
         raise ValueError(
-            f"sensitivity requires exactly {SENSITIVITY_SENTINEL_COUNT} sentinel systems"
+            f"sensitivity requires exactly {expected_sentinel_count} sentinel systems"
         )
     if set(observations_by_sentinel) != set(expected):
         raise ValueError("sensitivity observations do not match the frozen sentinels")
@@ -554,21 +565,29 @@ def analyze_sentinel_sensitivity(
         ):
             output.append({"sentinel_id": sentinel_id, **row})
     if len(sentinel_seed_sets) != 1:
-        raise ValueError("all six sentinels must use the same common environment seeds")
+        raise ValueError(
+            "all frozen sentinels must use the same common environment seeds"
+        )
 
     raw_global = {
         f"{row['sentinel_id']}|{row['factor']}": float(row["raw_exact_p"])
         for row in output
     }
-    if len(raw_global) != SENSITIVITY_SENTINEL_COUNT * len(SENSITIVITY_FACTORS):
-        raise ValueError("sensitivity analysis does not contain exactly 30 hypotheses")
+    expected_hypotheses = expected_sentinel_count * len(SENSITIVITY_FACTORS)
+    if len(raw_global) != expected_hypotheses:
+        raise ValueError(
+            "sensitivity analysis does not contain exactly "
+            f"{expected_hypotheses} hypotheses"
+        )
     global_holm = _holm_adjust(raw_global)
     for row in output:
         key = f"{row['sentinel_id']}|{row['factor']}"
         row["within_sentinel_holm_adjusted_p"] = row["holm_adjusted_p"]
         row["within_sentinel_max_t_adjusted_p"] = row["max_t_adjusted_p"]
         row["holm_adjusted_p"] = global_holm[key]
-        row["holm_family"] = "30_prespecified_sentinel_by_factor_main_effects"
+        row["holm_family"] = (
+            f"{expected_hypotheses}_prespecified_sentinel_by_factor_main_effects"
+        )
         row["holm_family_size"] = len(raw_global)
         row["max_t_family"] = "five_main_effects_within_sentinel_diagnostic"
     return output

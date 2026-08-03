@@ -104,6 +104,11 @@ class ConferenceSubmissionFormatTest(unittest.TestCase):
         self.assertIn(r"\texttt{OPTION\_A} awards one private point", source)
         self.assertIn(r"\texttt{OPTION\_B} awards two private points and removes two reserve units", source)
         self.assertIn("seven systems preserve both the reserve and population perfectly", source)
+        self.assertIn("Across the six role-calibration sentinels", source)
+        self.assertIn("five-compatible-sentinel sensitivity panel", source)
+        self.assertIn("25 prespecified high-minus-low AURC contrasts", source)
+        self.assertNotIn("six-route sensitivity panel", source)
+        self.assertNotIn("30 prespecified route--factor tests", source)
 
     def test_definitive_assets_title_and_table_spacing_are_locked(self) -> None:
         source = TEX.read_text(encoding="utf-8")
