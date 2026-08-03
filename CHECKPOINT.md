@@ -48,14 +48,16 @@ target ID, exact route, and upstream provider/model identity.
     and retries identical HTTP-400 payloads within the eight-attempt budget;
     every failed attempt and the retry policy remain manifest-bound. The
     superseded v3/v4 partial runs remain preserved but are not paper inputs.
-- Part 1: `data/private/inference_hub/definitive-part1-large-n384-main75-deadline-v3`
+- Part 1: `data/private/inference_hub/definitive-part1-large-n384-main75-deadline-v4`
   - 75 exact routes, each on the same balanced 384-root self-choice bank;
   - malformed first responses remain all-scheduled nonsuccesses;
   - six unavailable targets remain explicit rather than substituted;
-  - a new source-bound deadline lane uses bounded global concurrency 24,
+  - a source-bound deadline lane uses bounded global concurrency 24,
     provider concurrency 4, 12 global starts/second, and 2.5 starts/second per
-    provider; the superseded v2 partial run remains preserved but is not a
-    paper input.
+    provider. The local executor has 64 slots so tasks waiting on the strict
+    one-request-per-exact-route semaphore cannot starve unrelated routes; it
+    does not raise any network or provider ceiling. The superseded v2/v3
+    partial runs remain preserved but are not paper inputs.
 - Part 2: `data/private/inference_hub/definitive-part2-n12-main19-v3`
   - 19 exact systems, 12 independent common-seed trajectories/system;
   - five agents, 12 days, corrected prompt--engine incentives;

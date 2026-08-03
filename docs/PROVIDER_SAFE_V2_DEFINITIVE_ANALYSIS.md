@@ -25,8 +25,10 @@ and 2 starts/second. A launcher in the wrong campaign class is rejected.
 For the deadline run only, Part 1 may instead bind
 `inference_hub_part1_deadline_accelerated.py`, whose still-bounded shared policy
 uses global concurrency 24, provider concurrency 4, 12 global starts/second,
-and 2.5 starts/second per provider. This exception is not accepted for any
-other phase.
+and 2.5 starts/second per provider. Its local executor may exceed the global
+network ceiling solely to prevent tasks waiting on the one-request-per-route
+semaphore from starving unrelated routes; the network limiter remains the
+binding ceiling. This exception is not accepted for any other phase.
 Part 0 may likewise use `inference_hub_part0_deadline_retry.py`, which is
 bounded at global concurrency 16 and provider concurrency 3 and records every
 same-payload HTTP-400 retry in its existing append-only attempt ledger. This
@@ -74,7 +76,7 @@ be explicitly outside the Holm-30 family.
 ```bash
 uv run python -m analysis.analyze_provider_safe_v2_definitive \
   --part0 data/private/inference_hub/definitive-part0-large-n48-main22-deadline-v5 \
-  --part1 data/private/inference_hub/definitive-part1-large-n384-main75-deadline-v3 \
+  --part1 data/private/inference_hub/definitive-part1-large-n384-main75-deadline-v4 \
   --part2 data/private/inference_hub/definitive-part2-n12-main19-v3 \
   --role-calibration data/private/inference_hub/definitive-part1-role-calibration-v2 \
   --sensitivity data/private/inference_hub/definitive-part2-sensitivity-deadline-fast-v8 \
