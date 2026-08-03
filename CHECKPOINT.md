@@ -83,7 +83,7 @@ campaigns have priority over supplemental retries.
 
 ### Part 2 deadline sensitivity (active, resumed)
 
-- Path: `data/private/inference_hub/definitive-part2-sensitivity-deadline-v3`.
+- Path: `data/private/inference_hub/definitive-part2-sensitivity-deadline-accelerated-v4`.
 - Six sentinels × 16 resolution-V cells × two common environment seeds = 192
   trajectories and 17,280 scheduled agent-day POSTs.
 - Five factors vary: capacity per initial agent, depletion units, collapse death
@@ -93,9 +93,10 @@ campaigns have priority over supplemental retries.
 - The panel is explicitly deadline-exploratory and underpowered. Thirty
   sentinel-by-factor Holm rows document the prespecified family; they do not
   authorize confirmatory robustness claims.
-- The writer resumed with its original frozen worker counts and source hashes.
-  Its conservative shared policy remains global concurrency 16, one in-flight
-  request per provider, and one start/second per provider.
+- A fresh source-bound accelerated writer replaced the stalled conservative
+  partial run, which remains preserved but is not a paper input. The active
+  shared policy is global concurrency 12, provider concurrency 3, eight global
+  starts/second, and two starts/second per provider.
 
 ## Availability and invalid retries
 
