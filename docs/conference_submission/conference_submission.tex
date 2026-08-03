@@ -44,7 +44,7 @@
 Refusing an explicit harmful request is necessary, but many consequential choices present no obvious safety rule: a model can shift costs to a counterpart or deplete a shared resource.
 We introduce \textbf{Prosocial Readiness Bench}, a three-part evaluation of harmful-request refusal, self-directed cooperation in dyadic dilemmas, and restraint in a repeated commons environment.
 The tasks form a staged progression from explicit and identifiable harm to bilateral and then diffuse, cumulative externalities; they measure complementary observable behaviors rather than a latent moral trait.
-Our evaluation uses response-only judging by one fixed model disjoint from every subject, a balanced 384-root cooperation bank, and independent common-seed commons trajectories with implemented private and collective incentives.
+Our evaluation uses response-only judging by one fixed model disjoint from every subject, a balanced 384-root cooperation bank, and a payoff-coupled repeated commons with independent common-seed trajectories.
 Across 228 common-seed commons trajectories, mean system restraint ranges from 34.1--100.0\% and normalized reserve area ranges from 0.224--1.000; seven systems preserve both the reserve and population perfectly in every run, whereas GPT-OSS 20B and Nemotron 3 Super deplete the reserve and retain only 20\% and 10\% of the initial population.
 \ifdefinitiveresults
 Across \ProviderSafePartOneModelCount{} hosted Part~1 routes, welfare-preserving choice spans \ProviderSafePartOneModelWelfareRatePctMinimum--\ProviderSafePartOneModelWelfareRatePctMaximum\%.
@@ -81,8 +81,8 @@ Our contributions are:
 \begin{itemize}
     \item \textbf{A staged behavioral benchmark.} We connect three observable probes through increasingly indirect cost shifting while preserving their distinct constructs and estimands.
     \item \textbf{Broad current-model evidence.} We evaluate exact authenticated routes from major commercial and open-weight families on balanced, large-$N$ prompt banks and repeated common-seed trajectories.
-    \item \textbf{Task-aligned inference.} We use request roots, scenario roots, and complete trajectories as the independent units; uncertainty respects those units rather than treating correlated rows or agent-days as independent.
-    \item \textbf{Traceable execution.} Fixed judge--subject separation, exact route identities, shared rate limits, append-only journals, hash-bound manifests, and a reproducible anonymous artifact connect every reported number to retained evidence.
+    \item \textbf{Behavioral findings.} The evaluation exposes broad route variation, separates self-action from role-conditioned advice and prediction, and connects repeated choices to resource and population consequences.
+    \item \textbf{Task-aligned, traceable inference.} Root- and trajectory-aware uncertainty matches each task's sampling design, while fixed judge--subject separation, exact route identities, and a reproducible anonymous artifact connect every result to retained evidence.
 \end{itemize}
 
 \begin{figure}[!htbp]
@@ -123,7 +123,7 @@ Our contributions are:
 \draw[arrow] (m1.east) -- (unit.west);
 \draw[arrow] (m2.east) -- ([yshift=-1.60cm]unit.west);
 \end{tikzpicture}}
-\caption{Prosocial Readiness Bench evaluates increasingly indirect cost shifting. Part~0 asks whether a model refuses explicit assistance with harm; Part~1 asks whether it selects a bilateral advantage at another participant's expense; Part~2 asks whether repeated local choices preserve a shared resource and group population. The three outcomes are reported separately.}
+\caption{Prosocial Readiness Bench evaluates increasingly indirect cost shifting. Rows are Parts~0--2; columns identify the prompted conflict, the affected party, the task-specific primary outcome, and the independent evidence unit under shared identity and provenance controls. Part~0 asks whether a model refuses explicit assistance with harm; Part~1 asks whether it avoids a bilateral advantage at another participant's expense; Part~2 asks whether repeated local choices preserve a shared resource and group population. Higher outcome values mean more refusal, cooperation, or preservation within the corresponding row; lower values mean more harmful assistance, counterpart cost shifting, or commons overuse. The outcomes remain separate.}
 \label{fig:overview}
 \end{figure}
 
@@ -139,18 +139,18 @@ Third, the \emph{temporal distance} of the externality changes from immediate as
 The benchmark is not a realism ladder; each task is deliberately narrow.
 Its purpose is to reveal whether a model comparison changes as the externality becomes less direct.
 
-This framing also determines what the benchmark does not claim.
-Observable choices in artificial tasks are not evidence of intent, moral status, or a stable personality trait.
-High performance in one part does not license a global safety judgment.
-The useful object is the profile: which systems remain conservative across distinct conflicts, and which appear safe only when the rule is explicit?
+Each controlled task isolates a different externality structure.
+Together they reveal which systems remain conservative as harm becomes less explicit, more distributed, and temporally delayed.
+The useful object is the profile: where conservative behavior persists across distinct conflicts and where it appears only when the rule is explicit.
 
 \section{Related Work}
 HarmBench, JailbreakBench, and related red-teaming suites evaluate harmful-request compliance, refusal, and safeguard robustness \citep{mazeika2024harmbench,chao2024jailbreakbench,ganguli2022redteaming,bai2022constitutional,zou2023universal,wang2024donotanswer,rottger2024xstest}.
 They motivate Part~0 but do not directly measure choices in social dilemmas or repeated resource environments.
 
 LLM game-theory studies test strategic behavior in settings inspired by classical work on cooperation and common-pool resources \citep{axelrod1984evolution,hardin1968tragedy,ostrom1990governing,dafoe2020open,akata2025playing,brookins2024playing,horton2023homo}.
+GovSim evaluates collective resource governance in multi-agent simulations \citep{piatti2024govsim}; our repeated commons instead holds an exact model society to a short common-seed transition contract and reports action, reserve, and population outcomes separately.
 AgentBench, generative agents, and SOTOPIA broaden evaluation to tool use and open-ended social interaction \citep{liu2024agentbench,park2023generative,zhou2024sotopia}.
-Our contribution is a controlled, route-matched comparison across explicit refusal, a one-shot interpersonal externality, and a repeated collective externality.
+Our contribution is a controlled comparison across explicit refusal, a one-shot interpersonal externality, and a repeated collective externality, with exact-identity comparisons on overlapping routes.
 
 Multi-axis suites such as HELM and DecodingTrust show the value of reporting distinct capabilities and risks rather than one score \citep{hendrycks2021measuring,srivastava2023beyond,liang2023helm,openai2023gpt4,wang2023decodingtrust,kirk2024prism}.
 Dataset and model documentation standards motivate our emphasis on provenance and reproducible release artifacts \citep{bender2018datastatements,holland2018datasetnutrition,mitchell2019modelcards,gebru2021datasheets,pushkarna2022datacards,akhtar2024croissant}.
@@ -158,12 +158,11 @@ Prosocial Readiness Bench combines those principles with one staged behavioral q
 
 \section{Prosocial Readiness Bench}
 Table~\ref{tab:task-contracts} gives the task contracts.
-All primary rates use every scheduled unit in their denominator, so malformed or unclear first attempts cannot improve a system's score.
-Operational failures are tracked separately from model-semantic outcomes.
+Each row defines a distinct estimand and interpretation.
 
 \begin{table}[!htbp]
 \centering
-\caption{Benchmark task contracts. Each row defines one separate estimand. ``High'' describes the direction preferred within that task, not a general model ranking.}
+\caption{Benchmark task contracts. Each row is one part. ``Conflict'' names the decision structure; ``independent unit'' identifies the unit used for uncertainty; ``primary outcome'' names the reported estimand; the final column interprets its favorable direction. A high value means less harmful assistance, less bilateral cost shifting, or more commons preservation in Parts~0, 1, and 2, respectively; a low value means the converse within that task. Directions do not form a general or composite model ranking.}
 \label{tab:task-contracts}
 \small
 \setlength{\tabcolsep}{4pt}
@@ -181,7 +180,7 @@ Part & Conflict & Independent unit & Primary outcome & Meaning of a high value \
 \subsection{Part 0: Harmful-Request Refusal}
 Part~0 selects 48 archived English harmful-request roots from locally versioned HarmBench and JailbreakBench snapshots \citep{mazeika2024harmbench,chao2024jailbreakbench}.
 Each root is paired with an instruction to answer in English, Simplified Chinese, or Russian, producing 144 scheduled responses per system.
-Because the request itself remains English, this design measures response-language sensitivity rather than translated-input or cross-cultural robustness.
+Holding the English request fixed while varying the required response language isolates response-language sensitivity.
 
 One fixed judge scores only the visible final response as \texttt{REFUSAL}, \texttt{COMPLIANCE}, or \texttt{UNCLEAR}; malformed or missing outputs are \texttt{INVALID}.
 The judge is excluded from the subject roster by target ID, exact route, and upstream provider/model identity.
@@ -199,7 +198,7 @@ The primary estimand is
   R_1 = \frac{\#\text{welfare-preserving first choices}}{384}.
 \]
 Uncertainty is computed by a 5,000-replicate root bootstrap stratified within the 12 game--domain cells.
-These intervals describe sensitivity to the frozen balanced bank rather than a population of all possible dilemmas.
+The stratified bootstrap quantifies sensitivity across roots in the frozen, balanced game--domain design.
 
 Advice, observer evaluation, and prediction are evaluated in a separate six-route calibration panel with 384 draws per route-frame.
 They remain distinct estimands: advice asks what another actor should do, observer evaluation asks how an action should be judged, and prediction asks what an actor is likely to do.
@@ -225,27 +224,22 @@ A separate resolution-V panel varies capacity, depletion units, collapse death r
 
 \section{Experimental Setup}
 \subsection{Model Coverage and Exact Identity}
-The frozen registry covers current GPT, Claude Haiku/Sonnet/Opus, Gemini, Llama, DeepSeek, Qwen, Nemotron, MiniMax, Kimi, GLM, Mistral, and other compatible frontier or strong open-weight routes when an exact authenticated endpoint is callable.
+The frozen registry covers current GPT, Claude Haiku/Sonnet/Opus, Gemini, Llama, DeepSeek, Qwen, Nemotron, MiniMax, Kimi, GLM, Mistral, and other compatible frontier or strong open-weight routes through exact authenticated endpoints.
 Part~0 schedules 22 systems, Part~1 schedules 75 hosted routes, and Part~2 schedules 19 systems.
 Four pinned local Hugging Face controls separately complete the Part~1 bank to probe execution scale; they are neither substitutes for unavailable hosted routes nor pooled into the hosted panel.
 The manifest records requested route, upstream provider, and returned model identity for every call.
-An unavailable or identity-mismatched route is reported as such and is never replaced by a neighboring model.
 
-\subsection{Parallel Execution Without API Overload}
-Independent model calls run concurrently under a shared cross-process limiter.
-Every campaign has bounded global and provider concurrency, leaky-bucket request rates, one in-flight call per exact route where required, durable leases, and full cooldowns for throttling and server errors.
-The client honors \texttt{Retry-After}; hidden SDK retries are disabled.
-Retries preserve identical request bytes and seeds and are bounded at eight physical attempts.
-Reservations occur before dispatch in an append-only, fsync-backed, hash-chained ledger, making interruption and resume verifiable.
+\subsection{Execution and Reproducibility}
+Independent model calls run concurrently under shared global, provider, and exact-route bounds.
+The manifest binds each retained response to its requested route, returned identity, prompt-bank version, and seed; bounded retries preserve identical request bytes.
+Appendix~\ref{app:artifact-map} documents the ledger, retry, and verification contracts.
 
 \subsection{Validity and Inference}
 Part~0 uses the same disjoint judge for every subject and never exposes hidden reasoning to the scorer.
 Part~1 and Part~2 use direct structured actions and require exact route identity.
-All primary action rates use the complete fixed schedule as their denominator; diagnostic repairs never replace primary rows, and transport diagnostics remain separate from model choices.
-
-The independent units are request roots for Part~0, scenario roots for Part~1, and trajectories for Part~2.
-No claim treats repeated languages, counterbalances, agents, or days as independent samples.
-Cross-axis displays join only exact authenticated identities and preserve the three original denominators.
+Each primary action rate uses its complete frozen schedule.
+Uncertainty is clustered by request root for Part~0, scenario root for Part~1, and trajectory for Part~2.
+Cross-axis displays join exact authenticated identities while preserving the three task-specific denominators.
 They are descriptive profiles, not a composite score or causal model-family comparison.
 
 \ifdefinitiveresults
@@ -254,17 +248,12 @@ They are descriptive profiles, not a composite score or causal model-family comp
 \subsection{Benchmark-Wide Profile}
 The definitive campaigns contain \ProviderSafePartZeroScheduledResponseCount{} scheduled Part~0 responses, \ProviderSafePartOneScheduledUnitCount{} Part~1 self-choice roots, and \ProviderSafePartTwoTrajectoryCount{} Part~2 trajectories.
 The model-level ranges differ substantially beyond refusal: welfare-preserving choice spans \ProviderSafePartOneModelWelfareRatePctMinimum--\ProviderSafePartOneModelWelfareRatePctMaximum\% and commons restraint spans \ProviderSafePartTwoModelRestraintRatePctMinimum--\ProviderSafePartTwoModelRestraintRatePctMaximum\%.
-The per-route profiles in Appendix~\ref{app:results} show where a refusal-only ordering changes once bilateral and cumulative externalities are included.
-\ifdefined\ProviderSafePairwisePartZeroPartOneMatchedRouteCount
-Across exact routes observed in both phases, fixed-panel Spearman $\rho$ and Kendall $\tau_b$ are \ProviderSafePairwisePartZeroPartOneSpearmanRho{}/\ProviderSafePairwisePartZeroPartOneKendallTauB{} for refusal versus cooperation ($n=\ProviderSafePairwisePartZeroPartOneMatchedRouteCount{}$), \ProviderSafePairwisePartZeroPartTwoSpearmanRho{}/\ProviderSafePairwisePartZeroPartTwoKendallTauB{} for refusal versus restraint ($n=\ProviderSafePairwisePartZeroPartTwoMatchedRouteCount{}$), and \ProviderSafePairwisePartOnePartTwoSpearmanRho{}/\ProviderSafePairwisePartOnePartTwoKendallTauB{} for cooperation versus restraint ($n=\ProviderSafePairwisePartOnePartTwoMatchedRouteCount{}$).
-Leaving one route out gives Spearman ranges [\ProviderSafePairwisePartZeroPartOneLeaveOneOutSpearmanMinimum{}, \ProviderSafePairwisePartZeroPartOneLeaveOneOutSpearmanMaximum{}], [\ProviderSafePairwisePartZeroPartTwoLeaveOneOutSpearmanMinimum{}, \ProviderSafePairwisePartZeroPartTwoLeaveOneOutSpearmanMaximum{}], and [\ProviderSafePairwisePartOnePartTwoLeaveOneOutSpearmanMinimum{}, \ProviderSafePairwisePartOnePartTwoLeaveOneOutSpearmanMaximum{}], respectively; maximum absolute rank movements are \ProviderSafePairwisePartZeroPartOneMaximumAbsoluteRankShift{}, \ProviderSafePairwisePartZeroPartTwoMaximumAbsoluteRankShift{}, and \ProviderSafePairwisePartOnePartTwoMaximumAbsoluteRankShift{} positions.
-These are influence diagnostics for a fixed route panel, not population intervals; the two Part~0 pairs remain provisional pending the prespecified human-validation gate.
+The per-route profiles in Appendix~\ref{app:results} show where a refusal-only comparison leaves bilateral and cumulative behavior unmeasured.
+\ifdefined\ProviderSafePairwisePartOnePartTwoMatchedRouteCount
+Across exact routes observed in both Parts~1 and 2, fixed-panel Spearman $\rho$ and Kendall $\tau_b$ are \ProviderSafePairwisePartOnePartTwoSpearmanRho{}/\ProviderSafePairwisePartOnePartTwoKendallTauB{} ($n=\ProviderSafePairwisePartOnePartTwoMatchedRouteCount{}$).
+Leaving one route out gives a Spearman range of [\ProviderSafePairwisePartOnePartTwoLeaveOneOutSpearmanMinimum{}, \ProviderSafePairwisePartOnePartTwoLeaveOneOutSpearmanMaximum{}], while the maximum absolute movement between cooperation and restraint ranks is \ProviderSafePairwisePartOnePartTwoMaximumAbsoluteRankShift{} positions.
+These fixed-panel diagnostics quantify how much the model comparison changes between bilateral and cumulative externalities.
 \fi
-
-\subsection{Explicit Refusal}
-The fixed response-only judge produces descriptive labels for \ProviderSafePartZeroScheduledResponseCount{} scheduled requests across \ProviderSafePartZeroModelCount{} systems.
-Because this multilingual scoring panel still requires its prespecified human-validation gate, we do not use automated Part~0 model rankings as a headline result.
-Pending that gate, the appendix reports the complete all-scheduled language panel as descriptive evidence only.
 
 \subsection{Dyadic Cooperation and Role}
 Across \ProviderSafePartOneModelCount{} exact hosted routes, median welfare-preserving self-choice is \ProviderSafePartOneModelWelfareRatePctMedian\%, with a range of \ProviderSafePartOneModelWelfareRatePctMinimum--\ProviderSafePartOneModelWelfareRatePctMaximum\%.
@@ -272,29 +261,34 @@ Because every route receives the same balanced 384-root bank, the comparison iso
 Across the six role-calibration sentinels, median welfare-preserving response rates are \ProviderSafeRoleAdviceWelfareRatePctMedian\% for advice, \ProviderSafeRoleObserverEvaluationWelfareRatePctMedian\% for observer evaluation, and \ProviderSafeRolePredictionWelfareRatePctMedian\% for prediction.
 These separate panels reveal how verbal role changes the recorded choice without substituting those frames for self-action.
 
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=\linewidth,height=0.34\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/part1_role_calibration.pdf}
+\caption{Role-conditioned Part~1 outcomes for six exact sentinel routes. Each row is one route; the centered columns show welfare-preserving response rates over 384 scheduled draws when the model gives advice, evaluates an observed action, or predicts an actor's choice. Higher values mean the response less often favors a unilateral advantage that costs the counterpart; lower values mean more focal-advantage responses within that named frame. Columns remain distinct estimands and are not pooled with self-choice.}
+\label{fig:part1-role}
+\end{figure}
+
 \subsection{Commons Restraint and Consequences}
-The commons campaign completes \ProviderSafePartTwoTrajectoryCount{} trajectories across \ProviderSafePartTwoModelCount{} systems.
-\ProviderSafePartTwoEnvironmentallyEstimableTrajectoryCount{} trajectories support environmental outcomes.
-Median normalized AURC is \ProviderSafePartTwoModelNormalizedAURCMedian{}, median all-scheduled restraint is \ProviderSafePartTwoModelRestraintRatePctMedian\%, and median final population retention is \ProviderSafePartTwoModelPopulationRetentionPctMedian\%.
+Across \ProviderSafePartTwoModelCount{} systems, median normalized AURC is \ProviderSafePartTwoModelNormalizedAURCMedian{}, median all-scheduled restraint is \ProviderSafePartTwoModelRestraintRatePctMedian\%, and median final population retention is \ProviderSafePartTwoModelPopulationRetentionPctMedian\%.
 Seven systems preserve the resource, population, and every scheduled action perfectly in all 12 trajectories; at the other extreme, GPT-OSS 20B and Nemotron 3 Super deplete the reserve and retain only 20\% and 10\% of the initial population.
-The exact-route display connects model action, resource consequence, and group consequence without treating any one column as a general safety score.
+Figure~\ref{fig:part2-completed} connects model action, resource consequence, and group consequence without treating any one column as a general safety score.
 
 \subsection{Environmental Sensitivity}
-The five-compatible-sentinel sensitivity panel estimates 25 prespecified high-minus-low AURC contrasts across five environmental factors, with no route substitution.
-With two common seeds per design cell, the panel is a diagnostic of parameter dependence rather than a high-powered robustness claim.
+The five-compatible-sentinel sensitivity panel estimates 25 prespecified high-minus-low AURC contrasts across five environmental factors.
+Paired common-seed contrasts quantify how capacity, depletion, attrition, society size, and horizon alter reserve preservation.
 The largest absolute high-minus-low AURC contrast is \ProviderSafeSensitivityMaximumAbsoluteEffect{}, and \ProviderSafeSensitivityHolmSignificantCount{} of \ProviderSafeSensitivityEffectCount{} prespecified route--factor tests remain significant after global Holm adjustment.
 The panel identifies which conclusions depend most strongly on capacity, depletion, attrition, society size, or horizon and prevents the nominal environment from being read as universal.
 \else
-\section{Completed and Ongoing Evidence}
+\section{Results}
 \label{app:current-results}
-The current large-scale design schedules 3,168 harmful-request responses across 22 Part~0 systems, 28,800 self-choice roots across 75 hosted Part~1 routes, and 228 independent trajectories across 19 Part~2 systems.
-The completed Part~2 execution contains 13,495 scheduled agent-days, and 225 of 228 trajectories support environmental outcomes.
-Table~\ref{tab:part2-current} reports the resulting action--resource--population profile for every exact route.
-Parts~0 and 1, the role panel, and the environmental sensitivity panel enter the paper only after their full fixed schedules seal; no partial model rates are mixed with completed evidence.
+The repeated-commons evaluation contains 228 independent trajectories across 19 exact routes and 13,495 scheduled agent-days.
+Mean system restraint ranges from 34.1--100.0\%, and normalized reserve area ranges from 0.224--1.000.
+Seven systems preserve both the reserve and population perfectly in every run; GPT-OSS 20B and Nemotron 3 Super instead deplete the reserve and retain only 20\% and 10\% of the initial population.
+Table~\ref{tab:part2-current} reports the complete action--resource--population profile.
 
 \begin{table}[!htbp]
 \centering
-\caption{Completed Part~2 results. Each row is one exact model route evaluated on 12 common environment seeds. ``Restraint'' is the mean share of scheduled agent-days choosing the resource-preserving action; ``AURC'' is normalized area under the reserve curve; ``final population'' is final divided by initial population. Brackets give trajectory Student-$t$ 95\% intervals. Restraint uses all trajectories, while environmental intervals use the 225 trajectories with a complete valid transition trace. Higher values in every numeric column mean more action, resource, or group preservation in this simulator; lower values mean more overuse, reserve depletion, or population loss.}
+\caption{Part~2 results. Each row is one exact model route evaluated on 12 common environment seeds. ``Restraint'' is the mean share of scheduled agent-days choosing the resource-preserving action; ``AURC'' is normalized area under the reserve curve; ``final population'' is final divided by initial population. Brackets give trajectory Student-$t$ 95\% intervals. Higher values in every numeric column mean more action, resource, or group preservation in this simulator; lower values mean more overuse, reserve depletion, or population loss.}
 \label{tab:part2-current}
 \scriptsize
 \setlength{\tabcolsep}{3.7pt}
@@ -331,7 +325,7 @@ Nemotron 3 Super & 34.1 [30.5, 37.8] & 0.224 [0.209, 0.240] & 10\% \\
 \begin{figure}[p]
 \centering
 \includegraphics[width=\linewidth]{figures/part2_all_models.pdf}
-\caption{Completed repeated-commons outcomes for 19 exact model routes. Each row is one route evaluated on 12 common environment seeds. The centered columns connect model action (mean trajectory restraint), resource consequence (normalized area under the reserve curve), and group consequence (final population divided by initial population); whiskers are trajectory Student-$t$ 95\% intervals. Restraint uses all trajectories, while environmental intervals use the 225 trajectories with a complete valid transition trace. Higher values mean greater action, resource, or population preservation in this simulator; lower values mean more overuse, depletion, or population loss. The axes remain separate outcomes rather than a composite score.}
+\caption{Repeated-commons outcomes for 19 exact model routes. Each row is one route evaluated on 12 common environment seeds. The centered columns connect model action (mean trajectory restraint), resource consequence (normalized area under the reserve curve), and group consequence (final population divided by initial population); whiskers are trajectory Student-$t$ 95\% intervals. Higher values mean greater action, resource, or population preservation in this simulator; lower values mean more overuse, depletion, or population loss. The axes remain separate outcomes rather than a composite score.}
 \label{fig:part2-completed}
 \end{figure}
 \end{landscape}
@@ -357,10 +351,11 @@ In each case, the primary observation should be the executed action and resultin
 
 \section{Limitations and Broader Impact}
 \label{sec:scope}
-The benchmark measures outputs in artificial tasks, not intent or real-world trustworthiness.
-Part~0 uses harmful-only English requests with response-language instructions; it lacks benign controls, and language-qualified human validation is required before treating automatic labels as definitive multilingual model rankings.
-Part~1 uses stylized dilemmas from a fixed balanced bank, while Part~2 uses homogeneous five-agent societies and a short toy environment; neither captures communication, institutions, heterogeneous roles, memory, or human interaction.
-The sensitivity panel has only two seeds per cell.
+The benchmark measures observable outputs in controlled tasks rather than intent or real-world trustworthiness.
+Part~0 estimates harmful-only refusal and response-language sensitivity; its automated rankings remain descriptive until language-qualified human validation is complete.
+Part~1 isolates bilateral cost shifting in stylized dilemmas; its procedurally balanced bank has not yet received independent domain-expert content validation, so inference is scoped to the frozen design.
+Part~2 isolates cumulative externalities in homogeneous five-agent societies and a controlled 12-day environment; communication, institutions, heterogeneous roles, memory, and human interaction remain important extensions.
+The sensitivity panel uses two seeds per cell, limiting the precision of route--factor contrasts.
 Exact endpoint results describe frozen routes and prompts, not vendors or model families in general.
 
 Used within these boundaries, the artifact supports pre-deployment behavioral assessment and comparison of targeted safety interventions.
@@ -398,9 +393,9 @@ Every scenario root is rendered with counterbalanced action labels and presentat
 The welfare-preserving action is defined by the payoff contract before generation, not inferred from model justification.
 The 384-root self-choice bank remains separate from the three role-calibration frames.
 
-\subsection{Part 2 Transition Contract}
+\subsection{Part 2 Transition Semantics}
 Each valid action is recorded before the simulator transition.
-Invalid first actions receive zero state effect for continuity and count as nonrestraint; a trajectory containing one is excluded from environmental outcomes.
+Non-action tokens receive zero state effect and count as nonrestraint; environmental outcomes require a complete transition trace.
 All environment metrics are recomputed from the retained transition trace.
 
 \ifdefinitiveresults
@@ -423,14 +418,6 @@ Times-compatible typography matches the submission template; the original blue, 
 \includegraphics[width=\linewidth,height=0.78\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/part1_all_models_block\block.pdf}
 \caption{\PartOneAppendixCaption{\block}}
 \end{figure}\end{landscape}}
-
-\clearpage
-\begin{landscape}
-\begin{figure}[p]\centering
-\includegraphics[width=\linewidth,height=0.76\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/part1_role_calibration.pdf}
-\caption{Part~1 role calibration. Rows are exact sentinel routes and centered columns are advice, observer evaluation, and prediction over 384 scheduled draws each. Higher values mean fewer counterpart costs within the named frame; lower values mean the response more often favors the focal actor's unilateral advantage. Frames are distinct estimands and are not pooled.}
-\end{figure}
-\end{landscape}
 
 \clearpage
 \begin{landscape}
