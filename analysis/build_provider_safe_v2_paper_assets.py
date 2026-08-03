@@ -1787,7 +1787,7 @@ def _write_tables(data: Mapping[str, Any], directory: Path) -> list[Path]:
     path.write_text(
         _table_tex(
             caption=(
-                "Part 0 exact-route response-language outcomes. Each row is one authenticated target route and exact upstream Model ID, shown in descending overall refusal-rate display order. Overall R [95\\%] is refusal over all 144 scheduled responses followed by a deterministic 5,000-replicate interval that resamples the 48 harmful-request roots while retaining each root's three language conditions. English, Chinese, and Russian R [95\\%] are refusal over 48 scheduled roots followed by Wilson intervals. Every quantitative column is centered. Higher R means less harmful-request assistance on this harmful-only task; it is not a general safety score. Invalid and unclear outputs remain in every scheduled denominator and are retained in the reproducibility artifacts rather than displayed as separate result columns."
+                "Part 0 exact-route response-language outcomes. Each row is one authenticated target route and exact upstream Model ID, shown in descending overall refusal-rate display order. Overall R [95\\%] is refusal over all 144 scheduled responses followed by a deterministic 5,000-replicate interval that resamples the 48 harmful-request roots while retaining each root's three language conditions. English, Chinese, and Russian R [95\\%] are refusal over 48 scheduled roots followed by Wilson intervals. Every quantitative column is centered. Higher R means less harmful-request assistance on this harmful-only task; lower R means less refusal under the all-scheduled scoring rule. It is not a general safety score."
             ),
             label="tab:provider-safe-v2-part0-model-language",
             headers=("Target route ID", "Model ID", "Overall R [95\\%]", "English R [95\\%]", "Chinese R [95\\%]", "Russian R [95\\%]"),
@@ -1811,7 +1811,7 @@ def _write_tables(data: Mapping[str, Any], directory: Path) -> list[Path]:
     path.write_text(
         _table_tex(
             caption=(
-                "Part 1 exploratory local execution-scale controls, reported separately from hosted routes. Each row is one exact offline HF Model ID; Parameter scale is the advertised parameter count; Welfare/scheduled is the welfare-preserving count and percentage over all 384 scheduled roots. The result column is centered. Higher welfare preservation means fewer counterpart costs in this task. Invalid outputs remain nonsuccesses in the denominator but are not a separate argument-facing column. These four fixed local models are execution-scale controls, not substitutes for hosted routes and not confirmatory or general safety evidence."
+                "Part 1 exploratory local execution-scale controls, reported separately from hosted routes. Each row is one exact offline HF Model ID; Parameter scale is the advertised parameter count; Welfare/scheduled is the welfare-preserving count and percentage over all 384 scheduled roots. The result column is centered. Higher welfare preservation means fewer counterpart costs in this task; lower values mean the focal actor more often selects its unilateral advantage. These four fixed local models are execution-scale controls, not substitutes for hosted routes and not confirmatory or general safety evidence."
             ),
             label="tab:provider-safe-v2-part1-local-controls",
             headers=("Model ID", "Parameter scale", "Welfare/scheduled"),
@@ -1839,7 +1839,7 @@ def _write_tables(data: Mapping[str, Any], directory: Path) -> list[Path]:
     path.write_text(
         _table_tex(
             caption=(
-                "Part 1 self-choice outcomes for all 75 exact model routes. Each row is one authenticated target route and exact upstream Model ID, shown in descending welfare-preserving-rate display order. Welfare/scheduled [95\\%] is the welfare-preserving first-attempt share over all 384 scheduled roots followed by a deterministic 5,000-replicate interval that resamples roots separately within the 12 game-domain strata. The centered interval is frozen-bank sensitivity, not a population confidence interval. Higher welfare preservation means fewer counterpart costs in this task. Invalid outputs remain nonsuccesses in the denominator and are retained in the reproducibility artifacts rather than shown as a separate result column. The value is not a general safety score."
+                "Part 1 self-choice outcomes for all 75 exact model routes. Each row is one authenticated target route and exact upstream Model ID, shown in descending welfare-preserving-rate display order. Welfare/scheduled [95\\%] is the welfare-preserving first-attempt share over all 384 scheduled roots followed by a deterministic 5,000-replicate interval that resamples roots separately within the 12 game-domain strata. The centered interval is frozen-bank sensitivity, not a population confidence interval. Higher welfare preservation means fewer counterpart costs in this task; lower values mean the focal actor more often selects its unilateral advantage. The value is not a general safety score."
             ),
             label="tab:provider-safe-v2-part1-all-models",
             headers=("Target route ID", "Model ID", "Welfare/scheduled [95\\%]"),
@@ -1872,7 +1872,7 @@ def _write_tables(data: Mapping[str, Any], directory: Path) -> list[Path]:
     path.write_text(
         _table_tex(
             caption=(
-                "Part 2 commons outcomes for all 19 exact model routes. Each row is one authenticated target route and exact upstream Model ID, shown in descending all-scheduled restraint-rate order. The three centered result columns connect model action, resource consequence, and group consequence: Restraint is the restrained-action share over scheduled agent-days; Mean AURC [95\\%] is normalized reserve area with its trajectory Student-t interval; Population retained [95\\%] is final population divided by initial population with the corresponding interval. Higher values mean more preservation in this simulator. NE means no environmentally estimable trajectory, not zero. AUPC, nondepletion, eligibility, and invalid-action counts remain in Methods and the reproducibility artifacts rather than as separate result columns. None of these columns is a general safety score."
+                "Part 2 commons outcomes for all 19 exact model routes. Each row is one authenticated target route and exact upstream Model ID, shown in descending all-scheduled restraint-rate order. The three centered result columns connect model action, resource consequence, and group consequence: Restraint is the restrained-action share over scheduled agent-days; Mean AURC [95\\%] is normalized reserve area with its trajectory Student-t interval; Population retained [95\\%] is final population divided by initial population with the corresponding interval. Higher values mean more preservation in this simulator; lower values mean more overuse, reserve depletion, or population loss. NE means no environmentally estimable trajectory, not zero. None of these columns is a general safety score."
             ),
             label="tab:provider-safe-v2-part2-all-models",
             headers=("Target route ID", "Model ID", "Restraint", "Mean AURC [95\\%]", "Population retained [95\\%]"),
@@ -1896,7 +1896,7 @@ def _write_tables(data: Mapping[str, Any], directory: Path) -> list[Path]:
     path.write_text(
         _table_tex(
             caption=(
-                "Part 1 exploratory role calibration for six exact sentinel routes. Each row is one authenticated target route and exact upstream Model ID; Advice, Observer evaluation, and Prediction report welfare-preserving first attempts over all 384 scheduled draws in that named frame. The three centered columns are separate estimands and are never pooled. Higher values mean fewer counterpart costs only within the named frame; differences are descriptive rather than causal. Invalid outputs remain nonsuccesses in each denominator but are not separate result columns. No frame is a general safety score."
+                "Part 1 exploratory role calibration for six exact sentinel routes. Each row is one authenticated target route and exact upstream Model ID; Advice, Observer evaluation, and Prediction report welfare-preserving first attempts over all 384 scheduled draws in that named frame. The three centered columns are separate estimands and are never pooled. Higher values mean fewer counterpart costs only within the named frame; lower values mean the response more often favors the focal actor's unilateral advantage. Differences are descriptive rather than causal, and no frame is a general safety score."
             ),
             label="tab:provider-safe-v2-part1-role-calibration",
             headers=("Target route ID", "Model ID", "Advice W/scheduled", "Observer evaluation W/scheduled", "Prediction W/scheduled"),

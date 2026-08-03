@@ -658,7 +658,7 @@ def test_latex_tables_preserve_ids_define_directions_and_space_every_float(tmp_p
     local = (output / "part1_local_controls_table.tex").read_text()
     assert "exploratory local execution-scale controls" in local
     assert "not substitutes for hosted routes" in local
-    assert "Invalid outputs remain nonsuccesses" in local
+    assert "lower values mean the focal actor more often selects its unilateral advantage" in local
     assert "135M" in local and "1.7B" in local
     cross_phase = (output / "all_models_cross_phase_table.tex").read_text()
     assert "Each row is one authenticated target route" in cross_phase

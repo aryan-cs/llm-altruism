@@ -287,7 +287,7 @@ Parts~0 and 1, the role panel, and the environmental sensitivity panel enter the
 
 \begin{table}[!htbp]
 \centering
-\caption{Completed Part~2 results. Each row is one exact model route evaluated on 12 common environment seeds. ``Restraint'' is the mean share of scheduled agent-days choosing the resource-preserving action; ``AURC'' is normalized area under the reserve curve; ``final population'' is final divided by initial population. Brackets give trajectory Student-$t$ 95\% intervals. Restraint uses all trajectories, while environmental intervals use the 225 trajectories with a complete valid transition trace. Higher values in every numeric column mean more action, resource, or group preservation in this simulator.}
+\caption{Completed Part~2 results. Each row is one exact model route evaluated on 12 common environment seeds. ``Restraint'' is the mean share of scheduled agent-days choosing the resource-preserving action; ``AURC'' is normalized area under the reserve curve; ``final population'' is final divided by initial population. Brackets give trajectory Student-$t$ 95\% intervals. Restraint uses all trajectories, while environmental intervals use the 225 trajectories with a complete valid transition trace. Higher values in every numeric column mean more action, resource, or group preservation in this simulator; lower values mean more overuse, reserve depletion, or population loss.}
 \label{tab:part2-current}
 \scriptsize
 \setlength{\tabcolsep}{3.7pt}
@@ -324,7 +324,7 @@ Nemotron 3 Super & 34.1 [30.5, 37.8] & 0.224 [0.209, 0.240] & 10\% \\
 \begin{figure}[p]
 \centering
 \includegraphics[width=\linewidth]{figures/part2_all_models.pdf}
-\caption{Completed repeated-commons outcomes for 19 exact model routes. Each row is one route evaluated on 12 common environment seeds. The centered columns connect model action (mean trajectory restraint), resource consequence (normalized area under the reserve curve), and group consequence (final population divided by initial population); whiskers are trajectory Student-$t$ 95\% intervals. Restraint uses all trajectories, while environmental intervals use the 225 trajectories with a complete valid transition trace. Higher values mean greater action, resource, or population preservation in this simulator. The axes remain separate outcomes rather than a composite score.}
+\caption{Completed repeated-commons outcomes for 19 exact model routes. Each row is one route evaluated on 12 common environment seeds. The centered columns connect model action (mean trajectory restraint), resource consequence (normalized area under the reserve curve), and group consequence (final population divided by initial population); whiskers are trajectory Student-$t$ 95\% intervals. Restraint uses all trajectories, while environmental intervals use the 225 trajectories with a complete valid transition trace. Higher values mean greater action, resource, or population preservation in this simulator; lower values mean more overuse, depletion, or population loss. The axes remain separate outcomes rather than a composite score.}
 \label{fig:part2-completed}
 \end{figure}
 \end{landscape}
@@ -402,11 +402,11 @@ Times-compatible typography matches the submission template; the original blue, 
 \begin{landscape}
 \begin{figure}[p]\centering
 \includegraphics[width=\linewidth,height=0.78\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/part0_model_language.pdf}
-\caption{Part~0 response-language outcomes. Each row is one exact target route and each centered column is one requested response language over 48 fixed English harmful-request roots. Values are refusal over all scheduled roots with Wilson 95\% intervals. Higher values mean less assistance on this harmful-only task; lower values can reflect compliance, unclear or semantic-invalid output, or an operational nonsuccess. The adjacent table supplies exact upstream Model IDs.}
+\caption{Part~0 response-language outcomes. Each row is one exact target route and each centered column is one requested response language over 48 fixed English harmful-request roots. Values are refusal over all scheduled roots with Wilson 95\% intervals. Higher values mean less assistance on this harmful-only task; lower values mean less refusal under the all-scheduled scoring rule. The adjacent table supplies exact upstream Model IDs.}
 \end{figure}
 \end{landscape}
 
-\newcommand{\PartOneAppendixCaption}[1]{Part~1 hosted self-choice outcomes, block #1 of 3 in global display order. Each row is one exact route over 384 scheduled roots. Orange bars are welfare-preserving first-attempt shares and whiskers are 5,000-replicate stratified frozen-bank sensitivity intervals. Higher means fewer counterpart costs within this task.}
+\newcommand{\PartOneAppendixCaption}[1]{Part~1 hosted self-choice outcomes, block #1 of 3 in global display order. Each row is one exact route over 384 scheduled roots. Orange bars are welfare-preserving first-attempt shares and whiskers are 5,000-replicate stratified frozen-bank sensitivity intervals. Higher values mean fewer counterpart costs within this task; lower values mean the focal actor more often selects its unilateral advantage.}
 \foreach \block in {1,2,3}{%
 \clearpage\begin{landscape}\begin{figure}[p]\centering
 \includegraphics[width=\linewidth,height=0.78\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/part1_all_models_block\block.pdf}
@@ -417,7 +417,7 @@ Times-compatible typography matches the submission template; the original blue, 
 \begin{landscape}
 \begin{figure}[p]\centering
 \includegraphics[width=\linewidth,height=0.76\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/part1_role_calibration.pdf}
-\caption{Part~1 role calibration. Rows are exact sentinel routes and centered columns are advice, observer evaluation, and prediction over 384 scheduled draws each. Higher values mean fewer counterpart costs within the named frame; frames are distinct estimands and are not pooled.}
+\caption{Part~1 role calibration. Rows are exact sentinel routes and centered columns are advice, observer evaluation, and prediction over 384 scheduled draws each. Higher values mean fewer counterpart costs within the named frame; lower values mean the response more often favors the focal actor's unilateral advantage. Frames are distinct estimands and are not pooled.}
 \end{figure}
 \end{landscape}
 
@@ -425,11 +425,11 @@ Times-compatible typography matches the submission template; the original blue, 
 \begin{landscape}
 \begin{figure}[p]\centering
 \includegraphics[width=\linewidth,height=0.76\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/part2_sensitivity_effects.pdf}
-\caption{Part~2 sensitivity effects. Each cell is high-minus-low normalized AURC for one route and factor. Positive means the high level preserves more reserve area; negative means it preserves less. Holm-adjusted significance is computed across the 30 prespecified route--factor tests.}
+\caption{Part~2 sensitivity effects. Rows are exact sentinel routes and columns are the five manipulated environmental factors. Each cell is high-minus-low normalized AURC: positive values mean the high factor level preserves more reserve area, while negative values mean it preserves less. Neither sign is universally good or bad for a parameter; it identifies which setting is more resource-preserving. Holm-adjusted significance is computed across the 30 prespecified route--factor tests.}
 \end{figure}
 \end{landscape}
 
-\newcommand{\CrossAppendixCaption}[1]{Task-specific profile, block #1 of 4. Rows are exact target routes; panels retain separate Part~0, Part~1, and Part~2 denominators. Green circles are the task-preferable recorded outcome and vermillion diamonds the adverse outcome; shape preserves direction in grayscale. A gray cross means the route was not scheduled for that part. Panels are not pooled.}
+\newcommand{\CrossAppendixCaption}[1]{Task-specific profile, block #1 of 4. Rows are exact target routes. The three centered panels show Part~0 refusal versus compliance, Part~1 welfare preservation versus focal advantage, and Part~2 restraint versus overuse, each with its own denominator. Farther-right green circles mean more refusal of harmful assistance, fewer counterpart costs, or more commons restraint; farther-right vermillion diamonds mean more harmful compliance, focal advantage, or overuse. Shape preserves direction in grayscale. A gray cross means the route was not scheduled for that part. Panels are not pooled.}
 \foreach \block in {1,2,3,4}{%
 \clearpage\begin{landscape}\begin{figure}[p]\centering
 \includegraphics[width=\linewidth,height=0.78\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/all_models_cross_phase_outcome_profile_block\block.pdf}
