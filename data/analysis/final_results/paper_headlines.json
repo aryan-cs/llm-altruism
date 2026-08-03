@@ -1,6 +1,6 @@
 {
   "artifact_type": "prosocial_readiness_paper_headlines",
-  "evidence_sha256": "76b55e8f187d475d342b794aacfa84c8b6edd30b0043801c1dff1b7f6566f7cb",
+  "evidence_sha256": "7b178f8885ae58df4f546f4bae26cf2a187996bed221add05437bab464ac16a7",
   "part0": {
     "condition_system_median_percent": {
       "chinese": 79.2,
@@ -109,8 +109,8 @@
   },
   "schema_version": 1,
   "source": {
-    "evidence_sha256": "52afcf33386055bcaabcf608186e094f2b19a7610f9bc57d53821ad3ea08c231",
-    "file_sha256": "19d89d6df9caa5293db2c47b33f38eb42c293fecd9b7bbe0bb0d8af8d0f7e1a2",
+    "evidence_sha256": "a9f961dd3a52fa082c9ed3ccab5c745c2fae7e2b303d9b1f08b3d0920517ecb1",
+    "file_sha256": "a489e6c4604f9815ee7c17e9d60b20a9edac23d73c8f2f55dfdc03fb92a3d02d",
     "path": "final_results.json",
     "path_scope": "input_basename_only"
   }

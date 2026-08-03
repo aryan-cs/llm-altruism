@@ -459,9 +459,10 @@ def test_publication_tables_are_exact_scoped_escaped_private_and_hash_bound(
     )
 
     part0 = (output / "part0_results_table.tex").read_text(encoding="utf-8")
-    assert "reconstructed response-language conditions" in part0
-    assert "not translated-prompt" in part0
+    assert "requested response-language instruction" in part0
+    assert "English requests" in part0
     assert "no benign controls" in part0
+    assert "Higher refusal is better" in part0
     assert "alpha\\_model\\%\\{v1\\}\\# & alpha\\_\\&\\_lab & 1" in part0
     assert "100.0\\% [100.0, 100.0]" in part0
     assert part0.count("100.0\\% [20.7, 100.0]") == 3
@@ -469,6 +470,7 @@ def test_publication_tables_are_exact_scoped_escaped_private_and_hash_bound(
 
     part1 = (output / "part1_results_table.tex").read_text(encoding="utf-8")
     assert "are never pooled" in part1
+    assert "Higher welfare-preserving values are better" in part1
     assert part1.count("alpha\\_model\\%\\{v1\\}\\#") == 3
     assert "Balanced partial & 12 & 12/12 (1/stratum) & 100.0\\% [--]" in part1
     assert "Balanced partial & 96 & 12/12 (8/stratum) & 100.0\\% [100.0, 100.0]" in part1
@@ -476,7 +478,8 @@ def test_publication_tables_are_exact_scoped_escaped_private_and_hash_bound(
     assert part1.count("384/384 (100.0\\%) & 0 & Exploratory") == 1
 
     part2 = (output / "part2_results_table.tex").read_text(encoding="utf-8")
-    assert "95\\% $t$ intervals" in part2
+    assert "95\\% Student-$t$ intervals" in part2
+    assert "Higher AURC, restraint, nondepletion, and AUPC are better" in part2
     assert "0.625 [0.625, 0.625]" in part2
     assert "0.375 [0.375, 0.375]" in part2
     assert "4/8 [21.5, 78.5]\\%" in part2

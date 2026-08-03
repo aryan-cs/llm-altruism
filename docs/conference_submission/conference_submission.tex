@@ -23,6 +23,11 @@
 \definecolor{prbBlue}{HTML}{0072B2}
 \definecolor{prbOrange}{HTML}{E69F00}
 \definecolor{prbTeal}{HTML}{009E73}
+% Approximately 20 screen pixels at 96 dpi.  Keep this uniform around every
+% floating table rather than compressing individual floats to recover pages.
+\setlength{\floatsep}{15pt}
+\setlength{\textfloatsep}{15pt}
+\setlength{\intextsep}{15pt}
 \newcommand{\modeltag}[1]{\texttt{\detokenize{#1}}}
 \input{../../data/analysis/final_results/paper_headlines.tex}
 
@@ -103,7 +108,7 @@ Our contributions are:
 \draw[arrow] (m1.east) -- (release.west);
 \draw[arrow] (m2.east) -- ([yshift=-1.60cm]release.west);
 \end{tikzpicture}}
-\caption{Prosocial Readiness Bench pipeline. The three tasks share release infrastructure but retain distinct constructs, independent units, estimators, and validity checks.}
+\caption{Prosocial Readiness Bench pipeline. Rows are the three task axes: Part~0 tests material refusal of harmful requests, Part~1 tests self-directed welfare-preserving choices in a dyadic dilemma, and Part~2 tests repeated restraint in a shared-resource environment. Columns show the prompted task, retained trace, scored output, and release check. Higher refusal is preferable on the harmful-only Part~0 bank, higher welfare-preserving choice is preferable for the Part~1 counterpart, and higher AURC is preferable for Part~2 resource preservation; none is a general safety score. The tasks share release infrastructure but retain distinct constructs, independent units, estimators, and validity checks.}
 \label{fig:overview}
 \end{figure}
 
@@ -118,7 +123,7 @@ We focus on combining safety refusal, self-directed dyadic cooperation, repeated
 
 \begin{table}[!htbp]
 \centering
-\caption{Positioning relative to adjacent evaluation families. Checks indicate central coverage and ``Partial'' indicates that only some representative work covers the column. Representative examples are HarmBench and JailbreakBench \citep{mazeika2024harmbench,chao2024jailbreakbench}, strategic-game benchmarks \citep{akata2025playing,tewolde2026coopeval,piatti2024govsim}, and social environments \citep{park2023generative,zhou2024sotopia}.}
+\caption{Coverage of adjacent evaluation families. Each row denotes an evaluation family; columns indicate whether it centrally evaluates harmful-request refusal (Refusal), self-directed choices in one-shot social dilemmas (One-shot coop.), repeated preservation of a shared resource (Repeated commons), or releases sufficient provenance and artifacts for result tracing (Traceable release). A checkmark means central coverage, ``Partial'' means coverage by only some representative work, and ``--'' means the capability is not central. More checks indicate broader scope, not higher empirical quality or safer model behavior. Representative examples are HarmBench and JailbreakBench \citep{mazeika2024harmbench,chao2024jailbreakbench}, strategic-game benchmarks \citep{akata2025playing,tewolde2026coopeval,piatti2024govsim}, and social environments \citep{park2023generative,zhou2024sotopia}.}
 \label{tab:positioning}
 \scriptsize
 \setlength{\tabcolsep}{4pt}
@@ -214,7 +219,7 @@ Table~\ref{tab:current-coverage} records the completed, fail-closed current-mode
 
 \begin{table}[!htbp]
 \centering
-\caption{Completed current-model execution scopes. Included systems have full scope-specific evidence; unavailable systems receive no estimate and are never substituted.}
+\caption{Completed current-model execution scopes. Each row is one benchmark axis. Axis names the task; Executed scope gives the number of executed systems or routes, roots or trajectories per execution, and total observations; Paper status states whether results are exploratory, estimable, non-estimable, or unavailable and identifies the limiting validity gate. Larger included, reported, or valid counts mean broader operational evidence, whereas larger unavailable, invalid, or non-estimable counts mean weaker coverage; none of these counts measures behavioral safety or task performance. Included systems have complete scope-specific evidence, unavailable systems receive no estimate, and no unavailable route is substituted.}
 \label{tab:current-coverage}
 \scriptsize
 \setlength{\tabcolsep}{4pt}
@@ -275,15 +280,46 @@ Safety Beyond Refusal asks how model evaluation should expand from explicit harm
 
 \appendix
 \raggedbottom
-\setlength{\floatsep}{8pt plus 2pt minus 2pt}
-\setlength{\textfloatsep}{8pt plus 2pt minus 2pt}
-\setlength{\intextsep}{8pt plus 2pt minus 2pt}
-\setlength{\abovecaptionskip}{4pt}
-\setlength{\belowcaptionskip}{0pt}
+\setlength{\floatsep}{15pt}
+\setlength{\textfloatsep}{15pt}
+\setlength{\intextsep}{15pt}
+\setlength{\abovecaptionskip}{8pt}
+\setlength{\belowcaptionskip}{6pt}
 
 \section{Detailed Current-Model Results}
 \label{app:current-results}
 The following tables are generated directly from the complete, hash-verified sanitized result graph. Missing result artifacts are compilation errors rather than occasions to render stale or hand-transcribed values.
+
+\subsection{Corrected Current-Data Visual Summaries}
+Figures~\ref{fig:part0-conditions}, \ref{fig:part1-distributions}, and \ref{fig:part2-current} replace visually similar legacy plots that fail the corrected provenance or task-contract checks. They use only the sealed current aggregate graph and remain axis-specific.
+
+\clearpage
+\begin{landscape}
+\begin{figure}[p]
+\centering
+\includegraphics[width=\linewidth,height=0.78\textheight,keepaspectratio]{figures/part0_response_language_conditions.png}
+\caption{Part~0 refusal by requested response language over identical archived English harmful-request roots. Each row is one exact evaluated system; columns request an English, Chinese, or Russian response while holding the source request fixed. Points are material-refusal rates and bars are Wilson 95\% descriptive intervals over 24 roots. Higher values indicate less material assistance and are preferable on this harmful-only task; lower values indicate more compliance, ambiguity, or invalid output. Cross-column differences measure response-language instruction sensitivity, not multilingual-input robustness. The absence of benign controls and human validation keeps every value exploratory.}
+\label{fig:part0-conditions}
+\end{figure}
+\end{landscape}
+
+\clearpage
+\begin{figure}[p]
+\centering
+\includegraphics[width=\linewidth]{figures/part1_scope_distributions.png}
+\caption{Within-scope distributions of current Part~1 welfare-preserving self-choice. Each column is a separate execution scope and each point contributing to a step is one exact system; the vertical axis is the cumulative share of systems at or below the horizontal-axis choice rate. Curves concentrated near zero indicate that many systems selected the focal-advantage action or produced invalid output, while curves shifted toward one indicate more frequent welfare-preserving choices and are preferable for counterpart welfare in this task. The $n=384$ and $n=12$ panels contain one system each and therefore show points rather than population distributions. Scopes are never pooled or ranked, and all values remain exploratory because the prompt bank lacks independent content approval.}
+\label{fig:part1-distributions}
+\end{figure}
+
+\clearpage
+\begin{landscape}
+\begin{figure}[p]
+\centering
+\includegraphics[width=\linewidth,height=0.78\textheight,keepaspectratio]{figures/part2_corrected_outcomes.png}
+\caption{Corrected Part~2 outcomes from fully valid trajectories. Each row is one exact executed system; columns show normalized area under the reserve curve (AURC), the lower-use restraint rate, and the fraction of valid trajectories ending without reserve depletion. Points are system means and bars are trajectory-level Student-$t$ intervals for AURC and restraint or Wilson intervals for nondepletion. Higher values are preferable within this environment because they mean that agents used the resource less aggressively, preserved more reserve over time, or avoided depletion more often. ``NE'' means all eight trajectories contained an invalid action, so no behavioral or environmental estimate is available; it is not a zero score.}
+\label{fig:part2-current}
+\end{figure}
+\end{landscape}
 
 \clearpage
 \begin{landscape}
@@ -307,7 +343,7 @@ The April Part~0 heatmaps, Part~2 trajectories and rasters, behavioral fingerpri
 
 \begin{table}[H]
 \centering
-\caption{Legacy April Part~1 self-directed choice rates. Values are percentages with 5,000-replicate scenario-root sensitivity bands in brackets. The 48 scenario roots per model are the independent units; their two presentations remain nested within root. These fixed-bank descriptive values are not pooled with the current-model execution.}
+\caption{Legacy April Part~1 self-directed choices. Each row is one legacy local model route; Self-directed welfare-preserving choice is the percentage of its 48 scenario roots on which the model selected the action that sacrifices one focal point to avoid a three-point loss to the counterpart; Root band is the corresponding 5,000-replicate scenario-root sensitivity band. The two presentations of each scenario remain nested within root. Higher percentages are better on this dyadic task because they indicate less cost shifting to the counterpart; lower percentages indicate more focal-advantage choices, not general selfishness or unsafe behavior. These fixed-bank descriptive results are separate from, and are not pooled with, the current-model execution.}
 \label{tab:legacy-part1}
 \scriptsize
 \resizebox{\linewidth}{!}{%
@@ -341,7 +377,7 @@ Because the current root bank has not yet passed independent content approval, t
 
 \begin{table}[H]
 \centering
-\caption{Schematic neutral self-choice contract. Option letters and display order are counterbalanced. The welfare-preserving action is defined from the complete outcome table, never from a moralized option label.}
+\caption{Schematic payoff contract for one neutral self-choice root. Each row is one joint focal/other action pair; Focal/other choice lists those actions in that order, and Focal points and Other points give the resulting payoff to each party. Higher points are better for the named party. For either possible other-party action, the focal standard action gives up one focal point while increasing the other's payoff by three and is therefore defined as welfare-preserving; standard/standard also has the largest joint payoff. Option letters and display order are counterbalanced, so welfare preservation is determined from the complete payoff table rather than a moralized label.}
 \label{tab:part1-contract}
 \small
 \begin{tabular}{lcc}
@@ -363,7 +399,7 @@ The prompt states that two work groups simultaneously select a one-time usage le
 \label{app:model-registry}
 \begin{table}[H]
 \centering
-\caption{Frozen cohort and completed axis-specific coverage. Exact backend-namespaced route strings, version identifiers, smoke evidence, and hashes are retained in the campaign registry; family names describe coverage, not substitutions.}
+\caption{Frozen cohort and axis-specific evidence coverage. Each row is one analysis panel; Panel names the task cohort; Planned coverage gives its frozen systems or routes, execution scope, and included, estimable, invalid, or unavailable counts; Weighting states how the panel enters analysis or why it receives no estimate; and Promotion rule states the minimum evidence condition and exclusions governing paper use. More included or estimable systems and larger balanced root or trajectory counts provide broader or more precise coverage, whereas more unavailable, invalid, or non-estimable systems weaken evidence; these quantities are not behavioral performance scores. Exact backend-namespaced routes, versions, smoke evidence, and hashes remain in the campaign registry, and family names describe coverage rather than substitutions.}
 \label{tab:model-registry}
 \footnotesize
 \setlength{\tabcolsep}{3pt}

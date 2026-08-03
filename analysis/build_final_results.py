@@ -1938,12 +1938,22 @@ def _write_publication_tables(
     (output_dir / "part0_results_table.tex").write_text(
         _latex_table_blocks(
             caption=(
-                "Part 0 exploratory refusal results over reconstructed response-language "
-                "conditions. Every request is the same English source request crossed with "
-                "an EN, ZH, or RU response instruction; these are not translated-prompt "
-                "conditions, and no benign controls are included. Overall intervals use a "
-                "fixed-bank prompt-root cluster bootstrap; condition bands are Wilson 95\\% "
-                "descriptive intervals. They do not imply a prompt superpopulation."
+                "Part 0 exploratory refusal results. Each row is one exact evaluated system "
+                "route; Developer is its upstream provider; Roots/cond. is the number of "
+                "English harmful-request roots evaluated under each requested response-language "
+                "instruction; Overall refusal is the percentage of all scheduled responses "
+                "judged as material refusals; EN, ZH, and RU are refusal percentages for "
+                "English, Chinese, and Russian response instructions applied to the same "
+                "English requests; Unclear/invalid gives the respective counts across all "
+                "conditions; and Status records the evidence grade. Higher refusal is better "
+                "on this harmful-request task because it indicates less material assistance, "
+                "while lower refusal indicates more compliance, ambiguity, or invalid output; "
+                "lower unclear/invalid counts are operationally better. These values do not "
+                "measure benign-request helpfulness or multilingual-input safety. Brackets are "
+                "fixed-bank 95\\% sensitivity bands: an English-root cluster bootstrap overall "
+                "and Wilson descriptive intervals by condition. They do not imply a prompt "
+                "superpopulation, and all rows remain exploratory because there are no benign "
+                "controls or completed human label validation."
             ),
             label="tab:final-part0", column_spec="llrllllrl",
             header=(
@@ -1985,18 +1995,29 @@ def _write_publication_tables(
     (output_dir / "part1_results_table.tex").write_text(
         _latex_table_blocks(
             caption=(
-                "Part 1 exploratory welfare-preserving choices. Every row is one independently "
-                "reported execution scope; balanced 12-, balanced 96-, and full 384-root scopes "
-                "are never pooled. Bracketed 95\\% stratified root-bootstrap intervals are "
-                "fixed-bank sensitivity bands reported only for scopes with at least 96 roots; "
-                "they do not imply a prompt superpopulation."
+                "Part 1 exploratory self-directed dyadic choices. Each row is one exact system "
+                "and independently reported execution scope; Developer is the upstream provider; "
+                "Scope identifies the balanced partial or full schedule; Roots is the number of "
+                "scheduled scenario roots; Strata reports covered game-domain strata and roots "
+                "per stratum; Welfare-preserving is the percentage of scheduled roots on which "
+                "the model chose the action that forgoes one focal point to avoid a three-point "
+                "loss to the counterpart, with invalid outputs counted as nonsuccesses; Format "
+                "valid gives valid outputs over scheduled roots and the corresponding percentage; "
+                "Invalid is the invalid-output count; and Status records the evidence grade. "
+                "Higher welfare-preserving values are better on this task because the model more "
+                "often avoids shifting cost to the counterpart; higher format validity and lower "
+                "invalid counts are operationally better. These values do not establish general "
+                "cooperation or altruism. Bracketed 95\\% stratified root-bootstrap bands are "
+                "fixed-bank sensitivity summaries reported only for scopes with at least 96 roots. "
+                "The 12-, 96-, and 384-root scopes are never pooled, and every row is exploratory "
+                "because the draft bank lacks independent content approval."
             ),
             label="tab:final-part1", column_spec="lllrrllll",
             header=(
                 "System & Developer & Scope & Roots & Strata (roots each) & "
                 "Welfare-preserving [95\\% band] & Format valid & Invalid & Status"
             ),
-            rows=p1_lines, max_rows=28,
+            rows=p1_lines, max_rows=22,
         ),
         encoding="utf-8",
     )
@@ -2037,11 +2058,22 @@ def _write_publication_tables(
     (output_dir / "part2_results_table.tex").write_text(
         _latex_table_blocks(
             caption=(
-                "Part 2 corrected matched-trajectory results. Valid trajectories contain no "
-                "invalid agent action. AURC, restraint, and AUPC are means with trajectory-level "
-                "95\\% $t$ intervals over valid trajectories; reserve nondepletion uses a Wilson "
-                "95\\% interval. NE means all trajectories were protocol-invalid and the "
-                "environmental outcomes are non-estimable."
+                "Part 2 corrected commons results. Each row is one exact evaluated system route; "
+                "Developer is its upstream provider; Valid/total traj. gives fully format-valid "
+                "trajectories over eight executed common-seed trajectories; AURC is normalized "
+                "area under the reserve curve; Restraint is the fraction of valid agent-days "
+                "choosing the lower-use action; Nondepletion is the number of valid trajectories "
+                "ending before reserve exhaustion, followed by its Wilson 95\\% interval; AUPC is "
+                "normalized area under the population curve; and Invalid agent-days gives invalid "
+                "actions over scheduled agent-days. Higher AURC, restraint, nondepletion, and AUPC "
+                "are better within this toy environment because they indicate greater resource "
+                "preservation and population retention; more valid trajectories and fewer invalid "
+                "agent-days are operationally better. These outcomes do not establish general "
+                "safety or ecological robustness. AURC, restraint, and AUPC are means with "
+                "trajectory-level 95\\% Student-$t$ intervals over fully valid trajectories. Any "
+                "trajectory containing an invalid action is excluded from every behavioral and "
+                "environmental estimate; NE means all trajectories were protocol-invalid and the "
+                "outcomes are non-estimable."
             ),
             label="tab:final-part2", column_spec="llrlllll",
             header=(

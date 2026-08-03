@@ -114,7 +114,7 @@ Updated: 2026-08-03 (America/Los_Angeles)
 - `analysis.build_final_results` accepted the validated primary evidence,
   target-bound availability overlays, and two exact DeepSeek repair manifests.
   It emitted `data/analysis/final_results/final_results.json` with self-hash
-  `52afcf33386055bcaabcf608186e094f2b19a7610f9bc57d53821ad3ea08c231`.
+  `a9f961dd3a52fa082c9ed3ccab5c745c2fae7e2b303d9b1f08b3d0920517ecb1`.
 - Cross-axis output is withheld fail-closed: the exact full overlap, Part 0
   human validation, full n=384 Part 1 support, and n=12 Part 2 gate do not pass.
 - `analysis.build_paper_headlines` and
@@ -123,23 +123,31 @@ Updated: 2026-08-03 (America/Los_Angeles)
   rankings, significance claims, or a latent readiness score.
 - Exact finalization, result-building, Croissant, supplement, and paper commands
   are recorded in `docs/release/REPRODUCIBILITY.md`.
+- The manuscript now includes four legible, self-contained visuals: the original
+  three-axis pipeline plus corrected, axis-specific Part 0 response-language,
+  Part 1 scope-distribution, and Part 2 outcome figures. Unsupported composite,
+  PCA, and cross-axis plots remain excluded.
+- Every table uses approximately 20 px (15 pt) float separation, and every
+  table caption defines its row unit, columns, and whether higher or lower
+  values are preferable or operationally problematic.
 
 ## Completion verification
 
 1. Every manuscript number and evidence-status statement is generated from or
    checked against sealed result self-hash
-   `52afcf33386055bcaabcf608186e094f2b19a7610f9bc57d53821ad3ea08c231`.
-2. The final anonymous PDF compiles to 27 pages. Its exact title, nine-page main
-   boundary, references, landscape result tables, checklist, metadata, and all
-   pages passed automated and visual inspection.
-3. The repository test suite passes with 796 tests passed and one optional test
+   `a9f961dd3a52fa082c9ed3ccab5c745c2fae7e2b303d9b1f08b3d0920517ecb1`.
+2. The final anonymous PDF compiles to 32 pages. Its exact title, eight-page main
+   body, references beginning on page 9, corrected visual summaries, landscape
+   result tables, checklist, metadata, and all pages passed automated and visual
+   inspection.
+3. The repository test suite passes with 797 tests passed and one optional test
    skipped. Strict validation reports 27 files, 14 pass, 13 documented warnings,
-   and zero failures; all six conference-format tests pass.
+   and zero failures; the focused paper and format suite passes all 52 tests.
 4. A context-fresh independent paper audit returns GO after confirming the Part
    2 validity gate, honest reproducibility boundary, legible tables, anonymity,
    and fidelity to the original Safety Beyond Refusal thesis.
 5. Croissant metadata is hash-bound and passes its local check. The final
-   333-file supplement passes 712 tests with three optional skips in a clean
+   338-file supplement passes 713 tests with three optional skips in a clean
    extracted directory, rebuilds to the identical file manifest, and has zero
    anonymity-audit findings.
 

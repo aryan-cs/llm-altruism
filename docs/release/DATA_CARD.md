@@ -90,7 +90,7 @@ complete units plus target-bound availability evidence; the underlying private
 artifacts remain excluded. Croissant metadata is generated only after the
 sanitized final-results directory exists and passes schema, self-hash, privacy,
 output-hash, and exact coverage checks. The sealed result self-hash is
-`52afcf33386055bcaabcf608186e094f2b19a7610f9bc57d53821ad3ea08c231`.
+`a9f961dd3a52fa082c9ed3ccab5c745c2fae7e2b303d9b1f08b3d0920517ecb1`.
 
 ## Limitations
 

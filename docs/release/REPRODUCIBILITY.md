@@ -143,7 +143,7 @@ output is absent unless the exact 24-system overlap and every evidence gate
 pass. The two replacement manifests preserve the exact DeepSeek target IDs and
 frozen n=96 schedules; they are not model substitutions. The sealed result
 self-hash is
-`52afcf33386055bcaabcf608186e094f2b19a7610f9bc57d53821ad3ea08c231`.
+`a9f961dd3a52fa082c9ed3ccab5c745c2fae7e2b303d9b1f08b3d0920517ecb1`.
 
 Convert the sealed result graph into the exact, scope-separated values used by
 the manuscript:
@@ -153,9 +153,13 @@ uv run python -m analysis.build_paper_headlines \
   --input data/analysis/final_results/final_results.json \
   --output-json data/analysis/final_results/paper_headlines.json \
   --output-tex data/analysis/final_results/paper_headlines.tex
+
+uv run python -m analysis.build_paper_visuals \
+  --input data/analysis/final_results/final_results.json \
+  --output-dir docs/conference_submission/figures
 ```
 
-This command validates the final-results self-hash and privacy contract before
+These commands validate the final-results self-hash and privacy contract before
 emitting within-axis counts, medians, ranges, and LaTeX macros. It refuses to
 pool Part 1 scopes or compute model rankings, family effects, significance
 tests, or cross-axis associations.

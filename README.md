@@ -50,7 +50,7 @@ tests/                        Unit and integration tests
 Parts 3-5 are roadmap placeholders. Parts 0-2 are the implemented benchmark
 scope. The current sanitized result graph is
 `data/analysis/final_results/final_results.json`, whose self-hash is
-`52afcf33386055bcaabcf608186e094f2b19a7610f9bc57d53821ad3ea08c231`.
+`a9f961dd3a52fa082c9ed3ccab5c745c2fae7e2b303d9b1f08b3d0920517ecb1`.
 Part 0 and Part 1 remain exploratory because their external validation gates
 are incomplete; Part 2 remains below its intended n=12 promotion threshold.
 

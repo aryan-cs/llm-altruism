@@ -364,12 +364,12 @@
     "spearman_pairs": [],
     "status": "not_emitted_fail_closed"
   },
-  "evidence_sha256": "52afcf33386055bcaabcf608186e094f2b19a7610f9bc57d53821ad3ea08c231",
+  "evidence_sha256": "a9f961dd3a52fa082c9ed3ccab5c745c2fae7e2b303d9b1f08b3d0920517ecb1",
   "outputs": {
     "cross_axis_csv": null,
     "figures": [
       {
-        "file_sha256": "c1309619cd438c462637a7a7994fae8800b111a4c4246c53db49d3c4caff505f",
+        "file_sha256": "6bf53c9681743fce3e0bbca1a5edc596e91b2327805d6c8008e29f0452e1ff4d",
         "path": "figures/matched_panel_axis_summary.pdf"
       },
       {
@@ -377,7 +377,7 @@
         "path": "figures/matched_panel_axis_summary.png"
       },
       {
-        "file_sha256": "4831cc0fc8a074e60e1a6ecafdf1b152689d4ca836a3ed06752eb79a8dd91f30",
+        "file_sha256": "94c21eeaff898416d78b88bfc5d99a80fcb4e14725d9983ac2610f65074449ee",
         "path": "figures/model_axis_summary.pdf"
       },
       {
@@ -385,7 +385,7 @@
         "path": "figures/model_axis_summary.png"
       },
       {
-        "file_sha256": "d39acf662f38bb56d54f4bdd68a737fceef8e02819e417dc01c4624253cd8ce7",
+        "file_sha256": "02b7322d76d69bfe3af352cead38736d2e640aec3a0dab50c0362275798ade52",
         "path": "figures/part1_scope_facets.pdf"
       },
       {
@@ -398,15 +398,15 @@
       "path": "paper_macros.tex"
     },
     "latex_part0_table": {
-      "file_sha256": "ea328c7ce2b74d46a81512d97529276ae9d46b676d04eb7dedd98cb84b0b6a5c",
+      "file_sha256": "57c4a305286e4c58be04a83ac7d3353f2f3e00d6dbdd747cacc66aacfd8e1cf2",
       "path": "part0_results_table.tex"
     },
     "latex_part1_table": {
-      "file_sha256": "495642f7f2c0f7785fe6425434d5d6ee8ea9d4ee65d8e02f628886d40fd7fbb7",
+      "file_sha256": "429eaaef5d3b578bb1752ca981438de9ca6a7f96bbd600e4c11cbdd19113e7c1",
       "path": "part1_results_table.tex"
     },
     "latex_part2_table": {
-      "file_sha256": "c719cf9af70059bc9e7f0321f97394ed8783cf06f797a5884cb9f3dba9415a16",
+      "file_sha256": "82700de711e4e692e1583ce0a0d0f7780073ef8f08bbbb951fbb228f3d6421bc",
       "path": "part2_results_table.tex"
     },
     "latex_rows": {
