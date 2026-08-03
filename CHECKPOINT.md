@@ -103,20 +103,21 @@ campaigns have priority over supplemental retries.
   limiter scopes; role semantic-invalid repair still waits for the role source
   manifest to become COMPLETE.
 
-### Part 2 deadline sensitivity (active, resumed)
+### Part 2 deadline sensitivity (active, fresh revised panel)
 
-- Path: `data/private/inference_hub/definitive-part2-sensitivity-deadline-fast-v8`.
-- Six sentinels × 16 resolution-V cells × two common environment seeds = 192
-  trajectories and 17,280 scheduled agent-day POSTs.
+- Path: `data/private/inference_hub/definitive-part2-sensitivity-deadline-fast-v9`.
+- Five exact compatible sentinels × 16 resolution-V cells × two common
+  environment seeds = 160 trajectories and 14,400 scheduled agent-day POSTs.
 - Five factors vary: capacity per initial agent, depletion units, collapse death
   rate, society size, and horizon.
 - Invalid visible actions are retained as nonrestraint/zero-effect observations;
   transport or identity failure blocks operational eligibility.
-- The panel is explicitly deadline-exploratory and underpowered. Thirty
+- The panel is explicitly deadline-exploratory and underpowered. Twenty-five
   sentinel-by-factor Holm rows document the prespecified family; they do not
   authorize confirmatory robustness claims.
-- A fresh source-bound accelerated writer replaced the stalled conservative
-  partial run, which remains preserved but is not a paper input. The active
+- The revised v2 design excludes only the frozen Claude Sonnet 4.6 exact route,
+  which cannot accept the common `top_p` control. It substitutes no route or
+  model and reuses no incomplete v8 evidence. The active
   shared policy is global concurrency 24, provider concurrency 3, 12 global
   starts/second, and 2.5 starts/second per provider. The active writer uses 15
   campaign workers to balance network throughput against local fsync pressure;

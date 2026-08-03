@@ -27,7 +27,7 @@ The fail-closed analyzer accepts exactly these five source runs:
 | Part 1 | `data/private/inference_hub/definitive-part1-large-n384-main75-deadline-v5` | 75 exact routes × 384 balanced roots |
 | Part 2 | `data/private/inference_hub/definitive-part2-n12-main19-v3` | 19 exact routes × 12 common-seed trajectories |
 | Role calibration | `data/private/inference_hub/definitive-part1-role-calibration-v3` | 6 exact routes × 96 roots × 3 frames × 4 counterbalances |
-| Part 2 sensitivity | `data/private/inference_hub/definitive-part2-sensitivity-deadline-fast-v8` | 6 exact routes × 16 cells × 2 common seeds |
+| Part 2 sensitivity | `data/private/inference_hub/definitive-part2-sensitivity-deadline-fast-v9` | 5 exact compatible routes × 16 cells × 2 common seeds |
 
 The Part 2 source manifest is complete at 228 trajectories and 13,495
 scheduled agent-days. It records zero transport or identity failures and four
@@ -35,9 +35,9 @@ invalid actions across three trajectories; 225 trajectories contain no invalid
 action and support environmental estimates. At the 2026-08-03 documentation
 checkpoint, Part 0, Part 1, role calibration, and sensitivity were still
 running. Their scheduled scopes must not be described as completed coverage.
-The frozen sensitivity profile has a 17,280-post scheduled maximum with 32 trajectories per sentinel and 192 total.
+The revised frozen sensitivity profile has a 14,400-post scheduled maximum with 32 trajectories per sentinel and 160 total. The one exact route incompatible with the common `top_p` control is excluded without substitution.
 Each sentinel-factor contrast has four exact paired seed-block sign assignments;
-all 30 prespecified contrasts remain in one global Holm family.
+all 25 prespecified contrasts remain in one global Holm family.
 
 Check source state without reading response text:
 
@@ -47,7 +47,7 @@ for run in \
   data/private/inference_hub/definitive-part1-large-n384-main75-deadline-v5 \
   data/private/inference_hub/definitive-part2-n12-main19-v3 \
   data/private/inference_hub/definitive-part1-role-calibration-v3 \
-  data/private/inference_hub/definitive-part2-sensitivity-deadline-fast-v8
+  data/private/inference_hub/definitive-part2-sensitivity-deadline-fast-v9
 do
   jq '{complete, completed_at_utc, summary, evidence_sha256}' \
     "$run/private/manifest.json"
@@ -70,7 +70,7 @@ uv run python -m analysis.analyze_provider_safe_v2_definitive \
   --part1 data/private/inference_hub/definitive-part1-large-n384-main75-deadline-v5 \
   --part2 data/private/inference_hub/definitive-part2-n12-main19-v3 \
   --role-calibration data/private/inference_hub/definitive-part1-role-calibration-v3 \
-  --sensitivity data/private/inference_hub/definitive-part2-sensitivity-deadline-fast-v8 \
+  --sensitivity data/private/inference_hub/definitive-part2-sensitivity-deadline-fast-v9 \
   --output-dir data/processed/provider-safe-v2-definitive-analysis
 ```
 

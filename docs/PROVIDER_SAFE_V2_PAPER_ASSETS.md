@@ -19,8 +19,8 @@ requires the complete production matrix:
 - 75 Part 1 routes with 384 scheduled self-choice units each;
 - 19 Part 2 routes with 12 trajectories each;
 - six role-calibration routes by three separate 384-draw frames; and
-- the same six sentinel identities by five sensitivity factors, with 16 cells,
-  two common seeds, and one global 30-test Holm family; and
+- five independent exact compatible sensitivity sentinels by five factors,
+  with 16 cells, two common seeds, and one global 25-test Holm family; and
 - four fixed local HF Part 1 execution-scale controls with 384 scheduled units
   per model, kept separate from all hosted routes.
 

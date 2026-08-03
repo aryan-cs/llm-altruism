@@ -461,10 +461,12 @@ def test_packaged_reproducibility_note_matches_frozen_sensitivity_counts() -> No
         build_supplement.PROJECT_ROOT / "docs/release/REPRODUCIBILITY.md"
     ).read_text(encoding="utf-8")
 
-    assert "17,280-post" in text
+    assert "14,400-post" in text
     assert "32 trajectories per sentinel" in text
-    assert "192 total" in text
+    assert "160 total" in text
     assert "four exact paired" in text
+    assert "25 prespecified contrasts" in text
+    assert "excluded without substitution" in text
     assert "103,680-post" not in text
 
 

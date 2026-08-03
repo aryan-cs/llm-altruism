@@ -34,11 +34,12 @@ or cross-axis composite score.
   manifest is complete at 228 trajectories and 13,495 scheduled agent-days;
   four invalid actions occur across three trajectories, leaving 225
   environmentally estimable trajectories.
-- **Role calibration and sensitivity:** Six prespecified routes are scheduled
+- **Role calibration and sensitivity:** Six prespecified role routes are scheduled
   under three role frames over 96 roots with four counterbalances per frame
   (384 units per route/frame). A separate
-  deadline-exploratory Part 2 design evaluates six sentinels in 16 fractional-
-  factorial cells under two independent common seeds. These artifacts diagnose
+  deadline-exploratory Part 2 design evaluates five exact compatible sentinels
+  in 16 fractional-factorial cells under two independent common seeds. The one
+  incompatible exact route is excluded without substitution. These artifacts diagnose
   framing and environment sensitivity; they are not confirmatory promotions.
 - **Unavailable routes and invalid recovery:** Bounded availability retries and
   semantic-invalid repairs are isolated supplemental artifacts. They never

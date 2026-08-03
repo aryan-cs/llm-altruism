@@ -45,7 +45,7 @@ def test_release_reproduction_uses_only_definitive_provider_safe_v2_inputs() -> 
         "definitive-part1-large-n384-main75-deadline-v5",
         "definitive-part2-n12-main19-v3",
         "definitive-part1-role-calibration-v3",
-        "definitive-part2-sensitivity-deadline-fast-v8",
+        "definitive-part2-sensitivity-deadline-fast-v9",
         "analysis.analyze_provider_safe_v2_definitive",
         "analysis.build_provider_safe_v2_paper_assets",
         "analysis.build_provider_safe_v2_croissant_metadata",

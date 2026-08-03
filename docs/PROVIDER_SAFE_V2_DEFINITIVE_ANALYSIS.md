@@ -12,7 +12,7 @@ The command requires one manifest (or run directory) for each of:
 - the 75-model, 384-trial Part 1 panel;
 - the 19-model, 12-trajectory Part 2 matched panel;
 - the six-sentinel Part 1 role-calibration panel; and
-- the six-sentinel, 16-cell, two-common-seed deadline-sensitivity panel.
+- the five-compatible-sentinel, 16-cell, two-common-seed deadline-sensitivity panel.
 
 Every manifest must be `complete: true`, have a completion timestamp and a
 valid self-hash, and bind `inference_hub_provider_safe_v2.py`. A conservative
@@ -68,11 +68,12 @@ transport failure blocks operational eligibility. The two are not pooled.
 
 ## Sensitivity verification
 
-The adapter requires exactly 30 deadline-exploratory main effects (six sentinels
-by five factors), valid global-Holm metadata, and p-values in `[0,1]`. It
-recomputes the complete main-effect and Holm rows from the hash-bound 192
+The adapter requires exactly 25 deadline-exploratory main effects (five exact
+compatible sentinels by five factors), valid global-Holm metadata, and p-values
+in `[0,1]`. It recomputes the complete main-effect and Holm rows from the hash-bound 160
 trajectory records and rejects any difference. The call-order diagnostic must
-be explicitly outside the Holm-30 family.
+be explicitly outside the Holm-25 family. The revised design excludes the one
+exact route that cannot accept the common `top_p` control and substitutes no route.
 
 ## Run
 
@@ -82,7 +83,7 @@ uv run python -m analysis.analyze_provider_safe_v2_definitive \
   --part1 data/private/inference_hub/definitive-part1-large-n384-main75-deadline-v5 \
   --part2 data/private/inference_hub/definitive-part2-n12-main19-v3 \
   --role-calibration data/private/inference_hub/definitive-part1-role-calibration-v3 \
-  --sensitivity data/private/inference_hub/definitive-part2-sensitivity-deadline-fast-v8 \
+  --sensitivity data/private/inference_hub/definitive-part2-sensitivity-deadline-fast-v9 \
   --output-dir data/processed/provider-safe-v2-definitive-analysis
 ```
 
