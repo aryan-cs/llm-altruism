@@ -12,7 +12,7 @@ The command requires one manifest (or run directory) for each of:
 - the 75-model, 384-trial Part 1 panel;
 - the 19-model, 12-trajectory Part 2 matched panel;
 - the six-sentinel Part 1 role-calibration panel; and
-- the six-sentinel, 16-cell, 12-common-seed deadline-sensitivity panel.
+- the six-sentinel, 16-cell, two-common-seed deadline-sensitivity panel.
 
 Every manifest must be `complete: true`, have a completion timestamp and a
 valid self-hash, and bind `inference_hub_provider_safe_v2.py`. A conservative
