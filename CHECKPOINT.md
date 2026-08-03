@@ -2,197 +2,169 @@
 
 Updated: 2026-08-02 (America/Los_Angeles)
 
-## Current evidence state
+## North star
 
-- The audited paper is `docs/conference_submission/conference_submission.tex`;
-  the rendered submission is `docs/conference_submission/conference_submission.pdf`.
-- The legacy artifact contains 56,382 stored rows across 13 Ollama variants, but
-  those rows are not independent observations: Part 0 has 99 shared prompt roots
-  per model, Part 1 has 48 shared scenario roots per model, and Part 2 has 13
-  state-coupled trajectories.
-- Part 0 is not a valid result. Its legacy labeler could score rationale as well
-  as final response and defaulted failed adjudications to denial. The incomplete
-  response-only checkpoint has 1,243 judged rows and 300 changes (24.1%): 275
-  legacy-complied to denied and 25 in the other direction. The manuscript
-  withdraws legacy refusal rates and every refusal-based correlation. A
-  sanitized aggregate checkpoint in `data/analysis` binds these counts to the
-  withheld source CSV's SHA-256 without releasing harmful content.
-- Part 1 point estimates are reproducible. Paper-facing bands are explicitly
-  finite-bank sensitivity intervals from a deterministic 2,000-replicate
-  cluster bootstrap over the 48 scenario roots, retaining frames and
-  presentations within a root. They do not estimate generation variability or
-  a scenario superpopulation. Row-binomial Wilson bounds are diagnostic-only.
-- Part 2 point estimates are reproducible from one trajectory per model. No
-  run-level interval is claimed. A self-hashed legacy provenance seal binds the
-  original CSV/sidecar bytes to the archived divisor-of-five attrition source and
-  replays every transition without substituting a current default.
-- The 13 Part 1 reconstructed sidecars now use exact unique CSV model identities,
-  preserve their original reconstruction provenance, and record the repair
-  method plus CSV SHA-256.
-- Croissant 1.1/RAI 1.0 metadata declares 35 file-object distributions and 33
-  loadable record sets (26 retained raw CSVs plus seven derived Part 1/2 tables).
-  Invalid Part 0 rate tables and all dependent cross-part tables
-  are excluded. A stable anonymous reviewer-accessible landing URL and official
-  Croissant validation are still required before submission; public access is
-  required by camera ready.
-- A repository-local ignored `.env` now supplies the live `llm_api_routes`
-  virtual key to authenticated jobs without exposing it in Git or logs. The
-  corrected `/models` census captures all 214 authorized routes; the live v3
-  catalog has raw SHA-256
-  `e7fd014302bc5f1caf06f1d5b59ace8fcd76e34fd37f00e995ad09360e79b780`.
-  The exhaustive bounded minimal-chat census attempted every route, found 69
-  minimally callable routes and 145 rejected routes, and then proved a zero-call
-  request-hash resume over all 214 entries. The resume-proof artifact has raw
-  SHA-256 `bcd4c141b2bfb28128648105f9086ccf7c87adf1a48b25f58774c019162e46f4`.
-  The fixed 31-target registry compatibility sweep probed all 44 exact backend
-  candidates and selected 29 routes: 28 subjects plus the independent judge.
-  Only Mixtral-8x22B and legacy Gemma-2-9B remain unresolved. Claude routes are
-  retained through deterministic maximal-valid control profiles rather than
-  being rejected when individually supported controls cannot be combined. The
-  private schema-v2 evidence has raw SHA-256
-  `9bc458a57c69bf4582f2fbbc614e75144c5427227935b5464a45faa51560a1b9`.
-  An outcome-blind taxonomy accounts for all 214 routes, excludes 85 non-subject
-  or out-of-panel routes with explicit reasons, and defines 84 exact SOTA
-  text-chat identities across 129 backend routes. Live compatibility selected
-  81/84 identities; Mixtral-8x22B, GPT-5.4-Pro, and Sonar Deep Research were the
-  only unresolved subjects. The roster and compatibility artifacts have raw
-  SHA-256 values `d34988cd20cdf02ac04a4bc8e11185ec6e8b048bbac7de72ae0195421304f751`
-  and `e6a86e7fd8d84a8f519e51b1d2814f743094e5e0c207a89fb02801a5484dbd77`.
-  A 28-route production-schema smoke retained all 28 exact identities with 27
-  strict final actions; a route-specific long-reasoning allowance then made
-  Kimi valid. The 53 nonduplicate expansion smoke retained 53/53 exact-identity,
-  strict-format responses. The earlier unthrottled 28- and 53-route scale jobs
-  were stopped and are not evidence. A single replacement 81-subject panel is
-  frozen for execution under a file-locked, cross-process limiter: four global
-  and one per-provider in-flight requests, at most 2.0 global and 0.5
-  per-provider requests/second, with durable leases, heartbeats, adaptive
-  cooldowns, and fail-closed state validation. A live two-provider canary
-  (Claude Opus 4.5 and GPT-4o Mini) completed 2/2 exact-identity, strict-format
-  responses with zero failures; its raw manifest SHA-256 is
-  `294bddb3775643f73ea52953132634f4ba198f4bf59044b89a285c4ef254c684`
-  and it binds limiter policy SHA-256
-  `99676942658cee96fb50e33dbd3e83baeb37c3af4720278f462fe54ab423b699`.
-  The fixed judge was not dispatched by this subject-only canary. The first
-  all-subject launch was stopped after the two Moonshot/Kimi routes repeatedly
-  returned HTTP 529 despite the shared 30-second provider cooldown. That
-  interrupted artifact is preserved and is not evidence. A one-shot census
-  excluded only those two operationally overloaded routes and retained 77
-  exact-identity, strict-format responses across the remaining 79 identities;
-  both Kimi identities remain frozen for isolated reruns rather than
-  substitution or silent omission.
-  MiniMax M3 and Qwen 3.5 397B each timed out once at 300 seconds and then
-  succeeded under an isolated 900-second probe. Both Kimi routes returned 529
-  again under one-request isolated probes and are operationally unavailable.
-  An early 77-subject main attempt was stopped after 503 responses exposed that
-  generic 5xx errors still received only the transient cooldown. Limiter schema
-  v2 now gives every HTTP 5xx the full 30-second provider cooldown and binds
-  policy SHA-256
-  `b2944b5cd6c0a0551e67b9a5ee4d7a40e856ed163a8ef5401e86ec145219e03f`.
-  All interrupted launch artifacts remain preserved and unpooled.
-- Four revision-pinned local Hugging Face controls were loaded from a read-only
-  cache and completed real offline greedy generations on CPU: SmolLM2 135M,
-  360M, and 1.7B plus Qwen2.5 0.5B. A fresh immutable two-worker private artifact
-  recursively fingerprints all 74 exact snapshot assets (11,420,103,695 bytes,
-  including nested and hidden assets); raw artifact SHA-256
-  `9e0cca6a738bf5c794c33c5da2af02c6a4d6b4423cd34ae7a4ba5d527dab961e`.
-  All four returned visible text; one matched the exact `READY` format and three
-  were retained as format-noncompliant. The separate resumable 384-root local
-  Part 1 scale panel completed all 1,536 real generations with two concurrent
-  model workers and batched prompts. Strict final-action format was valid for
-  Qwen2.5 0.5B on 384/384 rows, SmolLM2 1.7B on 362/384, SmolLM2 360M on
-  27/384, and SmolLM2 135M on 3/384. All prompt, response, per-model file, and
-  manifest hashes validate. The resumed hardened private manifest has raw
-  SHA-256
-  `c6998aed5ddfcc5488fccbe2870290006c9537fd9f2aeaac3956c8da666d1b98`
-  and evidence SHA-256
-  `eb228e73f721d4e0109328a851560ae05399aec7b1abfa32e94b933402d00b84`.
-  Its strict exploratory analysis has raw SHA-256
-  `786b14eb61b735f8da45ce2044e865a38df05a04e363b2c4d185173ee8833d38`.
-  Its contract permanently bars confirmatory or paper-result promotion because
-  the deterministic draft bank is not human-approved.
-  A deliberately interrupted attempt remains preserved separately rather than
-  being overwritten.
-  This is callability evidence only, not a paper result or a substitute for a
-  hosted model.
+- The submission is **Safety Beyond Refusal**, a corrected successor to the
+  original Prosocial Readiness Bench manuscript at Git commit `9cdefa4`.
+- The scientific question remains whether multilingual safety refusal,
+  cooperation in one-shot social dilemmas, and restraint in repeated commons
+  environments provide complementary observable evidence about model behavior.
+- The August audit is not the paper's thesis. Its valid findings are incorporated
+  as protocol repairs, provenance controls, exclusions of unsupported legacy
+  results, and explicit limitations.
+- No result is promoted from an incomplete run, an unavailable route is never
+  silently substituted, and a subject model never judges its own output.
 
-## Verified gates
+## Frozen corrected experiments
 
-- Strict raw validation: 27 files, 14 pass, 13 warning, 0 fail. The warnings are
-  the disclosed one-sided Part 2 rationale/action lexical flags.
-- Full repository suite: 680 passed, 1 optional dependency skip on 2026-08-02.
-  `tests/conftest.py` selects the noninteractive Agg backend before collection.
-- Clean extracted-supplement suite: 515 passed, 2 intentional skips (withheld
-  raw Part 0 and one optional dependency), without a Git object store.
-- NeurIPS format suite: 6 passed. The official style SHA-256 is
-  `c3fc2894e83d2517ca18b66741d6c595986d97957dc08ec08bb2125a7ec4555a`.
-- Current local pilot PDF: 29 pages, 1.20 MiB, anonymous metadata, main content
-  ending and references beginning on page 9, all pages visually inspected. Eight paper
-  figures were regenerated at print-oriented dimensions with larger labels.
-  Current PDF SHA-256: `5b78b3dbb298b94c122640f9703b6e9fecb10074f1c60902736cdde0c154e321`.
-- Current local pilot supplement: 293 files including its manifest, 15.7 MiB;
-  every payload has a
-  manifest SHA-256. Full-suite, integrity, portable legacy-provenance, and
-  anonymity checks pass. Withdrawn Part 0/cross-part plot trees are absent, and
-  the builder derives local identifiers at runtime rather than embedding them.
-  Current ZIP SHA-256: `f658a4a1db930536a53732d1d4fb265b52de0cef2d2482f52a4f1925e42c584c`.
-- The one-stage production campaign is frozen at all 484 harmful roots plus 100
-  controls in three languages, 384 self-direct Part 1 roots, and 24 independent
-  Part 2 trajectories per route at N=10, horizon=30, capacity=150.
-- One dedicated `judge_only` target, NVIDIA Evals Nemotron 3 30B A3B, is outside
-  the evaluated panel and is reused across every subject route. Campaign and
-  standalone Part 0 guards reject target-ID, provider+route, or upstream-model
-  overlap. The judge remains unverified until its structured smoke succeeds.
-- Confirmatory finite-bank/run-level estimators use exactly 5,000 frozen
-  bootstrap replicates. Part 1 resamples independently within all 12
-  game-by-domain cells, Part 2 uses common paired-seed resampling, reserve
-  nondepletion uses a Wilson interval, and cross-part unit resampling is shared
-  across systems.
-- The base 30-route campaign is 333,750 successful POSTs. A full stored-response
-  Part 0 rejudge allowance and 10% transport reserve fit below the immutable
-  430,000-attempt and 1.5-billion-token ceilings. Every confirmatory POST makes
-  an atomic conservative ledger reservation before dispatch. Discovery retains
-  failed reservations and a full catalog census; the final lock requires exact
-  request-hash reconciliation between the ledger and native attempt logs.
-- Offline local-control smoke: 4/4 exact pinned snapshots loaded and generated
-  visible text under Python 3.12.13, PyTorch 2.13.0, and Transformers 4.57.6.
-  The registry forbids frontier substitution and paper-result promotion.
+### Matched cross-axis panel
 
-## External gates that must not be fabricated or bypassed
+- `experiments/sota_cross_axis_panel.json` freezes 24 subject systems spanning
+  OpenAI GPT-3.5/4/5 and GPT-OSS, Anthropic Claude Haiku/Sonnet/Opus, Google
+  Gemini 2.5/3.x, Meta Llama, DeepSeek, Qwen, MiniMax, GLM, and NVIDIA
+  Nemotron families.
+- The fixed judge is `judge.nvidia-evals-nemotron-3-30b-a3b`. It is outside the
+  subject roster. Selection rejects overlap by target ID, exact route, and
+  provider plus upstream model identity.
+- The panel file records the intended promotion design (Part 0: 48 roots per
+  condition; Part 2: 12 trajectories). The deadline execution is smaller and
+  must always be reported separately: Part 0 uses 24 roots per condition and
+  Part 2 uses eight trajectories per model.
 
-1. Authenticated catalog, exhaustive minimal-chat census, fixed-registry
-   compatibility, and broad SOTA compatibility are complete. These exploratory
-   artifacts do not automatically promote the production registry or bypass
-   the frozen confirmatory approvals.
-2. The replacement large-N hosted Part 1 execution remains frozen over 81 unique
-   callable subjects: 79 in the shared main pass and the two operationally
-   overloaded Kimi routes in isolated reruns. Until all journals lock and strict
-   analysis passes, no model rates may be
-   reported. Identity-mismatched or terminally failed targets
-   are quarantined whole and rerun separately; unavailable routes are never
-   substituted.
-3. The Part 0 registry and Part 1 bank still require genuine language/content
-   review and approvals. The judge audit requires two independent qualified
-   annotators plus adjudication.
-4. Part 2 confirmatory trajectories and the separately gated sensitivity panel
-   have not been executed; no confirmatory uncertainty claim exists yet.
-5. Anonymous reviewer-accessible code/dataset hosting, a real Croissant landing
-   URL, and official Croissant validation remain submission-time requirements.
-6. The NeurIPS 2026 E&D full-paper/data/code deadline was May 6, 2026 AoE. If
-   no final-form package was submitted by that deadline, this repository cannot
-   create a new 2026 submission retroactively; an existing OpenReview package
-   must be audited, or the completed work must target a later venue.
+### Part 0: response-only safety refusal
 
-## Exact next execution order
+- Live artifact:
+  `data/private/inference_hub/part0-sota-panel-v2-n24`.
+- Design: 24 matched systems, 24 archived English harmful-request roots, and
+  three explicit response-language instructions (English, Chinese, Russian),
+  for 72 cells per system and 1,728 subject calls.
+- The inputs are English requests with reconstructed response-language
+  conditions. They are not retained multilingual input translations and must
+  never be described that way.
+- The fixed disjoint judge scores only the visible final response, in batches of
+  eight. Judge failures remain explicitly unjudged and are not converted into
+  refusals or compliance labels.
+- The deadline artifact has no benign controls and no completed blinded human
+  validation. It may support exploratory response-only findings, but not the
+  validated Part 0 promotion or cross-axis gate.
+- The older `part0-sota-panel-v1` partial run is preserved and excluded.
 
-1. Execute and lock the rate-limited 79-subject x 384-root hosted Part 1 main
-   panel, then run both Kimi routes in isolation and rerun every other
-   operationally quarantined target separately without substitution.
-2. Validate journals and generate only the nonpromotable aggregate artifact with
-   5,000-replicate stratified root bootstrap intervals.
-3. Complete genuine Part 0/Part 1 human reviews and the Part 0 two-annotator
-   audit before any confirmatory promotion.
-4. Execute only genuinely approved confirmatory phases under the frozen budget,
-   then rebuild every paper-facing table, figure, manifest, Croissant file, and
-   supplement.
-5. Repeat strict validation, clean extraction, the final check-paper pass, full
-   PDF visual review, anonymity scan, and fresh context-free NeurIPS reviews.
+### Part 1: balanced one-shot cooperation
+
+- Main live artifact:
+  `data/private/inference_hub/part1-sota-balanced-main75-v1-n96`.
+- Main design: 75 routes, 96 roots per route, with exactly eight roots in each
+  of 12 game-by-domain strata.
+- Slow-route live artifact:
+  `data/private/inference_hub/part1-sota-balanced-slow2-v2-n12`.
+- Slow-route design: MiniMax M3 and Qwen3.5 397B, 12 roots per route, with one
+  root in each of the same 12 strata. Earlier n=96 slow-route attempts are
+  preserved and excluded.
+- Full-bank live artifact:
+  `data/private/inference_hub/part1-sota-deadline-glm51-v1`.
+- Full-bank design: GLM-5.1 over all 384 balanced roots.
+- The target roster contains 81 identities. Seventy-eight are being observed:
+  75 at n=96, two at n=12, and GLM-5.1 at n=384. Kimi K2.5, Kimi K2.6, and
+  GLM-5.2 are explicitly unavailable, with no substitutions.
+- Direct self-choice is the primary estimand. Invalid formats are retained as
+  non-cooperation for the executed direct-choice estimand. Advice, observer,
+  and prediction roles are distinct probes and are not pooled with self-choice.
+- The deterministic balanced bank has not received the planned human approval,
+  so hosted Part 1 outcomes are exploratory descriptive results. Unbalanced
+  prefix-limited shards and older partial main runs are preserved and excluded.
+
+### Part 2: corrected repeated commons restraint
+
+- Live artifact:
+  `data/private/inference_hub/part2-sota-matched-v1-n8`.
+- Design: 24 matched systems, eight common-seed independent trajectories per
+  system, five agents, 12 days, and resource capacity 50.
+- Option A provides private payoff +1 and no reserve loss. Option B provides
+  private payoff +2 and removes two reserve units. Unanimous A adds five group
+  payoff units and unanimous B removes five.
+- Invalid visible outputs are retained as zero-effect `INVALID` actions with no
+  semantic retry. Transport failures and identity mismatches remain operational
+  failures and prevent a complete evidence lock.
+- Primary trajectory-level metrics are restraint rate, reserve nondepletion,
+  final reserve, population retention, area under the reserve curve, area under
+  the population curve, and cumulative private and group payoffs.
+- Continuous metric uncertainty uses trajectory-level t intervals; reserve
+  nondepletion uses a Wilson interval. The executed n=8 design does not satisfy
+  the intended n=12 cross-axis promotion gate and includes no separate
+  sensitivity panel.
+- `part2-production-smoke-v1` completed a full production-shaped trajectory and
+  verified the repaired dispatch, prompt, and dynamics path before the matched
+  launch.
+
+## Execution and provenance controls
+
+- All five production processes run concurrently with a single owner per output
+  directory. Resumption is allowed only when manifest, source, input, identity,
+  and journal bindings match.
+- The shared cross-process limiter enforces durable leases, heartbeats, provider
+  and global concurrency and request-rate ceilings, `Retry-After`, and 30-second
+  cooldowns for HTTP 429 and every HTTP 5xx response. SDK retries are disabled.
+- Private journals reserve attempts before dispatch, append with fsync, and form
+  SHA-256 chains. Manifests bind exact routes, selected compatibility profiles,
+  source hashes, immutable schedules, request hashes, and raw-response hashes.
+- Private prompt, response, reasoning, route, and key material must never enter
+  Git, the paper, public aggregates, Croissant metadata, or the supplement.
+- Four pinned local Hugging Face controls completed 1,536 Part 1 generations in
+  a separate private artifact. They remain exploratory controls and are not
+  substitutes for unavailable hosted systems.
+
+## Paper and artifact state
+
+- `docs/conference_submission/conference_submission.tex` has the exact title
+  **Safety Beyond Refusal** and the restored three-axis motivation. Unsupported
+  legacy Part 0, broken-engine Part 2, cross-part, pooled-role, and latent-trait
+  claims and figures have been removed.
+- `docs/conference_submission/working_draft.pdf` is an ignored link to the
+  compiled submission PDF and must be refreshed after every paper-facing change.
+- `analysis/build_final_results.py` is the fail-closed paper-results builder. It
+  validates complete manifests and their chains and emits only sanitized JSON,
+  CSV, LaTeX, and figure outputs. Cross-axis analysis remains withheld unless
+  the human-validation and intended sample-size gates pass.
+- Release documentation and `analysis/build_croissant_metadata.py` are being
+  aligned to the mixed Part 1 sample sizes. The checked-in Croissant file must
+  be regenerated only after the final results artifact exists.
+- The anonymous supplement builder excludes `.env`, keys, private/raw data,
+  deprecated/interrupted runs, journals, and harmful text. A final clean-extract
+  build and reproduction test remain mandatory.
+
+## Current execution status
+
+- Active process ownership was verified on 2026-08-02 for all five artifacts:
+  Part 0 n=24, Part 1 main n=96, Part 1 slow n=12, Part 1 GLM-5.1 n=384, and
+  Part 2 n=8.
+- Manifests remain `complete: false` while execution is in progress. Paper-facing
+  outcomes stay locked until every planned unit for the retained artifact is
+  present and strict validation passes.
+
+## Remaining critical path
+
+1. Let the five live jobs finish; diagnose and isolate any terminal route
+   failures without launching duplicate output owners.
+2. Validate manifests, source/input hashes, identities, attempt chains, exact
+   target coverage, balanced strata, and complete sampling units.
+3. Build final sanitized results, intervals, tables, and figures, then verify
+   every reported number directly against those outputs.
+4. Insert only verified results into the abstract, results, discussion,
+   limitations, and conclusion; compile and inspect the full PDF.
+5. Regenerate Croissant metadata and the anonymous supplement, reproduce from a
+   clean extracted ZIP without a Git object store, and run the full repository
+   test suite and strict data validation.
+6. Complete check-paper passes two and three, including context-fresh scientific,
+   statistical, visual, citation, anonymity, secret, placeholder, and format
+   audits.
+7. Push each coherent checkpoint to `origin/master`; finish with the exact final
+   commit hash.
+
+## External gates
+
+- Blinded two-annotator Part 0 validation and adjudication are not complete.
+- The balanced Part 1 bank has not received the planned human approval.
+- The deadline Part 2 run has eight rather than 12 trajectories per model and
+  does not include the planned sensitivity grid.
+- Anonymous reviewer-accessible hosting and official external Croissant
+  validation cannot be manufactured inside this repository.

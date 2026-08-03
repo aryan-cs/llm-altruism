@@ -1,7 +1,9 @@
-"""Build the paper-facing MLCommons Croissant metadata.
+"""Build Croissant metadata from the sanitized Safety Beyond Refusal results.
 
-The graph describes release-safe raw Part 1/Part 2 traces and their derived
-analysis files. Raw Part 0 prompts and completions remain intentionally absent.
+The generator is deliberately fail closed.  It does not describe legacy raw
+CSVs, private hosted manifests, or interrupted panel outputs.  It accepts only
+the text-free, self-hashed artifact produced by ``analysis.build_final_results``
+and the CSVs that artifact hash-binds.
 """
 
 from __future__ import annotations
@@ -14,177 +16,84 @@ import math
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable
+from typing import Any, Iterable, Mapping
 from urllib.parse import urlparse
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_FINAL_RESULTS_DIR = REPOSITORY_ROOT / "data" / "analysis" / "final_results"
 DEFAULT_OUTPUT = REPOSITORY_ROOT / "data" / "analysis" / "croissant_metadata.json"
 
 CORE_SPEC = "http://mlcommons.org/croissant/1.1"
 RAI_SPEC = "http://mlcommons.org/croissant/RAI/1.0"
-DATASET_VERSION = "0.1.0"
+DATASET_VERSION = "0.2.0"
 METADATA_VERSION = "1.0.0"
 DATE_CREATED = "2026-04-30"
 DATE_PUBLISHED = "2026-08-02"
 DATE_MODIFIED = "2026-08-02"
 
-# This is the official Croissant 1.1 context emitted by mlcroissant 1.1.0.  The
-# aliases matter: spelling ``recordSet`` without mapping it to ``cr:recordSet``
-# silently produces a schema.org property and mlcroissant loads zero records.
 CROISSANT_CONTEXT: dict[str, object] = {
-    "@language": "en",
-    "@vocab": "https://schema.org/",
-    "arrayShape": "cr:arrayShape",
-    "citeAs": "cr:citeAs",
-    "column": "cr:column",
-    "conformsTo": "dct:conformsTo",
-    "containedIn": "cr:containedIn",
-    "cr": "http://mlcommons.org/croissant/",
-    "rai": "http://mlcommons.org/croissant/RAI/",
+    "@language": "en", "@vocab": "https://schema.org/",
+    "arrayShape": "cr:arrayShape", "citeAs": "cr:citeAs",
+    "column": "cr:column", "conformsTo": "dct:conformsTo",
+    "containedIn": "cr:containedIn", "cr": "http://mlcommons.org/croissant/",
+    "rai": "http://mlcommons.org/croissant/RAI/1.0",
     "data": {"@id": "cr:data", "@type": "@json"},
     "dataType": {"@id": "cr:dataType", "@type": "@vocab"},
-    "dct": "http://purl.org/dc/terms/",
-    "description": {"@container": "@language"},
-    "equivalentProperty": "cr:equivalentProperty",
-    "examples": {"@id": "cr:examples", "@type": "@json"},
-    "extract": "cr:extract",
-    "field": "cr:field",
-    "fileProperty": "cr:fileProperty",
-    "fileObject": "cr:fileObject",
-    "fileSet": "cr:fileSet",
-    "format": "cr:format",
-    "includes": "cr:includes",
-    "isArray": "cr:isArray",
-    "isLiveDataset": "cr:isLiveDataset",
-    "jsonPath": "cr:jsonPath",
-    "key": "cr:key",
-    "md5": "cr:md5",
-    "name": {"@container": "@language"},
-    "parentField": "cr:parentField",
-    "path": "cr:path",
-    "prov": "http://www.w3.org/ns/prov#",
-    "recordSet": "cr:recordSet",
-    "references": "cr:references",
-    "regex": "cr:regex",
-    "repeated": "cr:repeated",
-    "replace": "cr:replace",
-    "samplingRate": "cr:samplingRate",
-    "sc": "https://schema.org/",
-    "separator": "cr:separator",
-    "source": "cr:source",
-    "subField": "cr:subField",
-    "transform": "cr:transform",
+    "dct": "http://purl.org/dc/terms/", "description": {"@container": "@language"},
+    "equivalentProperty": "cr:equivalentProperty", "examples": {"@id": "cr:examples", "@type": "@json"},
+    "extract": "cr:extract", "field": "cr:field", "fileProperty": "cr:fileProperty",
+    "fileObject": "cr:fileObject", "fileSet": "cr:fileSet", "format": "cr:format",
+    "includes": "cr:includes", "isArray": "cr:isArray", "isLiveDataset": "cr:isLiveDataset",
+    "jsonPath": "cr:jsonPath", "key": "cr:key", "md5": "cr:md5",
+    "name": {"@container": "@language"}, "parentField": "cr:parentField",
+    "path": "cr:path", "prov": "http://www.w3.org/ns/prov#",
+    "recordSet": "cr:recordSet", "references": "cr:references", "regex": "cr:regex",
+    "repeated": "cr:repeated", "replace": "cr:replace", "samplingRate": "cr:samplingRate",
+    "sc": "https://schema.org/", "separator": "cr:separator", "source": "cr:source",
+    "subField": "cr:subField", "transform": "cr:transform",
 }
+
+
+class CroissantBuildError(RuntimeError):
+    """Final sanitized evidence is absent, incomplete, or privacy-unsafe."""
 
 
 @dataclass(frozen=True)
 class ReleaseFile:
     object_id: str
-    path: str
+    path: Path
     description: str
     encoding_format: str
     records: bool = False
 
 
-DERIVED_RELEASE_FILES = (
-    ReleaseFile(
-        "part1-dimension-summary",
-        "data/analysis/tables/part1_dimension_summary.csv",
-        "Part 1 cooperation rates by model and experimental dimension.",
-        "text/csv",
-        True,
+FINAL_OUTPUT_SPECS = {
+    "part0_csv": (
+        "part0-model-rates", "Part 0 exploratory refusal summaries over 24 English-source roots crossed with three response-language instructions."
     ),
-    ReleaseFile(
-        "part1-factor-decomposition",
-        "data/analysis/tables/part1_factor_decomposition.csv",
-        "Descriptive balanced main-effect variance decomposition for Part 1 binary cooperation.",
-        "text/csv",
-        True,
+    "part1_csv": (
+        "part1-model-rates", "Part 1 exploratory self-choice summaries for 75 routes at 96 roots, two slower routes at 12 roots, and one separate 384-root route."
     ),
-    ReleaseFile(
-        "part1-frame-effects",
-        "data/analysis/tables/part1_frame_effects.csv",
-        "Part 1 frame-level cooperation rates and percentage-point effects.",
-        "text/csv",
-        True,
+    "part2_csv": (
+        "part2-model-metrics", "Part 2 corrected commons metrics for 24 matched systems with eight independent trajectories each."
     ),
-    ReleaseFile(
-        "part1-model-summary",
-        "data/analysis/tables/part1_model_summary.csv",
-        "Model-level focal-dilemma cooperation summary table.",
-        "text/csv",
-        True,
+    "cross_axis_csv": (
+        "cross-axis-spearman", "Descriptive matched-panel associations, emitted only when every preregistered evidence gate passes."
     ),
-    ReleaseFile(
-        "part1-prompt-sensitivity",
-        "data/analysis/tables/part1_prompt_sensitivity.csv",
-        "Per-model prompt-sensitivity ranges across Part 1 dimensions.",
-        "text/csv",
-        True,
-    ),
-    ReleaseFile(
-        "part2-model-summary",
-        "data/analysis/tables/part2_model_summary.csv",
-        "Model-level summary of stored OPTION_A tokens and mechanically downstream state in contract-mismatched Part 2 traces.",
-        "text/csv",
-        True,
-    ),
-    ReleaseFile(
-        "part2-run-summary",
-        "data/analysis/tables/part2_run_summary.csv",
-        "Run-level summary of stored OPTION_A tokens and mechanically downstream state in contract-mismatched Part 2 traces.",
-        "text/csv",
-        True,
-    ),
-    ReleaseFile(
-        "validation-report",
-        "data/analysis/validation/validation_report.json",
-        "Graph-independent validation report for paper-used data files.",
-        "application/json",
-    ),
-    ReleaseFile(
-        "run-manifest",
-        "data/analysis/run_manifest.jsonl",
-        "Manifest linking raw runs, metadata sidecars, validation status, and derived analysis artifacts.",
-        "application/x-ndjson",
-    ),
+}
+_FORBIDDEN_KEYS = (
+    "message", "prompt", "raw_response", "reasoning", "requested_route",
+    "response_text", "route", "visible_response",
 )
 
 
-def _raw_release_files(part: int) -> tuple[ReleaseFile, ...]:
-    raw_directory = REPOSITORY_ROOT / "data" / "raw" / f"part_{part}"
-    paths = sorted(raw_directory.glob("*.csv"))
-    expected = 13
-    if len(paths) != expected:
-        raise RuntimeError(
-            f"expected {expected} release-safe Part {part} raw CSVs, found {len(paths)}"
-        )
-    if part == 1:
-        description = (
-            "Raw Part 1 focal-dilemma prompt, action-token, and justification trace."
-        )
-    elif part == 2:
-        description = (
-            "Raw Part 2 prompt--engine contract-audit token and state trace; not a "
-            "commons-preference measurement."
-        )
-    else:  # pragma: no cover - construction is fixed above
-        raise ValueError("only release-safe Parts 1 and 2 may enter Croissant metadata")
-    return tuple(
-        ReleaseFile(
-            object_id=f"part{part}-raw-{index:02d}",
-            path=path.relative_to(REPOSITORY_ROOT).as_posix(),
-            description=description,
-            encoding_format="text/csv",
-            records=True,
-        )
-        for index, path in enumerate(paths, start=1)
-    )
-
-
-RAW_RELEASE_FILES = _raw_release_files(1) + _raw_release_files(2)
-RELEASE_FILES = RAW_RELEASE_FILES + DERIVED_RELEASE_FILES
+def _canonical_hash(payload: Mapping[str, Any]) -> str:
+    unhashed = {key: value for key, value in payload.items() if key != "evidence_sha256"}
+    encoded = json.dumps(
+        unhashed, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def _sha256(path: Path) -> str:
@@ -193,6 +102,110 @@ def _sha256(path: Path) -> str:
         for block in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(block)
     return digest.hexdigest()
+
+
+def _reject_sensitive_keys(value: object, path: str = "root") -> None:
+    if isinstance(value, Mapping):
+        for key, child in value.items():
+            normalized = str(key).casefold()
+            if not normalized.startswith("contains_") and any(
+                marker == normalized or marker in normalized for marker in _FORBIDDEN_KEYS
+            ):
+                raise CroissantBuildError(f"forbidden private field at {path}.{key}")
+            _reject_sensitive_keys(child, f"{path}.{key}")
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            _reject_sensitive_keys(child, f"{path}[{index}]")
+
+
+def _validated_final_results(final_results_dir: Path) -> tuple[dict[str, Any], tuple[ReleaseFile, ...]]:
+    directory = final_results_dir.resolve()
+    artifact_path = directory / "final_results.json"
+    try:
+        artifact = json.loads(artifact_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise CroissantBuildError(
+            f"sanitized final results are unavailable or unreadable: {artifact_path}"
+        ) from error
+    if (
+        not isinstance(artifact, dict)
+        or artifact.get("schema_version") != 1
+        or artifact.get("artifact_type") != "prosocial_readiness_final_sanitized_results"
+        or artifact.get("evidence_sha256") != _canonical_hash(artifact)
+    ):
+        raise CroissantBuildError("final-results schema, type, or self-hash is invalid")
+    privacy = artifact.get("privacy_contract")
+    required_privacy = {
+        "contains_prompt_text", "contains_response_text", "contains_reasoning",
+        "contains_raw_responses", "contains_routes",
+    }
+    if (
+        not isinstance(privacy, Mapping)
+        or set(privacy) != required_privacy
+        or any(privacy.values())
+    ):
+        raise CroissantBuildError("final-results privacy contract is absent or unsafe")
+    _reject_sensitive_keys(artifact)
+
+    part0 = artifact.get("part0")
+    part1 = artifact.get("part1")
+    part2 = artifact.get("part2")
+    if not all(isinstance(rows, list) for rows in (part0, part1, part2)):
+        raise CroissantBuildError("final-results axis rows are absent")
+    p0_ids = {row.get("target_id") for row in part0 if isinstance(row, Mapping)}
+    p2_ids = {row.get("target_id") for row in part2 if isinstance(row, Mapping)}
+    p1_ids = {row.get("target_id") for row in part1 if isinstance(row, Mapping)}
+    balanced = [row for row in part1 if isinstance(row, Mapping) and row.get("scope") == "balanced_partial"]
+    full = [row for row in part1 if isinstance(row, Mapping) and row.get("scope") == "full_384"]
+    balanced_counts = {
+        count: sum(row.get("root_count") == count for row in balanced)
+        for count in (12, 96)
+    }
+    if (
+        len(part0) != len(p0_ids) != 0
+        or len(part2) != len(p2_ids) != 0
+        or len(p0_ids) != 24
+        or p0_ids != p2_ids
+        or len(part1) != 78
+        or len(p1_ids) != 78
+        or any(row.get("root_count_per_condition") != 24 for row in part0)
+        or any(row.get("trajectory_count") != 8 for row in part2)
+        or len(balanced) != 77
+        or len(full) != 1
+        or balanced_counts != {12: 2, 96: 75}
+        or full[0].get("root_count") != 384
+        or not p0_ids <= p1_ids
+    ):
+        raise CroissantBuildError(
+            "final-results coverage differs from the executed 24-matched/75x96+2x12+1x384 Part 1 design"
+        )
+
+    outputs = artifact.get("outputs")
+    if not isinstance(outputs, Mapping):
+        raise CroissantBuildError("final-results output bindings are absent")
+    releases = [
+        ReleaseFile(
+            "final-results", artifact_path,
+            "Self-hashed, text-free Safety Beyond Refusal result graph and evidence-status record.",
+            "application/json", False,
+        )
+    ]
+    for key, (object_id, description) in FINAL_OUTPUT_SPECS.items():
+        binding = outputs.get(key)
+        if binding is None and key == "cross_axis_csv":
+            continue
+        if not isinstance(binding, Mapping) or set(binding) != {"path", "file_sha256"}:
+            raise CroissantBuildError(f"final-results binding {key} is malformed")
+        relative = binding.get("path")
+        if not isinstance(relative, str) or not relative:
+            raise CroissantBuildError(f"final-results binding {key} lacks a path")
+        path = (directory / relative).resolve()
+        if path.parent != directory or path.suffix != ".csv" or not path.is_file():
+            raise CroissantBuildError(f"final-results binding {key} escapes or is missing")
+        if binding.get("file_sha256") != _sha256(path):
+            raise CroissantBuildError(f"final-results binding {key} hash changed")
+        releases.append(ReleaseFile(object_id, path, description, "text/csv", True))
+    return artifact, tuple(releases)
 
 
 def _is_integer(value: str) -> bool:
@@ -229,7 +242,7 @@ def _csv_schema(path: Path) -> tuple[list[str], dict[str, str]]:
     with path.open(newline="", encoding="utf-8") as handle:
         reader = csv.DictReader(handle)
         if not reader.fieldnames:
-            raise ValueError(f"CSV has no header: {path}")
+            raise CroissantBuildError(f"CSV has no header: {path}")
         columns = list(reader.fieldnames)
         values = {column: [] for column in columns}
         for row in reader:
@@ -252,187 +265,123 @@ def _validate_dataset_url(dataset_url: str | None) -> str | None:
 
 
 def build_metadata(
-    *,
-    repository_root: Path = REPOSITORY_ROOT,
+    *, repository_root: Path = REPOSITORY_ROOT,
+    final_results_dir: Path | None = None,
     output_path: Path = DEFAULT_OUTPUT,
     dataset_url: str | None = None,
 ) -> dict[str, object]:
-    """Return deterministic Croissant JSON-LD for the current release files."""
+    """Return Croissant JSON-LD only for validated sanitized final artifacts."""
 
     dataset_url = _validate_dataset_url(dataset_url)
+    final_dir = final_results_dir or repository_root / "data" / "analysis" / "final_results"
+    artifact, release_files = _validated_final_results(final_dir)
     distributions: list[dict[str, object]] = []
     record_sets: list[dict[str, object]] = []
-
-    for release_file in RELEASE_FILES:
-        source_path = (repository_root / release_file.path).resolve()
-        if not source_path.is_file():
-            raise FileNotFoundError(f"missing Croissant distribution: {source_path}")
+    for release_file in release_files:
+        source_path = release_file.path.resolve()
         try:
-            content_url = Path(
-                os.path.relpath(source_path, output_path.parent.resolve())
-            ).as_posix()
+            content_url = Path(os.path.relpath(source_path, output_path.parent.resolve())).as_posix()
         except ValueError as error:
             raise ValueError(f"cannot make {source_path} relative to {output_path}") from error
-        distributions.append(
-            {
-                "@type": "cr:FileObject",
-                "@id": release_file.object_id,
-                "name": source_path.name,
-                "description": release_file.description,
-                "contentUrl": content_url,
-                "contentSize": f"{source_path.stat().st_size} B",
-                "encodingFormat": release_file.encoding_format,
-                "sha256": _sha256(source_path),
-            }
-        )
+        distributions.append({
+            "@type": "cr:FileObject", "@id": release_file.object_id,
+            "name": source_path.name, "description": release_file.description,
+            "contentUrl": content_url, "contentSize": f"{source_path.stat().st_size} B",
+            "encodingFormat": release_file.encoding_format, "sha256": _sha256(source_path),
+        })
         if release_file.records:
             columns, types = _csv_schema(source_path)
             record_set_id = f"{release_file.object_id}-records"
-            fields = [
-                {
-                    "@type": "cr:Field",
-                    "@id": f"{record_set_id}/{column}",
-                    "name": column,
-                    "description": f"Column `{column}` from {source_path.name}.",
+            record_sets.append({
+                "@type": "cr:RecordSet", "@id": record_set_id,
+                "name": f"{source_path.stem.replace('_', ' ').title()} records",
+                "description": release_file.description,
+                "field": [{
+                    "@type": "cr:Field", "@id": f"{record_set_id}/{column}",
+                    "name": column, "description": f"Column `{column}` from {source_path.name}.",
                     "dataType": types[column],
-                    "source": {
-                        "fileObject": {"@id": release_file.object_id},
-                        "extract": {"column": column},
-                    },
-                }
-                for column in columns
-            ]
-            record_sets.append(
-                {
-                    "@type": "cr:RecordSet",
-                    "@id": record_set_id,
-                    "name": f"{source_path.stem.replace('_', ' ').title()} records",
-                    "description": release_file.description,
-                    "field": fields,
-                }
-            )
+                    "source": {"fileObject": {"@id": release_file.object_id}, "extract": {"column": column}},
+                } for column in columns],
+            })
 
+    cross_status = artifact.get("cross_axis", {}).get("status") if isinstance(artifact.get("cross_axis"), Mapping) else None
     metadata: dict[str, object] = {
-        "@context": CROISSANT_CONTEXT,
-        "@type": "sc:Dataset",
+        "@context": CROISSANT_CONTEXT, "@type": "sc:Dataset",
         "conformsTo": [CORE_SPEC, RAI_SPEC],
-        "name": "Prosocial Cost-Shifting Bench",
+        "name": "Prosocial Readiness Bench",
         "description": (
-            "A negative benchmark-audit artifact. Part 1 contains descriptive action-token "
-            "profiles for hypothetical dilemmas. Part 2 contains traces from a prompt--engine "
-            "contract mismatch and supports protocol diagnosis and transition replay, not "
-            "commons-preference measurement. The legacy Part 0 label audit is documented in "
-            "the paper, but harmful raw content, invalid refusal rates, and their cross-part "
-            "derivatives are not distributed."
+            "Release-safe aggregate artifacts for Safety Beyond Refusal, a three-axis evaluation "
+            "of harmful-request refusal, welfare-preserving self-choice, and repeated commons "
+            "preservation. Part 0 and the balanced Part 1 expansion remain exploratory because "
+            "their human/content approval gates are incomplete; Part 2 uses a corrected engine "
+            "with eight independent common-seed trajectories per matched system."
         ),
-        "version": DATASET_VERSION,
-        "cr:sdVersion": METADATA_VERSION,
-        "dateCreated": DATE_CREATED,
-        "datePublished": DATE_PUBLISHED,
+        "version": DATASET_VERSION, "cr:sdVersion": METADATA_VERSION,
+        "dateCreated": DATE_CREATED, "datePublished": DATE_PUBLISHED,
         "dateModified": DATE_MODIFIED,
         "creator": [{"@type": "sc:Organization", "name": "Anonymous Authors"}],
         "publisher": {"@type": "sc:Organization", "name": "Anonymous Authors"},
-        "license": "https://opensource.org/license/mit",
-        "sdLicense": "https://opensource.org/license/mit",
-        "citeAs": (
-            "Anonymous Authors. When a Benchmark Fails Its Audit. Anonymous conference submission, 2026."
-        ),
-        "keywords": [
-            "large language models",
-            "behavioral evaluation",
-            "safety refusal",
-            "cooperation",
-            "prompt-engine contract audit",
-            "agent simulation",
-        ],
-        "isAccessibleForFree": True,
-        "rai:hasSyntheticData": True,
-        "prov:wasDerivedFrom": [
-            {
-                "@type": "sc:CreativeWork",
-                "name": "April 2026 Part 1 and Part 2 model-generated pilot traces",
-                "description": (
-                    "The exact release-safe raw CSV distributions and metadata sidecars "
-                    "bound by the repository run manifest and provenance checks."
-                ),
-            }
-        ],
+        "license": "https://opensource.org/license/mit", "sdLicense": "https://opensource.org/license/mit",
+        "citeAs": "Anonymous Authors. Safety Beyond Refusal. Anonymous conference submission, 2026.",
+        "keywords": ["large language models", "safety refusal", "cooperation", "commons preservation", "behavioral evaluation"],
+        "isAccessibleForFree": True, "rai:hasSyntheticData": True,
+        "prov:wasDerivedFrom": [{
+            "@type": "sc:CreativeWork", "name": "Executed hosted Prosocial Readiness Bench panels",
+            "description": "Twenty-four matched systems for Parts 0 and 2, plus 75 Part 1 routes at 96 roots, two at 12 roots, and one separate 384-root route (78 observed of 81 frozen targets).",
+        }],
         "prov:wasGeneratedBy": {
-            "@type": "sc:SoftwareApplication",
-            "name": "Prosocial Cost-Shifting Bench deterministic analysis pipeline",
+            "@type": "sc:SoftwareApplication", "name": "Prosocial Readiness Bench fail-closed final-results pipeline",
             "softwareVersion": DATASET_VERSION,
-            "description": (
-                "analysis.validation, analysis.summarize_results, analysis.build_manifest, "
-                "and analysis.build_croissant_metadata"
-            ),
+            "description": "analysis.build_final_results followed by analysis.build_croissant_metadata",
         },
         "conditionsOfAccess": (
-            "The anonymous release exposes derived tables, validation reports, the "
-            "run manifest, metadata, code, figures, and raw Part 1/Part 2 traces. Raw "
-            "Part 0 harmful content and every invalid legacy-label rate/correlation "
-            "table or plot are excluded."
+            "Only sanitized aggregate tables and their text-free self-hashed result graph are released. "
+            "Provider credentials, private manifests, harmful prompts, visible responses, reasoning, raw journals, and interrupted artifacts are excluded."
         ),
         "rai:dataCollection": (
-            "Rows are generated by executable experiments and summarized by the repository "
-            "analysis pipeline. Part 0's legacy labels are excluded after a response-only "
-            "audit found material instability; Part 1 uses constrained choices in hypothetical "
-            "dilemmas; Part 2 uses repeated stateless calls under a prompt whose stated score "
-            "contract was never implemented by the engine."
+            "Part 0 executes 24 archived English harmful-request roots under English, Chinese, and Russian response-language instructions. "
+            "Part 1 executes 75 routes on 96 balanced roots, two slower routes on 12 balanced roots each, and one separate route on all 384 roots. "
+            "Part 2 executes eight independent corrected 12-step trajectories for each of the 24 matched systems."
         ),
         "rai:dataCollectionType": ["Experiments", "Software Collection"],
-        "rai:dataCollectionRawData": (
-            "Stored model responses, structured decisions, simulation state, and "
-            "metadata sidecars. Raw Part 0 harmful content is not distributed in the "
-            "anonymous release."
-        ),
+        "rai:dataCollectionRawData": "Private model responses and execution journals are retained for provenance but are not distributions in this release.",
         "rai:dataAnnotationProtocol": (
-            "No Part 0 model-level label distribution is released. Part 1 action labels and "
-            "Part 2 stored OPTION_A/OPTION_B tokens are deterministic mappings from constrained "
-            "outputs. Part 2 state columns are mechanically downstream of those tokens under "
-            "the recorded engine, not behavioral annotations. Human labels are never imputed."
+            "Part 0 uses one fixed judge that sees only visible subject responses; its aggregate remains exploratory until human validation. "
+            "Parts 1 and 2 use deterministic structured-action parsing and retain malformed actions as nonsuccesses."
         ),
-        "rai:machineAnnotationTools": [
-            "Deterministic Part 1/Part 2 analysis code."
-        ],
+        "rai:machineAnnotationTools": ["Fixed disjoint Part 0 judge and deterministic structured-output parsers."],
         "rai:dataPreprocessingProtocol": [
-            "Exclude invalid legacy Part 0 labels and all dependent model-level summaries.",
-            "Aggregate Part 1 self-direct choices as the primary cooperation measure while retaining role-conditioned diagnostics.",
-            "Summarize each Part 2 contract-mismatched trajectory and replay its deterministic resource and population transitions without treating it as a commons-preference estimate.",
-            "Exclude raw Part 0 harmful prompts and completions from the anonymous supplement.",
+            "Validate complete self-hashed manifests and exact response-model identity.",
+            "Retain invalid and unclear scheduled units in denominators.",
+            "Preserve every Part 1 target's observed root count and never pool the 12-root, 96-root, and 384-root estimates.",
+            "Emit text-free aggregates only after output hashes and privacy flags pass.",
         ],
         "rai:dataUseCases": [
-            "Protocol diagnosis, trace validation, and reproduction of Part 1 descriptive action-label summaries.",
-            "Inspection of the Part 2 prompt--engine mismatch and deterministic transition replay; not behavioral comparison.",
-            "Validation and reproduction of the released paper's aggregate analysis.",
-            "Not supported: training harmful-compliance models, globally ranking models as prosocial, or treating pilot results as production safety certification.",
+            "Reproduce the paper's evidence-status-aware aggregate summaries.",
+            "Study task-specific refusal, self-choice, and commons preservation without treating them as a latent moral trait.",
+            "Not supported: training on harmful content, global prosocial rankings, or deployment safety certification.",
         ],
         "rai:dataLimitations": [
-            "Descriptive pilot over a limited local/open-weight model cohort; results do not estimate all models or deployment settings.",
-            "Part 0 uses a fixed multilingual harmful-prompt set; response-only refusal claims still require the documented human audit.",
-            "Part 1 uses fixed one-shot focal and role-conditioned prompts.",
-            "Part 2's prompt described private and group scores that the engine never computed, stored, or fed back; its traces cannot estimate commons preference.",
-            "Part 2 also uses homogeneous same-model policies, simplified reserve dynamics, stateless calls, and one pilot trajectory per model.",
-            "The artifact does not measure moral agency, general human prosociality, or deployment safety outside the stated protocols.",
+            "Part 0 reconstructs response-language instructions over English inputs, has no benign controls, and lacks completed human judge validation.",
+            "The Part 1 bank lacks independent content approval; the two 12-root routes, 75 96-root routes, and single 384-root route have different support and are not pooled.",
+            "Part 2 has eight rather than the intended twelve independent trajectories per system and no parameter-sensitivity analysis.",
+            f"Cross-axis artifact status is {cross_status!r}; associations are not paper evidence unless every gate passes.",
+            "The tasks measure observable outputs in artificial settings, not intent, moral status, or unrestricted deployment behavior.",
         ],
         "rai:dataBiases": [
-            "Selection bias can arise from the fixed harmful-prompt sample, English/Chinese/Russian coverage, benchmark-derived sources, and locally runnable model cohort.",
-            "Label bias can arise from the automated Part 0 judge and deterministic mappings from constrained action tokens.",
-            "The contract-mismatched repeated-resource protocol abstracts away cultural, institutional, heterogeneous-agent, and deployment-context effects.",
+            "Fixed prompt-bank, reconstructed-language, route-availability, developer-family, and constrained-action selection effects may shape results.",
+            "Related systems from one developer are not independent samples from a model population.",
         ],
         "rai:personalSensitiveInformation": [
-            "No human-subject records or personally identifying user data are collected. Raw Part 0 model outputs may contain unsafe generated content and are excluded from the anonymous release."
+            "No human-subject records or personal user data are collected; harmful model text remains private and is excluded from this release."
         ],
         "rai:dataSocialImpact": (
-            "The artifact improves traceability of multi-axis LLM behavior, but limited "
-            "coverage and simplified games can support overclaiming or unfair model "
-            "comparisons. Excluding raw harmful content and documenting uncertainty "
-            "reduces, but does not eliminate, these risks."
+            "Separate axes and explicit evidence gates reduce unsupported model rankings, but simplified tasks and finite route coverage still invite overgeneralization."
         ),
         "rai:dataReleaseMaintenancePlan": [
-            "The checked metadata is regenerated with analysis.build_croissant_metadata whenever a released distribution changes; checksums, sizes, schemas, metadata version, and modification date must be reviewed before publication."
+            "Regenerate only from an immutable sanitized final-results directory; any missing file, hash mismatch, private field, or coverage change blocks metadata emission."
         ],
-        "distribution": distributions,
-        "recordSet": record_sets,
+        "distribution": distributions, "recordSet": record_sets,
     }
     if dataset_url is not None:
         metadata["url"] = dataset_url
@@ -440,34 +389,32 @@ def build_metadata(
 
 
 def write_metadata(
-    output_path: Path = DEFAULT_OUTPUT, *, dataset_url: str | None = None
+    output_path: Path = DEFAULT_OUTPUT, *, final_results_dir: Path | None = None,
+    dataset_url: str | None = None,
 ) -> dict[str, object]:
-    metadata = build_metadata(output_path=output_path, dataset_url=dataset_url)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(
-        json.dumps(metadata, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    metadata = build_metadata(
+        final_results_dir=final_results_dir, output_path=output_path,
+        dataset_url=dataset_url,
     )
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(json.dumps(metadata, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     return metadata
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--final-results-dir", type=Path, default=DEFAULT_FINAL_RESULTS_DIR)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
-    parser.add_argument(
-        "--dataset-url",
-        default=os.environ.get("CROISSANT_DATASET_URL"),
-        help=(
-            "Public HTTPS dataset landing page. Omitted for the checked anonymous-review "
-            "artifact until the review platform provides a stable non-identifying URL."
-        ),
-    )
-    parser.add_argument(
-        "--check",
-        action="store_true",
-        help="Fail if the output differs from freshly generated metadata.",
-    )
+    parser.add_argument("--dataset-url", default=os.environ.get("CROISSANT_DATASET_URL"))
+    parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
-    metadata = build_metadata(output_path=args.output, dataset_url=args.dataset_url)
+    try:
+        metadata = build_metadata(
+            final_results_dir=args.final_results_dir, output_path=args.output,
+            dataset_url=args.dataset_url,
+        )
+    except (CroissantBuildError, OSError, ValueError) as error:
+        parser.error(str(error))
     serialized = json.dumps(metadata, indent=2, ensure_ascii=False) + "\n"
     if args.check:
         if not args.output.is_file() or args.output.read_text(encoding="utf-8") != serialized:

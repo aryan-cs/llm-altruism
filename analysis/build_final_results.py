@@ -2,9 +2,10 @@
 
 This module never emits prompts, visible responses, reasoning, raw responses, or
 routes.  Part 0's reconstructed conditions are labelled response-language
-conditions, Part 1's 384-root and n=96 scopes are never pooled, and Part 2 uses
-independent trajectories as its uncertainty unit.  Cross-axis correlations are
-created only for the exact frozen 24-system panel when every gate passes.
+conditions, Part 1's 384-root and balanced-partial scopes are never pooled, and
+Part 2 uses independent trajectories as its uncertainty unit.  Cross-axis
+correlations are created only for the exact frozen 24-system panel when every
+gate passes.
 """
 
 from __future__ import annotations
@@ -29,7 +30,12 @@ from analysis.analyze_inference_hub_part1_panel import (
     _sha256_file,
     _sha256_json,
 )
-from experiments.part1.confirmatory_design import COUNTERBALANCE_BY_ID, WELFARE_PRESERVING
+from experiments.part1.confirmatory_design import (
+    COUNTERBALANCE_BY_ID,
+    DOMAINS,
+    GAMES,
+    WELFARE_PRESERVING,
+)
 
 
 SCHEMA_VERSION = 1
@@ -304,14 +310,21 @@ def _part0(path: Path) -> tuple[list[dict[str, Any]], dict[str, tuple[str, str, 
 def _part1_manifest(
     path: Path, *, scope: str, bootstrap_seed: int
 ) -> tuple[list[dict[str, Any]], dict[str, tuple[str, str, str]], dict[str, Any]]:
-    if scope not in {"full_384", "n96_shard"}:
+    if scope not in {"full_384", "balanced_partial"}:
         raise FinalResultsError("Unknown Part 1 scope.")
     manifest = _manifest(path, "inference_hub_part1_large_n_exploratory_panel")
-    expected_roots = 384 if scope == "full_384" else 96
+    observed_roots = manifest.get("executed_trial_count_per_subject")
+    expected_roots = 384 if scope == "full_384" else observed_roots
     if (
-        manifest.get("executed_trial_count_per_subject") != expected_roots
+        isinstance(expected_roots, bool)
+        or not isinstance(expected_roots, int)
+        or expected_roots < 12
+        or expected_roots > 384
+        or expected_roots % 12
+        or manifest.get("executed_trial_count_per_subject") != expected_roots
         or (scope == "full_384" and manifest.get("trial_limit") is not None)
-        or (scope == "n96_shard" and manifest.get("trial_limit") != 96)
+        or (scope == "balanced_partial" and expected_roots == 384)
+        or (scope == "balanced_partial" and manifest.get("trial_limit") != expected_roots)
     ):
         raise FinalResultsError(f"Part 1 {scope} manifest has the wrong root count/scope.")
     summary = manifest.get("summary")
@@ -362,8 +375,9 @@ def _part1_manifest(
         cell_counts: dict[tuple[object, object], int] = defaultdict(int)
         for row in derived:
             cell_counts[(row["game"], row["domain"])] += 1
-        expected_per_cell = 32 if scope == "full_384" else 8
-        if len(cell_counts) != 12 or set(cell_counts.values()) != {expected_per_cell}:
+        expected_per_cell = expected_roots // 12
+        expected_cells = {(game, domain) for game in GAMES for domain in DOMAINS}
+        if set(cell_counts) != expected_cells or set(cell_counts.values()) != {expected_per_cell}:
             raise FinalResultsError(
                 f"Part 1 {scope} must cover all 12 game-domain strata equally."
             )
@@ -386,6 +400,7 @@ def _part1_manifest(
     return output, identities, {
         "manifest_path": str(path.resolve()), "file_sha256": _sha256_file(path),
         "evidence_sha256": manifest["evidence_sha256"], "scope": scope,
+        "root_count": expected_roots,
     }
 
 
@@ -402,16 +417,19 @@ def _combine_part1(
     rows: list[dict[str, Any]] = []
     identities: dict[str, tuple[str, str, str]] = {}
     bindings: list[dict[str, Any]] = []
-    seen: set[tuple[str, str]] = set()
-    for scope, paths in (("full_384", full_paths), ("n96_shard", n96_paths)):
+    seen: set[tuple[str, str, int]] = set()
+    for scope, paths in (("full_384", full_paths), ("balanced_partial", n96_paths)):
         for path in paths:
             new_rows, new_identities, binding = _part1_manifest(
                 path, scope=scope, bootstrap_seed=bootstrap_seed
             )
             for row in new_rows:
-                key = (scope, str(row["target_id"]))
+                key = (scope, str(row["target_id"]), int(row["root_count"]))
                 if key in seen:
-                    raise FinalResultsError(f"Part 1 target is duplicated within {scope}: {key[1]}.")
+                    raise FinalResultsError(
+                        f"Part 1 target/root count is duplicated within {scope}: "
+                        f"{key[1]} at n={key[2]}."
+                    )
                 seen.add(key)
             for target_id, identity in new_identities.items():
                 prior = identities.get(target_id)
@@ -422,6 +440,11 @@ def _combine_part1(
             bindings.append(binding)
     if not rows:
         raise FinalResultsError("At least one Part 1 manifest is required.")
+    preferred = _preferred_part1(rows)
+    for row in rows:
+        row["preferred_for_descriptive_outputs"] = (
+            preferred[str(row["target_id"])] is row
+        )
     return rows, identities, bindings
 
 
@@ -658,6 +681,9 @@ def _flatten_part1(rows: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
         "ci95_lower": row["cooperation"]["lower"], "ci95_upper": row["cooperation"]["upper"],
         "format_valid_count": row["format_valid_count"],
         "format_invalid_count": row["format_invalid_count"],
+        "preferred_for_descriptive_outputs": row[
+            "preferred_for_descriptive_outputs"
+        ],
     } for row in rows]
 
 
@@ -682,14 +708,19 @@ def _latex_escape(value: str) -> str:
 
 
 def _preferred_part1(rows: Sequence[Mapping[str, Any]]) -> dict[str, Mapping[str, Any]]:
-    """Prefer full coverage, otherwise retain balanced n=96 descriptive rows."""
+    """Prefer full coverage, then the largest balanced partial per target."""
     selected: dict[str, Mapping[str, Any]] = {}
     for row in rows:
         target_id = str(row["target_id"])
         prior = selected.get(target_id)
-        if prior is None or (
-            prior.get("scope") != "full_384" and row.get("scope") == "full_384"
-        ):
+        if prior is None:
+            selected[target_id] = row
+            continue
+        prior_full = prior.get("scope") == "full_384"
+        row_full = row.get("scope") == "full_384"
+        if row_full and not prior_full:
+            selected[target_id] = row
+        elif not row_full and not prior_full and int(row["root_count"]) > int(prior["root_count"]):
             selected[target_id] = row
     return selected
 
@@ -714,7 +745,7 @@ def _write_latex(output_dir: Path, part0: Sequence[Mapping[str, Any]], part1: Se
         f"\\newcommand{{\\FinalPartZeroSystems}}{{{len(part0)}}}",
         f"\\newcommand{{\\FinalPartOneReportedSystems}}{{{len(p1_by_id)}}}",
         f"\\newcommand{{\\FinalPartOneFullSystems}}{{{sum(row.get('scope') == 'full_384' for row in p1_by_id.values())}}}",
-        f"\\newcommand{{\\FinalPartOneBalancedNinetySixSystems}}{{{sum(row.get('scope') == 'n96_shard' for row in p1_by_id.values())}}}",
+        f"\\newcommand{{\\FinalPartOneBalancedPartialSystems}}{{{sum(row.get('scope') == 'balanced_partial' for row in p1_by_id.values())}}}",
         f"\\newcommand{{\\FinalPartTwoSystems}}{{{len(part2)}}}",
         f"\\newcommand{{\\FinalMatchedCrossAxisSystems}}{{{24 if cross['status'] == 'emitted_exact_matched_24' else 0}}}",
     ]
@@ -811,7 +842,7 @@ def build_final_results(
         (
             "target_id", "upstream_provider", "model", "scope", "root_count",
             "cooperation_rate", "ci95_lower", "ci95_upper", "format_valid_count",
-            "format_invalid_count",
+            "format_invalid_count", "preferred_for_descriptive_outputs",
         ),
     )
     part2_fields = ["target_id", "upstream_provider", "model", "trajectory_count"]
@@ -844,7 +875,8 @@ def build_final_results(
         "parameters": {
             "part0_condition_interpretation": "reconstructed response-language conditions over English source requests; not translated-prompt conditions",
             "part1_scopes_pooled": False,
-            "part1_full_root_count": 384, "part1_shard_root_count": 96,
+            "part1_full_root_count": 384,
+            "part1_balanced_partial_root_counts": sorted({int(row["root_count"]) for row in part1_rows if row["scope"] == "balanced_partial"}),
             "part2_uncertainty_unit": "independent_trajectory",
             "bootstrap_seed": bootstrap_seed, "bootstrap_replicates": BOOTSTRAP_REPLICATES,
         },
@@ -881,7 +913,10 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--part0-manifest", type=Path, required=True)
     parser.add_argument("--part1-full-manifest", type=Path, action="append", default=[])
-    parser.add_argument("--part1-n96-manifest", type=Path, action="append", default=[])
+    parser.add_argument(
+        "--part1-partial-manifest", "--part1-n96-manifest",
+        dest="part1_n96_manifest", type=Path, action="append", default=[]
+    )
     parser.add_argument("--part2-manifest", type=Path, required=True)
     parser.add_argument("--panel-config", type=Path, default=Path("experiments/sota_cross_axis_panel.json"))
     parser.add_argument("--output-dir", type=Path, required=True)

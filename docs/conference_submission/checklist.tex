@@ -5,7 +5,7 @@
 \item {\bf Claims}
     \item[] Question: Do the main claims made in the abstract and introduction accurately reflect the paper's contributions and scope?
     \item[] Answer: \answerYes{}
-    \item[] Justification: The abstract and Introduction frame the contribution as a negative benchmark audit: Part~0 is unavailable, Part~2 is a prompt--engine contract audit, and only Part~1 action-label summaries remain descriptive. They disclose the 24.1\% partial-rejudgment label-change rate and report no model-level Part~0 estimate.
+    \item[] Justification: The abstract and Introduction frame Prosocial Readiness Bench as three complementary observable evaluations of safety refusal, one-shot cooperation, and repeated commons restraint. They distinguish exploratory from reportable evidence, withdraw unsupported legacy estimates, and avoid claims about intent, altruism, or a single latent readiness score.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the abstract and introduction do not include the claims made in the paper.
@@ -17,7 +17,7 @@
 \item {\bf Limitations}
     \item[] Question: Does the paper discuss the limitations of the work performed by the authors?
     \item[] Answer: \answerYes{}
-    \item[] Justification: Section~\ref{sec:scope} discusses the unavailable Part~0 module, the Part~2 prompt--engine mismatch, cohort coverage, incomplete and unvalidated rejudgment, missing localized prompts, public-benchmark contamination, prompt ordering, decoding controls, identity-deterministic attrition, single-trajectory uncertainty, construct validity, and limits on deployment and societal interpretation.
+    \item[] Justification: Section~\ref{sec:scope} discusses reconstructed rather than translated Part~0 conditions, missing benign controls and human label validation, the unapproved Part~1 draft bank and mixed sample sizes, the eight-trajectory single-parameter Part~2 ecology, generation variability, construct validity, and limits on deployment and societal interpretation.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the paper has no limitation while the answer \answerNo{} means that the paper has limitations, but those are not discussed in the paper.
@@ -47,7 +47,7 @@
     \item {\bf Experimental result reproducibility}
     \item[] Question: Does the paper fully disclose all the information needed to reproduce the main experimental results of the paper to the extent that it affects the main claims and/or conclusions of the paper (regardless of whether the code and data are provided or not)?
     \item[] Answer: \answerNo{}
-    \item[] Justification: The task contracts, evaluation protocol, artifact map, and supplementary code disclose the implemented methods, but exact localized Part~0 replay, first-attempt retry provenance for legacy runs, and fixed decoding controls are unavailable, as stated in Sections~3, 4, and~5.
+    \item[] Justification: Sections~3--5 and Appendix~\ref{app:artifact-map} disclose the repaired task contracts, sampling units, schedules, decoding and retry rules, estimators, model identities, and artifact checks. The answer remains no while current execution artifacts and paper-facing derived results are incomplete; the final supplement is designed to make the retained analyses reproducible without private harmful text.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the paper does not include experiments.
@@ -84,7 +84,7 @@
 \item {\bf Experimental setting/details}
     \item[] Question: Does the paper specify all the training and test details (e.g., data splits, hyperparameters, how they were chosen, type of optimizer) necessary to understand the results?
     \item[] Answer: \answerNo{}
-    \item[] Justification: Sections~3--5 disclose the available prompt matrices, model tags, action schemas, metrics, and analysis procedures, but exact localized Part~0 prompts, immutable model digests/quantization, fixed pilot decoding controls, and legacy first-attempt retry logs were not retained.
+    \item[] Justification: Sections~3--5 specify the current prompt matrices, exact route identities, action schemas, decoding controls, retry contract, balanced strata, common seeds, simulator parameters, metrics, and uncertainty units. The answer remains no until final run durations and complete result artifacts are inserted and independently verified.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the paper does not include experiments.
@@ -95,7 +95,7 @@
 \item {\bf Experiment statistical significance}
     \item[] Question: Does the paper report error bars suitably and correctly defined or other appropriate information about the statistical significance of the experiments?
     \item[] Answer: \answerNo{}
-    \item[] Justification: Section~5 defines root-cluster, model-row bootstrap, Fisher-transform, and deletion-based summaries and their units. Part~1 has clustered descriptive intervals, but Part~0 labels are invalid and Part~2 has one trajectory per model, so the paper does not claim complete uncertainty quantification or statistical significance for the benchmark profile.
+    \item[] Justification: Sections~3 and~5 define request-root bootstrap summaries for Part~0, stratified root resampling for the 96- and 384-root Part~1 scopes, trajectory-level Student-$t$ intervals for continuous Part~2 metrics, and Wilson intervals for reserve nondepletion. The answer remains no while the live executions and their final interval tables are incomplete.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the paper does not include experiments.
@@ -112,7 +112,7 @@
 \item {\bf Experiments compute resources}
     \item[] Question: For each experiment, does the paper provide sufficient information on the computer resources (type of compute workers, memory, time of execution) needed to reproduce the experiments?
     \item[] Answer: \answerNo{}
-    \item[] Justification: Section~4 reports the GPU and cgroup CPU, RAM, and swap constraints, but per-experiment execution time, storage, and total project compute were not retained for the legacy pilot runs.
+    \item[] Justification: The artifact records execution environments and hosted-route request counts, while the release compute note records the local controls. The answer remains no until all live runs finish and their wall-clock time, call counts, token use, and storage totals can be reported exactly.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the paper does not include experiments.
@@ -124,7 +124,7 @@
 \item {\bf Code of ethics}
     \item[] Question: Does the research conducted in the paper conform, in every respect, with the NeurIPS Code of Ethics \url{https://neurips.cc/public/EthicsGuidelines}?
     \item[] Answer: \answerYes{}
-    \item[] Justification: The research uses public benchmark assets for model evaluation, avoids human-subject research, preserves anonymous review, and applies the harmful-output controls described in Sections~4 and~\ref{sec:scope}.
+    \item[] Justification: The research evaluates model outputs in artificial tasks, involves no human-subject experiment in the reported execution, preserves anonymous review, separates the fixed judge from every subject, and applies the harmful-output controls described in Sections~4 and~\ref{sec:scope}.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the authors have not reviewed the NeurIPS Code of Ethics.
@@ -136,7 +136,7 @@
 \item {\bf Broader impacts}
     \item[] Question: Does the paper discuss both potential positive societal impacts and negative societal impacts of the work performed?
     \item[] Answer: \answerYes{}
-    \item[] Justification: Section~\ref{sec:scope} describes the positive use of the artifact for protocol diagnosis and traceability as well as risks from overinterpretation, harmful-output redistribution, culturally specific failures, and misuse. It explicitly disclaims behavioral mitigation comparison.
+    \item[] Justification: Section~\ref{sec:scope} describes the value of broader behavioral auditing and mitigation comparison as well as risks from overinterpretation, harmful-output redistribution, culturally specific claims, and misuse. It limits conclusions to observable behavior in the executed artificial tasks.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that there is no societal impact of the work performed.
@@ -214,7 +214,7 @@
     \item[] Question: Does the paper describe the usage of LLMs if it is an important, original, or non-standard component of the core methods in this research? Note that if the LLM is used only for writing, editing, or formatting purposes and does \emph{not} impact the core methodology, scientific rigor, or originality of the research, declaration is not required.
     %this research?
     \item[] Answer: \answerYes{}
-    \item[] Justification: Sections~3--5 describe LLMs as the evaluated policies and explain the automated LLM judge used for the legacy Part~0 labels, including its prompt scope, fallback, missing provenance, and planned response-only rejudgment.
+    \item[] Justification: Sections~3--5 describe LLMs as the evaluated policies and specify the fixed disjoint Part~0 judge, its visible-response-only input, three-way verdict schema, explicit unjudged state, provenance, and the absence of completed human validation.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the core method development in this research does not involve LLMs as any important, original, or non-standard components.

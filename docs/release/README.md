@@ -1,11 +1,15 @@
 # Release Documentation
 
-This folder contains documentation for the paper-facing benchmark artifact:
+This folder documents the paper-facing artifact for **Safety Beyond Refusal**
+and its three-axis **Prosocial Readiness Bench**:
 
 - `DATA_CARD.md`: dataset contents, collection process, validation, and safety policy.
-- `MODEL_REGISTRY.md`: evaluated model cohort and reporting fields.
+- `MODEL_REGISTRY.md`: matched 24-system coverage and 78 observed Part 1 routes
+  with explicit 12-root, 96-root, and 384-root scopes.
 - `REPRODUCIBILITY.md`: commands for tests, validation, table generation, figures, and paper builds.
-- `COMPUTE.md`: local hardware, cgroup limits, and model-selection implications.
+- `COMPUTE.md`: hosted execution controls, rate limits, and legacy local compute
+  context.
 - `LICENSES_AND_TERMS.md`: repository license, upstream Part 0 source licenses, and supplement release policy.
-- `research-proposal.pdf`: metadata-complete public upload copy of the historical, superseded May 2026 LLM Altruism research proposal; it is not the current execution protocol.
+- `research-proposal.pdf`: historical, superseded May 2026 proposal; it is not
+  the current execution protocol or evidence contract.
 - `research-proposal-metadata.json`: deposit metadata carrying the same superseded-proposal warning.

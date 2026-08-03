@@ -1,4 +1,4 @@
-# Conference Submission
+# Safety Beyond Refusal: Conference Submission
 
 This folder contains the anonymous NeurIPS 2026 Evaluations & Datasets submission source.
 
@@ -29,4 +29,10 @@ Build the supplement from the repository root:
 uv run python -m analysis.build_supplement
 ```
 
-The supplement includes code, release documentation, tests, derived tables, figures, and Part 1/Part 2 raw CSVs with metadata sidecars. Raw Part 0 harmful prompts, source prompt CSVs, and model completions are excluded by policy.
+The supplement includes the reviewed Part 0, Part 1, and Part 2 hosted runners,
+their non-secret reproducibility dependencies and tests, release documentation,
+and sanitized final aggregate artifacts once the fail-closed result builder has
+produced them. It excludes credentials, private manifests, harmful prompts,
+visible responses, reasoning, raw journals, interrupted runs, and deprecated
+legacy evidence. Croissant metadata is generated only from the complete,
+self-hashed sanitized final-results directory.

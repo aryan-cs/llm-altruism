@@ -9,13 +9,17 @@ import pytest
 from analysis.build_final_results import (
     FinalResultsError,
     _cross_axis,
+    _part1_manifest,
     _part2,
+    _parser,
+    _preferred_part1,
     _reject_text_keys,
     _self_hash,
     _sha256_file,
     _sha256_json,
     build_final_results,
 )
+from experiments.part1.confirmatory_design import DOMAINS, GAMES
 
 
 TARGET = "subject.alpha"
@@ -103,9 +107,13 @@ def _part0_fixture(root: Path, *, human_validated: bool = False) -> Path:
     return path
 
 
-def _part1_fixture(root: Path, *, count: int, name: str) -> Path:
+def _part1_fixture(
+    root: Path, *, count: int, name: str, balanced: bool = True
+) -> Path:
     payloads = []
+    cells = [(game, domain) for game in GAMES for domain in DOMAINS]
     for index in range(count):
+        game, domain = cells[index % len(cells)] if balanced else cells[0]
         raw = _raw(SUBJECT["route"], "X")
         payloads.append({
             "schema_version": 1, "artifact_type": "inference_hub_part1_raw_response",
@@ -113,7 +121,7 @@ def _part1_fixture(root: Path, *, count: int, name: str) -> Path:
             "model": SUBJECT["model"], "requested_route": SUBJECT["route"],
             "response_model": SUBJECT["route"], "model_identity_valid": True,
             "trial_id": f"trial-{index:03d}", "root_id": f"root-{index:03d}",
-            "game": "prisoners_dilemma", "domain": f"domain-{index % 12}",
+            "game": game, "domain": domain,
             "counterbalance_id": "CB_X_FIRST", "parsed_action": "X", "format_valid": True,
             "raw_response": raw, "raw_response_sha256": _sha256_json(raw),
         })
@@ -187,7 +195,10 @@ def test_builder_emits_sanitized_scoped_outputs_and_blocks_unready_cross_axis(tm
     artifact = build_final_results(
         part0_manifest=_part0_fixture(tmp_path),
         part1_full_manifests=[_part1_fixture(tmp_path, count=384, name="part1-full")],
-        part1_n96_manifests=[_part1_fixture(tmp_path, count=96, name="part1-n96")],
+        part1_n96_manifests=[
+            _part1_fixture(tmp_path, count=96, name="part1-n96"),
+            _part1_fixture(tmp_path, count=12, name="part1-n12"),
+        ],
         part2_manifest=_part2_fixture(tmp_path), panel_path=_panel(tmp_path),
         output_dir=tmp_path / "final", bootstrap_seed=7,
     )
@@ -195,7 +206,12 @@ def test_builder_emits_sanitized_scoped_outputs_and_blocks_unready_cross_axis(tm
     assert not (tmp_path / "final/cross_axis_spearman.csv").exists()
     assert (tmp_path / "final/figures/model_axis_summary.pdf").is_file()
     part1_csv = (tmp_path / "final/part1_model_rates.csv").read_text()
-    assert "full_384" in part1_csv and "n96_shard" in part1_csv
+    assert "full_384" in part1_csv and "balanced_partial" in part1_csv
+    assert artifact["parameters"]["part1_balanced_partial_root_counts"] == [12, 96]
+    preferred = [row for row in artifact["part1"] if row["preferred_for_descriptive_outputs"]]
+    assert len(preferred) == 1
+    assert preferred[0]["scope"] == "full_384"
+    assert preferred[0]["root_count"] == 384
     part0_csv = (tmp_path / "final/part0_model_rates.csv").read_text()
     assert "reconstructed_response_language_condition_not_translated_prompt" in part0_csv
     public = (tmp_path / "final/final_results.json").read_text()
@@ -206,6 +222,65 @@ def test_builder_emits_sanitized_scoped_outputs_and_blocks_unready_cross_axis(tm
 def test_part2_tampering_fails_closed(tmp_path: Path) -> None:
     with pytest.raises(FinalResultsError, match="file hash changed"):
         _part2(_part2_fixture(tmp_path, tamper=True))
+
+
+def test_balanced_n12_partial_is_reportable_but_never_cross_axis_eligible(
+    tmp_path: Path,
+) -> None:
+    partial_path = _part1_fixture(tmp_path, count=12, name="part1-slow-n12")
+    rows, _identities, binding = _part1_manifest(
+        partial_path, scope="balanced_partial", bootstrap_seed=11
+    )
+    assert binding["scope"] == "balanced_partial"
+    assert rows[0]["root_count"] == 12
+    assert rows[0]["roots_per_stratum"] == 1
+    assert rows[0]["descriptive_reportable"] is True
+    assert rows[0]["paper_eligible"] is False
+
+    artifact = build_final_results(
+        part0_manifest=_part0_fixture(tmp_path),
+        part1_full_manifests=[], part1_n96_manifests=[partial_path],
+        part2_manifest=_part2_fixture(tmp_path), panel_path=_panel(tmp_path),
+        output_dir=tmp_path / "final-n12", bootstrap_seed=11,
+    )
+    assert artifact["parameters"]["part1_balanced_partial_root_counts"] == [12]
+    assert artifact["cross_axis"]["status"] == "not_emitted_fail_closed"
+    assert any(
+        reason.startswith("part1_full_384_missing:")
+        for reason in artifact["cross_axis"]["reasons"]
+    )
+
+
+def test_partial_root_count_must_be_balanced_multiple_of_twelve(tmp_path: Path) -> None:
+    path = _part1_fixture(tmp_path, count=13, name="part1-bad-n13")
+    with pytest.raises(FinalResultsError, match="wrong root count/scope"):
+        _part1_manifest(path, scope="balanced_partial", bootstrap_seed=1)
+
+    imbalanced = _part1_fixture(
+        tmp_path, count=12, name="part1-bad-imbalanced-n12", balanced=False
+    )
+    with pytest.raises(FinalResultsError, match="all 12 game-domain strata equally"):
+        _part1_manifest(imbalanced, scope="balanced_partial", bootstrap_seed=1)
+
+
+def test_full_part1_is_preferred_over_partial_regardless_of_input_order() -> None:
+    partial = {"target_id": TARGET, "scope": "balanced_partial", "root_count": 96}
+    smaller = {"target_id": TARGET, "scope": "balanced_partial", "root_count": 12}
+    full = {"target_id": TARGET, "scope": "full_384", "root_count": 384}
+    assert _preferred_part1([partial, full, smaller])[TARGET] is full
+    assert _preferred_part1([full, partial, smaller])[TARGET] is full
+    assert _preferred_part1([smaller, partial])[TARGET] is partial
+
+
+def test_legacy_n96_cli_flag_remains_an_alias_for_balanced_partials() -> None:
+    common = [
+        "--part0-manifest", "part0.json", "--part2-manifest", "part2.json",
+        "--output-dir", "output",
+    ]
+    legacy = _parser().parse_args([*common, "--part1-n96-manifest", "n96.json"])
+    current = _parser().parse_args([*common, "--part1-partial-manifest", "n12.json"])
+    assert legacy.part1_n96_manifest == [Path("n96.json")]
+    assert current.part1_n96_manifest == [Path("n12.json")]
 
 
 def test_forbidden_text_fields_are_rejected_recursively() -> None:
