@@ -138,6 +138,10 @@ def test_supplement_includes_exact_hosted_reproducibility_surface_only() -> None
     assert "analysis/build_sota_inference_hub_roster.py" not in names
     assert "analysis/merge_sota_compatibility_with_judge.py" not in names
     assert "analysis/analyze_inference_hub_part1_panel.py" in names
+    assert "analysis/finalize_inference_hub_part2_offline.py" in names
+    assert "experiments/misc/inference_hub_retire_target.py" in names
+    assert "tests/test_finalize_inference_hub_part2_offline.py" in names
+    assert "tests/test_inference_hub_retire_target.py" in names
 
 
 def test_strict_denylist_excludes_credentials_private_and_interrupted_data(
