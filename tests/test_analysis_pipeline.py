@@ -271,7 +271,7 @@ def test_manifest_links_metadata_without_embedding_raw_metadata(tmp_path: Path) 
     assert changed[0]["csv_integrity"]["sha256"] != original_csv_hash
 
 
-def test_supplement_builder_excludes_part0_raw_and_generated_artifacts(tmp_path: Path) -> None:
+def test_supplement_builder_excludes_all_raw_and_legacy_generated_artifacts(tmp_path: Path) -> None:
     root = tmp_path / "repo"
     for relative_path, content in {
         "README.md": "readme",
@@ -299,9 +299,11 @@ def test_supplement_builder_excludes_part0_raw_and_generated_artifacts(tmp_path:
     output_path = root / "docs" / "conference_submission" / "supplement.zip"
     files = {path.as_posix() for path in collect_supplement_files(root, output_path)}
 
-    assert "data/raw/part_1/results.csv" in files
-    assert "data/raw/part_2/results_meta.json" in files
     assert "data/raw/part_0/harmful.csv" not in files
+    assert "data/raw/part_1/results.csv" not in files
+    assert "data/raw/part_2/results_meta.json" not in files
+    assert "data/analysis/tables/summary.csv" not in files
+    assert "data/graphs/plot.png" not in files
     assert "docs/conference_submission/conference_submission.pdf" not in files
     assert "analysis/__pycache__/tool.pyc" not in files
 
@@ -311,9 +313,30 @@ def test_supplement_builder_excludes_part0_raw_and_generated_artifacts(tmp_path:
         names = set(zf.namelist())
 
     assert MANIFEST_NAME in names
-    assert "data/raw/part_1/results.csv" in names
     assert "data/raw/part_0/harmful.csv" not in names
+    assert "data/raw/part_1/results.csv" not in names
+    assert "data/raw/part_2/results_meta.json" not in names
+    assert "data/analysis/tables/summary.csv" not in names
+    assert "data/graphs/plot.png" not in names
     assert "supplement.zip" not in names
+
+
+def test_supplement_builder_uses_reproducible_manifest_epoch(tmp_path: Path) -> None:
+    root = tmp_path / "repo"
+    (root / "README.md").parent.mkdir(parents=True, exist_ok=True)
+    (root / "README.md").write_text("readme\n", encoding="utf-8")
+
+    first, _ = build_supplement(
+        project_root=root, output_path=tmp_path / "first.zip"
+    )
+    second, _ = build_supplement(
+        project_root=root, output_path=tmp_path / "second.zip"
+    )
+
+    assert first.read_bytes() == second.read_bytes()
+    with zipfile.ZipFile(first) as archive:
+        manifest = json.loads(archive.read(MANIFEST_NAME))
+    assert manifest["created_utc"] == "2026-01-01T00:00:00+00:00"
 
 
 def test_wilson_interval_handles_empty_and_nonempty_rates() -> None:

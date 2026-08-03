@@ -55,6 +55,55 @@ parallel across upstream providers, while provider-specific concurrency remains
 bounded. Part 0 judge batches use one fixed non-subject judge. Only transport
 failures are retried; malformed semantic outputs are retained.
 
+## Reviewer-driven follow-up protocols
+
+Three versioned follow-up workflows are packaged as reproducibility code, not
+silently merged into the sealed deadline results above:
+
+- `analysis/accelerated_part0_human_validation.py` exports blinded, balanced
+  packets for two independent annotators and an independent adjudicator. It
+  never generates human labels and releases no score before its completion,
+  qualification, agreement, and source-integrity gates pass.
+- `experiments.misc.inference_hub_part1_role_calibration_v1` freezes a
+  six-developer sentinel panel over the 96-root role subset. Advice,
+  observer-evaluation, and prediction remain separate root-level estimands.
+  The immutable configuration is
+  `experiments/part1/role_calibration_panel_v1.json` with SHA-256
+  `14012c3db18890dd970e826dcf59498eeba6b411fe0b5f04d2df52cc6c6e92b3`.
+- `experiments.misc.inference_hub_part2_sensitivity_v1` preserves both the
+  3.24-million-post future confirmatory protocol and the separate 17,280-post
+  deadline-bounded exploratory profile. Their results may not be pooled or
+  described as interchangeable. The deadline profile is exactly six sentinels
+  by 16 resolution-V cells by two common seeds: 32 trajectories per sentinel
+  and 192 total. Each sentinel-factor effect therefore has four exact paired
+  seed-block sign assignments, and all 30 prespecified effects remain in one
+  global Holm family.
+
+The compatibility retry/visible-content probes and provider-safe v1/v2
+launchers are also included. Provider-safe v2 round-robins upstream providers.
+The separately source-bound deadline exploratory launcher is restricted to the
+role calibration and sensitivity workflows and caps each provider at three
+in-flight calls and two starts per second. The separately source-bound
+main-panel deadline launcher retains provider round-robin scheduling while
+capping each provider at two in-flight calls and 1.5 starts per second; the
+conservative launcher remains capped at one. Raw prompts, responses,
+trajectories, annotation packets, and run-local sanitized files remain outside
+the supplement. The packaged
+`analysis/analyze_provider_safe_v2_definitive.py` verifies that completed
+private manifests are bound to the exact conservative or accelerated launcher
+and self-hashed rate-limit policy before emitting text-free definitive
+aggregates. The separately packaged primary and role-calibration semantic-
+invalid repair runners never overwrite a retained first response or change a
+primary denominator; their outputs remain distinct exploratory evidence. The
+paper-asset generator accepts only complete, text-free definitive adapters and
+fails before publication on changed policy hashes, incomplete matrices, or
+denominator mismatches. Fresh availability snapshots can be merged with the
+dedicated judge only through the exact allowlisted merge utility and its
+identity/compatibility checks. See
+`docs/ACCELERATED_PART0_HUMAN_VALIDATION.md`,
+`docs/PART1_ROLE_CALIBRATION_V1.md`, and `docs/PART2_SENSITIVITY_V1.md` for the
+exact gates and claim boundaries.
+
 ## Fail-closed offline finalization
 
 Offline administration runs only after a writer has stopped and its run lock
@@ -216,12 +265,35 @@ cd ../..
 uv run python -m analysis.build_supplement
 ```
 
-The supplement allowlists the three hosted runners, fail-closed retirement and
-Part 2 finalization tools, and their required non-secret dependencies and
-tests. A strict denylist excludes credentials, private evidence, harmful
-content, raw journals, incomplete private artifacts, and deprecated legacy
-artifacts. Sealed sanitized aggregate files are remapped under
-`data/analysis/` in the ZIP and remain bound by `SUPPLEMENT_MANIFEST.json`.
+The supplement exactly allowlists the hosted runners, compatibility wrappers,
+reviewer-driven follow-up protocols, fail-closed retirement and Part 2
+finalization tools, and their required non-secret configs, documentation, and
+tests. This includes both immutable semantic-invalid repair runners and tests,
+the sensitivity runner and both frozen profiles, the definitive aggregate
+adapter, the table/figure/headline-macro generator, the conservative and
+deadline launchers, the compatibility merge support, and the Part 2
+confirmatory CLI/statistics tests. A strict denylist excludes credentials,
+private evidence, harmful
+content, raw journals, incomplete private artifacts, every raw Part 1/Part 2
+prompt, justification, or reasoning trace, and deprecated legacy tables and
+plots. Only the three current paper-facing result figures are packaged. Sealed
+sanitized final-result files retain their public `data/analysis/final_results/`
+paths in the ZIP and remain bound by `SUPPLEMENT_MANIFEST.json`; no run-local
+aggregate is imported implicitly from `data/private/`.
+The one sanitized local-HF control aggregate consumed by the paper-assets
+generator is included by exact public path; its raw JSONL, model cache, prompts,
+and local execution runner remain excluded and it is never pooled with hosted
+systems.
+New hosted-route or availability-retry utilities do not enter through the
+broad source roots: they remain excluded until their exact paths are reviewed
+and added to the allowlist.
+
+The builder fixes both ZIP entry timestamps and the manifest creation epoch.
+With unchanged inputs, two independent builds are byte-identical, including
+`SUPPLEMENT_MANIFEST.json` and the ZIP SHA-256. A clean extraction can rebuild
+the same manifest and byte-identical ZIP without access to private data; the
+manifest intentionally does not record the number or text of private
+anonymization-policy replacements.
 
 ## Acceptance gate
 

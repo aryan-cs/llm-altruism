@@ -133,15 +133,132 @@ def test_supplement_includes_exact_hosted_reproducibility_surface_only() -> None
     assert expected <= names
     assert "agents/agent_config.registry.json" in names
     assert "agents/local_control.registry.json" in names
-    assert not any("local_hf" in name for name in names)
+    assert {
+        name for name in names if "local_hf" in name
+    } == {"data/analysis/local_hf_part1_controls.json"}
     assert "analysis/build_sota_probe_registry.py" not in names
     assert "analysis/build_sota_inference_hub_roster.py" not in names
-    assert "analysis/merge_sota_compatibility_with_judge.py" not in names
+    assert "analysis/analyze_availability_retry_panels.py" not in names
+    assert "analysis/merge_sota_compatibility_with_judge.py" in names
     assert "analysis/analyze_inference_hub_part1_panel.py" in names
     assert "analysis/finalize_inference_hub_part2_offline.py" in names
     assert "experiments/misc/inference_hub_retire_target.py" in names
     assert "tests/test_finalize_inference_hub_part2_offline.py" in names
     assert "tests/test_inference_hub_retire_target.py" in names
+    assert {
+        "analysis/accelerated_part0_human_validation.py",
+        "analysis/analyze_provider_safe_v2_definitive.py",
+        "analysis/build_provider_safe_v2_paper_assets.py",
+        "analysis/part2_confirmatory.py",
+        "docs/ACCELERATED_PART0_HUMAN_VALIDATION.md",
+        "docs/PART1_ROLE_CALIBRATION_V1.md",
+        "docs/PART1_SEMANTIC_INVALID_REPAIR.md",
+        "docs/PART1_ROLE_SEMANTIC_INVALID_REPAIR.md",
+        "docs/PART2_SENSITIVITY_V1.md",
+        "docs/PROVIDER_SAFE_V2_DEFINITIVE_ANALYSIS.md",
+        "docs/PROVIDER_SAFE_V2_PAPER_ASSETS.md",
+        "docs/LOCAL_MODEL_CONTROLS.md",
+        "experiments/misc/inference_hub_compatibility_provider_safe.py",
+        "experiments/misc/inference_hub_exploratory_accelerated.py",
+        "experiments/misc/inference_hub_main_accelerated.py",
+        "experiments/misc/inference_hub_part1_role_calibration_v1.py",
+        "experiments/misc/inference_hub_part1_semantic_invalid_repair.py",
+        "experiments/misc/inference_hub_part1_role_semantic_invalid_repair.py",
+        "experiments/misc/inference_hub_part2_sensitivity_v1.py",
+        "experiments/misc/inference_hub_provider_safe.py",
+        "experiments/misc/inference_hub_provider_safe_v2.py",
+        "experiments/misc/inference_hub_visible_compatibility.py",
+        "experiments/part1/role_calibration_panel_v1.json",
+        "experiments/part2/part2_sensitivity_v1.json",
+        "experiments/part2/part2_sensitivity_deadline_exploratory_v1.json",
+        "tests/test_accelerated_part0_human_validation.py",
+        "tests/test_analyze_provider_safe_v2_definitive.py",
+        "tests/test_build_provider_safe_v2_paper_assets.py",
+        "tests/test_inference_hub_compatibility_provider_safe.py",
+        "tests/test_inference_hub_exploratory_accelerated.py",
+        "tests/test_inference_hub_main_accelerated.py",
+        "tests/test_inference_hub_part1_role_calibration_v1.py",
+        "tests/test_inference_hub_part1_semantic_invalid_repair.py",
+        "tests/test_inference_hub_part1_role_semantic_invalid_repair.py",
+        "tests/test_inference_hub_part2_sensitivity_v1.py",
+        "tests/test_inference_hub_provider_safe.py",
+        "tests/test_inference_hub_provider_safe_v2.py",
+        "tests/test_inference_hub_visible_compatibility.py",
+        "tests/test_merge_sota_compatibility_with_judge.py",
+        "tests/test_part2_confirmatory_cli.py",
+        "tests/test_part2_confirmatory_statistics.py",
+    } <= names
+
+    # b94e65a adds deterministic scalar manuscript macros to the already
+    # exact-allowlisted paper-assets generator and sealed final-result surface.
+    assert "data/analysis/final_results/paper_headlines.tex" in names
+    assert "data/analysis/final_results/paper_macros.tex" in names
+
+
+def test_unreviewed_availability_retry_source_is_fail_closed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "repo"
+    analysis_dir = root / "analysis"
+    analysis_dir.mkdir(parents=True)
+    (analysis_dir / "analyze_availability_retry_panels.py").write_text(
+        "# unreviewed hosted retry analyzer\n", encoding="utf-8"
+    )
+    (analysis_dir / "ordinary_release_helper.py").write_text(
+        "# ordinary packaged helper\n", encoding="utf-8"
+    )
+    monkeypatch.setattr(build_supplement, "INCLUDE_PATHS", (Path("analysis"),))
+
+    names = {
+        path.as_posix()
+        for path in build_supplement.collect_supplement_files(
+            project_root=root, output_path=tmp_path / "supplement.zip"
+        )
+    }
+
+    assert "analysis/analyze_availability_retry_panels.py" not in names
+    assert "analysis/ordinary_release_helper.py" in names
+
+
+def test_supplement_release_boundary_is_aggregate_only_and_current() -> None:
+    names = {
+        path.as_posix() for path in build_supplement.collect_supplement_files()
+    }
+
+    assert not any(name.startswith("data/raw/") for name in names)
+    assert not any(name.startswith("data/analysis/tables/") for name in names)
+    assert not any(name.startswith("data/analysis/validation/") for name in names)
+    assert "data/analysis/part0_rejudge_audit_checkpoint.json" not in names
+    assert "tests/test_part0_audit_checkpoint.py" not in names
+    assert not any(
+        name.startswith(
+            (
+                "data/graphs/part_0/",
+                "data/graphs/part_1/",
+                "data/graphs/part_2/",
+                "data/graphs/cross_part/",
+                "data/graphs/paper_visuals/",
+            )
+        )
+        for name in names
+    )
+    assert {
+        "data/analysis/final_results/final_results.json",
+        "data/analysis/final_results/part0_model_rates.csv",
+        "data/analysis/final_results/part1_model_rates.csv",
+        "data/analysis/final_results/part2_model_metrics.csv",
+        "data/analysis/croissant_metadata.json",
+        "data/analysis/local_hf_part1_controls.json",
+    } <= names
+    assert {
+        name
+        for name in names
+        if name.startswith("docs/conference_submission/figures/")
+    } == {
+        "docs/conference_submission/figures/part0_response_language_conditions.png",
+        "docs/conference_submission/figures/part1_scope_distributions.png",
+        "docs/conference_submission/figures/part2_corrected_outcomes.png",
+    }
 
 
 def test_strict_denylist_excludes_credentials_private_and_interrupted_data(
@@ -177,100 +294,19 @@ def test_strict_denylist_excludes_credentials_private_and_interrupted_data(
     assert names == {".env.example", "safe.py"}
 
 
-def _write_sealed_json(path: Path, payload: dict[str, object]) -> bytes:
-    payload["evidence_sha256"] = build_supplement._json_self_hash(payload)
-    encoded = (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode("utf-8")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(encoded)
-    return encoded
-
-
-def test_only_complete_hash_bound_sanitized_aggregates_are_remapped(
+def test_private_run_local_aggregates_are_never_implicitly_admitted(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     root = tmp_path / "repo"
     run = root / "data/private/inference_hub/part2-complete"
     sanitized = run / "sanitized"
-    payloads = {
-        "trajectory_metrics.json": {
-            "schema_version": 1,
-            "artifact_type": "inference_hub_part2_sanitized_trajectory_metrics",
-            "rows": [{"target_id": "subject.alpha", "restraint_rate": 0.5}],
-        },
-        "model_metrics.json": {
-            "schema_version": 1,
-            "artifact_type": "inference_hub_part2_sanitized_model_metrics",
-            "rows": [{"target_id": "subject.alpha", "mean_restraint_rate": 0.5}],
-        },
-    }
-    bindings: dict[str, object] = {}
-    for filename, payload in payloads.items():
+    for filename in ("trajectory_metrics.json", "model_metrics.json"):
         path = sanitized / filename
-        encoded = _write_sealed_json(path, payload)
-        bindings[filename.removesuffix(".json")] = {
-            "path": str(path.resolve()),
-            "file_sha256": hashlib.sha256(encoded).hexdigest(),
-            "evidence_sha256": payload["evidence_sha256"],
-        }
-    manifest = {
-        "schema_version": 1,
-        "artifact_type": "inference_hub_part2_private_manifest",
-        "complete": True,
-        "sanitized_artifacts": {
-            "trajectory_metrics": bindings["trajectory_metrics"],
-            "model_metrics": bindings["model_metrics"],
-        },
-    }
-    _write_sealed_json(run / "private/manifest.json", manifest)
-    monkeypatch.setattr(build_supplement, "INCLUDE_PATHS", ())
-
-    output, files = build_supplement.build_supplement(
-        project_root=root, output_path=tmp_path / "supplement.zip"
-    )
-
-    assert {path.name for path in files} == set(payloads)
-    with zipfile.ZipFile(output) as archive:
-        names = set(archive.namelist())
-    assert not any(name.startswith("data/private/") for name in names)
-    assert {
-        "data/analysis/inference_hub_sanitized/part2-complete/model_metrics.json",
-        "data/analysis/inference_hub_sanitized/part2-complete/trajectory_metrics.json",
-    } <= names
-
-
-def test_incomplete_or_sensitive_sanitized_artifacts_are_not_admitted(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    root = tmp_path / "repo"
-    run = root / "data/private/inference_hub/part2-incomplete"
-    sanitized = run / "sanitized"
-    payloads = {
-        "trajectory_metrics.json": {
-            "artifact_type": "inference_hub_part2_sanitized_trajectory_metrics",
-            "rows": [],
-        },
-        "model_metrics.json": {
-            "artifact_type": "inference_hub_part2_sanitized_model_metrics",
-            "rows": [{"raw_response": "must never ship"}],
-        },
-    }
-    bindings: dict[str, object] = {}
-    for filename, payload in payloads.items():
-        path = sanitized / filename
-        encoded = _write_sealed_json(path, payload)
-        bindings[filename.removesuffix(".json")] = {
-            "path": str(path.resolve()),
-            "file_sha256": hashlib.sha256(encoded).hexdigest(),
-            "evidence_sha256": payload["evidence_sha256"],
-        }
-    manifest = {
-        "complete": False,
-        "sanitized_artifacts": {
-            "trajectory_metrics": bindings["trajectory_metrics"],
-            "model_metrics": bindings["model_metrics"],
-        },
-    }
-    _write_sealed_json(run / "private/manifest.json", manifest)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text('{"rows": [{"reasoning": "must never ship"}]}\n', encoding="utf-8")
+    private_manifest = run / "private/manifest.json"
+    private_manifest.parent.mkdir(parents=True, exist_ok=True)
+    private_manifest.write_text('{"complete": true}\n', encoding="utf-8")
     monkeypatch.setattr(build_supplement, "INCLUDE_PATHS", ())
 
     assert build_supplement.collect_supplement_files(
@@ -362,3 +398,60 @@ def test_rebuild_preserves_anonymous_model_registry_archive_alias(
     assert files == [Path("docs/release/MODEL_REGISTRY.md")]
     with zipfile.ZipFile(output) as archive:
         assert "docs/release/MODEL_REGISTRY.md" in archive.namelist()
+
+
+def test_clean_extraction_rebuild_preserves_payload_manifest(tmp_path: Path) -> None:
+    first_zip = tmp_path / "first.zip"
+    first_output, _ = build_supplement.build_supplement(
+        project_root=build_supplement.PROJECT_ROOT,
+        output_path=first_zip,
+    )
+    extracted = tmp_path / "extracted"
+    with zipfile.ZipFile(first_output) as archive:
+        archive.extractall(extracted)
+
+    second_output, _ = build_supplement.build_supplement(
+        project_root=extracted,
+        output_path=tmp_path / "second.zip",
+    )
+    with zipfile.ZipFile(first_output) as first_archive:
+        first_manifest = json.loads(
+            first_archive.read(build_supplement.MANIFEST_NAME).decode("utf-8")
+        )
+    with zipfile.ZipFile(second_output) as second_archive:
+        second_manifest = json.loads(
+            second_archive.read(build_supplement.MANIFEST_NAME).decode("utf-8")
+        )
+
+    assert first_manifest == second_manifest
+    assert first_output.read_bytes() == second_output.read_bytes()
+
+
+def test_repeated_build_is_byte_reproducible(tmp_path: Path) -> None:
+    first_output, _ = build_supplement.build_supplement(
+        project_root=build_supplement.PROJECT_ROOT,
+        output_path=tmp_path / "first.zip",
+    )
+    second_output, _ = build_supplement.build_supplement(
+        project_root=build_supplement.PROJECT_ROOT,
+        output_path=tmp_path / "second.zip",
+    )
+
+    assert first_output.read_bytes() == second_output.read_bytes()
+    with zipfile.ZipFile(first_output) as archive:
+        manifest = json.loads(
+            archive.read(build_supplement.MANIFEST_NAME).decode("utf-8")
+        )
+    assert manifest["created_utc"] == build_supplement.REPRODUCIBLE_CREATED_UTC
+
+
+def test_packaged_reproducibility_note_matches_frozen_sensitivity_counts() -> None:
+    text = (
+        build_supplement.PROJECT_ROOT / "docs/release/REPRODUCIBILITY.md"
+    ).read_text(encoding="utf-8")
+
+    assert "17,280-post" in text
+    assert "32 trajectories per sentinel" in text
+    assert "192 total" in text
+    assert "four exact paired" in text
+    assert "103,680-post" not in text

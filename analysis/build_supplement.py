@@ -7,13 +7,13 @@ import json
 import re
 import subprocess
 import zipfile
-from datetime import UTC, datetime
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT = PROJECT_ROOT / "docs" / "conference_submission" / "supplement.zip"
 MANIFEST_NAME = "SUPPLEMENT_MANIFEST.json"
 ANONYMIZATION_POLICY_NAME = ".supplement-anonymization.json"
+REPRODUCIBLE_CREATED_UTC = "2026-01-01T00:00:00+00:00"
 
 # Hosted-panel code is admitted by exact path, never by a substring or broad
 # data-directory rule.  This makes additions review-visible and prevents a new
@@ -22,50 +22,71 @@ ANONYMIZATION_POLICY_NAME = ".supplement-anonymization.json"
 HOSTED_REPRODUCIBILITY_ALLOWLIST = frozenset(
     {
         Path("analysis") / "analyze_inference_hub_part1_panel.py",
+        Path("analysis") / "analyze_provider_safe_v2_definitive.py",
+        Path("analysis") / "accelerated_part0_human_validation.py",
+        Path("analysis") / "build_provider_safe_v2_paper_assets.py",
         Path("analysis") / "build_developer_descriptives.py",
         Path("analysis") / "build_final_results.py",
         Path("analysis") / "build_paper_headlines.py",
         Path("analysis") / "build_paper_visuals.py",
         Path("analysis") / "finalize_inference_hub_part2_offline.py",
+        Path("analysis") / "merge_sota_compatibility_with_judge.py",
+        Path("analysis") / "part2_confirmatory.py",
         Path("analysis") / "reconcile_inference_hub_routes.py",
         Path("experiments") / "sota_cross_axis_panel.json",
+        Path("experiments") / "part1" / "role_calibration_panel_v1.json",
+        Path("experiments") / "part2" / "part2_sensitivity_v1.json",
+        Path("experiments") / "part2" / "part2_sensitivity_deadline_exploratory_v1.json",
         Path("experiments") / "misc" / "inference_hub_compatibility.py",
+        Path("experiments") / "misc" / "inference_hub_compatibility_provider_safe.py",
         Path("experiments") / "misc" / "inference_hub_discovery.py",
+        Path("experiments") / "misc" / "inference_hub_exploratory_accelerated.py",
+        Path("experiments") / "misc" / "inference_hub_main_accelerated.py",
         Path("experiments") / "misc" / "inference_hub_part0_panel.py",
         Path("experiments") / "misc" / "inference_hub_part1_panel.py",
+        Path("experiments") / "misc" / "inference_hub_part1_semantic_invalid_repair.py",
+        Path("experiments") / "misc" / "inference_hub_part1_role_calibration_v1.py",
+        Path("experiments") / "misc" / "inference_hub_part1_role_semantic_invalid_repair.py",
         Path("experiments") / "misc" / "inference_hub_part1_stratified_panel.py",
         Path("experiments") / "misc" / "inference_hub_part2_panel.py",
+        Path("experiments") / "misc" / "inference_hub_part2_sensitivity_v1.py",
+        Path("experiments") / "misc" / "inference_hub_provider_safe.py",
+        Path("experiments") / "misc" / "inference_hub_provider_safe_v2.py",
         Path("experiments") / "misc" / "inference_hub_rate_limit.py",
         Path("experiments") / "misc" / "inference_hub_retire_target.py",
+        Path("experiments") / "misc" / "inference_hub_visible_compatibility.py",
+        Path("tests") / "test_accelerated_part0_human_validation.py",
+        Path("tests") / "test_analyze_provider_safe_v2_definitive.py",
+        Path("tests") / "test_build_provider_safe_v2_paper_assets.py",
         Path("tests") / "test_inference_hub_compatibility.py",
+        Path("tests") / "test_inference_hub_compatibility_provider_safe.py",
         Path("tests") / "test_inference_hub_discovery.py",
+        Path("tests") / "test_inference_hub_exploratory_accelerated.py",
+        Path("tests") / "test_inference_hub_main_accelerated.py",
         Path("tests") / "test_inference_hub_part0_panel.py",
         Path("tests") / "test_inference_hub_part1_panel.py",
+        Path("tests") / "test_inference_hub_part1_semantic_invalid_repair.py",
+        Path("tests") / "test_inference_hub_part1_role_calibration_v1.py",
+        Path("tests") / "test_inference_hub_part1_role_semantic_invalid_repair.py",
         Path("tests") / "test_inference_hub_part1_stratified_panel.py",
         Path("tests") / "test_inference_hub_part2_panel.py",
+        Path("tests") / "test_inference_hub_part2_sensitivity_v1.py",
+        Path("tests") / "test_inference_hub_provider_safe.py",
+        Path("tests") / "test_inference_hub_provider_safe_v2.py",
         Path("tests") / "test_inference_hub_rate_limit.py",
         Path("tests") / "test_inference_hub_retire_target.py",
+        Path("tests") / "test_inference_hub_visible_compatibility.py",
         Path("tests") / "test_build_developer_descriptives.py",
         Path("tests") / "test_build_final_results.py",
         Path("tests") / "test_build_paper_headlines.py",
         Path("tests") / "test_build_paper_visuals.py",
         Path("tests") / "test_finalize_inference_hub_part2_offline.py",
         Path("tests") / "test_reconcile_inference_hub_routes.py",
+        Path("tests") / "test_merge_sota_compatibility_with_judge.py",
+        Path("tests") / "test_part2_confirmatory_cli.py",
+        Path("tests") / "test_part2_confirmatory_statistics.py",
         Path("tests") / "test_sota_cross_axis_panel.py",
     }
-)
-
-SANITIZED_AGGREGATE_TYPES = {
-    "trajectory_metrics.json": "inference_hub_part2_sanitized_trajectory_metrics",
-    "model_metrics.json": "inference_hub_part2_sanitized_model_metrics",
-}
-SENSITIVE_AGGREGATE_KEY_MARKERS = (
-    "message",
-    "prompt",
-    "raw_response",
-    "reasoning",
-    "response_text",
-    "visible_response",
 )
 
 INCLUDE_PATHS = (
@@ -82,27 +103,31 @@ INCLUDE_PATHS = (
     Path("tests"),
     Path("docs") / "JUDGE_AUDIT.md",
     Path("docs") / "CONFIRMATORY_PROTOCOL.md",
+    Path("docs") / "ACCELERATED_PART0_HUMAN_VALIDATION.md",
+    Path("docs") / "PART1_ROLE_CALIBRATION_V1.md",
+    Path("docs") / "PART1_SEMANTIC_INVALID_REPAIR.md",
+    Path("docs") / "PART1_ROLE_SEMANTIC_INVALID_REPAIR.md",
+    Path("docs") / "PART2_SENSITIVITY_V1.md",
+    Path("docs") / "PROVIDER_SAFE_V2_DEFINITIVE_ANALYSIS.md",
+    Path("docs") / "PROVIDER_SAFE_V2_PAPER_ASSETS.md",
+    Path("docs") / "LOCAL_MODEL_CONTROLS.md",
     Path("docs") / "release",
     Path("docs") / "conference_submission" / "README.md",
     Path("docs") / "conference_submission" / "conference_submission.tex",
     Path("docs") / "conference_submission" / "checklist.tex",
-    Path("docs") / "conference_submission" / "figures" / "part2_restraint_rate_by_model.png",
-    Path("docs") / "conference_submission" / "figures" / "part1_cooperation_by_game_heatmap.png",
-    Path("docs") / "conference_submission" / "figures" / "part2_shared_reserve_over_time.png",
-    Path("docs") / "conference_submission" / "figures" / "part2_population_over_time.png",
-    Path("docs") / "conference_submission" / "figures" / "part2_restraint_choice_over_time.png",
-    Path("docs") / "conference_submission" / "figures" / "frame_sensitivity_heatmap.png",
-    Path("docs") / "conference_submission" / "figures" / "restraint_vs_final_population.png",
-    Path("docs") / "conference_submission" / "figures" / "part2_agent_day_raster.png",
     Path("docs") / "conference_submission" / "figures" / "part0_response_language_conditions.png",
     Path("docs") / "conference_submission" / "figures" / "part1_scope_distributions.png",
     Path("docs") / "conference_submission" / "figures" / "part2_corrected_outcomes.png",
     Path("docs") / "conference_submission" / "references.bib",
     Path("docs") / "conference_submission" / "neurips_2026.sty",
-    Path("data") / "analysis",
-    Path("data") / "graphs",
-    Path("data") / "raw" / "part_1",
-    Path("data") / "raw" / "part_2",
+    Path("data") / "analysis" / "final_results",
+    Path("data") / "analysis" / "croissant_metadata.json",
+    Path("data") / "analysis" / "local_hf_part1_controls.json",
+    Path("data") / "graphs" / "part_0_graphs.py",
+    Path("data") / "graphs" / "part_1_graphs.py",
+    Path("data") / "graphs" / "part_2_graphs.py",
+    Path("data") / "graphs" / "cross_part_graphs.py",
+    Path("data") / "graphs" / "paper_visuals.py",
 )
 
 EXCLUDED_RELATIVE_PATHS = {
@@ -117,18 +142,18 @@ EXCLUDED_RELATIVE_PATHS = {
     Path("data") / "graphs" / "paper_visuals" / "behavioral_fingerprint_heatmap.png",
     Path("data") / "graphs" / "paper_visuals" / "model_behavior_pca.png",
     Path("data") / "raw" / "part_2" / "legacy_structural_provenance.json",
-    Path("data") / "analysis" / "local_hf_part1_controls.json",
     Path("analysis") / "build_legacy_part2_provenance.py",
     Path("tests") / "test_legacy_part2_provenance.py",
     Path("tests") / "test_campaign.py",
+    Path("tests") / "test_part0_audit_checkpoint.py",
     # Hosted aggregate analyzers are private until their outputs have passed the
-    # completed-run sanitization gate below. Local scale controls remain outside
-    # the submitted hosted-panel reproducibility surface.
+    # completed-run sanitization gate below. Raw local-scale runners stay
+    # outside the hosted surface; the exact sanitized local-control aggregate
+    # used by the paper-assets generator is included explicitly above.
     Path("analysis") / "analyze_joint_inference_hub_part1_panels.py",
     Path("analysis") / "analyze_local_hf_part1_panel.py",
     Path("analysis") / "build_sota_inference_hub_roster.py",
     Path("analysis") / "build_sota_probe_registry.py",
-    Path("analysis") / "merge_sota_compatibility_with_judge.py",
     Path("experiments") / "misc" / "local_hf_part1_panel.py",
     Path("experiments") / "misc" / "local_hf_smoke.py",
     Path("tests") / "test_analyze_joint_inference_hub_part1_panels.py",
@@ -137,8 +162,6 @@ EXCLUDED_RELATIVE_PATHS = {
     Path("tests") / "test_build_sota_probe_registry.py",
     Path("tests") / "test_local_hf_part1_panel.py",
     Path("tests") / "test_local_hf_smoke.py",
-    Path("tests") / "test_merge_sota_compatibility_with_judge.py",
-    Path("docs") / "LOCAL_MODEL_CONTROLS.md",
 }
 
 EXCLUDED_DIR_NAMES = {
@@ -159,9 +182,15 @@ EXCLUDED_DIR_NAMES = {
 EXCLUDED_RELATIVE_PREFIXES = (
     Path("data") / "private",
     Path("data") / "raw" / "part_0",
-    Path("data") / "raw" / "part_2" / "legacy_execution_archive",
+    Path("data") / "raw" / "part_1",
+    Path("data") / "raw" / "part_2",
+    Path("data") / "analysis" / "tables",
+    Path("data") / "analysis" / "validation",
     Path("data") / "graphs" / "part_0",
+    Path("data") / "graphs" / "part_1",
+    Path("data") / "graphs" / "part_2",
     Path("data") / "graphs" / "cross_part",
+    Path("data") / "graphs" / "paper_visuals",
 )
 EXCLUDED_PRIVATE_FILE_NAMES = {
     ".env",
@@ -206,8 +235,12 @@ POLICY_EXCLUSIONS = (
         "reason": "raw harmful requests, source prompt CSVs, and model completions are withheld from the default anonymous supplement",
     },
     {
-        "path": "data/analysis/tables/{part0_*,cross_part_*}.csv; data/graphs/{part_0,cross_part}/; four Part 0-dependent paper_visuals plots",
-        "reason": "legacy Part 0 labels are invalid; model-level rates and every dependent table and plot are withdrawn",
+        "path": "data/raw/{part_1,part_2}/",
+        "reason": "legacy prompt text, model justifications, reasoning traces, and superseded Part 2 execution rows are excluded; the package exposes sealed text-free aggregates instead",
+    },
+    {
+        "path": "data/analysis/{tables,validation}/; data/graphs/{part_0,part_1,part_2,cross_part,paper_visuals}/; superseded conference figure files",
+        "reason": "legacy and superseded derived outputs are excluded so they cannot be mistaken for the sealed current results or current paper figures",
     },
     {
         "path": "docs/conference_submission/conference_submission.pdf",
@@ -230,12 +263,16 @@ POLICY_EXCLUSIONS = (
         "reason": "legacy campaign tests require withheld raw Part 0 prompts and are not needed to replay the released pilot artifacts",
     },
     {
-        "path": "data/private/** except hash-verified aggregates remapped under data/analysis/inference_hub_sanitized/",
-        "reason": "credentials, prompts, raw responses, journals, and incomplete runs are private; only aggregate-only payloads from complete hash-bound runs may enter the supplement",
+        "path": "tests/test_part0_audit_checkpoint.py",
+        "reason": "this forensic test requires a deliberately withheld legacy Part 0 rejudgment checkpoint and is outside the current aggregate-only artifact",
     },
     {
-        "path": "deprecated Part 2 legacy execution archive and structural provenance",
-        "reason": "superseded evidence is excluded so it cannot be mistaken for the corrected matched-panel implementation",
+        "path": "data/private/**",
+        "reason": "credentials, prompts, raw responses, journals, run-local aggregates, and incomplete artifacts are private; only the explicit sealed final-results release enters the supplement",
+    },
+    {
+        "path": "deprecated Part 1/Part 2 raw evidence, Part 2 execution archive, and structural provenance",
+        "reason": "superseded evidence and model-generated text are excluded so they cannot be mistaken for the corrected matched-panel implementation or cross the aggregate-only release boundary",
     },
     {
         "path": "non-allowlisted hosted utilities and local-HF scale controls",
@@ -263,6 +300,7 @@ def _is_hosted_reproducibility_path(path: Path) -> bool:
     name = path.name.casefold()
     return (
         "inference_hub" in name
+        or "availability_retry" in name
         or name in {
             "reconcile_inference_hub_routes.py",
             "test_reconcile_inference_hub_routes.py",
@@ -321,97 +359,6 @@ def resolve_include_path(project_root: Path, include_path: Path) -> Path | None:
     return fallback_path if fallback_path is not None and fallback_path.exists() else None
 
 
-def _json_self_hash(payload: dict[str, object]) -> str:
-    unhashed = {key: value for key, value in payload.items() if key != "evidence_sha256"}
-    encoded = json.dumps(
-        unhashed, sort_keys=True, separators=(",", ":"), ensure_ascii=False
-    ).encode("utf-8")
-    return hashlib.sha256(encoded).hexdigest()
-
-
-def _contains_sensitive_aggregate_key(value: object) -> bool:
-    if isinstance(value, dict):
-        for key, child in value.items():
-            lowered = str(key).casefold()
-            if any(marker in lowered for marker in SENSITIVE_AGGREGATE_KEY_MARKERS):
-                return True
-            if _contains_sensitive_aggregate_key(child):
-                return True
-    elif isinstance(value, list):
-        return any(_contains_sensitive_aggregate_key(child) for child in value)
-    return False
-
-
-def _completed_sanitized_aggregates(project_root: Path) -> set[Path]:
-    """Return only aggregate-only files bound to complete private run manifests."""
-
-    private_root = project_root / "data" / "private" / "inference_hub"
-    if not private_root.is_dir():
-        return set()
-    admitted: set[Path] = set()
-    for manifest_path in sorted(private_root.glob("**/private/manifest.json")):
-        try:
-            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
-            continue
-        if (
-            not isinstance(manifest, dict)
-            or manifest.get("complete") is not True
-            or manifest.get("evidence_sha256") != _json_self_hash(manifest)
-        ):
-            continue
-        bindings = manifest.get("sanitized_artifacts")
-        if not isinstance(bindings, dict) or set(bindings) != {
-            "trajectory_metrics", "model_metrics"
-        }:
-            continue
-        run_dir = manifest_path.parent.parent.resolve()
-        sanitized_dir = (run_dir / "sanitized").resolve()
-        run_files: set[Path] = set()
-        valid = True
-        for binding in bindings.values():
-            if not isinstance(binding, dict):
-                valid = False
-                break
-            raw_path = binding.get("path")
-            if not isinstance(raw_path, str) or not raw_path:
-                valid = False
-                break
-            artifact_path = Path(raw_path)
-            if not artifact_path.is_absolute():
-                artifact_path = project_root / artifact_path
-            artifact_path = artifact_path.resolve()
-            expected_type = SANITIZED_AGGREGATE_TYPES.get(artifact_path.name)
-            if (
-                expected_type is None
-                or artifact_path.parent != sanitized_dir
-                or not artifact_path.is_file()
-            ):
-                valid = False
-                break
-            try:
-                payload_bytes = artifact_path.read_bytes()
-                payload = json.loads(payload_bytes)
-            except (OSError, UnicodeDecodeError, json.JSONDecodeError):
-                valid = False
-                break
-            if (
-                not isinstance(payload, dict)
-                or payload.get("artifact_type") != expected_type
-                or payload.get("evidence_sha256") != _json_self_hash(payload)
-                or binding.get("file_sha256")
-                != hashlib.sha256(payload_bytes).hexdigest()
-                or binding.get("evidence_sha256") != payload.get("evidence_sha256")
-                or _contains_sensitive_aggregate_key(payload)
-            ):
-                valid = False
-                break
-            run_files.add(artifact_path.relative_to(project_root))
-        if valid and len(run_files) == len(SANITIZED_AGGREGATE_TYPES):
-            admitted.update(run_files)
-    return admitted
-
-
 def collect_supplement_files(
     project_root: Path = PROJECT_ROOT,
     output_path: Path = DEFAULT_OUTPUT,
@@ -446,8 +393,6 @@ def collect_supplement_files(
                 rel_path, output_rel_path
             ):
                 files.add(rel_path)
-
-    files.update(_completed_sanitized_aggregates(project_root))
 
     return sorted(files, key=lambda path: path.as_posix())
 
@@ -540,19 +485,6 @@ def _anonymous_archive_path(
         return "README.md"
     if rel_path == Path("docs") / "conference_submission" / "SUPPLEMENT_MODEL_REGISTRY.md":
         return "docs/release/MODEL_REGISTRY.md"
-    private_prefix = Path("data") / "private" / "inference_hub"
-    if _is_relative_to(rel_path, private_prefix):
-        private_relative = rel_path.relative_to(private_prefix)
-        parts = list(private_relative.parts)
-        if len(parts) >= 3 and parts[-2] == "sanitized":
-            run_parts = parts[:-2]
-            remapped = Path("data") / "analysis" / "inference_hub_sanitized"
-            if run_parts:
-                remapped = remapped.joinpath(*run_parts)
-            return _anonymous_text(
-                (remapped / parts[-1]).as_posix(), replacements
-            )
-        raise ValueError(f"Private path is not an admitted sanitized aggregate: {rel_path}.")
     return _anonymous_text(rel_path.as_posix(), replacements)
 
 
@@ -606,18 +538,26 @@ def build_supplement(
     output_path = output_path.resolve()
     files = collect_supplement_files(project_root=project_root, output_path=output_path)
     replacements = _archive_replacements(project_root)
-    archive_payloads = {
-        _anonymous_archive_path(rel_path, replacements): _anonymous_archive_payload(
-            (project_root / rel_path).read_bytes(), replacements
+    archive_payloads = dict(
+        sorted(
+            (
+                _anonymous_archive_path(rel_path, replacements),
+                _anonymous_archive_payload(
+                    (project_root / rel_path).read_bytes(), replacements
+                ),
+            )
+            for rel_path in files
         )
-        for rel_path in files
-    }
+    )
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     if output_path.exists():
         output_path.unlink()
     manifest = {
-        "created_utc": datetime.now(UTC).isoformat(timespec="seconds"),
+        # A wall-clock build time makes two builds of identical source produce
+        # different manifests and ZIP hashes.  Use the same epoch as the fixed
+        # per-entry ZIP metadata so the anonymous archive is byte-reproducible.
+        "created_utc": REPRODUCIBLE_CREATED_UTC,
         "package": "anonymous NeurIPS supplement",
         "included_roots": [path.as_posix() for path in INCLUDE_PATHS],
         "policy_exclusions": list(POLICY_EXCLUSIONS),
@@ -627,13 +567,10 @@ def build_supplement(
             name: hashlib.sha256(payload).hexdigest()
             for name, payload in archive_payloads.items()
         },
-        "affiliation_replacements_applied": len(
-            _affiliation_replacements(project_root)
-        ),
         "anonymization": (
             "author identifiers and affiliation-revealing private gateway literals "
-            "are deterministically replaced; public scientific model/vendor metadata "
-            "is preserved"
+            "are deterministically replaced or already anonymous on clean rebuild; "
+            "public scientific model/vendor metadata is preserved"
         ),
     }
 
