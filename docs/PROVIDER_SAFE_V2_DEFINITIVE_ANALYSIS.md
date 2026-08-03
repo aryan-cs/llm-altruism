@@ -77,7 +77,7 @@ uv run python -m analysis.analyze_provider_safe_v2_definitive \
   --part1 data/private/inference_hub/definitive-part1-large-n384-main75-deadline-v3 \
   --part2 data/private/inference_hub/definitive-part2-n12-main19-v3 \
   --role-calibration data/private/inference_hub/definitive-part1-role-calibration-v2 \
-  --sensitivity data/private/inference_hub/definitive-part2-sensitivity-deadline-accelerated-v4 \
+  --sensitivity data/private/inference_hub/definitive-part2-sensitivity-deadline-fast-v8 \
   --output-dir data/processed/provider-safe-v2-definitive-analysis
 ```
 
