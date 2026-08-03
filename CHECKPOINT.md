@@ -77,10 +77,11 @@ campaigns have priority over supplemental retries.
 - Frames remain separate estimands and are never pooled into self-choice.
 - The exploratory accelerated policy is source-bound at global concurrency 12,
   provider concurrency 3, global 8 starts/second, and provider 2 starts/second.
-- The role campaign currently has priority in this scope so that its separate
-  semantic-invalid repair can run before sensitivity resumes.
+- Role calibration and sensitivity now run concurrently under distinct bounded
+  limiter scopes; role semantic-invalid repair still waits for the role source
+  manifest to become COMPLETE.
 
-### Part 2 deadline sensitivity (paused, resumable)
+### Part 2 deadline sensitivity (active, resumed)
 
 - Path: `data/private/inference_hub/definitive-part2-sensitivity-deadline-v3`.
 - Six sentinels × 16 resolution-V cells × two common environment seeds = 192
@@ -92,8 +93,9 @@ campaigns have priority over supplemental retries.
 - The panel is explicitly deadline-exploratory and underpowered. Thirty
   sentinel-by-factor Holm rows document the prespecified family; they do not
   authorize confirmatory robustness claims.
-- The writer is paused to avoid starving role calibration and must resume with
-  its original frozen worker counts and source hashes.
+- The writer resumed with its original frozen worker counts and source hashes.
+  Its conservative shared policy remains global concurrency 16, one in-flight
+  request per provider, and one start/second per provider.
 
 ## Availability and invalid retries
 
