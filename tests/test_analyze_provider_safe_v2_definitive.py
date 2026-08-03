@@ -361,7 +361,7 @@ def test_campaign_specific_accelerated_launcher_and_policy_bindings() -> None:
         part0_deadline, 3, 2.0, global_concurrency=16, global_rps=10.0
     )
     sensitivity_deadline_manifest = manifest(
-        sensitivity_deadline, 4, 2.5, global_concurrency=24, global_rps=12.0
+        sensitivity_deadline, 3, 2.5, global_concurrency=24, global_rps=12.0
     )
     _provider_safe_contract(main_manifest, "part0")
     _provider_safe_contract(exploratory_manifest, "role")

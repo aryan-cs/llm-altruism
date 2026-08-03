@@ -31,7 +31,7 @@ from experiments.misc.inference_hub_rate_limit import (
 POLICY_VERSION = 1
 SENSITIVITY_DEADLINE_POLICY = RateLimitPolicy(
     global_concurrency=24,
-    provider_concurrency=4,
+    provider_concurrency=3,
     global_requests_per_second=12.0,
     provider_requests_per_second=2.5,
 )

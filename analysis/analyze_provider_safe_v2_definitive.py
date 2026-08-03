@@ -110,7 +110,7 @@ _PART0_DEADLINE_POLICY = {
 }
 _SENSITIVITY_DEADLINE_POLICY = {
     "global_concurrency": 24,
-    "provider_concurrency": 4,
+    "provider_concurrency": 3,
     "global_requests_per_second": 12.0,
     "provider_requests_per_second": 2.5,
 }

@@ -33,7 +33,7 @@ same-payload HTTP-400 retry in its existing append-only attempt ledger. This
 operational retry exception is accepted only for Part 0.
 The deadline sensitivity matrix may bind
 `inference_hub_sensitivity_deadline_accelerated.py`, capped at global
-concurrency 24, provider concurrency 4, 12 global starts/second, and 2.5
+concurrency 24, provider concurrency 3, 12 global starts/second, and 2.5
 starts/second per provider. It is accepted only for the sensitivity phase and
 does not alter the frozen two-seed design or invalid-action policy.
 Private journal references must remain inside the run's
