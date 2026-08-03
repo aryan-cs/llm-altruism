@@ -492,11 +492,25 @@ def _part2(run: Path, manifest: Mapping[str, Any]) -> tuple[list[dict[str, Any]]
         invalid = sum(int(row["invalid_count"]) for row in group)
         restraint = sum(int(row["restraint_count"]) for row in group)
         overuse = sum(int(row["overuse_count"]) for row in group)
-        eligible = [row for row in group if row.get("operationally_eligible") is True]
+        operationally_eligible = [
+            row
+            for row in group
+            if row.get("operationally_eligible") is True
+        ]
+        semantic_invalid_trajectories = [
+            row for row in operationally_eligible if int(row["invalid_count"]) > 0
+        ]
+        eligible = [
+            row for row in operationally_eligible if int(row["invalid_count"]) == 0
+        ]
         valid = scheduled - invalid
         output.append({
             "phase": "part2", "target_id": target, "upstream_provider": subject["upstream_provider"], "model": subject["model"],
-            "trajectory_count": len(group), "operationally_eligible_trajectory_count": len(eligible), "scheduled_agent_days": scheduled,
+            "trajectory_count": len(group),
+            "operationally_eligible_trajectory_count": len(operationally_eligible),
+            "environmentally_estimable_trajectory_count": len(eligible),
+            "semantic_invalid_trajectory_count": len(semantic_invalid_trajectories),
+            "scheduled_agent_days": scheduled,
             "restraint_count": restraint, "overuse_count": overuse, "first_attempt_invalid_count": invalid, "repaired_invalid_count": 0,
             "restraint_rate_all_scheduled": _rate(restraint, scheduled), "restraint_rate_among_valid": _rate(restraint, valid),
             "mean_aurc_eligible": _rate(sum(float(row["aurc"]) for row in eligible), len(eligible)),

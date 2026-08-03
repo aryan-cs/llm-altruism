@@ -135,6 +135,16 @@ def _source_payload() -> tuple[dict[str, list[dict[str, Any]]], dict[str, Any]]:
                 "model": f"model/p2_{model_index:02d}_exact",
                 "trajectory_count": 12,
                 "operationally_eligible_trajectory_count": 0 if model_index == 0 else 12,
+                "environmentally_estimable_trajectory_count": (
+                    0
+                    if model_index == 0
+                    else 11 if invalid > 0 else 12
+                ),
+                "semantic_invalid_trajectory_count": (
+                    0
+                    if model_index == 0
+                    else 1 if invalid > 0 else 0
+                ),
                 "scheduled_agent_days": scheduled,
                 "restraint_count": restraint,
                 "overuse_count": overuse,
@@ -420,6 +430,8 @@ def test_deterministic_headline_macros_match_full_production_fixture_exactly(
         "ProviderSafePartTwoTrajectoryCount": "228",
         "ProviderSafePartTwoOperationallyEligibleTrajectoryCount": "216",
         "ProviderSafePartTwoOperationallyIneligibleTrajectoryCount": "12",
+        "ProviderSafePartTwoEnvironmentallyEstimableTrajectoryCount": "204",
+        "ProviderSafePartTwoSemanticInvalidTrajectoryCount": "12",
         "ProviderSafePartTwoScheduledAgentDayCount": "2280",
         "ProviderSafePartTwoValidAgentDayCount": "2142",
         "ProviderSafePartTwoInvalidAgentDayCount": "138",

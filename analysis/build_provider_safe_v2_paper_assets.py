@@ -366,6 +366,8 @@ def _validate_part2(rows: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
             row,
             (
                 "trajectory_count", "operationally_eligible_trajectory_count",
+                "environmentally_estimable_trajectory_count",
+                "semantic_invalid_trajectory_count",
                 "scheduled_agent_days", "restraint_count", "overuse_count",
                 "first_attempt_invalid_count", "repaired_invalid_count",
                 "restraint_rate_all_scheduled", "restraint_rate_among_valid",
@@ -377,12 +379,27 @@ def _validate_part2(rows: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
             label,
         )
         trajectories = _integer(row, "trajectory_count", label, minimum=1)
-        eligible = _integer(row, "operationally_eligible_trajectory_count", label)
+        operational = _integer(
+            row, "operationally_eligible_trajectory_count", label
+        )
+        eligible = _integer(
+            row, "environmentally_estimable_trajectory_count", label
+        )
+        semantic_invalid_trajectories = _integer(
+            row, "semantic_invalid_trajectory_count", label
+        )
         scheduled = _integer(row, "scheduled_agent_days", label, minimum=1)
         restraint = _integer(row, "restraint_count", label)
         overuse = _integer(row, "overuse_count", label)
         invalid = _integer(row, "first_attempt_invalid_count", label)
-        if trajectories != 12 or eligible > trajectories or restraint + overuse + invalid != scheduled:
+        if (
+            trajectories != 12
+            or operational > trajectories
+            or eligible > operational
+            or semantic_invalid_trajectories > operational
+            or eligible + semantic_invalid_trajectories != operational
+            or restraint + overuse + invalid != scheduled
+        ):
             raise PaperAssetsError(f"{label} trajectory/action accounting does not reconcile.")
         if _integer(row, "repaired_invalid_count", label) != 0:
             raise PaperAssetsError("Part 2 repaired outcomes are outside this frozen asset contract.")
@@ -1262,7 +1279,9 @@ def _write_tables(data: Mapping[str, Any], directory: Path) -> list[Path]:
         part2_rows.append(
             [
                 str(order), _tex_escape(row["target_id"]), _tex_escape(row["upstream_provider"]),
-                _tex_escape(row["model"]), str(row["trajectory_count"]), str(scheduled),
+                _tex_escape(row["model"]), str(row["trajectory_count"]),
+                str(row["environmentally_estimable_trajectory_count"]),
+                str(scheduled),
                 _pct(float(row["restraint_rate_all_scheduled"])),
                 "NE" if row["mean_aurc_eligible"] is None else f"{float(row['mean_aurc_eligible']):.3f}",
                 "NE" if row["mean_aupc_eligible"] is None else f"{float(row['mean_aupc_eligible']):.3f}",
@@ -1275,12 +1294,12 @@ def _write_tables(data: Mapping[str, Any], directory: Path) -> list[Path]:
     path.write_text(
         _table_tex(
             caption=(
-                "Part 2 commons outcomes for all 19 exact model routes. Each row is one target route, shown in descending within-task restraint-rate display order; Provider and Model are exact upstream identifiers. Traj. is the trajectory count; Agent-days is the scheduled action denominator; Restraint/agent-days retains first-attempt invalid actions in that denominator; Mean AURC and Mean AUPC are normalized reserve and population areas over operationally eligible trajectories; Nondepletion is the share of eligible trajectories whose reserve stays above zero; Population retained is mean final population divided by initial population over eligible trajectories; NE means no eligible trajectory; Invalid/agent-days gives invalid count and denominator; Valid coverage is one minus that invalid fraction. Higher restraint, AURC, AUPC, nondepletion, population retention, and validity mean more preservation or fewer invalid actions within this simulator. These directions do not imply general safety."
+                "Part 2 commons outcomes for all 19 exact model routes. Each row is one target route, shown in descending within-task restraint-rate display order; Provider and Model are exact upstream identifiers. Traj. is the completed trajectory count; Env. traj. is the subset with operationally valid identity and transport and no invalid first action, which supplies environmental estimates; Agent-days is the scheduled action denominator; Restraint/agent-days retains first-attempt invalid actions in that denominator; Mean AURC and Mean AUPC are normalized reserve and population areas over environmentally estimable trajectories; Nondepletion is the share of those trajectories whose reserve stays above zero; Population retained is mean final population divided by initial population; NE means no estimable trajectory; Invalid/agent-days gives invalid count and denominator; Valid coverage is one minus that invalid fraction. Higher restraint, AURC, AUPC, nondepletion, population retention, and validity mean more preservation or fewer invalid actions within this simulator. These directions do not imply general safety."
             ),
             label="tab:provider-safe-v2-part2-all-models",
-            headers=("Order", "Target route ID", "Provider", "Model ID", "Traj.", "Agent-days", "Restraint/agent-days", "Mean AURC", "Mean AUPC", "Nondepletion", "Population retained", "Invalid/agent-days", "Valid coverage"),
+            headers=("Order", "Target route ID", "Provider", "Model ID", "Traj.", "Env. traj.", "Agent-days", "Restraint/agent-days", "Mean AURC", "Mean AUPC", "Nondepletion", "Population retained", "Invalid/agent-days", "Valid coverage"),
             rows=part2_rows,
-            column_spec="rlllrrrrrrrrr",
+            column_spec="rlllrrrrrrrrrr",
             chunk_size=19,
         ),
         encoding="utf-8",
@@ -1415,11 +1434,25 @@ def _headline_values(data: Mapping[str, Any]) -> list[tuple[str, str]]:
     part2_eligible_trajectories = sum(
         int(row["operationally_eligible_trajectory_count"]) for row in part2
     )
+    part2_environmentally_estimable_trajectories = sum(
+        int(row["environmentally_estimable_trajectory_count"])
+        for row in part2
+    )
+    part2_semantic_invalid_trajectories = sum(
+        int(row["semantic_invalid_trajectory_count"])
+        for row in part2
+    )
     part2_scheduled_agent_days = sum(int(row["scheduled_agent_days"]) for row in part2)
     part2_invalid_agent_days = sum(int(row["first_attempt_invalid_count"]) for row in part2)
     part2_valid_agent_days = part2_scheduled_agent_days - part2_invalid_agent_days
     part2_nonestimable = sum(row["mean_aurc_eligible"] is None for row in part2)
-    if part2_eligible_trajectories > part2_trajectories or part2_valid_agent_days < 0:
+    if (
+        part2_eligible_trajectories > part2_trajectories
+        or part2_environmentally_estimable_trajectories
+        + part2_semantic_invalid_trajectories
+        != part2_eligible_trajectories
+        or part2_valid_agent_days < 0
+    ):
         raise PaperAssetsError("Part 2 headline trajectory/agent-day totals do not reconcile.")
     part2_aurc = [
         float(row["mean_aurc_eligible"])
@@ -1467,6 +1500,8 @@ def _headline_values(data: Mapping[str, Any]) -> list[tuple[str, str]]:
         ("ProviderSafePartTwoTrajectoryCount", str(part2_trajectories)),
         ("ProviderSafePartTwoOperationallyEligibleTrajectoryCount", str(part2_eligible_trajectories)),
         ("ProviderSafePartTwoOperationallyIneligibleTrajectoryCount", str(part2_trajectories - part2_eligible_trajectories)),
+        ("ProviderSafePartTwoEnvironmentallyEstimableTrajectoryCount", str(part2_environmentally_estimable_trajectories)),
+        ("ProviderSafePartTwoSemanticInvalidTrajectoryCount", str(part2_semantic_invalid_trajectories)),
         ("ProviderSafePartTwoScheduledAgentDayCount", str(part2_scheduled_agent_days)),
         ("ProviderSafePartTwoValidAgentDayCount", str(part2_valid_agent_days)),
         ("ProviderSafePartTwoInvalidAgentDayCount", str(part2_invalid_agent_days)),

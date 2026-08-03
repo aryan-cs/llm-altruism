@@ -165,9 +165,11 @@ def production_bundle(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Pat
             trajectory_rows.append({
                 "target_id": subject["target_id"], "trajectory_index": index,
                 "scheduled_agent_days": 10, "responses_received": 10,
-                "invalid_count": 1, "identity_mismatch_count": 0,
+                "invalid_count": 1 if index == 0 else 0,
+                "identity_mismatch_count": 0,
                 "transport_failure_count": 0, "restraint_count": 7,
-                "overuse_count": 2, "operationally_eligible": True,
+                "overuse_count": 2 if index == 0 else 3,
+                "operationally_eligible": True,
                 "aurc": 0.8, "aupc": 0.9,
                 "reserve_nondepletion": True,
                 "population_retention": 0.8,
@@ -279,7 +281,10 @@ def test_full_production_shaped_analysis_and_invalid_denominators(
     assert p1["welfare_preserving_rate_all_scheduled"] == 383 / 384
     p2 = json.loads((tmp_path / "out/part2_models.jsonl").read_text().splitlines()[0])
     assert p2["restraint_rate_all_scheduled"] == 84 / 120
-    assert p2["restraint_rate_among_valid"] == 84 / 108
+    assert p2["restraint_rate_among_valid"] == 84 / 119
+    assert p2["operationally_eligible_trajectory_count"] == 12
+    assert p2["environmentally_estimable_trajectory_count"] == 11
+    assert p2["semantic_invalid_trajectory_count"] == 1
     assert p2["mean_aurc_eligible"] == pytest.approx(0.8)
     assert p2["mean_aupc_eligible"] == pytest.approx(0.9)
     assert p2["reserve_nondepletion_rate_eligible"] == 1.0
