@@ -4,6 +4,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PANEL_PATH = ROOT / "experiments" / "sota_cross_axis_panel.json"
+FULL_PART2_PANEL_PATH = (
+    ROOT / "experiments" / "sota_cross_axis_part2_100day_panel.json"
+)
 
 
 def test_cross_axis_panel_is_fixed_distinct_and_balanced() -> None:
@@ -36,3 +39,25 @@ def test_cross_axis_deadline_design_uses_independent_units() -> None:
     assert part2["common_environment_seeds"] is True
     assert part2["private_gain_for_option_b"] > 0
     assert part2["reserve_cost_for_option_b"] > 0
+
+
+def test_full_part2_panel_restores_original_scale_with_replication() -> None:
+    panel = json.loads(FULL_PART2_PANEL_PATH.read_text(encoding="utf-8"))
+    subjects = panel["subject_target_ids"]
+    part2 = panel["part2"]
+
+    assert panel["schema_version"] == 2
+    assert len(subjects) == len(set(subjects)) == 24
+    assert panel["judge_target_id"] not in subjects
+    assert part2 == {
+        "contract_id": "corrected_original_scale_100d_v1",
+        "society_size": 50,
+        "days": 100,
+        "independent_trajectories": 12,
+        "resource_capacity": 2500,
+        "private_gain_for_option_b": 2,
+        "reserve_cost_for_option_b": 2,
+        "community_benefit": 5,
+        "collapse_death_rate": 0.2,
+        "common_environment_seeds": True,
+    }

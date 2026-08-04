@@ -91,6 +91,16 @@ target ID, exact route, and upstream provider/model identity.
   - COMPLETE with 228 trajectories, 13,495 realized agent-days, four genuine
     semantic-invalid actions, 225 environmentally estimable trajectories, and
     zero operational failures.
+- A fresh corrected original-scale Part 2 replication is now required before
+  the paper is final. `experiments/sota_cross_axis_part2_100day_panel.json`
+  freezes the historical 50-agent, 100-day, capacity-2,500, private-gain-2,
+  reserve-cost-2, collapse-death-rate-0.2 environment with 12 independent
+  common-seed trajectories per exact route. The active resumable production
+  journals are `data/private/inference_hub/full-part2-n12-n50-d100-main21-v3`;
+  the original 19 routes plus recovered MiniMax M2.7 and GLM 5.1 are running,
+  while exact Opus 4.5, DeepSeek V4 Flash, and Nemotron 3 Ultra remain on
+  bounded identity recovery without route substitution. This campaign remains
+  separate from the sealed 12-day evidence until complete and validated.
 
 Part 2 retains the main accelerated policy at global concurrency 12, provider
 concurrency 2, global 8 starts/second, and provider 1.5 starts/second. Parts 0

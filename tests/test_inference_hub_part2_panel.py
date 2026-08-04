@@ -10,7 +10,12 @@ import pytest
 from experiments.misc.inference_hub_discovery import InferenceHubDiscoveryError
 from experiments.misc.inference_hub_part1_panel import _sha256_json
 from experiments.misc.inference_hub_part2_panel import (
+    ACCELERATED_ORIGINAL_SCALE_RATE_PROFILE,
+    HIGH_LATENCY_ORIGINAL_SCALE_RATE_PROFILE,
+    HIGH_THROUGHPUT_ORIGINAL_SCALE_RATE_PROFILE,
     InferenceHubPart2PanelError,
+    _load_panel,
+    _runtime_client,
     _wilson_interval,
     parse_decision,
     run_panel,
@@ -232,3 +237,72 @@ def test_frozen_contract_rejects_underpowered_panel(tmp_path: Path) -> None:
             panel_path=panel, compatibility_path=compatibility, registry_path=registry,
             output_dir=tmp_path / "bad", client=FakeClient(), selected_ids=[SUBJECT],
         )
+
+
+def test_original_scale_100_day_contract_is_exact_and_frozen(tmp_path: Path) -> None:
+    panel, _compatibility, _registry = _write_inputs(tmp_path)
+    value = json.loads(panel.read_text())
+    value["schema_version"] = 2
+    value["part2"] = {
+        "contract_id": "corrected_original_scale_100d_v1",
+        "society_size": 50,
+        "days": 100,
+        "independent_trajectories": 12,
+        "resource_capacity": 2500,
+        "private_gain_for_option_b": 2,
+        "reserve_cost_for_option_b": 2,
+        "community_benefit": 5,
+        "collapse_death_rate": 0.2,
+        "common_environment_seeds": True,
+    }
+    panel.write_text(json.dumps(value) + "\n")
+
+    _loaded, contract = _load_panel(panel)
+    assert (
+        contract.society_size,
+        contract.days,
+        contract.trajectories,
+        contract.capacity,
+        contract.private_gain,
+        contract.reserve_cost,
+        contract.community_benefit,
+        contract.collapse_death_rate,
+    ) == (50, 100, 12, 2500, 2, 2, 5, 0.2)
+
+    value["part2"]["days"] = 99
+    panel.write_text(json.dumps(value) + "\n")
+    with pytest.raises(InferenceHubPart2PanelError, match="horizon=100"):
+        _load_panel(panel)
+
+
+def test_original_scale_accelerated_rate_profile_is_bounded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("NVIDIA_API_KEY", "test-key")
+    monkeypatch.setenv("INFERENCE_HUB_BASE_URL", ENDPOINT)
+    client = _runtime_client(60.0, ACCELERATED_ORIGINAL_SCALE_RATE_PROFILE)
+    contract = client.rate_limit_contract
+
+    assert contract["global_concurrency"] == 24
+    assert contract["provider_concurrency"] == 4
+    assert contract["global_requests_per_second"] == 12.0
+    assert contract["provider_requests_per_second"] == 2.5
+    assert contract["throttle_cooldown_seconds"] == 30.0
+
+    high_latency_client = _runtime_client(
+        60.0, HIGH_LATENCY_ORIGINAL_SCALE_RATE_PROFILE
+    )
+    high_latency_contract = high_latency_client.rate_limit_contract
+    assert high_latency_contract["global_concurrency"] == 60
+    assert high_latency_contract["provider_concurrency"] == 10
+    assert high_latency_contract["global_requests_per_second"] == 12.0
+    assert high_latency_contract["provider_requests_per_second"] == 2.5
+
+    high_throughput_client = _runtime_client(
+        60.0, HIGH_THROUGHPUT_ORIGINAL_SCALE_RATE_PROFILE
+    )
+    high_throughput_contract = high_throughput_client.rate_limit_contract
+    assert high_throughput_contract["global_concurrency"] == 120
+    assert high_throughput_contract["provider_concurrency"] == 25
+    assert high_throughput_contract["global_requests_per_second"] == 12.0
+    assert high_throughput_contract["provider_requests_per_second"] == 2.5

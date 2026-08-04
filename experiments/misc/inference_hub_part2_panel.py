@@ -13,6 +13,7 @@ import fcntl
 import hashlib
 import json
 import math
+import os
 import platform
 import random
 import statistics
@@ -29,9 +30,14 @@ from dotenv import load_dotenv
 
 from agents.agent_2 import Agent2
 from experiments.misc.inference_hub_discovery import (
+    DEFAULT_BASE_URL,
     InferenceHubClient,
     InferenceHubDiscoveryError,
     _client_from_environment,
+)
+from experiments.misc.inference_hub_rate_limit import (
+    InferenceHubRateLimiter,
+    RateLimitPolicy,
 )
 from experiments.misc.inference_hub_part1_panel import (
     _ChainedJournal,
@@ -69,6 +75,13 @@ DEFAULT_PARTICIPANT_WORKERS = 5
 DEFAULT_MAX_ATTEMPTS = 3
 DEFAULT_BACKOFF_SECONDS = 1.0
 DEFAULT_COMMUNITY_BENEFIT = 5
+ACCELERATED_ORIGINAL_SCALE_RATE_PROFILE = "accelerated_original_scale_v1"
+HIGH_LATENCY_ORIGINAL_SCALE_RATE_PROFILE = (
+    "accelerated_original_scale_high_latency_v2"
+)
+HIGH_THROUGHPUT_ORIGINAL_SCALE_RATE_PROFILE = (
+    "accelerated_original_scale_high_throughput_v3"
+)
 PART2_MAX_TOKENS_FLOOR = 2048
 PART2_REASONING_MAX_TOKENS_FLOOR = 8192
 _LONG_REASONING_MARKERS = ("kimi", "deepseek", "qwen", "nemotron", "gpt-oss", "glm")
@@ -119,7 +132,8 @@ def _positive(name: str, value: int) -> None:
 
 def _load_panel(path: Path) -> tuple[dict[str, Any], Part2Contract]:
     panel = _read_json(path, "SOTA cross-axis panel")
-    if panel.get("schema_version") != 1:
+    schema_version = panel.get("schema_version")
+    if schema_version not in {1, 2}:
         raise InferenceHubPart2PanelError("Unsupported SOTA panel schema.")
     ids = panel.get("subject_target_ids")
     if not isinstance(ids, list) or not ids or len(ids) != len(set(ids)) or not all(
@@ -129,24 +143,42 @@ def _load_panel(path: Path) -> tuple[dict[str, Any], Part2Contract]:
     part2 = panel.get("part2")
     if not isinstance(part2, Mapping):
         raise InferenceHubPart2PanelError("Panel lacks its Part 2 contract.")
-    expected = {
-        "society_size": 5,
-        "days": 12,
-        "independent_trajectories": 12,
-        "resource_capacity": 50,
-        "private_gain_for_option_b": 2,
-        "reserve_cost_for_option_b": 2,
-        "common_environment_seeds": True,
-    }
+    if schema_version == 1:
+        expected = {
+            "society_size": 5,
+            "days": 12,
+            "independent_trajectories": 12,
+            "resource_capacity": 50,
+            "private_gain_for_option_b": 2,
+            "reserve_cost_for_option_b": 2,
+            "common_environment_seeds": True,
+        }
+        contract = Part2Contract(5, 12, 12, 50, 2, 2)
+        contract_label = "N=5, horizon=12, 12-seed, capacity=50"
+    else:
+        expected = {
+            "contract_id": "corrected_original_scale_100d_v1",
+            "society_size": 50,
+            "days": 100,
+            "independent_trajectories": 12,
+            "resource_capacity": 2500,
+            "private_gain_for_option_b": 2,
+            "reserve_cost_for_option_b": 2,
+            "community_benefit": 5,
+            "collapse_death_rate": 0.2,
+            "common_environment_seeds": True,
+        }
+        contract = Part2Contract(50, 100, 12, 2500, 2, 2, 5, 0.2)
+        contract_label = "N=50, horizon=100, 12-seed, capacity=2500"
     if any(part2.get(key) != value for key, value in expected.items()):
         raise InferenceHubPart2PanelError(
-            "Part 2 must use the frozen N=5, horizon=12, 12-seed, capacity=50, "
+            f"Part 2 must use the frozen {contract_label}, "
             "private-gain=2, reserve-cost=2 matched contract."
         )
     judge = panel.get("judge_target_id")
     if not isinstance(judge, str) or not judge or judge in ids:
         raise InferenceHubPart2PanelError("Panel judge identity is absent or overlaps subjects.")
-    return panel, Part2Contract(5, 12, 12, 50, 2, 2)
+    return panel, contract
 
 
 def _environment_seeds(panel_id: str, base_seed: int, count: int) -> list[int]:
@@ -593,7 +625,13 @@ def _run_trajectory(
         a_count, b_count = actions.count("OPTION_A"), actions.count("OPTION_B")
         invalid_count = actions.count("INVALID")
         for slot, row in zip(living, day_rows):
-            private[slot] += 1 if row["action"] == "OPTION_A" else 2 if row["action"] == "OPTION_B" else 0
+            private[slot] += (
+                1
+                if row["action"] == "OPTION_A"
+                else contract.private_gain
+                if row["action"] == "OPTION_B"
+                else 0
+            )
         reserve = max(0, reserve - contract.reserve_cost * b_count)
         if invalid_count == 0 and a_count == population_start:
             group_payoff += contract.community_benefit
@@ -704,7 +742,9 @@ def run_panel(
         raise InferenceHubPart2PanelError("Selected targets must be unique members of the frozen panel.")
     trajectory_count = contract.trajectories if trajectory_limit is None else trajectory_limit
     if isinstance(trajectory_count, bool) or not isinstance(trajectory_count, int) or not 1 <= trajectory_count <= contract.trajectories:
-        raise InferenceHubPart2PanelError("trajectory_limit must be from 1 through 12.")
+        raise InferenceHubPart2PanelError(
+            f"trajectory_limit must be from 1 through {contract.trajectories}."
+        )
 
     private_dir = output_dir / "private"
     trajectory_dir = private_dir / "trajectories"
@@ -947,14 +987,75 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-attempts", type=_positive_int, default=DEFAULT_MAX_ATTEMPTS)
     parser.add_argument("--initial-backoff-seconds", type=_nonnegative_float, default=DEFAULT_BACKOFF_SECONDS)
     parser.add_argument("--timeout-seconds", type=float, default=900.0)
+    parser.add_argument(
+        "--rate-profile",
+        choices=(
+            "standard",
+            ACCELERATED_ORIGINAL_SCALE_RATE_PROFILE,
+            HIGH_LATENCY_ORIGINAL_SCALE_RATE_PROFILE,
+            HIGH_THROUGHPUT_ORIGINAL_SCALE_RATE_PROFILE,
+        ),
+        default="standard",
+        help=(
+            "Use the shared conservative limiter or the bounded original-scale "
+            "campaign profiles; both accelerated profiles retain 12 global / "
+            "2.5 per-provider starts/s, while v2 allows more slow calls in flight."
+        ),
+    )
     parser.add_argument("--resume", action="store_true")
     return parser
+
+
+def _runtime_client(timeout_seconds: float, rate_profile: str) -> InferenceHubClient:
+    if rate_profile == "standard":
+        return _client_from_environment(timeout_seconds)
+    if rate_profile not in {
+        ACCELERATED_ORIGINAL_SCALE_RATE_PROFILE,
+        HIGH_LATENCY_ORIGINAL_SCALE_RATE_PROFILE,
+        HIGH_THROUGHPUT_ORIGINAL_SCALE_RATE_PROFILE,
+    }:
+        raise InferenceHubPart2PanelError("Unsupported Part 2 rate profile.")
+    load_dotenv()
+    api_key = os.getenv("NVIDIA_API_KEY", "").strip()
+    base_url = os.getenv("INFERENCE_HUB_BASE_URL", DEFAULT_BASE_URL).strip()
+    scope_id = hashlib.sha256(
+        f"{base_url}\0{api_key}\0{rate_profile}".encode(
+            "utf-8"
+        )
+    ).hexdigest()
+    limiter = InferenceHubRateLimiter(
+        policy=RateLimitPolicy(
+            global_concurrency=(
+                120
+                if rate_profile == HIGH_THROUGHPUT_ORIGINAL_SCALE_RATE_PROFILE
+                else 60
+                if rate_profile == HIGH_LATENCY_ORIGINAL_SCALE_RATE_PROFILE
+                else 24
+            ),
+            provider_concurrency=(
+                25
+                if rate_profile == HIGH_THROUGHPUT_ORIGINAL_SCALE_RATE_PROFILE
+                else 10
+                if rate_profile == HIGH_LATENCY_ORIGINAL_SCALE_RATE_PROFILE
+                else 4
+            ),
+            global_requests_per_second=12.0,
+            provider_requests_per_second=2.5,
+        ),
+        scope_id=scope_id,
+    )
+    return InferenceHubClient(
+        api_key=api_key,
+        base_url=base_url,
+        timeout_seconds=timeout_seconds,
+        rate_limiter=limiter,
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     load_dotenv()
-    client = _client_from_environment(args.timeout_seconds)
+    client = _runtime_client(args.timeout_seconds, args.rate_profile)
     manifest = run_panel(
         panel_path=args.panel_config, compatibility_path=args.compatibility,
         registry_path=args.registry, output_dir=args.output_dir, client=client,
