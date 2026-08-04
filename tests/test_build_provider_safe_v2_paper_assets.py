@@ -9,6 +9,7 @@ from typing import Any
 
 import pytest
 from PIL import Image
+from matplotlib import pyplot as plt
 
 from analysis.build_provider_safe_v2_paper_assets import (
     DEFAULT_LOCAL_CONTROLS_PATH,
@@ -27,6 +28,7 @@ from analysis.build_provider_safe_v2_paper_assets import (
     _load_and_validate,
     _annotation_color,
     _fixed_panel_pair_diagnostic,
+    _lollipop_panel,
     _self_hash,
     _validate_part0,
     _validate_sensitivity,
@@ -55,6 +57,30 @@ def test_annotation_color_uses_gamma_correct_maximum_contrast() -> None:
     assert _annotation_color(rgba(ORANGE)) == "black"
     assert _annotation_color(rgba(RED)) == "black"
     assert _annotation_color(rgba(BLUE)) == "white"
+
+
+def test_lollipop_value_labels_use_a_separate_gutter_from_intervals() -> None:
+    fig, axis = plt.subplots(figsize=(6, 3))
+    try:
+        _lollipop_panel(
+            axis,
+            [0.73, 0.94, 1.0, None],
+            ["a", "b", "c", "d"],
+            title="No-overlap layout",
+            color=ORANGE,
+            show_labels=True,
+            intervals=[(0.60, 0.80), (0.90, 0.98), (1.0, 1.0), (None, None)],
+        )
+        value_text = [
+            text for text in axis.texts if text.get_text() in {"73.0%", "94.0%", "100.0%", "NE"}
+        ]
+        assert len(value_text) == 4
+        assert all(text.get_position()[0] == pytest.approx(1.115) for text in value_text)
+        assert all(text.get_ha() == "center" for text in value_text)
+        assert axis.get_xlim()[1] >= 1.23
+        assert max(axis.get_xticks()) == pytest.approx(1.0)
+    finally:
+        plt.close(fig)
 
 
 def test_part0_judge_operational_unclears_are_not_invalids() -> None:

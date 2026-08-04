@@ -2,50 +2,50 @@
   "artifact_type": "provider_safe_v2_definitive_paper_assets",
   "assets": [
     {
-      "byte_count": 59092,
-      "file_sha256": "aaffb67f155f45d19cdb29ce5d82887d412c887c80f90bdf889c97838866d383",
+      "byte_count": 59297,
+      "file_sha256": "78e0c5269624bb0b464e9401cb1899f7c65b236966ff6336c5dadb3d572d2309",
       "kind": "vector_pdf",
       "name": "all_models_cross_phase_outcome_profile_block1.pdf"
     },
     {
-      "byte_count": 364370,
-      "file_sha256": "d1d7610769cc21287f4fe53fdb7d21bf0b333409848d9e69ac6f88110a27f62c",
+      "byte_count": 363320,
+      "file_sha256": "936eeae390d639bc3f85dcd72720f734b386ec42e08e9f283c1cd90831b82cb6",
       "kind": "raster_png",
       "name": "all_models_cross_phase_outcome_profile_block1.png"
     },
     {
-      "byte_count": 59902,
-      "file_sha256": "eab074cc8d69f1fb23d24247bb82557e2239a64f22e7bbed5db7b3fefa461a70",
+      "byte_count": 60125,
+      "file_sha256": "540818a2056718fa82a0f23b1fbbe7dc1b0c30ad27153f4fc5e9c6d7f096fe04",
       "kind": "vector_pdf",
       "name": "all_models_cross_phase_outcome_profile_block2.pdf"
     },
     {
-      "byte_count": 346092,
-      "file_sha256": "8b1f91107fbdba9a6960e141fe5333230cb1278a5cc9a94f0a17c198a154f478",
+      "byte_count": 345082,
+      "file_sha256": "f59b016a3da25ca3d7300700e78b1e80495a4f306d7b676c7804c4bdfbcdb450",
       "kind": "raster_png",
       "name": "all_models_cross_phase_outcome_profile_block2.png"
     },
     {
-      "byte_count": 58057,
-      "file_sha256": "1e92d521560e734851078d8806e6e779efd25561927c1bf73ff47d2fec2b7b07",
+      "byte_count": 58315,
+      "file_sha256": "a793ddafb3ead5b881cd2c750e6e023835d730580c8bd0ea09e73345742990ca",
       "kind": "vector_pdf",
       "name": "all_models_cross_phase_outcome_profile_block3.pdf"
     },
     {
-      "byte_count": 326104,
-      "file_sha256": "abba0780aabbe9b635709a92fbff22a51529f76d7595a8d50693855d07e92f44",
+      "byte_count": 328842,
+      "file_sha256": "5d9c67ce7fcd52b314857775a2663ce25029131669eaeb300180b0d85071891e",
       "kind": "raster_png",
       "name": "all_models_cross_phase_outcome_profile_block3.png"
     },
     {
-      "byte_count": 59397,
-      "file_sha256": "30c1c21129134abee791f2db100e5b132a7bd03a868194d391c346b482daf2df",
+      "byte_count": 59499,
+      "file_sha256": "7cbb2786ca056a94d021cff250adb339911ca11638628ed15b2635899ae8f6d5",
       "kind": "vector_pdf",
       "name": "all_models_cross_phase_outcome_profile_block4.pdf"
     },
     {
-      "byte_count": 318354,
-      "file_sha256": "50a3a8620a7d004e2507b447ebc5c8a68d9a7c9e6c825e0d6cbd31db13120d74",
+      "byte_count": 318226,
+      "file_sha256": "4682b6d9d573778d8c6ba3fcfb2e912b73e9803c9eea026298cfcebfa7a94def",
       "kind": "raster_png",
       "name": "all_models_cross_phase_outcome_profile_block4.png"
     },
@@ -69,7 +69,7 @@
     },
     {
       "byte_count": 68509,
-      "file_sha256": "4e6a7d5bc4c7d26934c34cda4984a98b8e4fe8efbed0c9e4449a8cc9e8d04d47",
+      "file_sha256": "67f1fbfa539eacbf90d6a9169137356dc804a58ba0c873c7f7c72b6d0c41a8c3",
       "kind": "vector_pdf",
       "name": "part0_model_language.pdf"
     },
@@ -86,38 +86,38 @@
       "name": "part0_model_language_table.tex"
     },
     {
-      "byte_count": 56968,
-      "file_sha256": "2444af735cb4284dff0c7f35c786fa21e7d06a079c25e198dcc8226471e6e0a9",
+      "byte_count": 56805,
+      "file_sha256": "cc6a040d6266786da9ded34d4e95ba041e19bb9cec771f173db4add751ca5aa5",
       "kind": "vector_pdf",
       "name": "part1_all_models_block1.pdf"
     },
     {
-      "byte_count": 455091,
-      "file_sha256": "058d3c98f497b11a6d3b3fe1002ab01e2c74c34a09d5b124baf7e41d3c4f5e4c",
+      "byte_count": 455657,
+      "file_sha256": "e20bbdd70d54d3374da55659724da20bf87e20c171716b6972cddec979b99288",
       "kind": "raster_png",
       "name": "part1_all_models_block1.png"
     },
     {
-      "byte_count": 56033,
-      "file_sha256": "de42e35ff0185da61934a1013cf6555b0353f4353e21f3d958a0ecb1be356668",
+      "byte_count": 56154,
+      "file_sha256": "9a74a5d13d7b57f82b932950af2ab56ffcd7208a4cbab918d8e0a9b5367cc9e5",
       "kind": "vector_pdf",
       "name": "part1_all_models_block2.pdf"
     },
     {
-      "byte_count": 429296,
-      "file_sha256": "ceb6e12db379a00b8c4b4ddaeee93f09b1778b2de4cf5c90aa9045d4de5a40d2",
+      "byte_count": 430411,
+      "file_sha256": "2401d03d003ff92df232fabfe9e3960bd296eb22b8fe7b794f4173562a3e7e87",
       "kind": "raster_png",
       "name": "part1_all_models_block2.png"
     },
     {
-      "byte_count": 55559,
-      "file_sha256": "09170e33c3a4b23445325922a036659de8784d982b3fdc45ba25e4316b51f92b",
+      "byte_count": 55575,
+      "file_sha256": "a1dafe2d0e90a1a0ee391cf9ebf624fa937b47fa561505553ff26c015b9d6c6c",
       "kind": "vector_pdf",
       "name": "part1_all_models_block3.pdf"
     },
     {
-      "byte_count": 415589,
-      "file_sha256": "72df54cd1deef20b2941569480d2233d2912e10b6da2f893f6570f5bd8ed4df3",
+      "byte_count": 417950,
+      "file_sha256": "4ca0df6069c7bda4c52f37a74b044775f9c921b4f5ff1ea2ae0eabcd043769f3",
       "kind": "raster_png",
       "name": "part1_all_models_block3.png"
     },
@@ -128,14 +128,14 @@
       "name": "part1_all_models_table.tex"
     },
     {
-      "byte_count": 52608,
-      "file_sha256": "5732cfc0a57bfb8c3d6c6e06cea27224591a63ef3d50b3647b8aa738c77f1b39",
+      "byte_count": 52607,
+      "file_sha256": "435125b7b772fdfdd66d2a22f5fdbb80d7880dcd5c361253736eb541b00a6c99",
       "kind": "vector_pdf",
       "name": "part1_local_controls.pdf"
     },
     {
-      "byte_count": 177101,
-      "file_sha256": "04206eb10edcb98932f165dd74e82dede97cfbb20af23b0dba1a196c1215c727",
+      "byte_count": 176897,
+      "file_sha256": "9ecbd006bed3c074f57c82d90ed7bd0f71fc02a15bc02880f35aabc662d1e693",
       "kind": "raster_png",
       "name": "part1_local_controls.png"
     },
@@ -147,7 +147,7 @@
     },
     {
       "byte_count": 62031,
-      "file_sha256": "1e8154c521ae252942bd3029bb079c8618b26619a80120d706d5e4bc3e3c3019",
+      "file_sha256": "64d6e575e02d9d6327740cddfdba2c1520da4e729fbac416b7ede9b7b1883def",
       "kind": "vector_pdf",
       "name": "part1_role_calibration.pdf"
     },
@@ -164,14 +164,14 @@
       "name": "part1_role_calibration_table.tex"
     },
     {
-      "byte_count": 61815,
-      "file_sha256": "ebe1c66c336fe8fe2f103485d06789260e5e97cc814513fe0213318418b96a89",
+      "byte_count": 61702,
+      "file_sha256": "c98efa1661d9a403bf1efc2972e673f22b976d9fdbc974a7bf73e018f223244e",
       "kind": "vector_pdf",
       "name": "part2_all_models.pdf"
     },
     {
-      "byte_count": 412736,
-      "file_sha256": "635558ca6d679c7ae401e711a4188bcd771609b1eb25e1acc18f06e168e7869c",
+      "byte_count": 407562,
+      "file_sha256": "3aaf51522a9906f7c80c24156991ccd6637a3bc36806fa1d8c94f162e8e49113",
       "kind": "raster_png",
       "name": "part2_all_models.png"
     },
@@ -183,7 +183,7 @@
     },
     {
       "byte_count": 67969,
-      "file_sha256": "c08d2869484e3e12acecd6dcf5c73ffb7d94e57848ef3dff5357107c02778d70",
+      "file_sha256": "dc5399a05ee7a6a032eacfaa231814095a836dbd5d981b04a58440d6dcd906a3",
       "kind": "vector_pdf",
       "name": "part2_sensitivity_effects.pdf"
     },
@@ -203,12 +203,12 @@
   "confirmatory_or_paper_promotion_permitted": false,
   "cross_axis_aggregate_or_score_generated": false,
   "cross_axis_assets_generated": true,
-  "evidence_sha256": "4b84f39f2c9923bd8640b220eda3c0f657b04a2b276120192b657e0a11bb8811",
+  "evidence_sha256": "7e96a00ccbb369b067e9f1e8095ba7a6ce0bb4810eddffe2de2dfe4984ab2ac8",
   "exploratory_only": true,
   "figure_font_family": "Times New Roman (NeurIPS ptm-compatible serif)",
   "figure_palette": "original_submission_okabe_ito_blue_orange_green_vermillion",
   "figure_semantic_redundancy": "directional_caption_position_printed_values_and_distinct_marker_shapes",
-  "generated_at_utc": "2026-08-04T04:02:36.974704Z",
+  "generated_at_utc": "2026-08-04T06:07:39.948981Z",
   "human_labels_generated": false,
   "invalid_policy": "first_attempt_invalids_retained_in_all_primary_scheduled_unit_denominators;repairs_reported_separately",
   "local_controls_pooled_with_hosted_routes": false,

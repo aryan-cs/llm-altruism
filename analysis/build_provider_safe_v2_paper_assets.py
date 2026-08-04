@@ -1219,6 +1219,11 @@ def _lollipop_panel(
     show_labels: bool,
     intervals: Sequence[tuple[float | None, float | None]] | None = None,
 ) -> None:
+    # Reserve a dedicated label gutter to the right of the bounded [0, 1]
+    # outcome scale.  Labels must never sit on top of the point estimate or
+    # uncertainty whisker, including for estimates close to either boundary.
+    label_gutter_center = 1.115
+    display_limit = 1.23
     positions = list(range(len(values)))
     estimable = [(position, value) for position, value in zip(positions, values, strict=True) if value is not None]
     ax.barh(
@@ -1241,7 +1246,7 @@ def _lollipop_panel(
                 fmt="none", ecolor=INK, elinewidth=0.7, capsize=1.6,
                 capthick=0.7, zorder=1.5,
             )
-    ax.set_xlim(0.0, 1.0)
+    ax.set_xlim(0.0, display_limit)
     ax.set_ylim(-0.8, len(values) - 0.2)
     ax.invert_yaxis()
     if show_labels:
@@ -1250,25 +1255,31 @@ def _lollipop_panel(
     else:
         ax.set_yticks(positions)
         ax.tick_params(axis="y", labelsize=7.0, length=0, labelleft=False)
+    ax.set_xticks([0.0, 0.25, 0.50, 0.75, 1.0])
     ax.xaxis.set_major_formatter(PercentFormatter(1.0))
     ax.grid(axis="x", color=GRID, linewidth=0.6)
+    ax.axvline(1.025, color=GRID, linewidth=0.6, zorder=0)
     ax.set_axisbelow(True)
     ax.set_title(title, fontsize=10, fontweight="bold", loc="left")
     for position, value in zip(positions, values, strict=True):
         if value is None:
             ax.scatter([0.015], [position], marker="x", s=17, color=MUTED, linewidth=0.8, zorder=2)
-            ax.text(0.03, position, "NE", va="center", ha="left", fontsize=6.6, color=MUTED)
-        else:
-            if value >= 0.82:
-                label_x, alignment = max(0.015, value - 0.015), "right"
-            else:
-                label_x, alignment = min(0.985, value + 0.015), "left"
             ax.text(
-                label_x,
+                label_gutter_center,
+                position,
+                "NE",
+                va="center",
+                ha="center",
+                fontsize=6.6,
+                color=MUTED,
+            )
+        else:
+            ax.text(
+                label_gutter_center,
                 position,
                 f"{value:.1%}",
                 va="center",
-                ha=alignment,
+                ha="center",
                 fontsize=6.6,
                 color=INK,
             )
@@ -1363,15 +1374,22 @@ def _plot_cross_phase_outcome_profile(
                     raise PaperAssetsError(
                         f"Cross-phase outcome partition is invalid for {target!r}."
                     )
+                # The task-preferable and task-adverse shares can be equal
+                # (most commonly at zero).  Give the two semantic series
+                # distinct vertical lanes so their markers never cover one
+                # another while preserving the shared per-route row.
                 ax.scatter(
-                    [preferable], [position], marker="o", s=18, color=GREEN,
+                    [preferable], [position - 0.13], marker="o", s=18, color=GREEN,
                     edgecolor=INK, linewidth=0.3, zorder=3,
                 )
                 ax.scatter(
-                    [adverse], [position], marker="D", s=17, color=RED,
+                    [adverse], [position + 0.13], marker="D", s=17, color=RED,
                     edgecolor=INK, linewidth=0.3, zorder=3,
                 )
-            ax.set_xlim(0.0, 1.0)
+            # Keep boundary markers fully inside the axes while preserving the
+            # bounded 0--100% task scale and its exact tick labels.
+            ax.set_xlim(-0.02, 1.02)
+            ax.set_xticks([0.0, 0.2, 0.4, 0.6, 0.8, 1.0])
             ax.set_ylim(-0.8, len(block_targets) - 0.2)
             ax.invert_yaxis()
             ax.xaxis.set_major_formatter(PercentFormatter(1.0))
@@ -1392,17 +1410,17 @@ def _plot_cross_phase_outcome_profile(
         axes_row[0].scatter([], [], marker="D", s=24, color=RED, edgecolor=INK, linewidth=0.3, label="task-adverse outcome")
         axes_row[0].scatter([], [], marker="x", s=18, color=MUTED, linewidth=0.7, label="route not in panel")
         fig.legend(
-            loc="lower center", bbox_to_anchor=(0.53, 0.018), ncol=3,
+            loc="lower center", bbox_to_anchor=(0.53, 0.071), ncol=3,
             frameon=False, fontsize=8,
         )
         _figure_footer(
             fig,
             "Green circles are refusal, welfare-preserving choice, and restraint; red diamonds are compliance, focal-advantage choice, and overuse. Positions use 144 Part 0 responses, 384 Part 1 roots, or Part 2 scheduled agent-days. Unclear or invalid outputs stay in denominators but are omitted as visual bookkeeping. Panels are not pooled.",
             x=0.07,
-            y=0.015,
+            y=0.008,
             width=165,
         )
-        fig.tight_layout(rect=(0.045, 0.12, 0.995, 0.90), w_pad=1.2)
+        fig.tight_layout(rect=(0.045, 0.145, 0.995, 0.90), w_pad=1.2)
         output.extend(
             _save_figure(
                 fig, directory,
