@@ -149,6 +149,7 @@ class ConferenceSubmissionFormatTest(unittest.TestCase):
             "part2_restraint_rate_by_model",
             "part2_shared_reserve_over_time",
             "part2_population_over_time",
+            "part2_agent_day_raster_current",
         ):
             self.assertEqual(source.count("figures/" + name), 1, name)
         self.assertIn(asset_root + r"part1_all_models_block\block", source)

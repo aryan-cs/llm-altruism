@@ -264,6 +264,7 @@ def test_supplement_release_boundary_is_aggregate_only_and_current() -> None:
         "docs/conference_submission/figures/part2_restraint_rate_by_model.png",
         "docs/conference_submission/figures/part2_shared_reserve_over_time.png",
         "docs/conference_submission/figures/part2_population_over_time.png",
+        "docs/conference_submission/figures/part2_agent_day_raster_current.png",
         "docs/conference_submission/figures/part2_all_models.png",
     }
     assert {

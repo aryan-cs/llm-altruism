@@ -151,6 +151,8 @@ INCLUDE_PATHS = (
     Path("docs") / "conference_submission" / "figures" / "part2_shared_reserve_over_time.png",
     Path("docs") / "conference_submission" / "figures" / "part2_population_over_time.pdf",
     Path("docs") / "conference_submission" / "figures" / "part2_population_over_time.png",
+    Path("docs") / "conference_submission" / "figures" / "part2_agent_day_raster_current.pdf",
+    Path("docs") / "conference_submission" / "figures" / "part2_agent_day_raster_current.png",
     Path("docs") / "conference_submission" / "figures" / "part2_all_models.png",
     Path("data") / "analysis" / "local_hf_part1_controls.json",
     Path("data") / "graphs" / "part_0_graphs.py",

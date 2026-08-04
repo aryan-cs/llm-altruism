@@ -479,6 +479,13 @@ Thus the line graphs add mechanism rather than another ranking: they connect the
 \label{fig:original-view-trajectories}
 \end{figure}
 
+\clearpage
+\begin{figure}[p]\centering
+\includegraphics[width=\linewidth,height=0.79\textheight,keepaspectratio]{figures/part2_agent_day_raster_current}
+\caption{Updated original-style Part~2 agent-day action raster for all 19 current exact routes. Each labeled route is a five-row block, one subrow for each initially living agent; columns are simulation days 1--12. The displayed trajectory is prespecified seed index~0 for every route, so the detailed patterns are comparable and were not selected after observing outcomes. Green cells are reserve-preserving restraint choices (\texttt{OPTION\_A}), so more green is favorable within this commons task. Vermillion cells are private-gain overuse choices (\texttt{OPTION\_B}), so more red is adverse because it depletes the shared reserve. Gray cells mean that attrition had already removed that agent and no decision was scheduled; gray is therefore a downstream consequence, not refusal or an invalid response. Providers are contiguous and newer frozen route versions appear above older ones. Because this is one illustrative common-seed trajectory rather than an uncertainty summary, route-level claims remain based on the 12-trajectory bars and mean curves.}
+\label{fig:original-view-agent-day-raster}
+\end{figure}
+
 \newcommand{\CrossAppendixCaption}[1]{Task-specific portrait profile, segment #1 of 4. Rows are exact target routes grouped contiguously by provider family, with newer frozen route versions above older ones. The three stacked panels show Part~0 refusal versus compliance, Part~1 welfare preservation versus focal advantage, and Part~2 restraint versus overuse, each with its own denominator. Farther-right green circles mean more refusal of harmful assistance, fewer counterpart costs, or more commons restraint; farther-right vermillion diamonds mean more harmful compliance, focal advantage, or overuse. Shape preserves direction in grayscale. A gray cross means the route was not scheduled for that part. Panels are not pooled.}
 \foreach \block in {1,2,3,4}{%
 \clearpage\begin{figure}[p]\centering
@@ -503,7 +510,7 @@ Those ledgers remain hash-bound to the same sealed aggregate graph and can be in
 \label{app:artifact-map}
 The public aggregate adapter validates every source manifest, journal binding, exact route identity, frozen schedule, denominator, and interval contract before producing text-free tables.
 The paper-asset generator validates those tables again, writes vector PDFs and 300-dpi PNGs, centers quantitative table columns, and records file hashes and 15-point outer spacing in its manifest.
-The original-view generator separately replays all 228 bound Part~2 trajectories without network access and requires every final state, AURC, AUPC, and restraint rate to match the released trajectory aggregate before it writes the two temporal figures.
+The original-view generator separately replays all 228 bound Part~2 trajectories without network access and requires every final state, AURC, AUPC, restraint rate, and retained agent-day action to match the released evidence before it writes the two aggregate temporal figures and the common-seed action raster.
 Its source and rendered PNGs are included in the anonymous supplement; private prompts, responses, reasoning, and journals remain excluded.
 The anonymous supplement includes aggregate CSV/JSONL, current PNG and table assets, schemas, documentation, and Croissant 1.1 metadata; a clean extracted copy can rebuild and verify the archive without a Git object store.
 

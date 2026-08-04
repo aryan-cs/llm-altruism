@@ -1,7 +1,7 @@
-"""Rebuild the original paper's bar and line views on the current route panel.
+"""Rebuild the original paper's bar, line, and raster views on current routes.
 
 The two bar charts use only the sealed public aggregate graph.  The two
-longitudinal charts replay the hash-bound private Part 2 journals without any
+longitudinal charts and agent-day raster replay the hash-bound private Part 2 journals without any
 network access, validate every retained action and transition against the
 original simulator, and then plot matched-trajectory means.  This keeps the
 visual grammar of the earlier ``Safety Beyond Refusal`` submission while
@@ -25,6 +25,8 @@ matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.colors import BoundaryNorm, ListedColormap
+from matplotlib.patches import Patch
 
 from analysis.build_provider_safe_v2_paper_assets import (
     BLUE,
@@ -312,6 +314,10 @@ def _validated_curves(
             reserve = contract.capacity
             reserve_curve: list[int] = []
             population_curve: list[int] = []
+            agent_actions = [
+                ["NO_ACTIVE_DECISION"] * contract.days
+                for _ in range(contract.society_size)
+            ]
             restraint = scheduled = 0
             for day in range(1, contract.days + 1):
                 if not living:
@@ -320,6 +326,12 @@ def _validated_curves(
                     continue
                 day_rows = [results[(day, slot)] for slot in living]
                 actions = [str(row["action"]) for row in day_rows]
+                for slot, action in zip(living, actions):
+                    if action not in {"OPTION_A", "OPTION_B", "INVALID"}:
+                        raise OriginalViewFigureError(
+                            f"Unexpected retained Part 2 action {action!r}: {key}."
+                        )
+                    agent_actions[slot][day - 1] = action
                 scheduled += len(actions)
                 restraint += actions.count("OPTION_A")
                 reserve = max(0, reserve - contract.reserve_cost * actions.count("OPTION_B"))
@@ -350,6 +362,7 @@ def _validated_curves(
                     "trajectory_index": trajectory_index,
                     "reserve": reserve_curve,
                     "population": population_curve,
+                    "agent_actions": agent_actions,
                 }
             )
     if set(curves) != {str(row["target_id"]) for row in subjects}:
@@ -426,6 +439,129 @@ def _line_chart(
     return _atomic_save(fig, output_dir, stem, title)
 
 
+def _agent_day_raster(
+    rows: Sequence[Mapping[str, Any]],
+    curves: Mapping[str, Sequence[Mapping[str, Any]]],
+    *,
+    days: int,
+    society_size: int,
+    output_dir: Path,
+) -> list[Path]:
+    """Restore the original micro-level raster on one common, fixed seed."""
+
+    ordered = list(_provider_grouped_rows(rows))
+    code = {
+        "OPTION_B": 0,
+        "OPTION_A": 1,
+        "NO_ACTIVE_DECISION": 2,
+        "INVALID": 3,
+    }
+    raster = np.full((len(ordered) * society_size, days), 2, dtype=int)
+    for model_index, row in enumerate(ordered):
+        target_id = str(row["target_id"])
+        seed_zero = [
+            curve for curve in curves[target_id]
+            if int(curve["trajectory_index"]) == 0
+        ]
+        if len(seed_zero) != 1:
+            raise OriginalViewFigureError(
+                f"{target_id} does not have exactly one seed-index-0 trajectory."
+            )
+        actions = seed_zero[0]["agent_actions"]
+        if len(actions) != society_size or any(len(agent) != days for agent in actions):
+            raise OriginalViewFigureError(f"{target_id} has a malformed action raster.")
+        start = model_index * society_size
+        raster[start : start + society_size, :] = np.asarray(
+            [[code[action] for action in agent] for agent in actions],
+            dtype=int,
+        )
+
+    if np.any(raster == code["INVALID"]):
+        raise OriginalViewFigureError(
+            "The prespecified seed-index-0 raster unexpectedly contains an INVALID action."
+        )
+    cmap = ListedColormap([RED, GREEN, "#E5E7EB", ORANGE])
+    norm = BoundaryNorm([-0.5, 0.5, 1.5, 2.5, 3.5], cmap.N)
+    fig, ax = plt.subplots(figsize=(8.6, 11.3))
+    fig.patch.set_facecolor("white")
+    ax.imshow(raster, cmap=cmap, norm=norm, aspect="auto", interpolation="nearest")
+    centers = [
+        index * society_size + (society_size - 1) / 2
+        for index in range(len(ordered))
+    ]
+    ax.set_yticks(centers)
+    ax.set_yticklabels([_short_label(str(row["model"])) for row in ordered])
+    ax.set_xticks(np.arange(days))
+    ax.set_xticklabels([str(day) for day in range(1, days + 1)])
+    ax.set_xlabel("Simulation day")
+    ax.set_title(
+        "Agent-day actions in one prespecified common-seed trajectory",
+        loc="left",
+        fontsize=12.5,
+        fontweight="bold",
+        pad=25,
+    )
+    ax.text(
+        0.0,
+        1.012,
+        "All 19 routes; seed index 0; providers contiguous and newest route first.",
+        transform=ax.transAxes,
+        color=MUTED,
+        fontsize=7.4,
+    )
+    spans = _provider_spans(ordered)
+    for provider, start_model, end_model in spans:
+        if start_model:
+            ax.axhline(
+                start_model * society_size - 0.5,
+                color=INK,
+                linewidth=1.25,
+            )
+        ax.text(
+            -0.48,
+            1.0
+            - (((start_model + end_model) * society_size / 2 - 0.5) / raster.shape[0]),
+            PROVIDER_DISPLAY_NAMES.get(provider, provider),
+            transform=ax.transAxes,
+            ha="right",
+            va="center",
+            rotation=90,
+            fontsize=6.0,
+            fontweight="bold",
+            color=_provider_color(ordered[start_model]),
+            clip_on=False,
+        )
+    provider_boundaries = {start for _provider, start, _end in spans if start}
+    for boundary in range(1, len(ordered)):
+        if boundary not in provider_boundaries:
+            ax.axhline(
+                boundary * society_size - 0.5,
+                color="white",
+                linewidth=0.8,
+            )
+    ax.set_xticks(np.arange(-0.5, days, 1), minor=True)
+    ax.grid(which="minor", axis="x", color="white", linewidth=0.45, alpha=0.7)
+    ax.tick_params(which="minor", bottom=False)
+    ax.legend(
+        handles=[
+            Patch(facecolor=GREEN, label="Restraint (OPTION_A)"),
+            Patch(facecolor=RED, label="Overuse (OPTION_B)"),
+            Patch(facecolor="#E5E7EB", label="No active decision after attrition"),
+        ],
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.055),
+        ncol=3,
+        frameon=False,
+    )
+    fig.subplots_adjust(left=0.30, right=0.99, top=0.93, bottom=0.105)
+    return _atomic_save(
+        fig,
+        output_dir,
+        "part2_agent_day_raster_current",
+        "Agent-day actions in one prespecified common-seed trajectory",
+    )
+
+
 def build_original_view_figures(
     analysis_dir: Path,
     part2_manifest: Path,
@@ -491,6 +627,15 @@ def build_original_view_figures(
             ylabel="Living population",
             title="Living population over time by current model route",
             stem="part2_population_over_time",
+            output_dir=output_dir,
+        )
+    )
+    outputs.extend(
+        _agent_day_raster(
+            part2_rows,
+            curves,
+            days=days,
+            society_size=society_size,
             output_dir=output_dir,
         )
     )

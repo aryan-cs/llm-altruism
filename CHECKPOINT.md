@@ -231,12 +231,12 @@ campaigns have priority over supplemental retries.
   paper assets from their hash-bound manifest, emits portable Croissant 1.1
   metadata, rebuilds from a clean extraction, and rejects stale, partial,
   private, or tampered inputs. Private/live outputs remain excluded.
-- The definitive analysis and nine figure families are current. Croissant 1.1
+- The definitive analysis and current figure families are current. Croissant 1.1
   metadata validates against the hash-bound analysis and paper-assets
-  manifests, and the anonymous supplement rebuilt deterministically with 243
+  manifests, and the anonymous supplement rebuilt deterministically with 250
   files.
 - The final review PDF has the exact title, anonymous author block, nine-page
-  main body, and 33 portrait pages including references, appendices, and the
+  main body, and 34 portrait pages including references, appendices, and the
   NeurIPS checklist. The former 11-page table dump is replaced by one compact
   19-route matched ledger; the full 22-, 75-, and 19-route tables, intervals,
   exact target IDs, language cells, role calibration, sensitivity results, and
@@ -251,16 +251,19 @@ campaigns have priority over supplemental retries.
   trajectories per route. All 228 journal replays pass hash-chain, identity,
   transition, endpoint, AURC, AUPC, and public-aggregate reconciliation.
   Providers are contiguous and newest frozen route versions appear first.
-  Numeric bar labels sit beyond their upper whiskers, and all four plots use
+  The original agent-day action raster is also restored for prespecified seed
+  index 0 across all 19 current routes: it contains five agent subrows per
+  route, 12 day columns, 935 restraint cells, 180 overuse cells, and 25 gray
+  post-attrition cells, with no invalid response in that displayed trajectory.
+  Numeric bar labels sit beyond their upper whiskers, and all five plots use
   Times-compatible typography and the original paper palette.
 - Bundled Tectonic compiled the PDF successfully; all changed figures, their
-  paper pages, and a 33-page contact sheet were visually inspected with no
+  paper pages, including the restored raster page, were visually inspected with no
   clipping, element overlap, landscape pages, or unreadable glyphs. The clean
-  extracted 249-file anonymous supplement independently compiles the same
-  33-page portrait paper. The focused supplement/format suite is 27 passed and
-  one extractor-dependent check skipped; all eight conference-format checks
-  pass. A repository-wide run reached 47\% with no failures before the
-  300-second command window expired.
+  extracted 250-file anonymous supplement independently compiles the same
+  34-page portrait paper. The focused supplement/format suite is 28 passed;
+  all conference-format checks pass. A repository-wide run reached 47\% with
+  no failures before the 300-second command window expired.
 
 ## Paper requirements that remain fixed
 
