@@ -38,7 +38,7 @@ DEFAULT_OUTPUT = (
 
 SCHEMA_VERSION = 1
 ANALYSIS_ARTIFACT_TYPE = "provider_safe_v2_definitive_descriptive_analysis"
-ASSETS_ARTIFACT_TYPE = "provider_safe_v2_paper_assets"
+ASSETS_ARTIFACT_TYPE = "provider_safe_v2_definitive_paper_assets"
 RELEASE_ASSET_SUFFIXES = frozenset({".png", ".tex", ".md"})
 DATE_CREATED = "2026-04-30"
 DATE_PUBLISHED = "2026-08-03"

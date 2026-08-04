@@ -28,6 +28,8 @@ from analysis.build_provider_safe_v2_paper_assets import (
     _annotation_color,
     _fixed_panel_pair_diagnostic,
     _self_hash,
+    _validate_part0,
+    _validate_sensitivity,
     _validate_local_controls,
     _write_headlines,
     build_paper_assets,
@@ -53,6 +55,71 @@ def test_annotation_color_uses_gamma_correct_maximum_contrast() -> None:
     assert _annotation_color(rgba(ORANGE)) == "black"
     assert _annotation_color(rgba(RED)) == "black"
     assert _annotation_color(rgba(BLUE)) == "white"
+
+
+def test_part0_judge_operational_unclears_are_not_invalids() -> None:
+    tables, aggregates = _source_payload()
+    target = tables["part0_models"][0]["target_id"]
+    model_row = tables["part0_models"][0]
+    model_row.update(
+        {
+            "refusal_count": 95,
+            "compliance_count": 24,
+            "unclear_count": 25,
+            "first_attempt_invalid_count": 0,
+            "semantic_invalid_count": 0,
+            "operational_invalid_count": 0,
+            "judge_operational_unclear_count": 16,
+            "visible_subject_response_count": 144,
+            "refusal_rate_all_scheduled": 95 / 144,
+            "refusal_rate_all_scheduled_finite_bank_sensitivity_low": 0.53,
+            "refusal_rate_all_scheduled_finite_bank_sensitivity_high": 0.78,
+        }
+    )
+    language_counts = (
+        (32, 8, 8, 0),
+        (32, 8, 8, 0),
+        (31, 8, 9, 0),
+    )
+    target_rows = [
+        row
+        for row in aggregates["part0_by_model_language"]
+        if row["target_id"] == target
+    ]
+    for row, (refusal, compliance, unclear, invalid) in zip(
+        target_rows, language_counts, strict=True
+    ):
+        row.update(
+            {
+                "refusal_count": refusal,
+                "compliance_count": compliance,
+                "unclear_count": unclear,
+                "invalid_count": invalid,
+                "refusal_rate_all_scheduled": refusal / 48,
+                "refusal_rate_all_scheduled_wilson95_low": max(
+                    0.0, refusal / 48 - 0.1
+                ),
+                "refusal_rate_all_scheduled_wilson95_high": min(
+                    1.0, refusal / 48 + 0.1
+                ),
+            }
+        )
+
+    ordered, _ = _validate_part0(
+        tables["part0_models"], aggregates["part0_by_model_language"]
+    )
+    validated = next(row for row in ordered if row["target_id"] == target)
+    assert validated["judge_operational_unclear_count"] == 16
+    assert validated["operational_invalid_count"] == 0
+    assert validated["first_attempt_invalid_count"] == 0
+
+    # This is the exact formerly emitted bad partition: judge failures were
+    # added to operational invalids despite already being counted as UNCLEAR.
+    model_row["operational_invalid_count"] = 16
+    with pytest.raises(PaperAssetsError, match="does not reconcile"):
+        _validate_part0(
+            tables["part0_models"], aggregates["part0_by_model_language"]
+        )
 
 
 def test_fixed_panel_pair_diagnostic_reports_rank_reversal_and_influence() -> None:
@@ -286,6 +353,8 @@ def _source_payload() -> tuple[dict[str, list[dict[str, Any]]], dict[str, Any]]:
         for index in range(SENSITIVITY_SENTINEL_COUNT)
     ]
     for model_index, target in enumerate(sensitivity_targets):
+        scheduled = 2773 if model_index == 0 else 2880
+        invalid = model_index
         sensitivity_models.append(
             {
                 "phase": "part2_sensitivity",
@@ -293,9 +362,17 @@ def _source_payload() -> tuple[dict[str, list[dict[str, Any]]], dict[str, Any]]:
                 "upstream_provider": f"sensitivity_provider_{model_index}",
                 "model": f"sensitivity/model_{model_index:02d}_exact",
                 "trajectory_count": 32,
-                "scheduled_agent_days": 2880,
-                "first_attempt_invalid_count": model_index,
+                "cell_count": 16,
+                "common_seed_count": 2,
+                "execution_ceiling_agent_days": 2880,
+                "scheduled_agent_days": scheduled,
+                "responses_received": scheduled,
+                "transport_failure_count": 0,
+                "identity_mismatch_count": 0,
+                "first_attempt_invalid_count": invalid,
                 "repaired_invalid_count": 0,
+                "primary_denominator": "all_scheduled_living_agent_days",
+                "schedule_semantics": "one_decision_per_living_agent_per_day_dead_agents_have_no_future_scheduled_days",
                 "inference_scope": "deadline_exploratory",
                 "confirmatory": False,
                 "exploratory_only": True,
@@ -345,6 +422,22 @@ def _source_payload() -> tuple[dict[str, list[dict[str, Any]]], dict[str, Any]]:
         "sensitivity_main_effects": sensitivity_rows,
     }
     return tables, aggregates
+
+
+def test_sensitivity_accepts_realized_living_agent_days_below_ceiling() -> None:
+    tables, _ = _source_payload()
+    targets, models, effects = _validate_sensitivity(
+        tables["sensitivity_models"], tables["sensitivity_main_effects"]
+    )
+    assert len(targets) == 5
+    assert len(effects) == 25
+    realized = models["route/sensitivity_compatible_00:exact"]
+    assert realized["trajectory_count"] == 32
+    assert realized["cell_count"] == 16
+    assert realized["common_seed_count"] == 2
+    assert realized["scheduled_agent_days"] == 2773
+    assert realized["execution_ceiling_agent_days"] == 2880
+    assert realized["primary_denominator"] == "all_scheduled_living_agent_days"
 
 
 def _write_source(root: Path, *, mutate=None) -> Path:

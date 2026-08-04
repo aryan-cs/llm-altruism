@@ -1,0 +1,41 @@
+% Generated file. Requires booktabs and graphicx. Do not edit by hand.
+\par\addvspace{15pt}
+\begin{table*}[tbp]
+\centering
+\caption{Part 0 exact-route response-language outcomes. Each row is one authenticated target route and exact upstream Model ID, shown in descending overall refusal-rate display order. Overall R [95\%] is refusal over all 144 scheduled responses followed by a deterministic 5,000-replicate interval that resamples the 48 harmful-request roots while retaining each root's three language conditions. English, Chinese, and Russian R [95\%] are refusal over 48 scheduled roots followed by Wilson intervals. Every quantitative column is centered. Higher R means less harmful-request assistance on this harmful-only task; lower R means less refusal under the all-scheduled scoring rule. It is not a general safety score.}
+\label{tab:provider-safe-v2-part0-model-language}
+\scriptsize
+\setlength{\tabcolsep}{3.5pt}
+\renewcommand{\arraystretch}{1.08}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{llcccc}
+\toprule
+Target route ID & Model ID & Overall R [95\%] & English R [95\%] & Chinese R [95\%] & Russian R [95\%] \\
+\midrule
+openai/gpt-oss-20b & gpt-oss-20b & 97.9\% [94.4\%, 100.0\%] & 95.8\% [86.0\%, 98.8\%] & 97.9\% [89.1\%, 99.6\%] & 100.0\% [92.6\%, 100.0\%] \\
+openai/gpt-5.4 & gpt-5.4 & 96.5\% [91.0\%, 100.0\%] & 95.8\% [86.0\%, 98.8\%] & 95.8\% [86.0\%, 98.8\%] & 97.9\% [89.1\%, 99.6\%] \\
+openai/gpt-4o & gpt-4o & 93.1\% [85.4\%, 98.6\%] & 91.7\% [80.4\%, 96.7\%] & 93.8\% [83.2\%, 97.9\%] & 93.8\% [83.2\%, 97.9\%] \\
+nvidia/nemotron-3-super-v3 & nemotron-3-super-v3 & 88.9\% [79.9\%, 96.5\%] & 87.5\% [75.3\%, 94.1\%] & 87.5\% [75.3\%, 94.1\%] & 91.7\% [80.4\%, 96.7\%] \\
+qwen/qwen3.6-27b & qwen3.6-27b & 88.9\% [79.9\%, 96.5\%] & 87.5\% [75.3\%, 94.1\%] & 87.5\% [75.3\%, 94.1\%] & 91.7\% [80.4\%, 96.7\%] \\
+openai/gpt-3.5-turbo & gpt-3.5-turbo & 88.2\% [79.9\%, 95.8\%] & 91.7\% [80.4\%, 96.7\%] & 83.3\% [70.4\%, 91.3\%] & 89.6\% [77.8\%, 95.5\%] \\
+openai/gpt-4.1 & gpt-4.1 & 88.2\% [79.2\%, 95.8\%] & 85.4\% [72.8\%, 92.8\%] & 87.5\% [75.3\%, 94.1\%] & 91.7\% [80.4\%, 96.7\%] \\
+qwen/qwen3.5-35b-a3b & qwen3.5-35b-a3b & 88.2\% [79.2\%, 95.8\%] & 85.4\% [72.8\%, 92.8\%] & 87.5\% [75.3\%, 94.1\%] & 91.7\% [80.4\%, 96.7\%] \\
+anthropic/claude-haiku-4-5 & claude-haiku-4-5 & 86.1\% [75.7\%, 94.4\%] & 85.4\% [72.8\%, 92.8\%] & 85.4\% [72.8\%, 92.8\%] & 87.5\% [75.3\%, 94.1\%] \\
+openai/gpt-5.2 & gpt-5.2 & 84.7\% [74.3\%, 93.8\%] & 83.3\% [70.4\%, 91.3\%] & 83.3\% [70.4\%, 91.3\%] & 87.5\% [75.3\%, 94.1\%] \\
+google/gemini-3.1-pro-preview & gemini-3.1-pro-preview & 84.0\% [73.6\%, 93.1\%] & 79.2\% [65.7\%, 88.3\%] & 85.4\% [72.8\%, 92.8\%] & 87.5\% [75.3\%, 94.1\%] \\
+zai-org/glm-5.1 & glm-5.1 & 84.0\% [74.3\%, 92.4\%] & 77.1\% [63.5\%, 86.7\%] & 85.4\% [72.8\%, 92.8\%] & 89.6\% [77.8\%, 95.5\%] \\
+google/gemini-3.5-flash & gemini-3.5-flash & 79.2\% [68.1\%, 88.9\%] & 75.0\% [61.2\%, 85.1\%] & 79.2\% [65.7\%, 88.3\%] & 83.3\% [70.4\%, 91.3\%] \\
+anthropic/claude-opus-4-6 & claude-opus-4-6 & 77.8\% [66.0\%, 88.9\%] & 79.2\% [65.7\%, 88.3\%] & 77.1\% [63.5\%, 86.7\%] & 77.1\% [63.5\%, 86.7\%] \\
+anthropic/claude-sonnet-4-6 & claude-sonnet-4-6 & 76.4\% [64.6\%, 86.8\%] & 77.1\% [63.5\%, 86.7\%] & 75.0\% [61.2\%, 85.1\%] & 77.1\% [63.5\%, 86.7\%] \\
+google/gemini-2.5-pro & gemini-2.5-pro & 75.0\% [63.2\%, 86.1\%] & 72.9\% [59.0\%, 83.4\%] & 72.9\% [59.0\%, 83.4\%] & 79.2\% [65.7\%, 88.3\%] \\
+meta/llama-3.3-70b-instruct & llama-3.3-70b-instruct & 74.3\% [63.9\%, 84.0\%] & 62.5\% [48.4\%, 74.8\%] & 75.0\% [61.2\%, 85.1\%] & 85.4\% [72.8\%, 92.8\%] \\
+google/gemini-2.5-flash & gemini-2.5-flash & 71.5\% [59.0\%, 83.3\%] & 70.8\% [56.8\%, 81.8\%] & 70.8\% [56.8\%, 81.8\%] & 72.9\% [59.0\%, 83.4\%] \\
+anthropic/claude-sonnet-4-5 & claude-sonnet-4-5 & 69.4\% [56.9\%, 81.2\%] & 62.5\% [48.4\%, 74.8\%] & 70.8\% [56.8\%, 81.8\%] & 75.0\% [61.2\%, 85.1\%] \\
+nvidia/nemotron-3-ultra & nemotron-3-ultra & 66.7\% [54.2\%, 78.5\%] & 64.6\% [50.4\%, 76.6\%] & 68.8\% [54.7\%, 80.1\%] & 66.7\% [52.5\%, 78.3\%] \\
+deepseek-ai/deepseek-v4-flash & deepseek-v4-flash & 66.0\% [53.5\%, 77.8\%] & 66.7\% [52.5\%, 78.3\%] & 62.5\% [48.4\%, 74.8\%] & 68.8\% [54.7\%, 80.1\%] \\
+openai/gpt-5 & gpt-5 & 64.6\% [50.7\%, 77.8\%] & 62.5\% [48.4\%, 74.8\%] & 64.6\% [50.4\%, 76.6\%] & 66.7\% [52.5\%, 78.3\%] \\
+\bottomrule
+\end{tabular}%
+}
+\end{table*}
+\par\addvspace{15pt}

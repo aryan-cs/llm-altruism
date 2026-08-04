@@ -394,12 +394,22 @@ def production_bundle(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Pat
                 key = f"{cell.cell_id}::{subject['target_id']}::{seed}"
                 refs[key] = _journal(run / "private/trajectories" / f"{subject_index}-{cell.cell_id}-{seed}.jsonl", [])
                 coded_signal = sum(cell.coded_levels.values()) * 0.01
+                scheduled = cell.society_size * cell.horizon_days
+                invalid = 1 if seed == 0 else 0
                 trajectory_rows.append({
                     "cell_id": cell.cell_id, "target_id": subject["target_id"],
-                    "trajectory_index": seed, "environment_seed": seed,
+                    "trajectory_index": seed, "environment_seed_index": seed,
+                    "environment_seed": seed,
                     "normalized_aurc": 0.5 + coded_signal + seed * 0.0001,
-                    "scheduled_agent_days": cell.society_size * cell.horizon_days,
-                    "invalid_count": 1 if seed == 0 else 0,
+                    "society_size": cell.society_size,
+                    "horizon_days": cell.horizon_days,
+                    "scheduled_agent_days": scheduled,
+                    "responses_received": scheduled,
+                    "invalid_count": invalid,
+                    "identity_mismatch_count": 0,
+                    "transport_failure_count": 0,
+                    "restraint_count": scheduled - invalid,
+                    "overuse_count": 0,
                     "operationally_eligible": True,
                 })
     manifest["journals"] = refs

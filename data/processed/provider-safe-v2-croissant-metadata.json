@@ -1,0 +1,2607 @@
+{
+  "@context": {
+    "@language": "en",
+    "@vocab": "https://schema.org/",
+    "arrayShape": "cr:arrayShape",
+    "citeAs": "cr:citeAs",
+    "column": "cr:column",
+    "conformsTo": "dct:conformsTo",
+    "containedIn": "cr:containedIn",
+    "cr": "http://mlcommons.org/croissant/",
+    "data": {
+      "@id": "cr:data",
+      "@type": "@json"
+    },
+    "dataType": {
+      "@id": "cr:dataType",
+      "@type": "@vocab"
+    },
+    "dct": "http://purl.org/dc/terms/",
+    "description": {
+      "@container": "@language"
+    },
+    "equivalentProperty": "cr:equivalentProperty",
+    "examples": {
+      "@id": "cr:examples",
+      "@type": "@json"
+    },
+    "extract": "cr:extract",
+    "field": "cr:field",
+    "fileObject": "cr:fileObject",
+    "fileProperty": "cr:fileProperty",
+    "fileSet": "cr:fileSet",
+    "format": "cr:format",
+    "includes": "cr:includes",
+    "isArray": "cr:isArray",
+    "isLiveDataset": "cr:isLiveDataset",
+    "jsonPath": "cr:jsonPath",
+    "key": "cr:key",
+    "md5": "cr:md5",
+    "name": {
+      "@container": "@language"
+    },
+    "parentField": "cr:parentField",
+    "path": "cr:path",
+    "prov": "http://www.w3.org/ns/prov#",
+    "rai": "http://mlcommons.org/croissant/RAI/1.0",
+    "recordSet": "cr:recordSet",
+    "references": "cr:references",
+    "regex": "cr:regex",
+    "repeated": "cr:repeated",
+    "replace": "cr:replace",
+    "samplingRate": "cr:samplingRate",
+    "sc": "https://schema.org/",
+    "separator": "cr:separator",
+    "source": "cr:source",
+    "subField": "cr:subField",
+    "transform": "cr:transform"
+  },
+  "@type": "sc:Dataset",
+  "citeAs": "Anonymous Authors. Safety Beyond Refusal. Anonymous conference submission, 2026.",
+  "conditionsOfAccess": "The release contains identifiers, hash bindings, derived aggregate tables, paper tables, and raster figures only. Credentials, private manifests, prompts, responses, reasoning, journals, and interrupted runs are excluded.",
+  "conformsTo": [
+    "http://mlcommons.org/croissant/1.1",
+    "http://mlcommons.org/croissant/RAI/1.0"
+  ],
+  "cr:sdVersion": "1.0.0",
+  "creator": [
+    {
+      "@type": "sc:Organization",
+      "name": "Anonymous Authors"
+    }
+  ],
+  "dateCreated": "2026-04-30",
+  "dateModified": "2026-08-03",
+  "datePublished": "2026-08-03",
+  "description": "Release-safe aggregates for Safety Beyond Refusal. The three axes remain separate: harmful-request refusal, welfare-preserving one-shot choice, and repeated-commons restraint. Counts are computed from the hash-bound release: 22 Part 0 models over 3168 scheduled responses; 75 Part 1 models over 28800 scheduled choices; and 19 Part 2 models over 228 trajectories, of which 225 are environmentally estimable. No cross-axis composite score is released.",
+  "distribution": [
+    {
+      "@id": "analysis-analysis-manifest-json",
+      "@type": "cr:FileObject",
+      "contentSize": "10259 B",
+      "contentUrl": "provider-safe-v2-definitive-analysis/analysis_manifest.json",
+      "description": "Hash-bound definitive aggregate analysis artifact.",
+      "encodingFormat": "application/json",
+      "name": "analysis_manifest.json",
+      "sha256": "380e44f079227897569685b2ef20f8a866802f79a53bc6d2d85787649f19fb2d"
+    },
+    {
+      "@id": "analysis-figure-aggregates-json",
+      "@type": "cr:FileObject",
+      "contentSize": "558550 B",
+      "contentUrl": "provider-safe-v2-definitive-analysis/figure_aggregates.json",
+      "description": "Hash-bound definitive aggregate analysis artifact.",
+      "encodingFormat": "application/json",
+      "name": "figure_aggregates.json",
+      "sha256": "a4f2bb6d6b4167c9aadaa363cc7f3683f480d769e14afbe2460a825d6a2a76f9"
+    },
+    {
+      "@id": "analysis-part0-models-csv",
+      "@type": "cr:FileObject",
+      "contentSize": "6504 B",
+      "contentUrl": "provider-safe-v2-definitive-analysis/part0_models.csv",
+      "description": "Hash-bound definitive aggregate analysis artifact.",
+      "encodingFormat": "text/csv",
+      "name": "part0_models.csv",
+      "sha256": "27e3821ca98fac57f353eae788532e27eb1feb69bdf7c67e77aa404d6a9be001"
+    },
+    {
+      "@id": "analysis-part0-models-jsonl",
+      "@type": "cr:FileObject",
+      "contentSize": "20658 B",
+      "contentUrl": "provider-safe-v2-definitive-analysis/part0_models.jsonl",
+      "description": "Hash-bound definitive aggregate analysis artifact.",
+      "encodingFormat": "application/x-ndjson",
+      "name": "part0_models.jsonl",
+      "sha256": "0e0eafff0d0fd04eb5746daf451c16222de5b255ad1262c142029ee6b3136190"
+    },
+    {
+      "@id": "analysis-part1-models-csv",
+      "@type": "cr:FileObject",
+      "contentSize": "19419 B",
+      "contentUrl": "provider-safe-v2-definitive-analysis/part1_models.csv",
+      "description": "Hash-bound definitive aggregate analysis artifact.",
+      "encodingFormat": "text/csv",
+      "name": "part1_models.csv",
+      "sha256": "eb6205453e42ea3f8141a77472f4d3f54ec7d173ddfce2b739fca040b653663e"
+    },
+    {
+      "@id": "analysis-part1-models-jsonl",
+      "@type": "cr:FileObject",
+      "contentSize": "73684 B",
+      "contentUrl": "provider-safe-v2-definitive-analysis/part1_models.jsonl",
+      "description": "Hash-bound definitive aggregate analysis artifact.",
+      "encodingFormat": "application/x-ndjson",
+      "name": "part1_models.jsonl",
+      "sha256": "298010c2e435a9762b29a51918dc42f7ff615e247efcceefa624292af0dfa70d"
+    },
+    {
+      "@id": "analysis-part2-models-csv",
+      "@type": "cr:FileObject",
+      "contentSize": "8227 B",
+      "contentUrl": "provider-safe-v2-definitive-analysis/part2_models.csv",
+      "description": "Hash-bound definitive aggregate analysis artifact.",
+      "encodingFormat": "text/csv",
+      "name": "part2_models.csv",
+      "sha256": "b0e1cbfe29f4e33fced58150bfa21a50d47d5c0a43b530ff4bd9468636a7825b"
+    },
+    {
+      "@id": "analysis-part2-models-jsonl",
+      "@type": "cr:FileObject",
+      "contentSize": "30782 B",
+      "contentUrl": "provider-safe-v2-definitive-analysis/part2_models.jsonl",
+      "description": "Hash-bound definitive aggregate analysis artifact.",
+      "encodingFormat": "application/x-ndjson",
+      "name": "part2_models.jsonl",
+      "sha256": "fca073238486fa7961c7c5a07170a20c7d13c169fcdd9db368fc5abbe5afba6e"
+    },
+    {
+      "@id": "analysis-role-calibration-model-frames-csv",
+      "@type": "cr:FileObject",
+      "contentSize": "3123 B",
+      "contentUrl": "provider-safe-v2-definitive-analysis/role_calibration_model_frames.csv",
+      "description": "Hash-bound definitive aggregate analysis artifact.",
+      "encodingFormat": "text/csv",
+      "name": "role_calibration_model_frames.csv",
+      "sha256": "0d462e4f8e12f3d92f693f15ad4a87a5f585e3e8ee82fac7b8154f4e94249219"
+    },
+    {
+      "@id": "analysis-role-calibration-model-frames-jsonl",
+      "@type": "cr:FileObject",
+      "contentSize": "9943 B",
+      "contentUrl": "provider-safe-v2-definitive-analysis/role_calibration_model_frames.jsonl",
+      "description": "Hash-bound definitive aggregate analysis artifact.",
+      "encodingFormat": "application/x-ndjson",
+      "name": "role_calibration_model_frames.jsonl",
+      "sha256": "060ccb28bf45f2f156625a8a64a6038ecceff891b2b801978632348c346ad17e"
+    },
+    {
+      "@id": "analysis-sensitivity-main-effects-csv",
+      "@type": "cr:FileObject",
+      "contentSize": "7836 B",
+      "contentUrl": "provider-safe-v2-definitive-analysis/sensitivity_main_effects.csv",
+      "description": "Hash-bound definitive aggregate analysis artifact.",
+      "encodingFormat": "text/csv",
+      "name": "sensitivity_main_effects.csv",
+      "sha256": "67cf9409737e6c510320b30aecb3d3b3e78800c3f370b8dd684855538abbc3bb"
+    },
+    {
+      "@id": "analysis-sensitivity-main-effects-jsonl",
+      "@type": "cr:FileObject",
+      "contentSize": "18497 B",
+      "contentUrl": "provider-safe-v2-definitive-analysis/sensitivity_main_effects.jsonl",
+      "description": "Hash-bound definitive aggregate analysis artifact.",
+      "encodingFormat": "application/x-ndjson",
+      "name": "sensitivity_main_effects.jsonl",
+      "sha256": "ee641107314bf6ece12c893741add0eeff7124a6a4b89a65280322f6b0c29948"
+    },
+    {
+      "@id": "analysis-sensitivity-models-csv",
+      "@type": "cr:FileObject",
+      "contentSize": "1544 B",
+      "contentUrl": "provider-safe-v2-definitive-analysis/sensitivity_models.csv",
+      "description": "Hash-bound definitive aggregate analysis artifact.",
+      "encodingFormat": "text/csv",
+      "name": "sensitivity_models.csv",
+      "sha256": "3d087603270ea92c6e0c30083f94956d70a5db43ae817ec046bbe3ba42647cf0"
+    },
+    {
+      "@id": "analysis-sensitivity-models-jsonl",
+      "@type": "cr:FileObject",
+      "contentSize": "3349 B",
+      "contentUrl": "provider-safe-v2-definitive-analysis/sensitivity_models.jsonl",
+      "description": "Hash-bound definitive aggregate analysis artifact.",
+      "encodingFormat": "application/x-ndjson",
+      "name": "sensitivity_models.jsonl",
+      "sha256": "80f5550f1c4d75169213116a405e7f140636cfd1b5b7a4d6e337ceeb176de63d"
+    },
+    {
+      "@id": "asset-all-models-cross-phase-outcome-profile-block1-png",
+      "@type": "cr:FileObject",
+      "contentSize": "364370 B",
+      "contentUrl": "provider-safe-v2-paper-assets/all_models_cross_phase_outcome_profile_block1.png",
+      "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
+      "encodingFormat": "image/png",
+      "name": "all_models_cross_phase_outcome_profile_block1.png",
+      "sha256": "d1d7610769cc21287f4fe53fdb7d21bf0b333409848d9e69ac6f88110a27f62c"
+    },
+    {
+      "@id": "asset-all-models-cross-phase-outcome-profile-block2-png",
+      "@type": "cr:FileObject",
+      "contentSize": "346092 B",
+      "contentUrl": "provider-safe-v2-paper-assets/all_models_cross_phase_outcome_profile_block2.png",
+      "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
+      "encodingFormat": "image/png",
+      "name": "all_models_cross_phase_outcome_profile_block2.png",
+      "sha256": "8b1f91107fbdba9a6960e141fe5333230cb1278a5cc9a94f0a17c198a154f478"
+    },
+    {
+      "@id": "asset-all-models-cross-phase-outcome-profile-block3-png",
+      "@type": "cr:FileObject",
+      "contentSize": "326104 B",
+      "contentUrl": "provider-safe-v2-paper-assets/all_models_cross_phase_outcome_profile_block3.png",
+      "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
+      "encodingFormat": "image/png",
+      "name": "all_models_cross_phase_outcome_profile_block3.png",
+      "sha256": "abba0780aabbe9b635709a92fbff22a51529f76d7595a8d50693855d07e92f44"
+    },
+    {
+      "@id": "asset-all-models-cross-phase-outcome-profile-block4-png",
+      "@type": "cr:FileObject",
+      "contentSize": "318354 B",
+      "contentUrl": "provider-safe-v2-paper-assets/all_models_cross_phase_outcome_profile_block4.png",
+      "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
+      "encodingFormat": "image/png",
+      "name": "all_models_cross_phase_outcome_profile_block4.png",
+      "sha256": "50a3a8620a7d004e2507b447ebc5c8a68d9a7c9e6c825e0d6cbd31db13120d74"
+    },
+    {
+      "@id": "asset-all-models-cross-phase-table-md",
+      "@type": "cr:FileObject",
+      "contentSize": "9396 B",
+      "contentUrl": "provider-safe-v2-paper-assets/all_models_cross_phase_table.md",
+      "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
+      "encodingFormat": "text/markdown",
+      "name": "all_models_cross_phase_table.md",
+      "sha256": "757b5bf26c688581f0bd11337e2f98e26faa3a7d589890a122514bb4d5007540"
+    },
+    {
+      "@id": "asset-all-models-cross-phase-table-tex",
+      "@type": "cr:FileObject",
+      "contentSize": "14504 B",
+      "contentUrl": "provider-safe-v2-paper-assets/all_models_cross_phase_table.tex",
+      "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
+      "encodingFormat": "application/x-tex",
+      "name": "all_models_cross_phase_table.tex",
+      "sha256": "52702faff18883e71c0967c2ddf45e2c88091f9d73c8ca66b397f05fe8ff1530"
+    },
+    {
+      "@id": "asset-paper-assets-manifest-json",
+      "@type": "cr:FileObject",
+      "contentSize": "8391 B",
+      "contentUrl": "provider-safe-v2-paper-assets/paper_assets_manifest.json",
+      "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
+      "encodingFormat": "application/json",
+      "name": "paper_assets_manifest.json",
+      "sha256": "25d01dabf637fc3351782d1fcaed0f2565c3dc58435b2aeaf1c8424ff230756e"
+    },
+    {
+      "@id": "asset-paper-headlines-tex",
+      "@type": "cr:FileObject",
+      "contentSize": "6590 B",
+      "contentUrl": "provider-safe-v2-paper-assets/paper_headlines.tex",
+      "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
+      "encodingFormat": "application/x-tex",
+      "name": "paper_headlines.tex",
+      "sha256": "8a61ffa50655885b039b26ec03c97b69b9dfd5c58c8abce1aa06761a103178ac"
+    },
+    {
+      "@id": "asset-part0-model-language-png",
+      "@type": "cr:FileObject",
+      "contentSize": "621801 B",
+      "contentUrl": "provider-safe-v2-paper-assets/part0_model_language.png",
+      "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
+      "encodingFormat": "image/png",
+      "name": "part0_model_language.png",
+      "sha256": "98a1adda30f546db83f7d31f95029c113ee10e7a98919e08c76871adc405918c"
+    },
+    {
+      "@id": "asset-part0-model-language-table-tex",
+      "@type": "cr:FileObject",
+      "contentSize": "4408 B",
+      "contentUrl": "provider-safe-v2-paper-assets/part0_model_language_table.tex",
+      "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
+      "encodingFormat": "application/x-tex",
+      "name": "part0_model_language_table.tex",
+      "sha256": "e79283898fd3455727d3528c8957db87ca6cdf1813578f903c784eed61c52bd2"
+    },
+    {
+      "@id": "asset-part1-all-models-block1-png",
+      "@type": "cr:FileObject",
+      "contentSize": "455091 B",
+      "contentUrl": "provider-safe-v2-paper-assets/part1_all_models_block1.png",
+      "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
+      "encodingFormat": "image/png",
+      "name": "part1_all_models_block1.png",
+      "sha256": "058d3c98f497b11a6d3b3fe1002ab01e2c74c34a09d5b124baf7e41d3c4f5e4c"
+    },
+    {
+      "@id": "asset-part1-all-models-block2-png",
+      "@type": "cr:FileObject",
+      "contentSize": "429296 B",
+      "contentUrl": "provider-safe-v2-paper-assets/part1_all_models_block2.png",
+      "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
+      "encodingFormat": "image/png",
+      "name": "part1_all_models_block2.png",
+      "sha256": "ceb6e12db379a00b8c4b4ddaeee93f09b1778b2de4cf5c90aa9045d4de5a40d2"
+    },
+    {
+      "@id": "asset-part1-all-models-block3-png",
+      "@type": "cr:FileObject",
+      "contentSize": "415589 B",
+      "contentUrl": "provider-safe-v2-paper-assets/part1_all_models_block3.png",
+      "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
+      "encodingFormat": "image/png",
+      "name": "part1_all_models_block3.png",
+      "sha256": "72df54cd1deef20b2941569480d2233d2912e10b6da2f893f6570f5bd8ed4df3"
+    },
+    {
+      "@id": "asset-part1-all-models-table-tex",
+      "@type": "cr:FileObject",
+      "contentSize": "8265 B",
+      "contentUrl": "provider-safe-v2-paper-assets/part1_all_models_table.tex",
+      "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
+      "encodingFormat": "application/x-tex",
+      "name": "part1_all_models_table.tex",
+      "sha256": "aa1cbd9e8448c62874be52763c24bed8c2a44c1e425165c5d2158b0c653de4d1"
+    },
+    {
+      "@id": "asset-part1-local-controls-png",
+      "@type": "cr:FileObject",
+      "contentSize": "177101 B",
+      "contentUrl": "provider-safe-v2-paper-assets/part1_local_controls.png",
+      "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
+      "encodingFormat": "image/png",
+      "name": "part1_local_controls.png",
+      "sha256": "04206eb10edcb98932f165dd74e82dede97cfbb20af23b0dba1a196c1215c727"
+    },
+    {
+      "@id": "asset-part1-local-controls-table-tex",
+      "@type": "cr:FileObject",
+      "contentSize": "1255 B",
+      "contentUrl": "provider-safe-v2-paper-assets/part1_local_controls_table.tex",
+      "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
+      "encodingFormat": "application/x-tex",
+      "name": "part1_local_controls_table.tex",
+      "sha256": "10b798f31aff026a2b38d0119adb7800876ba67235700f010d81c59ca648c05e"
+    },
+    {
+      "@id": "asset-part1-role-calibration-png",
+      "@type": "cr:FileObject",
+      "contentSize": "261969 B",
+      "contentUrl": "provider-safe-v2-paper-assets/part1_role_calibration.png",
+      "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
+      "encodingFormat": "image/png",
+      "name": "part1_role_calibration.png",
+      "sha256": "cc925f6c26daf0038e6e4c749b803d46ac878831cdf02aa0af5f9176f8b6c505"
+    },
+    {
+      "@id": "asset-part1-role-calibration-table-tex",
+      "@type": "cr:FileObject",
+      "contentSize": "1524 B",
+      "contentUrl": "provider-safe-v2-paper-assets/part1_role_calibration_table.tex",
+      "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
+      "encodingFormat": "application/x-tex",
+      "name": "part1_role_calibration_table.tex",
+      "sha256": "09a1c5952e454146481451c2903c72e4f734b371438f597cdb0215a3f96db179"
+    },
+    {
+      "@id": "asset-part2-all-models-png",
+      "@type": "cr:FileObject",
+      "contentSize": "412736 B",
+      "contentUrl": "provider-safe-v2-paper-assets/part2_all_models.png",
+      "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
+      "encodingFormat": "image/png",
+      "name": "part2_all_models.png",
+      "sha256": "635558ca6d679c7ae401e711a4188bcd771609b1eb25e1acc18f06e168e7869c"
+    },
+    {
+      "@id": "asset-part2-all-models-table-tex",
+      "@type": "cr:FileObject",
+      "contentSize": "3203 B",
+      "contentUrl": "provider-safe-v2-paper-assets/part2_all_models_table.tex",
+      "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
+      "encodingFormat": "application/x-tex",
+      "name": "part2_all_models_table.tex",
+      "sha256": "63ba850a996abb0260fbd8f329d8622b8c11bd594c02a7dfc147e73bce5f0116"
+    },
+    {
+      "@id": "asset-part2-sensitivity-effects-png",
+      "@type": "cr:FileObject",
+      "contentSize": "318314 B",
+      "contentUrl": "provider-safe-v2-paper-assets/part2_sensitivity_effects.png",
+      "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
+      "encodingFormat": "image/png",
+      "name": "part2_sensitivity_effects.png",
+      "sha256": "f785948c292adee6f1eb773887b340f07ff4252f12c60df06428120b4086dc82"
+    },
+    {
+      "@id": "asset-part2-sensitivity-effects-table-tex",
+      "@type": "cr:FileObject",
+      "contentSize": "5016 B",
+      "contentUrl": "provider-safe-v2-paper-assets/part2_sensitivity_effects_table.tex",
+      "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
+      "encodingFormat": "application/x-tex",
+      "name": "part2_sensitivity_effects_table.tex",
+      "sha256": "7ecd487f093f27afbb451c2c2bb9fc8b2ede364181607c7b327ee66bc27ab354"
+    }
+  ],
+  "isAccessibleForFree": true,
+  "keywords": [
+    "large language models",
+    "safety refusal",
+    "cooperation",
+    "commons restraint",
+    "behavioral evaluation"
+  ],
+  "license": "https://opensource.org/license/mit",
+  "name": "Prosocial Readiness Bench definitive aggregate release",
+  "prov:wasGeneratedBy": {
+    "@type": "sc:SoftwareApplication",
+    "description": "analysis.analyze_provider_safe_v2_definitive, analysis.build_provider_safe_v2_paper_assets, and analysis.build_provider_safe_v2_croissant_metadata",
+    "name": "Provider-safe-v2 fail-closed aggregate release pipeline",
+    "softwareVersion": "1.0.0"
+  },
+  "publisher": {
+    "@type": "sc:Organization",
+    "name": "Anonymous Authors"
+  },
+  "rai:dataAnnotationProtocol": "Part 0 uses one fixed judge disjoint from every evaluated subject. Parts 1 and 2 use deterministic structured-action parsing. Primary denominators retain first-attempt invalids; semantic repairs are isolated supplements.",
+  "rai:dataCollection": "The definitive panels contain 22 Part 0, 75 Part 1, and 19 Part 2 model routes. Part 2 contains 228 scheduled trajectories, 225 environmentally estimable trajectories, 3 semantic-invalid trajectories, and 4 first-attempt invalid actions. The separate role-calibration and deadline sensitivity releases contain 18 model-frame rows, 5 sentinel models, and 25 prespecified effects.",
+  "rai:dataCollectionType": [
+    "Experiments",
+    "Software Collection"
+  ],
+  "rai:dataLimitations": [
+    "Part 0 remains exploratory pending completed human judge validation and benign controls.",
+    "Part 1 remains exploratory pending independent prompt-bank content approval.",
+    "Part 2 is an artificial repeated-commons environment; it does not identify intent.",
+    "Finite-bank intervals for Parts 0 and 1 do not claim population sampling uncertainty.",
+    "Availability and semantic-repair panels are reported separately and never replace primary denominators."
+  ],
+  "rai:dataReleaseMaintenancePlan": [
+    "Regenerate only from self-hashed complete aggregate directories; any inventory, hash, privacy, or source-binding mismatch blocks publication."
+  ],
+  "rai:dataUseCases": [
+    "Reproduce axis-specific descriptive tables, intervals, and figures.",
+    "Audit model-route coverage, invalid handling, and evidence status.",
+    "Not supported: a latent altruism score, global safety ranking, or deployment certification."
+  ],
+  "rai:hasSyntheticData": true,
+  "rai:personalSensitiveInformation": [
+    "No human-subject records or personal user data are released."
+  ],
+  "recordSet": [
+    {
+      "@id": "analysis-part0-models-csv-records",
+      "@type": "cr:RecordSet",
+      "description": "Rows from the sanitized aggregate table part0_models.csv.",
+      "field": [
+        {
+          "@id": "analysis-part0-models-csv-records/compliance_count",
+          "@type": "cr:Field",
+          "dataType": "sc:Integer",
+          "description": "Column `compliance_count` from part0_models.csv.",
+          "name": "compliance_count",
+          "source": {
+            "extract": {
+              "column": "compliance_count"
+            },
+            "fileObject": {
+              "@id": "analysis-part0-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part0-models-csv-records/exploratory_only",
+          "@type": "cr:Field",
+          "dataType": "sc:Boolean",
+          "description": "Column `exploratory_only` from part0_models.csv.",
+          "name": "exploratory_only",
+          "source": {
+            "extract": {
+              "column": "exploratory_only"
+            },
+            "fileObject": {
+              "@id": "analysis-part0-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part0-models-csv-records/finite_bank_sensitivity_method",
+          "@type": "cr:Field",
+          "dataType": "sc:Text",
+          "description": "Column `finite_bank_sensitivity_method` from part0_models.csv.",
+          "name": "finite_bank_sensitivity_method",
+          "source": {
+            "extract": {
+              "column": "finite_bank_sensitivity_method"
+            },
+            "fileObject": {
+              "@id": "analysis-part0-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part0-models-csv-records/finite_bank_sensitivity_replicates",
+          "@type": "cr:Field",
+          "dataType": "sc:Integer",
+          "description": "Column `finite_bank_sensitivity_replicates` from part0_models.csv.",
+          "name": "finite_bank_sensitivity_replicates",
+          "source": {
+            "extract": {
+              "column": "finite_bank_sensitivity_replicates"
+            },
+            "fileObject": {
+              "@id": "analysis-part0-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part0-models-csv-records/finite_bank_sensitivity_seed",
+          "@type": "cr:Field",
+          "dataType": "sc:Integer",
+          "description": "Column `finite_bank_sensitivity_seed` from part0_models.csv.",
+          "name": "finite_bank_sensitivity_seed",
+          "source": {
+            "extract": {
+              "column": "finite_bank_sensitivity_seed"
+            },
+            "fileObject": {
+              "@id": "analysis-part0-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part0-models-csv-records/finite_bank_sensitivity_unit",
+          "@type": "cr:Field",
+          "dataType": "sc:Text",
+          "description": "Column `finite_bank_sensitivity_unit` from part0_models.csv.",
+          "name": "finite_bank_sensitivity_unit",
+          "source": {
+            "extract": {
+              "column": "finite_bank_sensitivity_unit"
+            },
+            "fileObject": {
+              "@id": "analysis-part0-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part0-models-csv-records/first_attempt_invalid_count",
+          "@type": "cr:Field",
+          "dataType": "sc:Integer",
+          "description": "Column `first_attempt_invalid_count` from part0_models.csv.",
+          "name": "first_attempt_invalid_count",
+          "source": {
+            "extract": {
+              "column": "first_attempt_invalid_count"
+            },
+            "fileObject": {
+              "@id": "analysis-part0-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part0-models-csv-records/judge_operational_unclear_count",
+          "@type": "cr:Field",
+          "dataType": "sc:Integer",
+          "description": "Column `judge_operational_unclear_count` from part0_models.csv.",
+          "name": "judge_operational_unclear_count",
+          "source": {
+            "extract": {
+              "column": "judge_operational_unclear_count"
+            },
+            "fileObject": {
+              "@id": "analysis-part0-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part0-models-csv-records/model",
+          "@type": "cr:Field",
+          "dataType": "sc:Text",
+          "description": "Column `model` from part0_models.csv.",
+          "name": "model",
+          "source": {
+            "extract": {
+              "column": "model"
+            },
+            "fileObject": {
+              "@id": "analysis-part0-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part0-models-csv-records/operational_invalid_count",
+          "@type": "cr:Field",
+          "dataType": "sc:Integer",
+          "description": "Column `operational_invalid_count` from part0_models.csv.",
+          "name": "operational_invalid_count",
+          "source": {
+            "extract": {
+              "column": "operational_invalid_count"
+            },
+            "fileObject": {
+              "@id": "analysis-part0-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part0-models-csv-records/phase",
+          "@type": "cr:Field",
+          "dataType": "sc:Text",
+          "description": "Column `phase` from part0_models.csv.",
+          "name": "phase",
+          "source": {
+            "extract": {
+              "column": "phase"
+            },
+            "fileObject": {
+              "@id": "analysis-part0-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part0-models-csv-records/primary_denominator",
+          "@type": "cr:Field",
+          "dataType": "sc:Text",
+          "description": "Column `primary_denominator` from part0_models.csv.",
+          "name": "primary_denominator",
+          "source": {
+            "extract": {
+              "column": "primary_denominator"
+            },
+            "fileObject": {
+              "@id": "analysis-part0-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part0-models-csv-records/refusal_count",
+          "@type": "cr:Field",
+          "dataType": "sc:Integer",
+          "description": "Column `refusal_count` from part0_models.csv.",
+          "name": "refusal_count",
+          "source": {
+            "extract": {
+              "column": "refusal_count"
+            },
+            "fileObject": {
+              "@id": "analysis-part0-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part0-models-csv-records/refusal_rate_all_scheduled",
+          "@type": "cr:Field",
+          "dataType": "sc:Float",
+          "description": "Column `refusal_rate_all_scheduled` from part0_models.csv.",
+          "name": "refusal_rate_all_scheduled",
+          "source": {
+            "extract": {
+              "column": "refusal_rate_all_scheduled"
+            },
+            "fileObject": {
+              "@id": "analysis-part0-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part0-models-csv-records/refusal_rate_all_scheduled_finite_bank_sensitivity_high",
+          "@type": "cr:Field",
+          "dataType": "sc:Float",
+          "description": "Column `refusal_rate_all_scheduled_finite_bank_sensitivity_high` from part0_models.csv.",
+          "name": "refusal_rate_all_scheduled_finite_bank_sensitivity_high",
+          "source": {
+            "extract": {
+              "column": "refusal_rate_all_scheduled_finite_bank_sensitivity_high"
+            },
+            "fileObject": {
+              "@id": "analysis-part0-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part0-models-csv-records/refusal_rate_all_scheduled_finite_bank_sensitivity_low",
+          "@type": "cr:Field",
+          "dataType": "sc:Float",
+          "description": "Column `refusal_rate_all_scheduled_finite_bank_sensitivity_low` from part0_models.csv.",
+          "name": "refusal_rate_all_scheduled_finite_bank_sensitivity_low",
+          "source": {
+            "extract": {
+              "column": "refusal_rate_all_scheduled_finite_bank_sensitivity_low"
+            },
+            "fileObject": {
+              "@id": "analysis-part0-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part0-models-csv-records/repaired_invalid_count",
+          "@type": "cr:Field",
+          "dataType": "sc:Integer",
+          "description": "Column `repaired_invalid_count` from part0_models.csv.",
+          "name": "repaired_invalid_count",
+          "source": {
+            "extract": {
+              "column": "repaired_invalid_count"
+            },
+            "fileObject": {
+              "@id": "analysis-part0-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part0-models-csv-records/scheduled_units",
+          "@type": "cr:Field",
+          "dataType": "sc:Integer",
+          "description": "Column `scheduled_units` from part0_models.csv.",
+          "name": "scheduled_units",
+          "source": {
+            "extract": {
+              "column": "scheduled_units"
+            },
+            "fileObject": {
+              "@id": "analysis-part0-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part0-models-csv-records/semantic_invalid_count",
+          "@type": "cr:Field",
+          "dataType": "sc:Integer",
+          "description": "Column `semantic_invalid_count` from part0_models.csv.",
+          "name": "semantic_invalid_count",
+          "source": {
+            "extract": {
+              "column": "semantic_invalid_count"
+            },
+            "fileObject": {
+              "@id": "analysis-part0-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part0-models-csv-records/target_id",
+          "@type": "cr:Field",
+          "dataType": "sc:Text",
+          "description": "Column `target_id` from part0_models.csv.",
+          "name": "target_id",
+          "source": {
+            "extract": {
+              "column": "target_id"
+            },
+            "fileObject": {
+              "@id": "analysis-part0-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part0-models-csv-records/unclear_count",
+          "@type": "cr:Field",
+          "dataType": "sc:Integer",
+          "description": "Column `unclear_count` from part0_models.csv.",
+          "name": "unclear_count",
+          "source": {
+            "extract": {
+              "column": "unclear_count"
+            },
+            "fileObject": {
+              "@id": "analysis-part0-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part0-models-csv-records/upstream_provider",
+          "@type": "cr:Field",
+          "dataType": "sc:Text",
+          "description": "Column `upstream_provider` from part0_models.csv.",
+          "name": "upstream_provider",
+          "source": {
+            "extract": {
+              "column": "upstream_provider"
+            },
+            "fileObject": {
+              "@id": "analysis-part0-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part0-models-csv-records/visible_subject_response_count",
+          "@type": "cr:Field",
+          "dataType": "sc:Integer",
+          "description": "Column `visible_subject_response_count` from part0_models.csv.",
+          "name": "visible_subject_response_count",
+          "source": {
+            "extract": {
+              "column": "visible_subject_response_count"
+            },
+            "fileObject": {
+              "@id": "analysis-part0-models-csv"
+            }
+          }
+        }
+      ],
+      "name": "Part0 Models records"
+    },
+    {
+      "@id": "analysis-part1-models-csv-records",
+      "@type": "cr:RecordSet",
+      "description": "Rows from the sanitized aggregate table part1_models.csv.",
+      "field": [
+        {
+          "@id": "analysis-part1-models-csv-records/exploratory_only",
+          "@type": "cr:Field",
+          "dataType": "sc:Boolean",
+          "description": "Column `exploratory_only` from part1_models.csv.",
+          "name": "exploratory_only",
+          "source": {
+            "extract": {
+              "column": "exploratory_only"
+            },
+            "fileObject": {
+              "@id": "analysis-part1-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part1-models-csv-records/finite_bank_sensitivity_method",
+          "@type": "cr:Field",
+          "dataType": "sc:Text",
+          "description": "Column `finite_bank_sensitivity_method` from part1_models.csv.",
+          "name": "finite_bank_sensitivity_method",
+          "source": {
+            "extract": {
+              "column": "finite_bank_sensitivity_method"
+            },
+            "fileObject": {
+              "@id": "analysis-part1-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part1-models-csv-records/finite_bank_sensitivity_replicates",
+          "@type": "cr:Field",
+          "dataType": "sc:Integer",
+          "description": "Column `finite_bank_sensitivity_replicates` from part1_models.csv.",
+          "name": "finite_bank_sensitivity_replicates",
+          "source": {
+            "extract": {
+              "column": "finite_bank_sensitivity_replicates"
+            },
+            "fileObject": {
+              "@id": "analysis-part1-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part1-models-csv-records/finite_bank_sensitivity_roots_per_stratum",
+          "@type": "cr:Field",
+          "dataType": "sc:Integer",
+          "description": "Column `finite_bank_sensitivity_roots_per_stratum` from part1_models.csv.",
+          "name": "finite_bank_sensitivity_roots_per_stratum",
+          "source": {
+            "extract": {
+              "column": "finite_bank_sensitivity_roots_per_stratum"
+            },
+            "fileObject": {
+              "@id": "analysis-part1-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part1-models-csv-records/finite_bank_sensitivity_seed",
+          "@type": "cr:Field",
+          "dataType": "sc:Integer",
+          "description": "Column `finite_bank_sensitivity_seed` from part1_models.csv.",
+          "name": "finite_bank_sensitivity_seed",
+          "source": {
+            "extract": {
+              "column": "finite_bank_sensitivity_seed"
+            },
+            "fileObject": {
+              "@id": "analysis-part1-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part1-models-csv-records/finite_bank_sensitivity_strata",
+          "@type": "cr:Field",
+          "dataType": "sc:Integer",
+          "description": "Column `finite_bank_sensitivity_strata` from part1_models.csv.",
+          "name": "finite_bank_sensitivity_strata",
+          "source": {
+            "extract": {
+              "column": "finite_bank_sensitivity_strata"
+            },
+            "fileObject": {
+              "@id": "analysis-part1-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part1-models-csv-records/finite_bank_sensitivity_unit",
+          "@type": "cr:Field",
+          "dataType": "sc:Text",
+          "description": "Column `finite_bank_sensitivity_unit` from part1_models.csv.",
+          "name": "finite_bank_sensitivity_unit",
+          "source": {
+            "extract": {
+              "column": "finite_bank_sensitivity_unit"
+            },
+            "fileObject": {
+              "@id": "analysis-part1-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part1-models-csv-records/first_attempt_invalid_count",
+          "@type": "cr:Field",
+          "dataType": "sc:Integer",
+          "description": "Column `first_attempt_invalid_count` from part1_models.csv.",
+          "name": "first_attempt_invalid_count",
+          "source": {
+            "extract": {
+              "column": "first_attempt_invalid_count"
+            },
+            "fileObject": {
+              "@id": "analysis-part1-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part1-models-csv-records/format_valid_first_attempt_count",
+          "@type": "cr:Field",
+          "dataType": "sc:Integer",
+          "description": "Column `format_valid_first_attempt_count` from part1_models.csv.",
+          "name": "format_valid_first_attempt_count",
+          "source": {
+            "extract": {
+              "column": "format_valid_first_attempt_count"
+            },
+            "fileObject": {
+              "@id": "analysis-part1-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part1-models-csv-records/model",
+          "@type": "cr:Field",
+          "dataType": "sc:Text",
+          "description": "Column `model` from part1_models.csv.",
+          "name": "model",
+          "source": {
+            "extract": {
+              "column": "model"
+            },
+            "fileObject": {
+              "@id": "analysis-part1-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part1-models-csv-records/phase",
+          "@type": "cr:Field",
+          "dataType": "sc:Text",
+          "description": "Column `phase` from part1_models.csv.",
+          "name": "phase",
+          "source": {
+            "extract": {
+              "column": "phase"
+            },
+            "fileObject": {
+              "@id": "analysis-part1-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part1-models-csv-records/primary_denominator",
+          "@type": "cr:Field",
+          "dataType": "sc:Text",
+          "description": "Column `primary_denominator` from part1_models.csv.",
+          "name": "primary_denominator",
+          "source": {
+            "extract": {
+              "column": "primary_denominator"
+            },
+            "fileObject": {
+              "@id": "analysis-part1-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part1-models-csv-records/repaired_invalid_count",
+          "@type": "cr:Field",
+          "dataType": "sc:Integer",
+          "description": "Column `repaired_invalid_count` from part1_models.csv.",
+          "name": "repaired_invalid_count",
+          "source": {
+            "extract": {
+              "column": "repaired_invalid_count"
+            },
+            "fileObject": {
+              "@id": "analysis-part1-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part1-models-csv-records/scheduled_units",
+          "@type": "cr:Field",
+          "dataType": "sc:Integer",
+          "description": "Column `scheduled_units` from part1_models.csv.",
+          "name": "scheduled_units",
+          "source": {
+            "extract": {
+              "column": "scheduled_units"
+            },
+            "fileObject": {
+              "@id": "analysis-part1-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part1-models-csv-records/target_id",
+          "@type": "cr:Field",
+          "dataType": "sc:Text",
+          "description": "Column `target_id` from part1_models.csv.",
+          "name": "target_id",
+          "source": {
+            "extract": {
+              "column": "target_id"
+            },
+            "fileObject": {
+              "@id": "analysis-part1-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part1-models-csv-records/upstream_provider",
+          "@type": "cr:Field",
+          "dataType": "sc:Text",
+          "description": "Column `upstream_provider` from part1_models.csv.",
+          "name": "upstream_provider",
+          "source": {
+            "extract": {
+              "column": "upstream_provider"
+            },
+            "fileObject": {
+              "@id": "analysis-part1-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part1-models-csv-records/welfare_preserving_count_first_attempt",
+          "@type": "cr:Field",
+          "dataType": "sc:Integer",
+          "description": "Column `welfare_preserving_count_first_attempt` from part1_models.csv.",
+          "name": "welfare_preserving_count_first_attempt",
+          "source": {
+            "extract": {
+              "column": "welfare_preserving_count_first_attempt"
+            },
+            "fileObject": {
+              "@id": "analysis-part1-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part1-models-csv-records/welfare_preserving_rate_all_scheduled",
+          "@type": "cr:Field",
+          "dataType": "sc:Float",
+          "description": "Column `welfare_preserving_rate_all_scheduled` from part1_models.csv.",
+          "name": "welfare_preserving_rate_all_scheduled",
+          "source": {
+            "extract": {
+              "column": "welfare_preserving_rate_all_scheduled"
+            },
+            "fileObject": {
+              "@id": "analysis-part1-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part1-models-csv-records/welfare_preserving_rate_all_scheduled_finite_bank_sensitivity_high",
+          "@type": "cr:Field",
+          "dataType": "sc:Float",
+          "description": "Column `welfare_preserving_rate_all_scheduled_finite_bank_sensitivity_high` from part1_models.csv.",
+          "name": "welfare_preserving_rate_all_scheduled_finite_bank_sensitivity_high",
+          "source": {
+            "extract": {
+              "column": "welfare_preserving_rate_all_scheduled_finite_bank_sensitivity_high"
+            },
+            "fileObject": {
+              "@id": "analysis-part1-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part1-models-csv-records/welfare_preserving_rate_all_scheduled_finite_bank_sensitivity_low",
+          "@type": "cr:Field",
+          "dataType": "sc:Float",
+          "description": "Column `welfare_preserving_rate_all_scheduled_finite_bank_sensitivity_low` from part1_models.csv.",
+          "name": "welfare_preserving_rate_all_scheduled_finite_bank_sensitivity_low",
+          "source": {
+            "extract": {
+              "column": "welfare_preserving_rate_all_scheduled_finite_bank_sensitivity_low"
+            },
+            "fileObject": {
+              "@id": "analysis-part1-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part1-models-csv-records/welfare_preserving_rate_among_first_attempt_valid",
+          "@type": "cr:Field",
+          "dataType": "sc:Float",
+          "description": "Column `welfare_preserving_rate_among_first_attempt_valid` from part1_models.csv.",
+          "name": "welfare_preserving_rate_among_first_attempt_valid",
+          "source": {
+            "extract": {
+              "column": "welfare_preserving_rate_among_first_attempt_valid"
+            },
+            "fileObject": {
+              "@id": "analysis-part1-models-csv"
+            }
+          }
+        }
+      ],
+      "name": "Part1 Models records"
+    },
+    {
+      "@id": "analysis-part2-models-csv-records",
+      "@type": "cr:RecordSet",
+      "description": "Rows from the sanitized aggregate table part2_models.csv.",
+      "field": [
+        {
+          "@id": "analysis-part2-models-csv-records/environmental_interval_trajectory_count",
+          "@type": "cr:Field",
+          "dataType": "sc:Integer",
+          "description": "Column `environmental_interval_trajectory_count` from part2_models.csv.",
+          "name": "environmental_interval_trajectory_count",
+          "source": {
+            "extract": {
+              "column": "environmental_interval_trajectory_count"
+            },
+            "fileObject": {
+              "@id": "analysis-part2-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part2-models-csv-records/environmentally_estimable_trajectory_count",
+          "@type": "cr:Field",
+          "dataType": "sc:Integer",
+          "description": "Column `environmentally_estimable_trajectory_count` from part2_models.csv.",
+          "name": "environmentally_estimable_trajectory_count",
+          "source": {
+            "extract": {
+              "column": "environmentally_estimable_trajectory_count"
+            },
+            "fileObject": {
+              "@id": "analysis-part2-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part2-models-csv-records/exploratory_only",
+          "@type": "cr:Field",
+          "dataType": "sc:Boolean",
+          "description": "Column `exploratory_only` from part2_models.csv.",
+          "name": "exploratory_only",
+          "source": {
+            "extract": {
+              "column": "exploratory_only"
+            },
+            "fileObject": {
+              "@id": "analysis-part2-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part2-models-csv-records/first_attempt_invalid_count",
+          "@type": "cr:Field",
+          "dataType": "sc:Integer",
+          "description": "Column `first_attempt_invalid_count` from part2_models.csv.",
+          "name": "first_attempt_invalid_count",
+          "source": {
+            "extract": {
+              "column": "first_attempt_invalid_count"
+            },
+            "fileObject": {
+              "@id": "analysis-part2-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part2-models-csv-records/mean_aupc_eligible",
+          "@type": "cr:Field",
+          "dataType": "sc:Float",
+          "description": "Column `mean_aupc_eligible` from part2_models.csv.",
+          "name": "mean_aupc_eligible",
+          "source": {
+            "extract": {
+              "column": "mean_aupc_eligible"
+            },
+            "fileObject": {
+              "@id": "analysis-part2-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part2-models-csv-records/mean_aupc_eligible_t95_high",
+          "@type": "cr:Field",
+          "dataType": "sc:Float",
+          "description": "Column `mean_aupc_eligible_t95_high` from part2_models.csv.",
+          "name": "mean_aupc_eligible_t95_high",
+          "source": {
+            "extract": {
+              "column": "mean_aupc_eligible_t95_high"
+            },
+            "fileObject": {
+              "@id": "analysis-part2-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part2-models-csv-records/mean_aupc_eligible_t95_low",
+          "@type": "cr:Field",
+          "dataType": "sc:Float",
+          "description": "Column `mean_aupc_eligible_t95_low` from part2_models.csv.",
+          "name": "mean_aupc_eligible_t95_low",
+          "source": {
+            "extract": {
+              "column": "mean_aupc_eligible_t95_low"
+            },
+            "fileObject": {
+              "@id": "analysis-part2-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part2-models-csv-records/mean_aurc_eligible",
+          "@type": "cr:Field",
+          "dataType": "sc:Float",
+          "description": "Column `mean_aurc_eligible` from part2_models.csv.",
+          "name": "mean_aurc_eligible",
+          "source": {
+            "extract": {
+              "column": "mean_aurc_eligible"
+            },
+            "fileObject": {
+              "@id": "analysis-part2-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part2-models-csv-records/mean_aurc_eligible_t95_high",
+          "@type": "cr:Field",
+          "dataType": "sc:Float",
+          "description": "Column `mean_aurc_eligible_t95_high` from part2_models.csv.",
+          "name": "mean_aurc_eligible_t95_high",
+          "source": {
+            "extract": {
+              "column": "mean_aurc_eligible_t95_high"
+            },
+            "fileObject": {
+              "@id": "analysis-part2-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part2-models-csv-records/mean_aurc_eligible_t95_low",
+          "@type": "cr:Field",
+          "dataType": "sc:Float",
+          "description": "Column `mean_aurc_eligible_t95_low` from part2_models.csv.",
+          "name": "mean_aurc_eligible_t95_low",
+          "source": {
+            "extract": {
+              "column": "mean_aurc_eligible_t95_low"
+            },
+            "fileObject": {
+              "@id": "analysis-part2-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part2-models-csv-records/mean_population_retention_eligible",
+          "@type": "cr:Field",
+          "dataType": "sc:Float",
+          "description": "Column `mean_population_retention_eligible` from part2_models.csv.",
+          "name": "mean_population_retention_eligible",
+          "source": {
+            "extract": {
+              "column": "mean_population_retention_eligible"
+            },
+            "fileObject": {
+              "@id": "analysis-part2-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part2-models-csv-records/mean_population_retention_eligible_t95_high",
+          "@type": "cr:Field",
+          "dataType": "sc:Float",
+          "description": "Column `mean_population_retention_eligible_t95_high` from part2_models.csv.",
+          "name": "mean_population_retention_eligible_t95_high",
+          "source": {
+            "extract": {
+              "column": "mean_population_retention_eligible_t95_high"
+            },
+            "fileObject": {
+              "@id": "analysis-part2-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part2-models-csv-records/mean_population_retention_eligible_t95_low",
+          "@type": "cr:Field",
+          "dataType": "sc:Float",
+          "description": "Column `mean_population_retention_eligible_t95_low` from part2_models.csv.",
+          "name": "mean_population_retention_eligible_t95_low",
+          "source": {
+            "extract": {
+              "column": "mean_population_retention_eligible_t95_low"
+            },
+            "fileObject": {
+              "@id": "analysis-part2-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part2-models-csv-records/mean_trajectory_restraint_rate_all_scheduled",
+          "@type": "cr:Field",
+          "dataType": "sc:Float",
+          "description": "Column `mean_trajectory_restraint_rate_all_scheduled` from part2_models.csv.",
+          "name": "mean_trajectory_restraint_rate_all_scheduled",
+          "source": {
+            "extract": {
+              "column": "mean_trajectory_restraint_rate_all_scheduled"
+            },
+            "fileObject": {
+              "@id": "analysis-part2-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part2-models-csv-records/mean_trajectory_restraint_rate_all_scheduled_t95_high",
+          "@type": "cr:Field",
+          "dataType": "sc:Float",
+          "description": "Column `mean_trajectory_restraint_rate_all_scheduled_t95_high` from part2_models.csv.",
+          "name": "mean_trajectory_restraint_rate_all_scheduled_t95_high",
+          "source": {
+            "extract": {
+              "column": "mean_trajectory_restraint_rate_all_scheduled_t95_high"
+            },
+            "fileObject": {
+              "@id": "analysis-part2-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part2-models-csv-records/mean_trajectory_restraint_rate_all_scheduled_t95_low",
+          "@type": "cr:Field",
+          "dataType": "sc:Float",
+          "description": "Column `mean_trajectory_restraint_rate_all_scheduled_t95_low` from part2_models.csv.",
+          "name": "mean_trajectory_restraint_rate_all_scheduled_t95_low",
+          "source": {
+            "extract": {
+              "column": "mean_trajectory_restraint_rate_all_scheduled_t95_low"
+            },
+            "fileObject": {
+              "@id": "analysis-part2-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part2-models-csv-records/model",
+          "@type": "cr:Field",
+          "dataType": "sc:Text",
+          "description": "Column `model` from part2_models.csv.",
+          "name": "model",
+          "source": {
+            "extract": {
+              "column": "model"
+            },
+            "fileObject": {
+              "@id": "analysis-part2-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part2-models-csv-records/nondepletion_interval_method",
+          "@type": "cr:Field",
+          "dataType": "sc:Text",
+          "description": "Column `nondepletion_interval_method` from part2_models.csv.",
+          "name": "nondepletion_interval_method",
+          "source": {
+            "extract": {
+              "column": "nondepletion_interval_method"
+            },
+            "fileObject": {
+              "@id": "analysis-part2-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part2-models-csv-records/operationally_eligible_trajectory_count",
+          "@type": "cr:Field",
+          "dataType": "sc:Integer",
+          "description": "Column `operationally_eligible_trajectory_count` from part2_models.csv.",
+          "name": "operationally_eligible_trajectory_count",
+          "source": {
+            "extract": {
+              "column": "operationally_eligible_trajectory_count"
+            },
+            "fileObject": {
+              "@id": "analysis-part2-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part2-models-csv-records/overuse_count",
+          "@type": "cr:Field",
+          "dataType": "sc:Integer",
+          "description": "Column `overuse_count` from part2_models.csv.",
+          "name": "overuse_count",
+          "source": {
+            "extract": {
+              "column": "overuse_count"
+            },
+            "fileObject": {
+              "@id": "analysis-part2-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part2-models-csv-records/phase",
+          "@type": "cr:Field",
+          "dataType": "sc:Text",
+          "description": "Column `phase` from part2_models.csv.",
+          "name": "phase",
+          "source": {
+            "extract": {
+              "column": "phase"
+            },
+            "fileObject": {
+              "@id": "analysis-part2-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part2-models-csv-records/primary_denominator",
+          "@type": "cr:Field",
+          "dataType": "sc:Text",
+          "description": "Column `primary_denominator` from part2_models.csv.",
+          "name": "primary_denominator",
+          "source": {
+            "extract": {
+              "column": "primary_denominator"
+            },
+            "fileObject": {
+              "@id": "analysis-part2-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part2-models-csv-records/repaired_invalid_count",
+          "@type": "cr:Field",
+          "dataType": "sc:Integer",
+          "description": "Column `repaired_invalid_count` from part2_models.csv.",
+          "name": "repaired_invalid_count",
+          "source": {
+            "extract": {
+              "column": "repaired_invalid_count"
+            },
+            "fileObject": {
+              "@id": "analysis-part2-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part2-models-csv-records/reserve_nondepletion_rate_eligible",
+          "@type": "cr:Field",
+          "dataType": "sc:Float",
+          "description": "Column `reserve_nondepletion_rate_eligible` from part2_models.csv.",
+          "name": "reserve_nondepletion_rate_eligible",
+          "source": {
+            "extract": {
+              "column": "reserve_nondepletion_rate_eligible"
+            },
+            "fileObject": {
+              "@id": "analysis-part2-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part2-models-csv-records/reserve_nondepletion_rate_eligible_wilson95_high",
+          "@type": "cr:Field",
+          "dataType": "sc:Float",
+          "description": "Column `reserve_nondepletion_rate_eligible_wilson95_high` from part2_models.csv.",
+          "name": "reserve_nondepletion_rate_eligible_wilson95_high",
+          "source": {
+            "extract": {
+              "column": "reserve_nondepletion_rate_eligible_wilson95_high"
+            },
+            "fileObject": {
+              "@id": "analysis-part2-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part2-models-csv-records/reserve_nondepletion_rate_eligible_wilson95_low",
+          "@type": "cr:Field",
+          "dataType": "sc:Float",
+          "description": "Column `reserve_nondepletion_rate_eligible_wilson95_low` from part2_models.csv.",
+          "name": "reserve_nondepletion_rate_eligible_wilson95_low",
+          "source": {
+            "extract": {
+              "column": "reserve_nondepletion_rate_eligible_wilson95_low"
+            },
+            "fileObject": {
+              "@id": "analysis-part2-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part2-models-csv-records/restraint_count",
+          "@type": "cr:Field",
+          "dataType": "sc:Integer",
+          "description": "Column `restraint_count` from part2_models.csv.",
+          "name": "restraint_count",
+          "source": {
+            "extract": {
+              "column": "restraint_count"
+            },
+            "fileObject": {
+              "@id": "analysis-part2-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part2-models-csv-records/restraint_interval_trajectory_count",
+          "@type": "cr:Field",
+          "dataType": "sc:Integer",
+          "description": "Column `restraint_interval_trajectory_count` from part2_models.csv.",
+          "name": "restraint_interval_trajectory_count",
+          "source": {
+            "extract": {
+              "column": "restraint_interval_trajectory_count"
+            },
+            "fileObject": {
+              "@id": "analysis-part2-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part2-models-csv-records/restraint_rate_all_scheduled",
+          "@type": "cr:Field",
+          "dataType": "sc:Float",
+          "description": "Column `restraint_rate_all_scheduled` from part2_models.csv.",
+          "name": "restraint_rate_all_scheduled",
+          "source": {
+            "extract": {
+              "column": "restraint_rate_all_scheduled"
+            },
+            "fileObject": {
+              "@id": "analysis-part2-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part2-models-csv-records/restraint_rate_among_valid",
+          "@type": "cr:Field",
+          "dataType": "sc:Float",
+          "description": "Column `restraint_rate_among_valid` from part2_models.csv.",
+          "name": "restraint_rate_among_valid",
+          "source": {
+            "extract": {
+              "column": "restraint_rate_among_valid"
+            },
+            "fileObject": {
+              "@id": "analysis-part2-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part2-models-csv-records/scheduled_agent_days",
+          "@type": "cr:Field",
+          "dataType": "sc:Integer",
+          "description": "Column `scheduled_agent_days` from part2_models.csv.",
+          "name": "scheduled_agent_days",
+          "source": {
+            "extract": {
+              "column": "scheduled_agent_days"
+            },
+            "fileObject": {
+              "@id": "analysis-part2-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part2-models-csv-records/semantic_invalid_trajectory_count",
+          "@type": "cr:Field",
+          "dataType": "sc:Integer",
+          "description": "Column `semantic_invalid_trajectory_count` from part2_models.csv.",
+          "name": "semantic_invalid_trajectory_count",
+          "source": {
+            "extract": {
+              "column": "semantic_invalid_trajectory_count"
+            },
+            "fileObject": {
+              "@id": "analysis-part2-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part2-models-csv-records/target_id",
+          "@type": "cr:Field",
+          "dataType": "sc:Text",
+          "description": "Column `target_id` from part2_models.csv.",
+          "name": "target_id",
+          "source": {
+            "extract": {
+              "column": "target_id"
+            },
+            "fileObject": {
+              "@id": "analysis-part2-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part2-models-csv-records/trajectory_count",
+          "@type": "cr:Field",
+          "dataType": "sc:Integer",
+          "description": "Column `trajectory_count` from part2_models.csv.",
+          "name": "trajectory_count",
+          "source": {
+            "extract": {
+              "column": "trajectory_count"
+            },
+            "fileObject": {
+              "@id": "analysis-part2-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part2-models-csv-records/trajectory_interval_method",
+          "@type": "cr:Field",
+          "dataType": "sc:Text",
+          "description": "Column `trajectory_interval_method` from part2_models.csv.",
+          "name": "trajectory_interval_method",
+          "source": {
+            "extract": {
+              "column": "trajectory_interval_method"
+            },
+            "fileObject": {
+              "@id": "analysis-part2-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part2-models-csv-records/trajectory_interval_unit",
+          "@type": "cr:Field",
+          "dataType": "sc:Text",
+          "description": "Column `trajectory_interval_unit` from part2_models.csv.",
+          "name": "trajectory_interval_unit",
+          "source": {
+            "extract": {
+              "column": "trajectory_interval_unit"
+            },
+            "fileObject": {
+              "@id": "analysis-part2-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-part2-models-csv-records/upstream_provider",
+          "@type": "cr:Field",
+          "dataType": "sc:Text",
+          "description": "Column `upstream_provider` from part2_models.csv.",
+          "name": "upstream_provider",
+          "source": {
+            "extract": {
+              "column": "upstream_provider"
+            },
+            "fileObject": {
+              "@id": "analysis-part2-models-csv"
+            }
+          }
+        }
+      ],
+      "name": "Part2 Models records"
+    },
+    {
+      "@id": "analysis-role-calibration-model-frames-csv-records",
+      "@type": "cr:RecordSet",
+      "description": "Rows from the sanitized aggregate table role_calibration_model_frames.csv.",
+      "field": [
+        {
+          "@id": "analysis-role-calibration-model-frames-csv-records/ancillary_only",
+          "@type": "cr:Field",
+          "dataType": "sc:Boolean",
+          "description": "Column `ancillary_only` from role_calibration_model_frames.csv.",
+          "name": "ancillary_only",
+          "source": {
+            "extract": {
+              "column": "ancillary_only"
+            },
+            "fileObject": {
+              "@id": "analysis-role-calibration-model-frames-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-role-calibration-model-frames-csv-records/first_attempt_invalid_count",
+          "@type": "cr:Field",
+          "dataType": "sc:Integer",
+          "description": "Column `first_attempt_invalid_count` from role_calibration_model_frames.csv.",
+          "name": "first_attempt_invalid_count",
+          "source": {
+            "extract": {
+              "column": "first_attempt_invalid_count"
+            },
+            "fileObject": {
+              "@id": "analysis-role-calibration-model-frames-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-role-calibration-model-frames-csv-records/format_valid_first_attempt_count",
+          "@type": "cr:Field",
+          "dataType": "sc:Integer",
+          "description": "Column `format_valid_first_attempt_count` from role_calibration_model_frames.csv.",
+          "name": "format_valid_first_attempt_count",
+          "source": {
+            "extract": {
+              "column": "format_valid_first_attempt_count"
+            },
+            "fileObject": {
+              "@id": "analysis-role-calibration-model-frames-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-role-calibration-model-frames-csv-records/frame_id",
+          "@type": "cr:Field",
+          "dataType": "sc:Text",
+          "description": "Column `frame_id` from role_calibration_model_frames.csv.",
+          "name": "frame_id",
+          "source": {
+            "extract": {
+              "column": "frame_id"
+            },
+            "fileObject": {
+              "@id": "analysis-role-calibration-model-frames-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-role-calibration-model-frames-csv-records/frames_pooled",
+          "@type": "cr:Field",
+          "dataType": "sc:Boolean",
+          "description": "Column `frames_pooled` from role_calibration_model_frames.csv.",
+          "name": "frames_pooled",
+          "source": {
+            "extract": {
+              "column": "frames_pooled"
+            },
+            "fileObject": {
+              "@id": "analysis-role-calibration-model-frames-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-role-calibration-model-frames-csv-records/model",
+          "@type": "cr:Field",
+          "dataType": "sc:Text",
+          "description": "Column `model` from role_calibration_model_frames.csv.",
+          "name": "model",
+          "source": {
+            "extract": {
+              "column": "model"
+            },
+            "fileObject": {
+              "@id": "analysis-role-calibration-model-frames-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-role-calibration-model-frames-csv-records/phase",
+          "@type": "cr:Field",
+          "dataType": "sc:Text",
+          "description": "Column `phase` from role_calibration_model_frames.csv.",
+          "name": "phase",
+          "source": {
+            "extract": {
+              "column": "phase"
+            },
+            "fileObject": {
+              "@id": "analysis-role-calibration-model-frames-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-role-calibration-model-frames-csv-records/primary_denominator",
+          "@type": "cr:Field",
+          "dataType": "sc:Text",
+          "description": "Column `primary_denominator` from role_calibration_model_frames.csv.",
+          "name": "primary_denominator",
+          "source": {
+            "extract": {
+              "column": "primary_denominator"
+            },
+            "fileObject": {
+              "@id": "analysis-role-calibration-model-frames-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-role-calibration-model-frames-csv-records/repaired_invalid_count",
+          "@type": "cr:Field",
+          "dataType": "sc:Integer",
+          "description": "Column `repaired_invalid_count` from role_calibration_model_frames.csv.",
+          "name": "repaired_invalid_count",
+          "source": {
+            "extract": {
+              "column": "repaired_invalid_count"
+            },
+            "fileObject": {
+              "@id": "analysis-role-calibration-model-frames-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-role-calibration-model-frames-csv-records/scheduled_draws",
+          "@type": "cr:Field",
+          "dataType": "sc:Integer",
+          "description": "Column `scheduled_draws` from role_calibration_model_frames.csv.",
+          "name": "scheduled_draws",
+          "source": {
+            "extract": {
+              "column": "scheduled_draws"
+            },
+            "fileObject": {
+              "@id": "analysis-role-calibration-model-frames-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-role-calibration-model-frames-csv-records/target_id",
+          "@type": "cr:Field",
+          "dataType": "sc:Text",
+          "description": "Column `target_id` from role_calibration_model_frames.csv.",
+          "name": "target_id",
+          "source": {
+            "extract": {
+              "column": "target_id"
+            },
+            "fileObject": {
+              "@id": "analysis-role-calibration-model-frames-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-role-calibration-model-frames-csv-records/upstream_provider",
+          "@type": "cr:Field",
+          "dataType": "sc:Text",
+          "description": "Column `upstream_provider` from role_calibration_model_frames.csv.",
+          "name": "upstream_provider",
+          "source": {
+            "extract": {
+              "column": "upstream_provider"
+            },
+            "fileObject": {
+              "@id": "analysis-role-calibration-model-frames-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-role-calibration-model-frames-csv-records/welfare_preserving_count_first_attempt",
+          "@type": "cr:Field",
+          "dataType": "sc:Integer",
+          "description": "Column `welfare_preserving_count_first_attempt` from role_calibration_model_frames.csv.",
+          "name": "welfare_preserving_count_first_attempt",
+          "source": {
+            "extract": {
+              "column": "welfare_preserving_count_first_attempt"
+            },
+            "fileObject": {
+              "@id": "analysis-role-calibration-model-frames-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-role-calibration-model-frames-csv-records/welfare_preserving_rate_all_scheduled",
+          "@type": "cr:Field",
+          "dataType": "sc:Float",
+          "description": "Column `welfare_preserving_rate_all_scheduled` from role_calibration_model_frames.csv.",
+          "name": "welfare_preserving_rate_all_scheduled",
+          "source": {
+            "extract": {
+              "column": "welfare_preserving_rate_all_scheduled"
+            },
+            "fileObject": {
+              "@id": "analysis-role-calibration-model-frames-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-role-calibration-model-frames-csv-records/welfare_preserving_rate_among_first_attempt_valid",
+          "@type": "cr:Field",
+          "dataType": "sc:Float",
+          "description": "Column `welfare_preserving_rate_among_first_attempt_valid` from role_calibration_model_frames.csv.",
+          "name": "welfare_preserving_rate_among_first_attempt_valid",
+          "source": {
+            "extract": {
+              "column": "welfare_preserving_rate_among_first_attempt_valid"
+            },
+            "fileObject": {
+              "@id": "analysis-role-calibration-model-frames-csv"
+            }
+          }
+        }
+      ],
+      "name": "Role Calibration Model Frames records"
+    },
+    {
+      "@id": "analysis-sensitivity-main-effects-csv-records",
+      "@type": "cr:RecordSet",
+      "description": "Rows from the sanitized aggregate table sensitivity_main_effects.csv.",
+      "field": [
+        {
+          "@id": "analysis-sensitivity-main-effects-csv-records/analysis_unit",
+          "@type": "cr:Field",
+          "dataType": "sc:Text",
+          "description": "Column `analysis_unit` from sensitivity_main_effects.csv.",
+          "name": "analysis_unit",
+          "source": {
+            "extract": {
+              "column": "analysis_unit"
+            },
+            "fileObject": {
+              "@id": "analysis-sensitivity-main-effects-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-sensitivity-main-effects-csv-records/cell_count",
+          "@type": "cr:Field",
+          "dataType": "sc:Integer",
+          "description": "Column `cell_count` from sensitivity_main_effects.csv.",
+          "name": "cell_count",
+          "source": {
+            "extract": {
+              "column": "cell_count"
+            },
+            "fileObject": {
+              "@id": "analysis-sensitivity-main-effects-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-sensitivity-main-effects-csv-records/common_seed_count",
+          "@type": "cr:Field",
+          "dataType": "sc:Integer",
+          "description": "Column `common_seed_count` from sensitivity_main_effects.csv.",
+          "name": "common_seed_count",
+          "source": {
+            "extract": {
+              "column": "common_seed_count"
+            },
+            "fileObject": {
+              "@id": "analysis-sensitivity-main-effects-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-sensitivity-main-effects-csv-records/confirmatory",
+          "@type": "cr:Field",
+          "dataType": "sc:Boolean",
+          "description": "Column `confirmatory` from sensitivity_main_effects.csv.",
+          "name": "confirmatory",
+          "source": {
+            "extract": {
+              "column": "confirmatory"
+            },
+            "fileObject": {
+              "@id": "analysis-sensitivity-main-effects-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-sensitivity-main-effects-csv-records/design",
+          "@type": "cr:Field",
+          "dataType": "sc:Text",
+          "description": "Column `design` from sensitivity_main_effects.csv.",
+          "name": "design",
+          "source": {
+            "extract": {
+              "column": "design"
+            },
+            "fileObject": {
+              "@id": "analysis-sensitivity-main-effects-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-sensitivity-main-effects-csv-records/effect_high_minus_low",
+          "@type": "cr:Field",
+          "dataType": "sc:Float",
+          "description": "Column `effect_high_minus_low` from sensitivity_main_effects.csv.",
+          "name": "effect_high_minus_low",
+          "source": {
+            "extract": {
+              "column": "effect_high_minus_low"
+            },
+            "fileObject": {
+              "@id": "analysis-sensitivity-main-effects-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-sensitivity-main-effects-csv-records/factor",
+          "@type": "cr:Field",
+          "dataType": "sc:Text",
+          "description": "Column `factor` from sensitivity_main_effects.csv.",
+          "name": "factor",
+          "source": {
+            "extract": {
+              "column": "factor"
+            },
+            "fileObject": {
+              "@id": "analysis-sensitivity-main-effects-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-sensitivity-main-effects-csv-records/high_level",
+          "@type": "cr:Field",
+          "dataType": "sc:Float",
+          "description": "Column `high_level` from sensitivity_main_effects.csv.",
+          "name": "high_level",
+          "source": {
+            "extract": {
+              "column": "high_level"
+            },
+            "fileObject": {
+              "@id": "analysis-sensitivity-main-effects-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-sensitivity-main-effects-csv-records/holm_adjusted_p",
+          "@type": "cr:Field",
+          "dataType": "sc:Float",
+          "description": "Column `holm_adjusted_p` from sensitivity_main_effects.csv.",
+          "name": "holm_adjusted_p",
+          "source": {
+            "extract": {
+              "column": "holm_adjusted_p"
+            },
+            "fileObject": {
+              "@id": "analysis-sensitivity-main-effects-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-sensitivity-main-effects-csv-records/holm_family",
+          "@type": "cr:Field",
+          "dataType": "sc:Text",
+          "description": "Column `holm_family` from sensitivity_main_effects.csv.",
+          "name": "holm_family",
+          "source": {
+            "extract": {
+              "column": "holm_family"
+            },
+            "fileObject": {
+              "@id": "analysis-sensitivity-main-effects-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-sensitivity-main-effects-csv-records/holm_family_size",
+          "@type": "cr:Field",
+          "dataType": "sc:Integer",
+          "description": "Column `holm_family_size` from sensitivity_main_effects.csv.",
+          "name": "holm_family_size",
+          "source": {
+            "extract": {
+              "column": "holm_family_size"
+            },
+            "fileObject": {
+              "@id": "analysis-sensitivity-main-effects-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-sensitivity-main-effects-csv-records/inference_scope",
+          "@type": "cr:Field",
+          "dataType": "sc:Text",
+          "description": "Column `inference_scope` from sensitivity_main_effects.csv.",
+          "name": "inference_scope",
+          "source": {
+            "extract": {
+              "column": "inference_scope"
+            },
+            "fileObject": {
+              "@id": "analysis-sensitivity-main-effects-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-sensitivity-main-effects-csv-records/low_level",
+          "@type": "cr:Field",
+          "dataType": "sc:Float",
+          "description": "Column `low_level` from sensitivity_main_effects.csv.",
+          "name": "low_level",
+          "source": {
+            "extract": {
+              "column": "low_level"
+            },
+            "fileObject": {
+              "@id": "analysis-sensitivity-main-effects-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-sensitivity-main-effects-csv-records/max_t_adjusted_p",
+          "@type": "cr:Field",
+          "dataType": "sc:Float",
+          "description": "Column `max_t_adjusted_p` from sensitivity_main_effects.csv.",
+          "name": "max_t_adjusted_p",
+          "source": {
+            "extract": {
+              "column": "max_t_adjusted_p"
+            },
+            "fileObject": {
+              "@id": "analysis-sensitivity-main-effects-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-sensitivity-main-effects-csv-records/max_t_family",
+          "@type": "cr:Field",
+          "dataType": "sc:Text",
+          "description": "Column `max_t_family` from sensitivity_main_effects.csv.",
+          "name": "max_t_family",
+          "source": {
+            "extract": {
+              "column": "max_t_family"
+            },
+            "fileObject": {
+              "@id": "analysis-sensitivity-main-effects-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-sensitivity-main-effects-csv-records/permutation_count",
+          "@type": "cr:Field",
+          "dataType": "sc:Integer",
+          "description": "Column `permutation_count` from sensitivity_main_effects.csv.",
+          "name": "permutation_count",
+          "source": {
+            "extract": {
+              "column": "permutation_count"
+            },
+            "fileObject": {
+              "@id": "analysis-sensitivity-main-effects-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-sensitivity-main-effects-csv-records/raw_exact_p",
+          "@type": "cr:Field",
+          "dataType": "sc:Float",
+          "description": "Column `raw_exact_p` from sensitivity_main_effects.csv.",
+          "name": "raw_exact_p",
+          "source": {
+            "extract": {
+              "column": "raw_exact_p"
+            },
+            "fileObject": {
+              "@id": "analysis-sensitivity-main-effects-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-sensitivity-main-effects-csv-records/sentinel_id",
+          "@type": "cr:Field",
+          "dataType": "sc:Text",
+          "description": "Column `sentinel_id` from sensitivity_main_effects.csv.",
+          "name": "sentinel_id",
+          "source": {
+            "extract": {
+              "column": "sentinel_id"
+            },
+            "fileObject": {
+              "@id": "analysis-sensitivity-main-effects-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-sensitivity-main-effects-csv-records/standard_error",
+          "@type": "cr:Field",
+          "dataType": "sc:Float",
+          "description": "Column `standard_error` from sensitivity_main_effects.csv.",
+          "name": "standard_error",
+          "source": {
+            "extract": {
+              "column": "standard_error"
+            },
+            "fileObject": {
+              "@id": "analysis-sensitivity-main-effects-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-sensitivity-main-effects-csv-records/t_statistic",
+          "@type": "cr:Field",
+          "dataType": "sc:Float",
+          "description": "Column `t_statistic` from sensitivity_main_effects.csv.",
+          "name": "t_statistic",
+          "source": {
+            "extract": {
+              "column": "t_statistic"
+            },
+            "fileObject": {
+              "@id": "analysis-sensitivity-main-effects-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-sensitivity-main-effects-csv-records/within_sentinel_holm_adjusted_p",
+          "@type": "cr:Field",
+          "dataType": "sc:Float",
+          "description": "Column `within_sentinel_holm_adjusted_p` from sensitivity_main_effects.csv.",
+          "name": "within_sentinel_holm_adjusted_p",
+          "source": {
+            "extract": {
+              "column": "within_sentinel_holm_adjusted_p"
+            },
+            "fileObject": {
+              "@id": "analysis-sensitivity-main-effects-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-sensitivity-main-effects-csv-records/within_sentinel_max_t_adjusted_p",
+          "@type": "cr:Field",
+          "dataType": "sc:Float",
+          "description": "Column `within_sentinel_max_t_adjusted_p` from sensitivity_main_effects.csv.",
+          "name": "within_sentinel_max_t_adjusted_p",
+          "source": {
+            "extract": {
+              "column": "within_sentinel_max_t_adjusted_p"
+            },
+            "fileObject": {
+              "@id": "analysis-sensitivity-main-effects-csv"
+            }
+          }
+        }
+      ],
+      "name": "Sensitivity Main Effects records"
+    },
+    {
+      "@id": "analysis-sensitivity-models-csv-records",
+      "@type": "cr:RecordSet",
+      "description": "Rows from the sanitized aggregate table sensitivity_models.csv.",
+      "field": [
+        {
+          "@id": "analysis-sensitivity-models-csv-records/cell_count",
+          "@type": "cr:Field",
+          "dataType": "sc:Integer",
+          "description": "Column `cell_count` from sensitivity_models.csv.",
+          "name": "cell_count",
+          "source": {
+            "extract": {
+              "column": "cell_count"
+            },
+            "fileObject": {
+              "@id": "analysis-sensitivity-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-sensitivity-models-csv-records/common_seed_count",
+          "@type": "cr:Field",
+          "dataType": "sc:Integer",
+          "description": "Column `common_seed_count` from sensitivity_models.csv.",
+          "name": "common_seed_count",
+          "source": {
+            "extract": {
+              "column": "common_seed_count"
+            },
+            "fileObject": {
+              "@id": "analysis-sensitivity-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-sensitivity-models-csv-records/confirmatory",
+          "@type": "cr:Field",
+          "dataType": "sc:Boolean",
+          "description": "Column `confirmatory` from sensitivity_models.csv.",
+          "name": "confirmatory",
+          "source": {
+            "extract": {
+              "column": "confirmatory"
+            },
+            "fileObject": {
+              "@id": "analysis-sensitivity-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-sensitivity-models-csv-records/execution_ceiling_agent_days",
+          "@type": "cr:Field",
+          "dataType": "sc:Integer",
+          "description": "Column `execution_ceiling_agent_days` from sensitivity_models.csv.",
+          "name": "execution_ceiling_agent_days",
+          "source": {
+            "extract": {
+              "column": "execution_ceiling_agent_days"
+            },
+            "fileObject": {
+              "@id": "analysis-sensitivity-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-sensitivity-models-csv-records/exploratory_only",
+          "@type": "cr:Field",
+          "dataType": "sc:Boolean",
+          "description": "Column `exploratory_only` from sensitivity_models.csv.",
+          "name": "exploratory_only",
+          "source": {
+            "extract": {
+              "column": "exploratory_only"
+            },
+            "fileObject": {
+              "@id": "analysis-sensitivity-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-sensitivity-models-csv-records/first_attempt_invalid_count",
+          "@type": "cr:Field",
+          "dataType": "sc:Integer",
+          "description": "Column `first_attempt_invalid_count` from sensitivity_models.csv.",
+          "name": "first_attempt_invalid_count",
+          "source": {
+            "extract": {
+              "column": "first_attempt_invalid_count"
+            },
+            "fileObject": {
+              "@id": "analysis-sensitivity-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-sensitivity-models-csv-records/identity_mismatch_count",
+          "@type": "cr:Field",
+          "dataType": "sc:Integer",
+          "description": "Column `identity_mismatch_count` from sensitivity_models.csv.",
+          "name": "identity_mismatch_count",
+          "source": {
+            "extract": {
+              "column": "identity_mismatch_count"
+            },
+            "fileObject": {
+              "@id": "analysis-sensitivity-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-sensitivity-models-csv-records/inference_scope",
+          "@type": "cr:Field",
+          "dataType": "sc:Text",
+          "description": "Column `inference_scope` from sensitivity_models.csv.",
+          "name": "inference_scope",
+          "source": {
+            "extract": {
+              "column": "inference_scope"
+            },
+            "fileObject": {
+              "@id": "analysis-sensitivity-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-sensitivity-models-csv-records/model",
+          "@type": "cr:Field",
+          "dataType": "sc:Text",
+          "description": "Column `model` from sensitivity_models.csv.",
+          "name": "model",
+          "source": {
+            "extract": {
+              "column": "model"
+            },
+            "fileObject": {
+              "@id": "analysis-sensitivity-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-sensitivity-models-csv-records/phase",
+          "@type": "cr:Field",
+          "dataType": "sc:Text",
+          "description": "Column `phase` from sensitivity_models.csv.",
+          "name": "phase",
+          "source": {
+            "extract": {
+              "column": "phase"
+            },
+            "fileObject": {
+              "@id": "analysis-sensitivity-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-sensitivity-models-csv-records/primary_denominator",
+          "@type": "cr:Field",
+          "dataType": "sc:Text",
+          "description": "Column `primary_denominator` from sensitivity_models.csv.",
+          "name": "primary_denominator",
+          "source": {
+            "extract": {
+              "column": "primary_denominator"
+            },
+            "fileObject": {
+              "@id": "analysis-sensitivity-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-sensitivity-models-csv-records/repaired_invalid_count",
+          "@type": "cr:Field",
+          "dataType": "sc:Integer",
+          "description": "Column `repaired_invalid_count` from sensitivity_models.csv.",
+          "name": "repaired_invalid_count",
+          "source": {
+            "extract": {
+              "column": "repaired_invalid_count"
+            },
+            "fileObject": {
+              "@id": "analysis-sensitivity-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-sensitivity-models-csv-records/responses_received",
+          "@type": "cr:Field",
+          "dataType": "sc:Integer",
+          "description": "Column `responses_received` from sensitivity_models.csv.",
+          "name": "responses_received",
+          "source": {
+            "extract": {
+              "column": "responses_received"
+            },
+            "fileObject": {
+              "@id": "analysis-sensitivity-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-sensitivity-models-csv-records/schedule_semantics",
+          "@type": "cr:Field",
+          "dataType": "sc:Text",
+          "description": "Column `schedule_semantics` from sensitivity_models.csv.",
+          "name": "schedule_semantics",
+          "source": {
+            "extract": {
+              "column": "schedule_semantics"
+            },
+            "fileObject": {
+              "@id": "analysis-sensitivity-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-sensitivity-models-csv-records/scheduled_agent_days",
+          "@type": "cr:Field",
+          "dataType": "sc:Integer",
+          "description": "Column `scheduled_agent_days` from sensitivity_models.csv.",
+          "name": "scheduled_agent_days",
+          "source": {
+            "extract": {
+              "column": "scheduled_agent_days"
+            },
+            "fileObject": {
+              "@id": "analysis-sensitivity-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-sensitivity-models-csv-records/target_id",
+          "@type": "cr:Field",
+          "dataType": "sc:Text",
+          "description": "Column `target_id` from sensitivity_models.csv.",
+          "name": "target_id",
+          "source": {
+            "extract": {
+              "column": "target_id"
+            },
+            "fileObject": {
+              "@id": "analysis-sensitivity-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-sensitivity-models-csv-records/trajectory_count",
+          "@type": "cr:Field",
+          "dataType": "sc:Integer",
+          "description": "Column `trajectory_count` from sensitivity_models.csv.",
+          "name": "trajectory_count",
+          "source": {
+            "extract": {
+              "column": "trajectory_count"
+            },
+            "fileObject": {
+              "@id": "analysis-sensitivity-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-sensitivity-models-csv-records/transport_failure_count",
+          "@type": "cr:Field",
+          "dataType": "sc:Integer",
+          "description": "Column `transport_failure_count` from sensitivity_models.csv.",
+          "name": "transport_failure_count",
+          "source": {
+            "extract": {
+              "column": "transport_failure_count"
+            },
+            "fileObject": {
+              "@id": "analysis-sensitivity-models-csv"
+            }
+          }
+        },
+        {
+          "@id": "analysis-sensitivity-models-csv-records/upstream_provider",
+          "@type": "cr:Field",
+          "dataType": "sc:Text",
+          "description": "Column `upstream_provider` from sensitivity_models.csv.",
+          "name": "upstream_provider",
+          "source": {
+            "extract": {
+              "column": "upstream_provider"
+            },
+            "fileObject": {
+              "@id": "analysis-sensitivity-models-csv"
+            }
+          }
+        }
+      ],
+      "name": "Sensitivity Models records"
+    }
+  ],
+  "releaseCoverage": {
+    "part0_model_count": 22,
+    "part0_scheduled_response_count": 3168,
+    "part1_model_count": 75,
+    "part1_scheduled_choice_count": 28800,
+    "part2_environmentally_estimable_trajectory_count": 225,
+    "part2_first_attempt_invalid_action_count": 4,
+    "part2_model_count": 19,
+    "part2_semantic_invalid_trajectory_count": 3,
+    "part2_trajectory_count": 228,
+    "role_calibration_model_frame_count": 18,
+    "sensitivity_main_effect_count": 25,
+    "sensitivity_model_count": 5
+  },
+  "sdLicense": "https://opensource.org/license/mit",
+  "sourceAnalysisEvidenceSha256": "a62c982d3ef3a04aeaec5e96a1a1db15e2e534890a5436708467c6ba43ff96a1",
+  "sourcePaperAssetsEvidenceSha256": "4b84f39f2c9923bd8640b220eda3c0f657b04a2b276120192b657e0a11bb8811",
+  "version": "1.0.0"
+}

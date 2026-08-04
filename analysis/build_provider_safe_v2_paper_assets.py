@@ -782,21 +782,49 @@ def _validate_sensitivity(
         _required(
             row,
             (
-                "trajectory_count", "scheduled_agent_days", "first_attempt_invalid_count",
+                "trajectory_count", "cell_count", "common_seed_count",
+                "execution_ceiling_agent_days", "scheduled_agent_days",
+                "responses_received", "transport_failure_count",
+                "identity_mismatch_count", "first_attempt_invalid_count",
                 "repaired_invalid_count", "inference_scope", "confirmatory", "exploratory_only",
+                "primary_denominator", "schedule_semantics",
             ),
             label,
         )
-        if _integer(row, "trajectory_count", label) != 32:
+        if (
+            _integer(row, "trajectory_count", label) != 32
+            or _integer(row, "cell_count", label) != 16
+            or _integer(row, "common_seed_count", label) != 2
+        ):
             raise PaperAssetsError(f"{label} does not contain 16 cells x 2 seeds.")
-        scheduled = _integer(row, "scheduled_agent_days", label, minimum=1)
-        if scheduled != 2880:
+        ceiling = _integer(row, "execution_ceiling_agent_days", label, minimum=1)
+        if ceiling != 2880:
             raise PaperAssetsError(
-                f"{label} does not contain the frozen 2,880 scheduled agent-days."
+                f"{label} changed the frozen 2,880 agent-day execution ceiling."
             )
+        scheduled = _integer(row, "scheduled_agent_days", label, minimum=1)
+        responses = _integer(row, "responses_received", label)
+        transport = _integer(row, "transport_failure_count", label)
+        identity = _integer(row, "identity_mismatch_count", label)
         invalid = _integer(row, "first_attempt_invalid_count", label)
+        if (
+            scheduled > ceiling
+            or responses + transport != scheduled
+            or identity + transport > invalid
+        ):
+            raise PaperAssetsError(
+                f"{label} realized living-agent schedule does not reconcile."
+            )
         if invalid > scheduled or _integer(row, "repaired_invalid_count", label) != 0:
             raise PaperAssetsError(f"{label} has invalid sensitivity coverage accounting.")
+        if (
+            row.get("primary_denominator") != "all_scheduled_living_agent_days"
+            or row.get("schedule_semantics")
+            != "one_decision_per_living_agent_per_day_dead_agents_have_no_future_scheduled_days"
+        ):
+            raise PaperAssetsError(
+                f"{label} changed its realized living-agent denominator contract."
+            )
         if row.get("inference_scope") != "deadline_exploratory" or row.get("confirmatory") is not False or row.get("exploratory_only") is not True:
             raise PaperAssetsError(f"{label} changed its exploratory sensitivity scope.")
 

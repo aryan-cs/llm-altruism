@@ -1,0 +1,61 @@
+% Generated file. Requires booktabs and graphicx. Do not edit by hand.
+\par\addvspace{15pt}
+\begin{table*}[tbp]
+\centering
+\caption{Part 2 deadline-exploratory sensitivity effects for 5 exact compatible sentinel routes, with no route substitution. Each row is one sentinel route and prespecified factor; Model ID is the authenticated upstream model; Effect is mean normalized AURC at the factor's high level minus its low level over the resolution-V design and two common-seed blocks. The low-to-high pairs are capacity per initial agent 5 to 15, depletion units 1 to 2, collapse death rate 0.1 to 0.4, society size 4 to 8, and horizon days 10 to 20. Holm p adjusts the 25 sentinel-by-factor tests, with adjusted p at most 0.05 treated as significant. The two centered result columns directly assess effect size and evidence against the null without a redundant derived status column. Positive means the high level increased reserve preservation and negative means it decreased preservation, but sign is not automatically good or bad for the parameter. With two seeds this panel is underpowered and descriptive, not a general safety score. Display block 1 of 2.}
+\label{tab:provider-safe-v2-part2-sensitivity}
+\scriptsize
+\setlength{\tabcolsep}{3.5pt}
+\renewcommand{\arraystretch}{1.08}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lllcc}
+\toprule
+Target route ID & Model ID & Factor & Effect (high-low AURC) & Holm p \\
+\midrule
+google/gemini-3.1-pro-preview & gemini-3.1-pro-preview & capacity\_per\_initial\_agent & +0.1195 & 1.0000 \\
+google/gemini-3.1-pro-preview & gemini-3.1-pro-preview & depletion\_units & -0.0533 & 1.0000 \\
+google/gemini-3.1-pro-preview & gemini-3.1-pro-preview & collapse\_death\_rate & +0.0207 & 1.0000 \\
+google/gemini-3.1-pro-preview & gemini-3.1-pro-preview & society\_size & -0.0053 & 1.0000 \\
+google/gemini-3.1-pro-preview & gemini-3.1-pro-preview & horizon\_days & -0.1212 & 1.0000 \\
+meta/llama-3.3-70b-instruct & llama-3.3-70b-instruct & capacity\_per\_initial\_agent & +0.0000 & 1.0000 \\
+meta/llama-3.3-70b-instruct & llama-3.3-70b-instruct & depletion\_units & +0.0000 & 1.0000 \\
+meta/llama-3.3-70b-instruct & llama-3.3-70b-instruct & collapse\_death\_rate & +0.0000 & 1.0000 \\
+meta/llama-3.3-70b-instruct & llama-3.3-70b-instruct & society\_size & +0.0000 & 1.0000 \\
+meta/llama-3.3-70b-instruct & llama-3.3-70b-instruct & horizon\_days & +0.0000 & 1.0000 \\
+nvidia/nemotron-3-super-v3 & nemotron-3-super-v3 & capacity\_per\_initial\_agent & +0.2881 & 1.0000 \\
+nvidia/nemotron-3-super-v3 & nemotron-3-super-v3 & depletion\_units & -0.1711 & 1.0000 \\
+nvidia/nemotron-3-super-v3 & nemotron-3-super-v3 & collapse\_death\_rate & -0.0123 & 1.0000 \\
+nvidia/nemotron-3-super-v3 & nemotron-3-super-v3 & society\_size & -0.0173 & 1.0000 \\
+nvidia/nemotron-3-super-v3 & nemotron-3-super-v3 & horizon\_days & -0.1762 & 1.0000 \\
+\bottomrule
+\end{tabular}%
+}
+\end{table*}
+\par\addvspace{15pt}
+\par\addvspace{15pt}
+\begin{table*}[tbp]
+\centering
+\caption{Part 2 deadline-exploratory sensitivity effects for 5 exact compatible sentinel routes, with no route substitution. Each row is one sentinel route and prespecified factor; Model ID is the authenticated upstream model; Effect is mean normalized AURC at the factor's high level minus its low level over the resolution-V design and two common-seed blocks. The low-to-high pairs are capacity per initial agent 5 to 15, depletion units 1 to 2, collapse death rate 0.1 to 0.4, society size 4 to 8, and horizon days 10 to 20. Holm p adjusts the 25 sentinel-by-factor tests, with adjusted p at most 0.05 treated as significant. The two centered result columns directly assess effect size and evidence against the null without a redundant derived status column. Positive means the high level increased reserve preservation and negative means it decreased preservation, but sign is not automatically good or bad for the parameter. With two seeds this panel is underpowered and descriptive, not a general safety score. Display block 2 of 2.}
+\scriptsize
+\setlength{\tabcolsep}{3.5pt}
+\renewcommand{\arraystretch}{1.08}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lllcc}
+\toprule
+Target route ID & Model ID & Factor & Effect (high-low AURC) & Holm p \\
+\midrule
+openai/gpt-5.4 & gpt-5.4 & capacity\_per\_initial\_agent & -0.1414 & 1.0000 \\
+openai/gpt-5.4 & gpt-5.4 & depletion\_units & +0.0958 & 1.0000 \\
+openai/gpt-5.4 & gpt-5.4 & collapse\_death\_rate & -0.0135 & 1.0000 \\
+openai/gpt-5.4 & gpt-5.4 & society\_size & -0.1118 & 1.0000 \\
+openai/gpt-5.4 & gpt-5.4 & horizon\_days & -0.1450 & 1.0000 \\
+qwen/qwen3.6-27b & qwen3.6-27b & capacity\_per\_initial\_agent & +0.1278 & 1.0000 \\
+qwen/qwen3.6-27b & qwen3.6-27b & depletion\_units & -0.0425 & 1.0000 \\
+qwen/qwen3.6-27b & qwen3.6-27b & collapse\_death\_rate & +0.0030 & 1.0000 \\
+qwen/qwen3.6-27b & qwen3.6-27b & society\_size & -0.2671 & 1.0000 \\
+qwen/qwen3.6-27b & qwen3.6-27b & horizon\_days & -0.2144 & 1.0000 \\
+\bottomrule
+\end{tabular}%
+}
+\end{table*}
+\par\addvspace{15pt}

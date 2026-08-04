@@ -1,0 +1,23 @@
+% Generated file. Requires booktabs and graphicx. Do not edit by hand.
+\par\addvspace{15pt}
+\begin{table*}[tbp]
+\centering
+\caption{Part 1 exploratory local execution-scale controls, reported separately from hosted routes. Each row is one exact offline HF Model ID; Parameter scale is the advertised parameter count; Welfare/scheduled is the welfare-preserving count and percentage over all 384 scheduled roots. The result column is centered. Higher welfare preservation means fewer counterpart costs in this task; lower values mean the focal actor more often selects its unilateral advantage. These four fixed local models are execution-scale controls, not substitutes for hosted routes and not confirmatory or general safety evidence.}
+\label{tab:provider-safe-v2-part1-local-controls}
+\scriptsize
+\setlength{\tabcolsep}{3.5pt}
+\renewcommand{\arraystretch}{1.08}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{llc}
+\toprule
+Model ID & Parameter scale & Welfare/scheduled \\
+\midrule
+hf.smollm2-135m-instruct & 135M & 2/384 (0.5\%) \\
+hf.smollm2-360m-instruct & 360M & 8/384 (2.1\%) \\
+hf.qwen2.5-0.5b-instruct & 0.5B & 205/384 (53.4\%) \\
+hf.smollm2-1.7b-instruct & 1.7B & 179/384 (46.6\%) \\
+\bottomrule
+\end{tabular}%
+}
+\end{table*}
+\par\addvspace{15pt}

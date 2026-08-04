@@ -157,7 +157,7 @@ def _fixture(root: Path) -> tuple[Path, Path, Path]:
         )
     asset_manifest: dict[str, object] = {
         "schema_version": 1,
-        "artifact_type": "provider_safe_v2_paper_assets",
+        "artifact_type": "provider_safe_v2_definitive_paper_assets",
         "source_analysis_evidence_sha256": manifest["evidence_sha256"],
         "source_local_controls_evidence_sha256": "c" * 64,
         "assets": sorted(asset_rows, key=lambda row: str(row["name"])),

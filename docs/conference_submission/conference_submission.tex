@@ -45,7 +45,11 @@ Refusing an explicit harmful request is necessary, but many consequential choice
 We introduce \textbf{Prosocial Readiness Bench}, a three-part evaluation of harmful-request refusal, self-directed cooperation in dyadic dilemmas, and restraint in a repeated commons environment.
 The tasks form a staged progression from explicit and identifiable harm to bilateral and then diffuse, cumulative externalities; they measure complementary observable behaviors rather than a latent moral trait.
 Our evaluation uses response-only judging by one fixed model disjoint from every subject, a balanced 384-root cooperation bank, and a payoff-coupled repeated commons with independent common-seed trajectories.
-Across 228 common-seed commons trajectories, mean system restraint ranges from 34.1--100.0\% and normalized reserve area ranges from 0.224--1.000; seven systems preserve both the reserve and population perfectly in every run, whereas GPT-OSS 20B and Nemotron 3 Super deplete the reserve and retain only 20\% and 10\% of the initial population.
+\ifdefinitiveresults
+Across \ProviderSafePartTwoTrajectoryCount{} common-seed commons trajectories, mean system restraint ranges from \ProviderSafePartTwoModelRestraintRatePctMinimum--\ProviderSafePartTwoModelRestraintRatePctMaximum\% and normalized reserve area ranges from \ProviderSafePartTwoModelNormalizedAURCMinimum--\ProviderSafePartTwoModelNormalizedAURCMaximum; seven systems preserve both the reserve and population perfectly in every run, whereas GPT-OSS 20B and Nemotron 3 Super deplete the reserve and retain only 20\% and 10\% of the initial population.
+\else
+Across 228 common-seed commons trajectories, mean system restraint ranges from 34.5--100.0\% and normalized reserve area ranges from 0.224--1.000; seven systems preserve both the reserve and population perfectly in every run, whereas GPT-OSS 20B and Nemotron 3 Super deplete the reserve and retain only 20\% and 10\% of the initial population.
+\fi
 \ifdefinitiveresults
 Across \ProviderSafePartOneModelCount{} hosted Part~1 routes, welfare-preserving choice spans \ProviderSafePartOneModelWelfareRatePctMinimum--\ProviderSafePartOneModelWelfareRatePctMaximum\%.
 \fi
@@ -281,7 +285,7 @@ The panel identifies which conclusions depend most strongly on capacity, depleti
 \section{Results}
 \label{app:current-results}
 The repeated-commons evaluation contains 228 independent trajectories across 19 exact routes and 13,495 scheduled agent-days.
-Mean system restraint ranges from 34.1--100.0\%, and normalized reserve area ranges from 0.224--1.000.
+Mean system restraint ranges from 34.5--100.0\%, and normalized reserve area ranges from 0.224--1.000.
 Seven systems preserve both the reserve and population perfectly in every run; GPT-OSS 20B and Nemotron 3 Super instead deplete the reserve and retain only 20\% and 10\% of the initial population.
 Table~\ref{tab:part2-current} reports the complete action--resource--population profile.
 
@@ -311,9 +315,9 @@ Gemini 3.5 Flash & 73.8 [63.9, 83.6] & 0.514 [0.331, 0.696] & 100\% \\
 Gemini 2.5 Pro & 73.2 [71.5, 74.9] & 0.462 [0.440, 0.484] & 100\% \\
 Qwen 3.6 27B & 71.4 [66.2, 76.6] & 0.683 [0.624, 0.742] & 100\% \\
 Gemini 2.5 Flash & 66.5 [66.2, 66.8] & 0.299 [0.296, 0.301] & 100\% \\
-Qwen 3.5 35B-A3B & 61.2 [60.6, 61.9] & 0.325 [0.301, 0.349] & 100\% \\
-GPT-OSS 20B & 43.1 [39.9, 46.2] & 0.315 [0.300, 0.330] & 20\% \\
-Nemotron 3 Super & 34.1 [30.5, 37.8] & 0.224 [0.209, 0.240] & 10\% \\
+Qwen 3.5 35B-A3B & 61.3 [60.6, 61.9] & 0.325 [0.301, 0.349] & 100\% \\
+GPT-OSS 20B & 43.2 [39.9, 46.2] & 0.315 [0.300, 0.330] & 20\% \\
+Nemotron 3 Super & 34.5 [30.5, 37.8] & 0.224 [0.209, 0.240] & 10\% \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -411,7 +415,7 @@ Times-compatible typography matches the submission template; the original blue, 
 \end{figure}
 \end{landscape}
 
-\newcommand{\PartOneAppendixCaption}[1]{Part~1 hosted self-choice outcomes, block #1 of 3 in global display order. Each row is one exact route over 384 scheduled roots. Orange bars are welfare-preserving first-attempt shares and whiskers are 5,000-replicate stratified frozen-bank sensitivity intervals. Higher values mean fewer counterpart costs within this task; lower values mean the focal actor more often selects its unilateral advantage.}
+\newcommand{\PartOneAppendixCaption}[1]{Part~1 hosted self-choice outcomes, block #1 of 3 in global display order. Each row is one exact route over 384 scheduled roots. Orange bars are all-scheduled welfare-preserving shares and whiskers are 5,000-replicate stratified frozen-bank sensitivity intervals. Higher values mean fewer counterpart costs within this task; lower values mean the focal actor more often selects its unilateral advantage.}
 \foreach \block in {1,2,3}{%
 \clearpage\begin{landscape}\begin{figure}[p]\centering
 \includegraphics[width=\linewidth,height=0.78\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/part1_all_models_block\block.pdf}

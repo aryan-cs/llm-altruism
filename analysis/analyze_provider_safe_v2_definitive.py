@@ -27,6 +27,10 @@ import numpy as np
 from analysis.part2_confirmatory import SENSITIVITY_FACTORS, student_t_975
 from experiments.misc import inference_hub_part1_operational_repair as part1_operational_repair
 from experiments.misc import inference_hub_part1_panel as part1_panel
+from experiments.misc import (
+    inference_hub_part2_sensitivity_operational_repair
+    as sensitivity_operational_repair,
+)
 from experiments.part1.confirmatory_design import (
     COUNTERBALANCE_BY_ID,
     DOMAINS,
@@ -60,6 +64,9 @@ EXPECTED_TYPES = {
 }
 PART1_OPERATIONAL_REPAIR_STATUS = (
     "complete_exact_source_bound_transport_null_overlay_applied"
+)
+SENSITIVITY_OPERATIONAL_REPAIR_STATUS = (
+    "complete_exact_source_bound_full_trajectory_operational_overlay_applied"
 )
 
 
@@ -286,6 +293,7 @@ def _load_manifest(
     *,
     allow_terminalized_part0_operational_invalids: bool = False,
     allow_terminalized_part1_transport_nulls: bool = False,
+    allow_terminalized_sensitivity_operational_failures: bool = False,
 ) -> tuple[Path, Path, dict[str, Any], str]:
     path = _manifest_path(value).resolve()
     _private_mode(path)
@@ -310,6 +318,13 @@ def _load_manifest(
         and not manifest.get("completed_at_utc")
     ):
         evidence_status = "fully_terminalized_with_transport_nulls"
+    elif (
+        phase == "sensitivity"
+        and allow_terminalized_sensitivity_operational_failures
+        and manifest.get("complete") is False
+        and not manifest.get("completed_at_utc")
+    ):
+        evidence_status = "fully_terminalized_with_operational_trajectory_failures"
     else:
         raise DefinitiveAnalysisError(f"{phase} manifest is not COMPLETE.")
     _provider_safe_contract(manifest, phase)
@@ -1663,8 +1678,16 @@ def _part0(run: Path, manifest: Mapping[str, Any]) -> tuple[list[dict[str, Any]]
             and row.get("operational_failure") is not None
             for row in terminals
         )
-        judge_operational_invalid = sum(row.get("judge_failure") is not None for row in terminals)
-        operational_invalid = subject_operational_invalid + judge_operational_invalid
+        judge_operational_unclear = sum(
+            row.get("outcome") == "UNCLEAR"
+            and row.get("judge_failure") is not None
+            for row in terminals
+        )
+        # Only subject transport failures produce an INVALID terminal outcome.
+        # Exhausted judge batches are deliberately terminalized as UNCLEAR, so
+        # folding them into operational_invalid_count breaks the exact
+        # semantic + operational = INVALID partition used downstream.
+        operational_invalid = subject_operational_invalid
         semantic_invalid = counts["INVALID"] - subject_operational_invalid
         if semantic_invalid < 0:
             raise DefinitiveAnalysisError(
@@ -1697,6 +1720,7 @@ def _part0(run: Path, manifest: Mapping[str, Any]) -> tuple[list[dict[str, Any]]
             "unclear_count": counts["UNCLEAR"], "first_attempt_invalid_count": counts["INVALID"] + repaired,
             "semantic_invalid_count": semantic_invalid,
             "operational_invalid_count": operational_invalid,
+            "judge_operational_unclear_count": judge_operational_unclear,
             "visible_subject_response_count": planned - subject_operational_invalid,
             "repaired_invalid_count": repaired, "refusal_rate_all_scheduled": _rate(counts["REFUSAL"], planned),
             "refusal_rate_all_scheduled_finite_bank_sensitivity_low": overall_low,
@@ -1967,18 +1991,471 @@ def _analyze_deadline_sensitivity(
     return output
 
 
-def _sensitivity(run: Path, manifest: Mapping[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+def _sensitivity_key(row: Mapping[str, Any]) -> tuple[str, str, int]:
+    try:
+        return (
+            str(row["cell_id"]),
+            str(row["target_id"]),
+            int(row["trajectory_index"]),
+        )
+    except (KeyError, TypeError, ValueError) as error:
+        raise DefinitiveAnalysisError(
+            "Sensitivity trajectory identity is malformed."
+        ) from error
+
+
+def _validate_sensitivity_operational_repair(
+    *,
+    source_run: Path,
+    source_manifest_path: Path,
+    source_manifest: Mapping[str, Any],
+    repair_value: Path,
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], Path, dict[str, Any]]:
+    """Validate a whole-trajectory-only operational overlay for sensitivity."""
+
+    _require_inactive_run(source_run, "Sensitivity source")
+    try:
+        (
+            reconstructed_source,
+            design,
+            conditions,
+            subjects,
+            source_rows,
+            frozen_contract,
+        ) = sensitivity_operational_repair._load_source(source_manifest_path)
+    except Exception as error:
+        raise DefinitiveAnalysisError(
+            "Sensitivity source trajectory/request/route reconstruction failed."
+        ) from error
+    if _canonical_bytes(reconstructed_source) != _canonical_bytes(source_manifest):
+        raise DefinitiveAnalysisError(
+            "Sensitivity repair source is not the analyzer input manifest."
+        )
+
+    repair_path = _manifest_path(repair_value).resolve()
+    _private_mode(repair_path)
+    repair = _read_object(repair_path, "Sensitivity operational repair manifest")
+    if (
+        repair.get("schema_version") != SCHEMA_VERSION
+        or repair.get("artifact_type")
+        != sensitivity_operational_repair.MANIFEST_ARTIFACT_TYPE
+        or repair.get("evidence_sha256") != _self_hash(repair)
+        or repair.get("complete") is not True
+        or not repair.get("completed_at_utc")
+    ):
+        raise DefinitiveAnalysisError(
+            "Sensitivity operational repair is not COMPLETE and self-hash-valid."
+        )
+    repair_run = repair_path.parent.parent
+    _require_inactive_run(repair_run, "Sensitivity operational repair")
+    source_binding = repair.get("source_manifest")
+    if (
+        not isinstance(source_binding, Mapping)
+        or not isinstance(source_binding.get("path"), str)
+        or Path(source_binding["path"]).resolve() != source_manifest_path.resolve()
+        or source_binding.get("file_sha256") != _sha256_file(source_manifest_path)
+        or source_binding.get("evidence_sha256")
+        != source_manifest.get("evidence_sha256")
+        or repair.get("source_campaign_id") != source_manifest.get("campaign_id")
+        or repair.get("source_journal_references_sha256")
+        != _sha256_json(source_manifest.get("journals"))
+        or repair.get("source_trajectory_metrics_evidence_sha256")
+        != source_manifest.get("sanitized_artifacts", {})
+        .get("trajectory_metrics", {})
+        .get("evidence_sha256")
+    ):
+        raise DefinitiveAnalysisError(
+            "Sensitivity operational repair exact-source binding failed."
+        )
+    expected_sources = {
+        str(path.resolve()): _sha256_file(path.resolve())
+        for path in sensitivity_operational_repair._SOURCE_PATHS
+    }
+    max_rounds = repair.get("max_full_trajectory_rounds")
+    max_attempts = repair.get("max_physical_attempts_per_agent_day")
+    if (
+        repair.get("repair_source_artifacts") != expected_sources
+        or isinstance(max_rounds, bool)
+        or not isinstance(max_rounds, int)
+        or max_rounds < 1
+        or isinstance(max_attempts, bool)
+        or not isinstance(max_attempts, int)
+        or max_attempts < 1
+        or repair.get("eligibility_policy")
+        != "source_operationally_ineligible_trajectory_only_v1"
+        or repair.get("rerun_policy")
+        != "whole_trajectory_from_day_1_exact_frozen_contract_v1"
+        or repair.get("semantic_invalid_retry_permitted") is not False
+        or repair.get("source_mutated") is not False
+        or repair.get("substitution_permitted") is not False
+    ):
+        raise DefinitiveAnalysisError(
+            "Sensitivity operational repair policy/source-code binding failed."
+        )
+
+    subset_binding = repair.get("repair_subset_manifest")
+    subset_manifest = None
+    subset_rows = None
+    subset_path = None
+    if subset_binding is not None:
+        if (
+            repair.get("repair_source_kind")
+            != "complete_frozen_contract_subset_manifest_v1"
+            or not isinstance(subset_binding, Mapping)
+            or not isinstance(subset_binding.get("path"), str)
+        ):
+            raise DefinitiveAnalysisError(
+                "Sensitivity complete-subset repair binding is malformed."
+            )
+        subset_path = Path(subset_binding["path"]).resolve()
+        if (
+            subset_binding.get("file_sha256") != _sha256_file(subset_path)
+        ):
+            raise DefinitiveAnalysisError(
+                "Sensitivity complete-subset manifest file changed."
+            )
+        try:
+            subset_manifest, subset_rows = (
+                sensitivity_operational_repair._load_complete_subset(
+                    subset_path,
+                    source=reconstructed_source,
+                    design=design,
+                    conditions=conditions,
+                    subjects=subjects,
+                    frozen_contract=frozen_contract,
+                )
+            )
+        except Exception as error:
+            raise DefinitiveAnalysisError(
+                "Sensitivity complete-subset provenance/reconstruction failed."
+            ) from error
+        if (
+            subset_binding.get("evidence_sha256")
+            != subset_manifest.get("evidence_sha256")
+            or repair.get("subset_full_journal_references_sha256")
+            != _sha256_json(subset_manifest.get("journals"))
+        ):
+            raise DefinitiveAnalysisError(
+                "Sensitivity complete-subset evidence binding failed."
+            )
+
+    eligible = {
+        key for key, row in source_rows.items()
+        if row.get("operationally_eligible") is not True
+    }
+    semantic_only = {
+        key for key, row in source_rows.items()
+        if row.get("operationally_eligible") is True
+        and int(row.get("invalid_count", 0)) > 0
+    }
+    if not eligible or eligible & semantic_only:
+        raise DefinitiveAnalysisError(
+            "Sensitivity operational and semantic-invalid eligibility were conflated."
+        )
+    refs = repair.get("journals")
+    expected_ref_names = {
+        f"{cell_id}::{target_id}::{trajectory_index}::{round_index}"
+        for cell_id, target_id, trajectory_index in eligible
+        for round_index in range(1, max_rounds + 1)
+    }
+    if not isinstance(refs, Mapping) or set(refs) != expected_ref_names:
+        raise DefinitiveAnalysisError(
+            "Sensitivity operational repair journal schedule changed."
+        )
+    repair_private = (
+        subset_path.parent
+        if subset_manifest is not None and subset_path is not None
+        else repair_run / "private"
+    )
+    if (
+        subset_manifest is not None
+        and repair.get("selected_subset_journal_references_sha256")
+        != _sha256_json(refs)
+    ):
+        raise DefinitiveAnalysisError(
+            "Sensitivity selected subset journal binding failed."
+        )
+    journal_rows = {
+        name: _read_journal(ref, repair_private, f"sensitivity repair/{name}")
+        for name, ref in refs.items()
+    }
+    ledger_rows = _read_journal(
+        repair.get("attempt_ledger"), repair_private, "sensitivity repair attempt ledger"
+    )
+    overlay_campaign_id = (
+        str(source_manifest["campaign_id"])
+        if subset_manifest is not None
+        else f"{source_manifest['campaign_id']}_operational_repair_overlay_v1"
+    )
+    condition_by_id = {condition.cell_id: condition for condition in conditions}
+    ceiling = (
+        sum(
+            condition_by_id[key[0]].society_size
+            * condition_by_id[key[0]].horizon_days
+            for key in eligible
+        )
+        * max_rounds
+        * max_attempts
+    )
+    try:
+        sensitivity_operational_repair.runner._AttemptBudget(
+            Path(repair["attempt_ledger"]["path"]),
+            campaign_id=overlay_campaign_id,
+            ceiling=ceiling,
+        )
+    except Exception as error:
+        raise DefinitiveAnalysisError(
+            "Sensitivity repair physical-attempt ledger binding failed."
+        ) from error
+    reserved_ids = {
+        str(row.get("attempt_id"))
+        for rows in journal_rows.values()
+        for row in rows
+        if row.get("event") == "reserved_before_dispatch"
+        and row.get("dispatch_skipped") is not True
+    }
+    ledger_ids = {str(row.get("attempt_id")) for row in ledger_rows}
+    if (
+        len(ledger_ids) != len(ledger_rows)
+        or (
+            ledger_ids != reserved_ids
+            if subset_manifest is None
+            else not reserved_ids <= ledger_ids
+        )
+    ):
+        raise DefinitiveAnalysisError(
+            "Sensitivity repair attempts are not exactly ledger-bound."
+        )
+
+    trajectories = _load_sanitized(
+        repair_run,
+        repair,
+        "effective_trajectory_metrics",
+        sensitivity_operational_repair.TRAJECTORY_ARTIFACT_TYPE,
+    )
+    _load_sanitized(
+        repair_run,
+        repair,
+        "effective_sentinel_cell_metrics",
+        sensitivity_operational_repair.CELL_ARTIFACT_TYPE,
+    )
+    effects = _load_sanitized(
+        repair_run,
+        repair,
+        "effective_main_effects",
+        sensitivity_operational_repair.EFFECT_ARTIFACT_TYPE,
+    )
+    outcomes = _load_sanitized(
+        repair_run,
+        repair,
+        "repair_outcomes",
+        sensitivity_operational_repair.OUTCOME_ARTIFACT_TYPE,
+    )
+    effective_rows = {_sensitivity_key(row): row for row in trajectories["rows"]}
+    if len(effective_rows) != 160 or set(effective_rows) != set(source_rows):
+        raise DefinitiveAnalysisError(
+            "Sensitivity repair effective trajectory membership changed."
+        )
+    for key in set(source_rows) - eligible:
+        if _canonical_bytes(source_rows[key]) != _canonical_bytes(effective_rows[key]):
+            raise DefinitiveAnalysisError(
+                "Sensitivity repair altered a non-operational-failure trajectory."
+            )
+
+    outcome_rows = {_sensitivity_key(row): row for row in outcomes["rows"]}
+    if set(outcome_rows) != eligible:
+        raise DefinitiveAnalysisError(
+            "Sensitivity repair outcome membership does not equal source failures."
+        )
+    if subset_manifest is not None and subset_rows is not None:
+        if (
+            repair.get("subset_trajectory_count") != len(subset_rows)
+            or repair.get("selected_subset_trajectory_count") != len(eligible)
+            or repair.get("excluded_subset_trajectory_count")
+            != len(subset_rows) - len(eligible)
+            or not eligible <= set(subset_rows)
+            or any(
+                _canonical_bytes(subset_rows[key])
+                != _canonical_bytes(effective_rows[key])
+                for key in eligible
+            )
+        ):
+            raise DefinitiveAnalysisError(
+                "Sensitivity overlay did not select exactly the source failures from its subset."
+            )
+    common_seeds = list(source_manifest["common_environment_seeds"])
+    for key in sorted(eligible):
+        cell_id, target_id, trajectory_index = key
+        outcome = outcome_rows[key]
+        success_round = outcome.get("successful_round")
+        if (
+            isinstance(success_round, bool)
+            or not isinstance(success_round, int)
+            or not 1 <= success_round <= max_rounds
+            or outcome.get("source_operationally_eligible") is not False
+            or outcome.get("repair_operationally_eligible") is not True
+            or outcome.get("full_trajectory_rounds_completed") != success_round
+        ):
+            raise DefinitiveAnalysisError(
+                "Sensitivity repair outcome is not a contiguous successful full rerun."
+            )
+        condition = condition_by_id[cell_id]
+        rebuilt_success = None
+        for round_index in range(1, max_rounds + 1):
+            name = f"{cell_id}::{target_id}::{trajectory_index}::{round_index}"
+            rows = journal_rows[name]
+            if round_index > success_round:
+                if rows:
+                    raise DefinitiveAnalysisError(
+                        "Sensitivity repair dispatched after trajectory success."
+                    )
+                continue
+            if not rows:
+                raise DefinitiveAnalysisError(
+                    "Sensitivity repair has a missing full-trajectory round."
+                )
+            journal = sensitivity_operational_repair.runner._ConditionJournal(
+                Path(refs[name]["path"]),
+                campaign_id=overlay_campaign_id,
+                condition=condition,
+            )
+            try:
+                rebuilt = sensitivity_operational_repair.runner._trajectory_row(
+                    sensitivity_operational_repair.runner._run_trajectory(
+                        subject=subjects[target_id],
+                        trajectory_index=trajectory_index,
+                        environment_seed=common_seeds[trajectory_index],
+                        contract=condition.contract(
+                            frozen_contract, trajectories=len(common_seeds)
+                        ),
+                        journal=journal,
+                        client=sensitivity_operational_repair._NoDispatch(),
+                        participant_workers=1,
+                        max_attempts=max_attempts,
+                        initial_backoff_seconds=0,
+                        sleep_fn=lambda _: None,
+                        maximum_input_bytes=int(
+                            design["execution_budget"][
+                                "maximum_input_utf8_bytes_per_attempt"
+                            ]
+                        ),
+                        attempt_budget=sensitivity_operational_repair._NoBudget(),
+                        cell_id=cell_id,
+                    ),
+                    condition,
+                )
+            except Exception as error:
+                raise DefinitiveAnalysisError(
+                    "Sensitivity repair full trajectory does not reproduce."
+                ) from error
+            if round_index < success_round and rebuilt.get("operationally_eligible") is True:
+                raise DefinitiveAnalysisError(
+                    "Sensitivity repair continued after an earlier successful round."
+                )
+            if round_index == success_round:
+                rebuilt_success = rebuilt
+        if (
+            rebuilt_success is None
+            or rebuilt_success.get("operationally_eligible") is not True
+            or int(rebuilt_success.get("identity_mismatch_count", -1)) != 0
+            or int(rebuilt_success.get("transport_failure_count", -1)) != 0
+            or _canonical_bytes(rebuilt_success)
+            != _canonical_bytes(effective_rows[key])
+            or outcome.get("repair_semantic_invalid_count")
+            != rebuilt_success.get("invalid_count")
+        ):
+            raise DefinitiveAnalysisError(
+                "Sensitivity effective replacement is not its successful full trajectory."
+            )
+
+    expected_summary = {
+        "source_trajectory_count": len(source_rows),
+        "eligible_operational_failure_trajectories": len(eligible),
+        "successful_full_trajectory_repairs": len(eligible),
+        "unresolved_operational_failure_trajectories": 0,
+        "effective_trajectory_count": len(effective_rows),
+        "effective_operational_failure_trajectories": sum(
+            row.get("operationally_eligible") is not True
+            for row in effective_rows.values()
+        ),
+        "effective_identity_mismatch_count": sum(
+            int(row.get("identity_mismatch_count", 0))
+            for row in effective_rows.values()
+        ),
+        "effective_transport_failure_count": sum(
+            int(row.get("transport_failure_count", 0))
+            for row in effective_rows.values()
+        ),
+        "source_semantic_invalid_trajectories_retried": 0,
+    }
+    expected_outcome_summary = {
+        "source_trajectory_count": len(source_rows),
+        "eligible_operational_failure_trajectory_count": len(eligible),
+        "successful_full_trajectory_repair_count": len(eligible),
+        "unresolved_operational_failure_trajectory_count": 0,
+        "source_semantic_invalid_trajectories_retried": 0,
+        "source_mutated": False,
+    }
+    if (
+        repair.get("summary") != expected_summary
+        or any(outcomes.get(key) != value for key, value in expected_outcome_summary.items())
+        or trajectories.get("source_manifest_evidence_sha256")
+        != source_manifest.get("evidence_sha256")
+        or trajectories.get("source_mutated") is not False
+        or trajectories.get("semantic_invalid_retry_permitted") is not False
+        or trajectories.get("replacement_unit") != "complete_trajectory_only"
+        or effects.get("source_manifest_evidence_sha256")
+        != source_manifest.get("evidence_sha256")
+    ):
+        raise DefinitiveAnalysisError(
+            "Sensitivity repair summary or sanitized provenance failed validation."
+        )
+    audit = {
+        "source_trajectory_count": len(source_rows),
+        "source_operational_failure_trajectories": len(eligible),
+        "source_transport_failure_count": sum(
+            int(source_rows[key].get("transport_failure_count", 0)) for key in eligible
+        ),
+        "source_identity_mismatch_count": sum(
+            int(source_rows[key].get("identity_mismatch_count", 0)) for key in eligible
+        ),
+        "source_semantic_invalid_trajectories_retried": 0,
+        "successful_full_trajectory_repairs": len(eligible),
+        "effective_trajectory_count": len(effective_rows),
+        "effective_operational_failure_trajectories": 0,
+        "status": SENSITIVITY_OPERATIONAL_REPAIR_STATUS,
+    }
+    return trajectories, effects, audit, repair_path, repair
+
+
+def _sensitivity(
+    run: Path,
+    manifest: Mapping[str, Any],
+    *,
+    effective_trajectories: Mapping[str, Any] | None = None,
+    effective_effects: Mapping[str, Any] | None = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     _validate_flat_journals(run, manifest, sensitivity=True)
-    trajectories = _load_sanitized(run, manifest, "trajectory_metrics", "part2_sensitivity_trajectory_metrics_v1")
+    source_trajectories = _load_sanitized(run, manifest, "trajectory_metrics", "part2_sensitivity_trajectory_metrics_v1")
     _load_sanitized(run, manifest, "sentinel_cell_metrics", "part2_sensitivity_sentinel_cell_metrics_v1")
-    effects = _load_sanitized(run, manifest, "main_effects", "part2_sensitivity_main_effects_v1")
+    source_effects = _load_sanitized(run, manifest, "main_effects", "part2_sensitivity_main_effects_v1")
     diagnostic = _load_sanitized(run, manifest, "call_order_diagnostic", "part2_sensitivity_call_order_diagnostic_v1")
+    if (effective_trajectories is None) != (effective_effects is None):
+        raise DefinitiveAnalysisError(
+            "Sensitivity operational overlay artifacts must be supplied together."
+        )
+    trajectories = effective_trajectories or source_trajectories
+    effects = effective_effects or source_effects
     if diagnostic.get("analysis_family") != SENSITIVITY_DIAGNOSTIC_FAMILY:
         raise DefinitiveAnalysisError(
             "Call-order diagnostic was not excluded from the Holm-25 family."
         )
     if (
-        effects.get("analysis_status") != "complete_deadline_exploratory"
+        effects.get("analysis_status")
+        not in {
+            "complete_deadline_exploratory",
+            "complete_deadline_exploratory_operational_overlay",
+        }
         or effects.get("confirmatory") is not False
         or effects.get("global_holm_family") != SENSITIVITY_HOLM_FAMILY
         or effects.get("global_holm_family_size") != SENSITIVITY_HOLM_FAMILY_SIZE
@@ -2035,10 +2512,53 @@ def _sensitivity(run: Path, manifest: Mapping[str, Any]) -> tuple[list[dict[str,
     model_audit = []
     for target, subject in sorted(subjects.items()):
         group = [row for row in trajectories["rows"] if row.get("target_id") == target]
+        cell_ids = {str(row.get("cell_id")) for row in group}
+        seeds_by_cell = {
+            cell_id: {
+                int(row["environment_seed_index"])
+                for row in group
+                if str(row.get("cell_id")) == cell_id
+            }
+            for cell_id in cell_ids
+        }
+        scheduled = sum(int(row["scheduled_agent_days"]) for row in group)
+        execution_ceiling = sum(
+            int(row["society_size"]) * int(row["horizon_days"]) for row in group
+        )
+        responses = sum(int(row["responses_received"]) for row in group)
+        invalid = sum(int(row["invalid_count"]) for row in group)
+        identity_mismatches = sum(
+            int(row["identity_mismatch_count"]) for row in group
+        )
+        transport_failures = sum(
+            int(row["transport_failure_count"]) for row in group
+        )
+        restraint = sum(int(row["restraint_count"]) for row in group)
+        overuse = sum(int(row["overuse_count"]) for row in group)
+        if (
+            len(group) != 32
+            or len(cell_ids) != 16
+            or any(seeds != {0, 1} for seeds in seeds_by_cell.values())
+            or not 0 < scheduled <= execution_ceiling
+            or responses + transport_failures != scheduled
+            or restraint + overuse + invalid != scheduled
+            or identity_mismatches + transport_failures > invalid
+        ):
+            raise DefinitiveAnalysisError(
+                f"Sensitivity realized living-agent accounting failed for {target}."
+            )
         model_audit.append({
             "phase": "part2_sensitivity", "target_id": target, "upstream_provider": subject["upstream_provider"], "model": subject["model"],
-            "trajectory_count": len(group), "scheduled_agent_days": sum(int(row["scheduled_agent_days"]) for row in group),
-            "first_attempt_invalid_count": sum(int(row["invalid_count"]) for row in group), "repaired_invalid_count": 0,
+            "trajectory_count": len(group), "cell_count": len(cell_ids),
+            "common_seed_count": 2,
+            "execution_ceiling_agent_days": execution_ceiling,
+            "scheduled_agent_days": scheduled,
+            "responses_received": responses,
+            "transport_failure_count": transport_failures,
+            "identity_mismatch_count": identity_mismatches,
+            "first_attempt_invalid_count": invalid, "repaired_invalid_count": 0,
+            "primary_denominator": "all_scheduled_living_agent_days",
+            "schedule_semantics": "one_decision_per_living_agent_per_day_dead_agents_have_no_future_scheduled_days",
             "inference_scope": effects.get("inference_scope"), "confirmatory": False, "exploratory_only": True,
         })
     return [dict(row) for row in effects["rows"]], model_audit
@@ -2069,6 +2589,7 @@ def analyze(
     sensitivity: Path,
     output_dir: Path,
     part1_operational_repair: Path | None = None,
+    sensitivity_operational_repair: Path | None = None,
     allow_terminalized_part0_operational_invalids: bool = False,
 ) -> dict[str, Any]:
     """Validate all inputs before atomically publishing descriptive tables."""
@@ -2083,6 +2604,10 @@ def analyze(
             ),
             allow_terminalized_part1_transport_nulls=(
                 phase == "part1" and part1_operational_repair is not None
+            ),
+            allow_terminalized_sensitivity_operational_failures=(
+                phase == "sensitivity"
+                and sensitivity_operational_repair is not None
             ),
         )
         for phase, path in inputs.items()
@@ -2111,6 +2636,24 @@ def analyze(
             source_manifest=loaded["part1"][2],
             repair_value=part1_operational_repair,
         )
+    sensitivity_effective_trajectories = None
+    sensitivity_effective_effects = None
+    sensitivity_operational_repair_audit = None
+    sensitivity_repair_manifest_path = None
+    sensitivity_repair_manifest = None
+    if sensitivity_operational_repair is not None:
+        (
+            sensitivity_effective_trajectories,
+            sensitivity_effective_effects,
+            sensitivity_operational_repair_audit,
+            sensitivity_repair_manifest_path,
+            sensitivity_repair_manifest,
+        ) = _validate_sensitivity_operational_repair(
+            source_run=loaded["sensitivity"][0],
+            source_manifest_path=loaded["sensitivity"][1],
+            source_manifest=loaded["sensitivity"][2],
+            repair_value=sensitivity_operational_repair,
+        )
     p0_models, p0_fig = _part0(loaded["part0"][0], loaded["part0"][2])
     p1_models, p1_fig = _part1(
         loaded["part1"][0],
@@ -2119,7 +2662,12 @@ def analyze(
     )
     p2_models, p2_fig = _part2(loaded["part2"][0], loaded["part2"][2])
     role_rows = _role(loaded["role"][0], loaded["role"][2])
-    sensitivity_rows, sensitivity_models = _sensitivity(loaded["sensitivity"][0], loaded["sensitivity"][2])
+    sensitivity_rows, sensitivity_models = _sensitivity(
+        loaded["sensitivity"][0],
+        loaded["sensitivity"][2],
+        effective_trajectories=sensitivity_effective_trajectories,
+        effective_effects=sensitivity_effective_effects,
+    )
 
     if output_dir.exists():
         raise DefinitiveAnalysisError("Output directory already exists; refusing overwrite.")
@@ -2176,6 +2724,9 @@ def analyze(
                 phase: (
                     PART1_OPERATIONAL_REPAIR_STATUS
                     if phase == "part1" and part1_repair_manifest is not None
+                    else SENSITIVITY_OPERATIONAL_REPAIR_STATUS
+                    if phase == "sensitivity"
+                    and sensitivity_repair_manifest is not None
                     else status
                 )
                 for phase, (_, _, _, status) in loaded.items()
@@ -2195,6 +2746,26 @@ def analyze(
                 }
                 if part1_repair_manifest_path is not None
                 and part1_repair_manifest is not None
+                else None
+            ),
+            "sensitivity_operational_repair_overlay": (
+                {
+                    "basename": sensitivity_repair_manifest_path.name,
+                    "file_sha256": _sha256_file(sensitivity_repair_manifest_path),
+                    "evidence_sha256": sensitivity_repair_manifest[
+                        "evidence_sha256"
+                    ],
+                    "source_manifest_file_sha256": _sha256_file(
+                        loaded["sensitivity"][1]
+                    ),
+                    "source_manifest_evidence_sha256": loaded["sensitivity"][2][
+                        "evidence_sha256"
+                    ],
+                    "status": SENSITIVITY_OPERATIONAL_REPAIR_STATUS,
+                    "audit": sensitivity_operational_repair_audit,
+                }
+                if sensitivity_repair_manifest_path is not None
+                and sensitivity_repair_manifest is not None
                 else None
             ),
             "path_policy": "portable_basenames_only_no_host_absolute_paths_in_public_manifest",
@@ -2249,6 +2820,25 @@ def analyze(
                 raise DefinitiveAnalysisError(
                     "Part 1 operational repair manifest changed during analysis."
                 )
+        if (
+            sensitivity_repair_manifest_path is not None
+            and sensitivity_repair_manifest is not None
+        ):
+            current_repair = _read_object(
+                sensitivity_repair_manifest_path,
+                "Sensitivity operational repair manifest",
+            )
+            overlay_binding = result["sensitivity_operational_repair_overlay"]
+            if (
+                not isinstance(overlay_binding, Mapping)
+                or _sha256_file(sensitivity_repair_manifest_path)
+                != overlay_binding["file_sha256"]
+                or current_repair.get("evidence_sha256")
+                != sensitivity_repair_manifest.get("evidence_sha256")
+            ):
+                raise DefinitiveAnalysisError(
+                    "Sensitivity operational repair manifest changed during analysis."
+                )
         result["evidence_sha256"] = _self_hash(result)
         _write_json(temporary / "analysis_manifest.json", result)
         os.replace(temporary, output_dir)
@@ -2275,6 +2865,15 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--role-calibration", type=Path, required=True)
     parser.add_argument("--sensitivity", type=Path, required=True)
     parser.add_argument(
+        "--sensitivity-operational-repair",
+        type=Path,
+        help=(
+            "Optional COMPLETE standalone overlay that replaces only exact-source "
+            "operationally ineligible sensitivity trajectories with complete, "
+            "identity-valid reruns from day 1."
+        ),
+    )
+    parser.add_argument(
         "--part0-terminal-policy",
         choices=("strict-complete", "all-scheduled-operational-invalid-v1"),
         default="strict-complete",
@@ -2297,6 +2896,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             part2=args.part2,
             role_calibration=args.role_calibration,
             sensitivity=args.sensitivity,
+            sensitivity_operational_repair=args.sensitivity_operational_repair,
             output_dir=args.output_dir,
             allow_terminalized_part0_operational_invalids=(
                 args.part0_terminal_policy
