@@ -261,6 +261,17 @@ By comparison, cooperation and commons restraint have $\rho=\ProviderSafePairwis
 Thus, explicit refusal provides little information about the relative ordering on either externality task, while the two beyond-refusal tasks share more of their ordering.
 These are fixed-panel descriptive associations, not evidence for a single latent trait; the full profiles and rank-robustness diagnostics appear in Appendix~\ref{app:results}.
 
+Figure~\ref{fig:refusal-cooperation-overview} makes the distributional change visible before we turn to route-level mechanisms.
+The blue bars remain concentrated toward high explicit refusal, whereas the orange rank line falls rapidly and leaves most Part~1 routes near the floor.
+This is the paper's central empirical transition: making the externality indirect reveals separation that a harmful-request score does not show.
+
+\begin{figure}[p]
+\centering
+\includegraphics[width=\linewidth,height=0.76\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/refusal_cooperation_overview.pdf}
+\caption{Current-model refusal bars and cooperation rank profile. In Panel A, each row is one of 22 exact routes over 144 scheduled harmful-request responses; blue bars and dots show all-scheduled refusal, and whiskers show 5,000-replicate harmful-root sensitivity intervals. Farther right is favorable because it means less harmful assistance. In Panel B, each orange point is one of 75 exact routes over the same balanced 384-root bank, ordered from highest to lowest welfare-preserving self-choice. Higher is favorable because it means fewer counterpart costs; the low median and long lower tail show that high explicit refusal does not imply dyadic cooperation. The orange line connects ordered ranks only and is not a time series. Exact Part~1 identities and intervals are reported in Appendix~\ref{app:results}.}
+\label{fig:refusal-cooperation-overview}
+\end{figure}
+
 \subsection{Dyadic Cooperation and Role}
 Across \ProviderSafePartOneModelCount{} exact hosted routes, the median welfare-preserving self-choice rate is only \ProviderSafePartOneModelWelfareRatePctMedian\%, despite the \ProviderSafePartOneModelWelfareRatePctMaximum\% maximum.
 The distribution is therefore not a gentle spread around a common tendency: a small group often preserves counterpart welfare, while many routes almost always select the focal advantage.
@@ -413,6 +424,11 @@ All environment metrics are recomputed from the retained transition trace.
 \label{app:results}
 The following figures and tables are generated from the sealed, hash-verified aggregate graph.
 Times-compatible typography matches the submission template; the original blue, orange, green, and vermillion palette is fixed in the generator.
+
+\begin{figure}[p]\centering
+\includegraphics[width=\linewidth,height=0.74\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/matched_current_route_profile.pdf}
+\caption{Matched profile for the 19 current exact routes scheduled in all three parts. Rows remain aligned and are ordered only by Part~0 refusal. Blue dots show refusal over 144 scheduled responses, orange dots show welfare-preserving self-choice over 384 roots, and green dots show mean trajectory restraint over 12 independent commons trajectories; whiskers use the task-specific uncertainty unit named in the figure. Farther right is favorable within every panel because it means less harmful assistance, fewer counterpart costs, or more commons restraint. Large horizontal changes across a row indicate task-specific disagreement, not temporal change. The panels remain separate estimands and are never averaged.}
+\end{figure}
 
 \clearpage
 \begin{figure}[p]\centering

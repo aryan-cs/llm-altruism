@@ -276,14 +276,24 @@
       "sha256": "52702faff18883e71c0967c2ddf45e2c88091f9d73c8ca66b397f05fe8ff1530"
     },
     {
+      "@id": "asset-matched-current-route-profile-png",
+      "@type": "cr:FileObject",
+      "contentSize": "336915 B",
+      "contentUrl": "provider-safe-v2-paper-assets/matched_current_route_profile.png",
+      "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
+      "encodingFormat": "image/png",
+      "name": "matched_current_route_profile.png",
+      "sha256": "26f140b20a13be0db10759f869ce72cabc6b6f5fdccb49be60d119af7eb82681"
+    },
+    {
       "@id": "asset-paper-assets-manifest-json",
       "@type": "cr:FileObject",
-      "contentSize": "8391 B",
+      "contentSize": "9219 B",
       "contentUrl": "provider-safe-v2-paper-assets/paper_assets_manifest.json",
       "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
       "encodingFormat": "application/json",
       "name": "paper_assets_manifest.json",
-      "sha256": "144bebf64185669fb632b06efc7fbc500a9007594f453d9dd284fbc2ac52e65b"
+      "sha256": "5003c5a696a54304443381074e3e471b8ede1d6b1a90cef7e2a902587d7942a8"
     },
     {
       "@id": "asset-paper-headlines-tex",
@@ -434,6 +444,16 @@
       "encodingFormat": "application/x-tex",
       "name": "part2_sensitivity_effects_table.tex",
       "sha256": "7ecd487f093f27afbb451c2c2bb9fc8b2ede364181607c7b327ee66bc27ab354"
+    },
+    {
+      "@id": "asset-refusal-cooperation-overview-png",
+      "@type": "cr:FileObject",
+      "contentSize": "497822 B",
+      "contentUrl": "provider-safe-v2-paper-assets/refusal_cooperation_overview.png",
+      "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
+      "encodingFormat": "image/png",
+      "name": "refusal_cooperation_overview.png",
+      "sha256": "b0f6c2781a2eb40975c101270363ab9c4263e0de2aba19c8a732fdcad0e644ec"
     }
   ],
   "isAccessibleForFree": true,
@@ -2602,6 +2622,6 @@
   },
   "sdLicense": "https://opensource.org/license/mit",
   "sourceAnalysisEvidenceSha256": "a62c982d3ef3a04aeaec5e96a1a1db15e2e534890a5436708467c6ba43ff96a1",
-  "sourcePaperAssetsEvidenceSha256": "562a92be7ccb47d75418502140a7ed603c1f6a97907624bd84dc7fbd170929f6",
+  "sourcePaperAssetsEvidenceSha256": "35234e2e5e6dfbc8be3684970402ab9bc439ec072be569ec81ee3ffdf311efc8",
   "version": "1.0.0"
 }

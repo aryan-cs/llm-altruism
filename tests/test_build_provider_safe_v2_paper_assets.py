@@ -618,13 +618,14 @@ def test_builds_full_production_shaped_vector_png_and_latex_assets(tmp_path: Pat
     assert result["paper_use_status"] == "exploratory_descriptive_panels_only"
     assert result["side_by_side_nonpooled_axis_assets_generated"] is True
     assert result["route_and_model_ids_preserved_exactly"] is True
-    assert len(result["assets"]) == 33
+    assert len(result["assets"]) == 37
     assert result["local_controls_pooled_with_hosted_routes"] is False
     assert {path.suffix for path in output.iterdir()} >= {".pdf", ".png", ".tex", ".json"}
 
     expected_stems = {
         "part0_model_language", "part1_all_models_block1", "part1_all_models_block2",
         "part1_all_models_block3", "part2_all_models",
+        "refusal_cooperation_overview", "matched_current_route_profile",
         "part1_role_calibration", "part2_sensitivity_effects", "part1_local_controls",
         "all_models_cross_phase_outcome_profile_block1",
         "all_models_cross_phase_outcome_profile_block2",

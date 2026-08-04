@@ -216,9 +216,10 @@ campaigns have priority over supplemental retries.
 - `analysis.analyze_provider_safe_v2_definitive` accepts only five COMPLETE,
   source-bound primary/robustness manifests and produces per-model tables while
   preserving first-attempt invalid denominators.
-- `analysis.build_provider_safe_v2_paper_assets` produces seven vector-PDF and
-  300-dpi PNG figure families, including restored model bars and the original
-  red/green route-profile idiom; full model-row LaTeX tables; and deterministic
+- `analysis.build_provider_safe_v2_paper_assets` produces nine vector-PDF and
+  300-dpi PNG figure families, including current-route refusal bars, the
+  75-route cooperation rank line, a matched 19-route task profile, and the
+  original red/green route-profile idiom; full model-row LaTeX tables; and deterministic
   headline macros including Part 2 AUPC, reserve-nondepletion, and
   population-retention summaries. Figures use the original submission palette
   and a Times-compatible NeurIPS-template font. It validates the two-seed
@@ -227,11 +228,11 @@ campaigns have priority over supplemental retries.
   paper assets from their hash-bound manifest, emits portable Croissant 1.1
   metadata, rebuilds from a clean extraction, and rejects stale, partial,
   private, or tampered inputs. Private/live outputs remain excluded.
-- The definitive analysis and seven figure families were generated and pushed
-  at commit `5cd54a0`. Croissant 1.1 metadata validates against the hash-bound
-  analysis and paper-assets manifests, and the anonymous supplement rebuilt
-  deterministically with 240 files.
-- The final review PDF has the exact title, anonymous author block, eight-page
+- The definitive analysis and nine figure families are current. Croissant 1.1
+  metadata validates against the hash-bound analysis and paper-assets
+  manifests, and the anonymous supplement rebuilt deterministically with 242
+  files.
+- The final review PDF has the exact title, anonymous author block, nine-page
   main body, and 41 pages including references, appendices, and the NeurIPS
   checklist. Bundled Tectonic compiled it successfully; all 41 pages were
   rendered and visually inspected with no clipping, overlap, or unreadable

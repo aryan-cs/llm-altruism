@@ -3,7 +3,7 @@
   "assets": [
     {
       "byte_count": 60677,
-      "file_sha256": "8e754aa94abf31bc2626acee944f23e12b1cb81ccc3a1190a4902e37d89aac7f",
+      "file_sha256": "81ab782dde41159841b84ebd4b97b2c63217dff65d30bab9f7a837215a7803a7",
       "kind": "vector_pdf",
       "name": "all_models_cross_phase_outcome_profile_block1.pdf"
     },
@@ -15,7 +15,7 @@
     },
     {
       "byte_count": 61689,
-      "file_sha256": "783aa925283887dc9308cc96c9c21f81195a213796c55f966e90015b740e631e",
+      "file_sha256": "60385d89998480bdff0a26477ed7e3221bf7280e2e44f429a172c9a09891ee82",
       "kind": "vector_pdf",
       "name": "all_models_cross_phase_outcome_profile_block2.pdf"
     },
@@ -27,7 +27,7 @@
     },
     {
       "byte_count": 59483,
-      "file_sha256": "708bb0c0ef3b00e0a700e502e45a5be45f2cce990aaa972d21426a2ec87f16ca",
+      "file_sha256": "911879e98128436fc62754029bde528ce9e05df7a0b45232b29ce3d3f3bd09c9",
       "kind": "vector_pdf",
       "name": "all_models_cross_phase_outcome_profile_block3.pdf"
     },
@@ -39,7 +39,7 @@
     },
     {
       "byte_count": 60732,
-      "file_sha256": "10190a97876977a81feb4f8e41228a54e9800bf1dbe6fe85d6c7d50ebf2854b2",
+      "file_sha256": "5d3cc85ecc9629a0ae2525985ca73f218cdddb6a48e6c22db9e4e7d8ac7387b7",
       "kind": "vector_pdf",
       "name": "all_models_cross_phase_outcome_profile_block4.pdf"
     },
@@ -62,6 +62,18 @@
       "name": "all_models_cross_phase_table.tex"
     },
     {
+      "byte_count": 57962,
+      "file_sha256": "bdb3289284e058bc078e550af8c44807c10ecc115bf737a26e89a9c7a91001da",
+      "kind": "vector_pdf",
+      "name": "matched_current_route_profile.pdf"
+    },
+    {
+      "byte_count": 336915,
+      "file_sha256": "26f140b20a13be0db10759f869ce72cabc6b6f5fdccb49be60d119af7eb82681",
+      "kind": "raster_png",
+      "name": "matched_current_route_profile.png"
+    },
+    {
       "byte_count": 6590,
       "file_sha256": "8a61ffa50655885b039b26ec03c97b69b9dfd5c58c8abce1aa06761a103178ac",
       "kind": "latex_macros",
@@ -69,7 +81,7 @@
     },
     {
       "byte_count": 68469,
-      "file_sha256": "1425187ed5c931c8f407128f1995773db5cf695ef922064f0016f38e03d1c286",
+      "file_sha256": "380ab8a7bcccb45977963b80430271f406f4afbdee7f1f163ae1e2f679416088",
       "kind": "vector_pdf",
       "name": "part0_model_language.pdf"
     },
@@ -87,7 +99,7 @@
     },
     {
       "byte_count": 55695,
-      "file_sha256": "d1db40fc85ddc452205ae00640a43fda77d5741734ae37c8d3cd501f15db20bf",
+      "file_sha256": "86b3f5a0543bc90e44dc68d6b3a82397fc8b9e9b920049dfbc61f0366faf82ca",
       "kind": "vector_pdf",
       "name": "part1_all_models_block1.pdf"
     },
@@ -99,7 +111,7 @@
     },
     {
       "byte_count": 54875,
-      "file_sha256": "6f31c84c7af93fd051b71e46a56ff6fe12dedbc26f384099f3f42071005e7c1b",
+      "file_sha256": "3270b68c9570805603c573edcdc45e0835e426224c9cb78d13d8421c9a1313ac",
       "kind": "vector_pdf",
       "name": "part1_all_models_block2.pdf"
     },
@@ -111,7 +123,7 @@
     },
     {
       "byte_count": 54496,
-      "file_sha256": "ec2777269f775eb104cdd768cb3ce27d96b1452df8fedc29b71a5990be713250",
+      "file_sha256": "d08eb33f18e7e5f89df907f4b57db21fc97cc52f1d750170401f2de81a4fa3bc",
       "kind": "vector_pdf",
       "name": "part1_all_models_block3.pdf"
     },
@@ -129,7 +141,7 @@
     },
     {
       "byte_count": 52607,
-      "file_sha256": "a6585260ac356d58be748e7f3075ec7cd741f449f24429dc55a50930f8d59e96",
+      "file_sha256": "be21ccfc84573a22510208d6e97d3273524ba8b708fe16871c4dbcfa618b22ea",
       "kind": "vector_pdf",
       "name": "part1_local_controls.pdf"
     },
@@ -147,7 +159,7 @@
     },
     {
       "byte_count": 62031,
-      "file_sha256": "d7cd201ce1d616cb3e7eae8b65f5f3bf8f68e720e01469883fae1869d9f2b68f",
+      "file_sha256": "95cab902485509f5bcebf17a7fa2ca62b0c349a4dbbbb8d3f5d2dfeafafc95fc",
       "kind": "vector_pdf",
       "name": "part1_role_calibration.pdf"
     },
@@ -165,7 +177,7 @@
     },
     {
       "byte_count": 64186,
-      "file_sha256": "f19af93ad891898a5b8d5cc11daa8ab5bb1994b75d4406a779e279730af06345",
+      "file_sha256": "674cf4ea2c8e0af82dddb2181af261cbff0b456f70c4c239b636e0b4c4250148",
       "kind": "vector_pdf",
       "name": "part2_all_models.pdf"
     },
@@ -183,7 +195,7 @@
     },
     {
       "byte_count": 67487,
-      "file_sha256": "7756d25752be641c5a285d3f49ced89276e4d94b778af4ecf0f4ac029c38bf65",
+      "file_sha256": "af805103332cdc4f55afcd026d96f73cc1b4f1a2a73de62e3b86c1ae9e9d9abc",
       "kind": "vector_pdf",
       "name": "part2_sensitivity_effects.pdf"
     },
@@ -198,17 +210,29 @@
       "file_sha256": "7ecd487f093f27afbb451c2c2bb9fc8b2ede364181607c7b327ee66bc27ab354",
       "kind": "latex_table",
       "name": "part2_sensitivity_effects_table.tex"
+    },
+    {
+      "byte_count": 63696,
+      "file_sha256": "80dd159b5b8818990058d7585bdca10ba69e16e3ca37efa46cc9446320b29c30",
+      "kind": "vector_pdf",
+      "name": "refusal_cooperation_overview.pdf"
+    },
+    {
+      "byte_count": 497822,
+      "file_sha256": "b0f6c2781a2eb40975c101270363ab9c4263e0de2aba19c8a732fdcad0e644ec",
+      "kind": "raster_png",
+      "name": "refusal_cooperation_overview.png"
     }
   ],
   "confirmatory_or_paper_promotion_permitted": false,
   "cross_axis_aggregate_or_score_generated": false,
   "cross_axis_assets_generated": true,
-  "evidence_sha256": "562a92be7ccb47d75418502140a7ed603c1f6a97907624bd84dc7fbd170929f6",
+  "evidence_sha256": "35234e2e5e6dfbc8be3684970402ab9bc439ec072be569ec81ee3ffdf311efc8",
   "exploratory_only": true,
   "figure_font_family": "Times New Roman (NeurIPS ptm-compatible serif)",
   "figure_palette": "original_submission_okabe_ito_blue_orange_green_vermillion",
   "figure_semantic_redundancy": "directional_caption_position_printed_values_and_distinct_marker_shapes",
-  "generated_at_utc": "2026-08-04T06:30:36.421769Z",
+  "generated_at_utc": "2026-08-04T07:30:53.147153Z",
   "human_labels_generated": false,
   "invalid_policy": "first_attempt_invalids_retained_in_all_primary_scheduled_unit_denominators;repairs_reported_separately",
   "local_controls_pooled_with_hosted_routes": false,

@@ -1209,6 +1209,285 @@ def _plot_part0(data: Mapping[str, Any], directory: Path) -> list[Path]:
     return _save_figure(fig, directory, "part0_model_language", "Part 0 model by language outcomes")
 
 
+def _plot_refusal_and_cooperation_overview(
+    data: Mapping[str, Any], directory: Path
+) -> list[Path]:
+    """Recreate the original bar/line visual grammar from current evidence.
+
+    The upper panel is an exact-route comparison, while the lower panel is a
+    distributional rank profile.  Keeping these roles separate avoids making
+    the ordered Part 1 line look like a longitudinal trajectory.
+    """
+
+    part0 = data["part0"]
+    part1 = data["part1"]
+    refusal = [float(row["refusal_rate_all_scheduled"]) for row in part0]
+    refusal_intervals = [
+        (
+            float(row["refusal_rate_all_scheduled_finite_bank_sensitivity_low"]),
+            float(row["refusal_rate_all_scheduled_finite_bank_sensitivity_high"]),
+        )
+        for row in part0
+    ]
+    welfare = [float(row["welfare_preserving_rate_all_scheduled"]) for row in part1]
+    ranks = list(range(1, len(welfare) + 1))
+    welfare_median = statistics.median(welfare)
+
+    fig = plt.figure(figsize=(7.2, 9.4))
+    fig.patch.set_facecolor("white")
+    grid = fig.add_gridspec(2, 1, height_ratios=(3.1, 1.35), hspace=0.38)
+    refusal_ax = fig.add_subplot(grid[0])
+    rank_ax = fig.add_subplot(grid[1])
+    fig.suptitle(
+        "Explicit refusal compresses; dyadic cooperation separates",
+        x=0.075,
+        y=0.993,
+        ha="left",
+        fontsize=15,
+        fontweight="bold",
+        color=INK,
+    )
+    fig.text(
+        0.075,
+        0.958,
+        "Current authenticated routes only; panels retain their own task and denominator.",
+        fontsize=9,
+        color=MUTED,
+    )
+
+    _lollipop_panel(
+        refusal_ax,
+        refusal,
+        [str(row["target_id"]) for row in part0],
+        title="A  Harmful-request refusal by exact route [root sensitivity 95%]",
+        color=BLUE,
+        show_labels=True,
+        intervals=refusal_intervals,
+    )
+    refusal_ax.tick_params(axis="y", labelsize=5.9)
+    refusal_ax.set_xlabel("Refusal over 144 scheduled responses")
+
+    rank_ax.plot(
+        ranks,
+        welfare,
+        color=ORANGE,
+        linewidth=1.6,
+        marker="o",
+        markersize=2.7,
+        markeredgecolor=INK,
+        markeredgewidth=0.25,
+        zorder=2,
+    )
+    rank_ax.axhline(
+        welfare_median,
+        color=INK,
+        linestyle=(0, (4, 3)),
+        linewidth=0.8,
+        zorder=1,
+    )
+    rank_ax.text(
+        len(welfare) - 0.5,
+        min(0.98, welfare_median + 0.055),
+        f"median {welfare_median:.1%}",
+        ha="right",
+        va="bottom",
+        fontsize=7.2,
+        color=INK,
+    )
+    rank_ax.set_xlim(1, len(welfare))
+    rank_ax.set_ylim(-0.02, 1.02)
+    rank_ax.set_xticks([1, 15, 30, 45, 60, len(welfare)])
+    rank_ax.set_yticks([0.0, 0.25, 0.50, 0.75, 1.0])
+    rank_ax.yaxis.set_major_formatter(PercentFormatter(1.0))
+    rank_ax.grid(axis="y", color=GRID, linewidth=0.6)
+    rank_ax.set_axisbelow(True)
+    rank_ax.set_title(
+        "B  Welfare-preserving self-choice across all 75 routes, ordered high to low",
+        fontsize=10,
+        fontweight="bold",
+        loc="left",
+    )
+    rank_ax.set_xlabel("Within-task route rank (exact-route lookup in Appendix tables)")
+    rank_ax.set_ylabel("Welfare-preserving / 384 roots")
+    _style_axes(rank_ax)
+
+    _figure_footer(
+        fig,
+        "Panel A shows all-scheduled refusal; blue bars end at the point estimate, dots repeat the estimate, and whiskers are 5,000-replicate harmful-root sensitivity intervals. Farther right means less harmful assistance. Panel B is an ordered cross-sectional rank profile, not a time series: every orange point is one exact route over the same balanced 384-root bank. Higher means fewer counterpart costs; the steep decline and low median mean many routes choose focal advantage even though refusal is comparatively high. Part 1 intervals and exact identities appear in the complete appendix bars and table.",
+        x=0.075,
+        y=0.012,
+        width=125,
+    )
+    fig.subplots_adjust(left=0.32, right=0.985, top=0.91, bottom=0.155, hspace=0.38)
+    return _save_figure(
+        fig,
+        directory,
+        "refusal_cooperation_overview",
+        "Current-model refusal bars and cooperation rank profile",
+    )
+
+
+def _plot_matched_current_route_profile(
+    data: Mapping[str, Any], directory: Path
+) -> list[Path]:
+    """Show the exact-route rank shifts behind the three reported correlations."""
+
+    indices = {
+        "part0": {str(row["target_id"]): row for row in data["part0"]},
+        "part1": {str(row["target_id"]): row for row in data["part1"]},
+        "part2": {str(row["target_id"]): row for row in data["part2"]},
+    }
+    shared = set(indices["part0"]) & set(indices["part1"]) & set(indices["part2"])
+    targets = sorted(
+        shared,
+        key=lambda target: (
+            -float(indices["part0"][target]["refusal_rate_all_scheduled"]),
+            target,
+        ),
+    )
+    for target in targets:
+        identities = {
+            (
+                str(indices[phase][target]["upstream_provider"]),
+                str(indices[phase][target]["model"]),
+            )
+            for phase in ("part0", "part1", "part2")
+        }
+        if len(identities) != 1:
+            raise PaperAssetsError(
+                f"Matched current-route profile found inconsistent exact identity for {target!r}."
+            )
+    if not targets:
+        fig, ax = plt.subplots(figsize=(7.2, 4.0))
+        fig.patch.set_facecolor("white")
+        ax.axis("off")
+        ax.text(
+            0.5,
+            0.66,
+            "No authenticated exact route is shared across all three task panels",
+            transform=ax.transAxes,
+            ha="center",
+            va="center",
+            fontsize=14,
+            fontweight="bold",
+            color=INK,
+        )
+        ax.text(
+            0.5,
+            0.43,
+            "The generator leaves the matched profile empty instead of joining different routes or models.\n"
+            "Within-task figures remain valid, but a cross-task row alignment is not estimable.",
+            transform=ax.transAxes,
+            ha="center",
+            va="center",
+            fontsize=10,
+            color=MUTED,
+            linespacing=1.5,
+        )
+        return _save_figure(
+            fig,
+            directory,
+            "matched_current_route_profile",
+            "No exact routes shared across all three task panels",
+        )
+    panels = (
+        (
+            "Part 0: refusal",
+            "part0",
+            "refusal_rate_all_scheduled",
+            "refusal_rate_all_scheduled_finite_bank_sensitivity_low",
+            "refusal_rate_all_scheduled_finite_bank_sensitivity_high",
+            BLUE,
+        ),
+        (
+            "Part 1: cooperation",
+            "part1",
+            "welfare_preserving_rate_all_scheduled",
+            "welfare_preserving_rate_all_scheduled_finite_bank_sensitivity_low",
+            "welfare_preserving_rate_all_scheduled_finite_bank_sensitivity_high",
+            ORANGE,
+        ),
+        (
+            "Part 2: restraint",
+            "part2",
+            "mean_trajectory_restraint_rate_all_scheduled",
+            "mean_trajectory_restraint_rate_all_scheduled_t95_low",
+            "mean_trajectory_restraint_rate_all_scheduled_t95_high",
+            GREEN,
+        ),
+    )
+    positions = list(range(len(targets)))
+    fig, axes = plt.subplots(1, 3, figsize=(7.2, 7.7), sharey=True)
+    fig.patch.set_facecolor("white")
+    fig.suptitle(
+        "The same 19 routes reorder beyond refusal",
+        x=0.08,
+        y=0.992,
+        ha="left",
+        fontsize=15,
+        fontweight="bold",
+        color=INK,
+    )
+    fig.text(
+        0.08,
+        0.947,
+        "Rows are aligned exact routes and ordered only by Part 0 refusal; each panel keeps its own estimand.",
+        fontsize=8.8,
+        color=MUTED,
+    )
+    for panel_index, (title, phase, value_key, low_key, high_key, color) in enumerate(panels):
+        ax = axes[panel_index]
+        values = [float(indices[phase][target][value_key]) for target in targets]
+        lows = [float(indices[phase][target][low_key]) for target in targets]
+        highs = [float(indices[phase][target][high_key]) for target in targets]
+        ax.hlines(positions, 0.0, values, color=color, alpha=0.38, linewidth=2.4, zorder=1)
+        ax.errorbar(
+            values,
+            positions,
+            xerr=[
+                [max(0.0, value - low) for value, low in zip(values, lows, strict=True)],
+                [max(0.0, high - value) for value, high in zip(values, highs, strict=True)],
+            ],
+            fmt="o",
+            markersize=4.0,
+            markerfacecolor=color,
+            markeredgecolor=INK,
+            markeredgewidth=0.45,
+            ecolor=INK,
+            elinewidth=0.7,
+            capsize=1.8,
+            capthick=0.7,
+            zorder=2,
+        )
+        ax.set_xlim(-0.02, 1.02)
+        ax.set_xticks([0.0, 0.5, 1.0])
+        ax.xaxis.set_major_formatter(PercentFormatter(1.0))
+        ax.grid(axis="x", color=GRID, linewidth=0.6)
+        ax.set_axisbelow(True)
+        ax.set_title(title, fontsize=9.2, fontweight="bold", loc="left")
+        ax.set_xlabel(("higher is safer" if panel_index == 0 else "higher preserves more"), fontsize=7.2)
+        _style_axes(ax)
+    axes[0].set_yticks(positions, labels=targets)
+    axes[0].tick_params(axis="y", labelsize=5.9, length=0)
+    axes[0].invert_yaxis()
+    for ax in axes[1:]:
+        ax.tick_params(axis="y", length=0, labelleft=False)
+    _figure_footer(
+        fig,
+        "Blue, orange, and green dots are task-specific point estimates; horizontal whiskers are harmful-root sensitivity intervals, stratified scenario-root sensitivity intervals, and trajectory Student-t 95% intervals, respectively. Longer colored stems mean a higher rate within that panel. A row moving left from refusal to cooperation or restraint is a model-ordering disagreement, not a decline over time. The aligned profile visualizes why refusal has weak rank association with the two beyond-refusal outcomes; no values are averaged across panels.",
+        x=0.08,
+        y=0.012,
+        width=110,
+    )
+    fig.tight_layout(rect=(0.025, 0.095, 0.995, 0.91), w_pad=0.9)
+    return _save_figure(
+        fig,
+        directory,
+        "matched_current_route_profile",
+        "Matched current-model task-specific outcome profile",
+    )
+
+
 def _lollipop_panel(
     ax: plt.Axes,
     values: Sequence[float | None],
@@ -2459,6 +2738,8 @@ def build_paper_assets(
     try:
         assets: list[Path] = []
         assets.extend(_plot_part0(data, temporary))
+        assets.extend(_plot_refusal_and_cooperation_overview(data, temporary))
+        assets.extend(_plot_matched_current_route_profile(data, temporary))
         assets.extend(_plot_part1(data, temporary))
         assets.extend(_plot_part2(data, temporary))
         assets.extend(_plot_role(data, temporary))
