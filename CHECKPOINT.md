@@ -142,6 +142,15 @@ campaigns have priority over supplemental retries.
   provide supplemental availability evidence: MiniMax M2.7 returned HTTP 500
   and Kimi K2.5 again returned HTTP 529. Neither route is promoted or
   substituted.
+- The 2026-08-04 bounded heartbeat re-probe recovered both formerly unavailable
+  exact routes: `nvidia/minimaxai/minimax-m2.7` and
+  `nvidia/moonshotai/kimi-k2.5` each returned an identity-matched structured
+  smoke response under the frozen temperature-0, seed-20260801, 8-token
+  contract. Evidence is retained at
+  `heartbeat-minimax-m27-20260804-v1.json` and
+  `heartbeat-kimi-k25-20260804-v1.json`. These smoke recoveries do not alter a
+  frozen primary panel, substitute a model, or promote partial evidence into
+  the paper; complete supplemental fixed schedules remain separate work.
 - Supplemental availability runs are private, separate, and currently paused so
   primary campaigns retain capacity:
   - Part 0 Opus 4.5:
