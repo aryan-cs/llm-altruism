@@ -43,16 +43,16 @@
 Refusing an explicit harmful request is necessary, but many consequential choices present no obvious safety rule: a model can shift costs to a counterpart or deplete a shared resource.
 We introduce \textbf{Prosocial Readiness Bench}, a three-part evaluation of harmful-request refusal, self-directed cooperation in dyadic dilemmas, and restraint in a repeated commons environment.
 The tasks form a staged progression from explicit and identifiable harm to bilateral and then diffuse, cumulative externalities; they measure complementary observable behaviors rather than a latent moral trait.
-Our evaluation uses response-only judging by one fixed model disjoint from every subject, a balanced 384-root cooperation bank, and a payoff-coupled repeated commons with independent common-seed trajectories.
 \ifdefinitiveresults
-Across \ProviderSafePartTwoTrajectoryCount{} common-seed commons trajectories, mean system restraint ranges from \ProviderSafePartTwoModelRestraintRatePctMinimum--\ProviderSafePartTwoModelRestraintRatePctMaximum\% and normalized reserve area ranges from \ProviderSafePartTwoModelNormalizedAURCMinimum--\ProviderSafePartTwoModelNormalizedAURCMaximum; seven systems preserve both the reserve and population perfectly in every run, whereas GPT-OSS 20B and Nemotron 3 Super deplete the reserve and retain only 20\% and 10\% of the initial population.
+Refusal rates occupy a comparatively narrow \ProviderSafePartZeroModelRefusalRatePctMinimum--\ProviderSafePartZeroModelRefusalRatePctMaximum\% band, while welfare-preserving self-choice spans \ProviderSafePartOneModelWelfareRatePctMinimum--\ProviderSafePartOneModelWelfareRatePctMaximum\% and commons restraint spans \ProviderSafePartTwoModelRestraintRatePctMinimum--\ProviderSafePartTwoModelRestraintRatePctMaximum\%.
+On exact-route overlaps, refusal rank is only weakly related to cooperation ($\rho=\ProviderSafePairwisePartZeroPartOneSpearmanRho{}$) and commons restraint ($\rho=\ProviderSafePairwisePartZeroPartTwoSpearmanRho{}$), whereas cooperation and restraint align more strongly ($\rho=\ProviderSafePairwisePartOnePartTwoSpearmanRho{}$).
+In the commons, seven systems preserve both the reserve and population perfectly in every run, while GPT-OSS 20B and Nemotron 3 Super cross the collapse threshold and retain only 20\% and 10\% of the initial population.
 \else
-Across 228 common-seed commons trajectories, mean system restraint ranges from 34.5--100.0\% and normalized reserve area ranges from 0.224--1.000; seven systems preserve both the reserve and population perfectly in every run, whereas GPT-OSS 20B and Nemotron 3 Super deplete the reserve and retain only 20\% and 10\% of the initial population.
+Refusal rates occupy a comparatively narrow 64.6--97.9\% band, while welfare-preserving self-choice spans 0.0--98.4\% and commons restraint spans 34.5--100.0\%.
+On exact-route overlaps, refusal rank is only weakly related to cooperation ($\rho=0.139$) and commons restraint ($\rho=-0.162$), whereas cooperation and restraint align more strongly ($\rho=0.686$).
+In the commons, seven systems preserve both the reserve and population perfectly in every run, while GPT-OSS 20B and Nemotron 3 Super cross the collapse threshold and retain only 20\% and 10\% of the initial population.
 \fi
-\ifdefinitiveresults
-Across \ProviderSafePartOneModelCount{} hosted Part~1 routes, welfare-preserving choice spans \ProviderSafePartOneModelWelfareRatePctMinimum--\ProviderSafePartOneModelWelfareRatePctMaximum\%.
-\fi
-The results show why refusal-only evaluation is incomplete: models must also be tested when costs are socially mediated or accumulate through an environment.
+The comparison changes once costs become socially mediated or accumulate through an environment, which is precisely the behavior a refusal-only evaluation cannot reveal.
 \end{abstract}
 
 \section{Introduction}
@@ -227,7 +227,8 @@ A separate resolution-V panel varies capacity, depletion units, collapse death r
 \section{Experimental Setup}
 \subsection{Model Coverage and Exact Identity}
 The frozen registry covers current GPT, Claude Haiku/Sonnet/Opus, Gemini, Llama, DeepSeek, Qwen, Nemotron, MiniMax, Kimi, GLM, Mistral, and other compatible frontier or strong open-weight routes through exact authenticated endpoints.
-Part~0 schedules 22 systems, Part~1 schedules 75 hosted routes, and Part~2 schedules 19 systems.
+Coverage follows task compatibility rather than a forced common roster: Part~0 schedules 22 systems, Part~1 schedules 75 hosted routes, and Part~2 schedules 19 systems.
+Cross-task comparisons therefore use only exact overlapping routes, while each task retains the broader evidence available for its own estimand.
 Four pinned local Hugging Face controls separately complete the Part~1 bank to probe execution scale; they are neither substitutes for unavailable hosted routes nor pooled into the hosted panel.
 The manifest records requested route, upstream provider, and returned model identity for every call.
 
@@ -247,21 +248,26 @@ They are descriptive profiles, not a composite score or causal model-family comp
 \ifdefinitiveresults
 \section{Results}
 \label{app:current-results}
-\subsection{Benchmark-Wide Profile}
-The definitive campaigns contain \ProviderSafePartZeroScheduledResponseCount{} scheduled Part~0 responses, \ProviderSafePartOneScheduledUnitCount{} Part~1 self-choice roots, and \ProviderSafePartTwoTrajectoryCount{} Part~2 trajectories.
-The model-level ranges differ substantially beyond refusal: welfare-preserving choice spans \ProviderSafePartOneModelWelfareRatePctMinimum--\ProviderSafePartOneModelWelfareRatePctMaximum\% and commons restraint spans \ProviderSafePartTwoModelRestraintRatePctMinimum--\ProviderSafePartTwoModelRestraintRatePctMaximum\%.
-The per-route profiles in Appendix~\ref{app:results} show where a refusal-only comparison leaves bilateral and cumulative behavior unmeasured.
-\ifdefined\ProviderSafePairwisePartOnePartTwoMatchedRouteCount
-Across exact routes observed in both Parts~1 and 2, fixed-panel Spearman $\rho$ and Kendall $\tau_b$ are \ProviderSafePairwisePartOnePartTwoSpearmanRho{}/\ProviderSafePairwisePartOnePartTwoKendallTauB{} ($n=\ProviderSafePairwisePartOnePartTwoMatchedRouteCount{}$).
-Leaving one route out gives a Spearman range of [\ProviderSafePairwisePartOnePartTwoLeaveOneOutSpearmanMinimum{}, \ProviderSafePairwisePartOnePartTwoLeaveOneOutSpearmanMaximum{}], while the maximum absolute movement between cooperation and restraint ranks is \ProviderSafePairwisePartOnePartTwoMaximumAbsoluteRankShift{} positions.
-These fixed-panel diagnostics quantify how much the model comparison changes between bilateral and cumulative externalities.
-\fi
+The results follow the benchmark's progression from a conspicuous safety rule to increasingly indirect externalities.
+The campaigns contribute \ProviderSafePartZeroScheduledResponseCount{} Part~0 responses, \ProviderSafePartOneScheduledUnitCount{} Part~1 scenario roots, and \ProviderSafePartTwoTrajectoryCount{} independent Part~2 trajectories.
+Those counts establish the evidence at each task's proper unit; they are not pooled into a common denominator.
+
+\subsection{Refusal Does Not Preserve the Model Ordering}
+Part~0 produces the most compressed comparison: across \ProviderSafePartZeroModelCount{} routes, refusal ranges from \ProviderSafePartZeroModelRefusalRatePctMinimum\% to \ProviderSafePartZeroModelRefusalRatePctMaximum\%, with a median of \ProviderSafePartZeroModelRefusalRatePctMedian\%.
+The same systems separate much more sharply once the choice is expressed as a bilateral cost: Part~1 welfare-preserving self-choice ranges from \ProviderSafePartOneModelWelfareRatePctMinimum\% to \ProviderSafePartOneModelWelfareRatePctMaximum\%.
+The contrast is not merely a wider scale.
+Among exact routes shared by Parts~0 and 1, refusal and cooperation ranks have Spearman $\rho=\ProviderSafePairwisePartZeroPartOneSpearmanRho{}$ ($n=\ProviderSafePairwisePartZeroPartOneMatchedRouteCount{}$); among routes shared by Parts~0 and 2, refusal and commons restraint have $\rho=\ProviderSafePairwisePartZeroPartTwoSpearmanRho{}$ ($n=\ProviderSafePairwisePartZeroPartTwoMatchedRouteCount{}$).
+By comparison, cooperation and commons restraint have $\rho=\ProviderSafePairwisePartOnePartTwoSpearmanRho{}$ on their \ProviderSafePairwisePartOnePartTwoMatchedRouteCount{} shared routes.
+Thus, explicit refusal provides little information about the relative ordering on either externality task, while the two beyond-refusal tasks share more of their ordering.
+These are fixed-panel descriptive associations, not evidence for a single latent trait; the full profiles and rank-robustness diagnostics appear in Appendix~\ref{app:results}.
 
 \subsection{Dyadic Cooperation and Role}
-Across \ProviderSafePartOneModelCount{} exact hosted routes, median welfare-preserving self-choice is \ProviderSafePartOneModelWelfareRatePctMedian\%, with a range of \ProviderSafePartOneModelWelfareRatePctMinimum--\ProviderSafePartOneModelWelfareRatePctMaximum\%.
-Because every route receives the same balanced 384-root bank, the comparison isolates route-conditioned behavior on this task rather than prompt-bank composition.
+Across \ProviderSafePartOneModelCount{} exact hosted routes, the median welfare-preserving self-choice rate is only \ProviderSafePartOneModelWelfareRatePctMedian\%, despite the \ProviderSafePartOneModelWelfareRatePctMaximum\% maximum.
+The distribution is therefore not a gentle spread around a common tendency: a small group often preserves counterpart welfare, while many routes almost always select the focal advantage.
+Because every route receives the same balanced 384-root bank, that separation reflects route-conditioned behavior on the frozen task rather than prompt-bank composition.
 Across the six role-calibration sentinels, median welfare-preserving response rates are \ProviderSafeRoleAdviceWelfareRatePctMedian\% for advice, \ProviderSafeRoleObserverEvaluationWelfareRatePctMedian\% for observer evaluation, and \ProviderSafeRolePredictionWelfareRatePctMedian\% for prediction.
-These separate panels reveal how verbal role changes the recorded choice without substituting those frames for self-action.
+The higher observer-evaluation median shows that a route may recognize the welfare-preserving action more often when judging a completed choice than when advising or predicting one.
+Role wording therefore changes the measured behavior, but none of these verbal frames can stand in for the model's own self-choice.
 
 \begin{figure}[!htbp]
 \centering
@@ -272,14 +278,18 @@ These separate panels reveal how verbal role changes the recorded choice without
 
 \subsection{Commons Restraint and Consequences}
 Across \ProviderSafePartTwoModelCount{} systems, median normalized AURC is \ProviderSafePartTwoModelNormalizedAURCMedian{}, median all-scheduled restraint is \ProviderSafePartTwoModelRestraintRatePctMedian\%, and median final population retention is \ProviderSafePartTwoModelPopulationRetentionPctMedian\%.
-Seven systems preserve the resource, population, and every scheduled action perfectly in all 12 trajectories; at the other extreme, GPT-OSS 20B and Nemotron 3 Super deplete the reserve and retain only 20\% and 10\% of the initial population.
-Figure~\ref{fig:part2-completed} connects model action, resource consequence, and group consequence without treating any one column as a general safety score.
+These medians describe a nominal environment in which most systems avoid group collapse, but they conceal a consequential lower tail.
+Seven systems preserve the resource, population, and every scheduled action perfectly in all 12 trajectories.
+At the other extreme, GPT-OSS 20B and Nemotron 3 Super combine low restraint with reserve depletion and retain only 20\% and 10\% of the initial population.
+The trajectory makes the behavioral story concrete: repeated focal advantage becomes resource loss and, after the collapse threshold, group loss.
+Figure~\ref{fig:part2-completed} keeps those action, resource, and population stages visible rather than compressing them into one score.
 
 \subsection{Environmental Sensitivity}
 The five-compatible-sentinel sensitivity panel estimates 25 prespecified high-minus-low AURC contrasts across five environmental factors.
 Paired common-seed contrasts quantify how capacity, depletion, attrition, society size, and horizon alter reserve preservation.
 The largest absolute high-minus-low AURC contrast is \ProviderSafeSensitivityMaximumAbsoluteEffect{}, and \ProviderSafeSensitivityHolmSignificantCount{} of \ProviderSafeSensitivityEffectCount{} prespecified route--factor tests remain significant after global Holm adjustment.
-The panel identifies which conclusions depend most strongly on capacity, depletion, attrition, society size, or horizon and prevents the nominal environment from being read as universal.
+The combination matters: individual environmental changes can produce descriptively large movements, but the two-seed-per-cell panel does not distinguish any one route--factor effect from zero after multiplicity correction.
+We therefore use the panel to locate possible parameter dependence, not to promote a universal environmental effect or revise the primary model ordering.
 \else
 \section{Results}
 \label{app:current-results}
@@ -332,18 +342,18 @@ Nemotron 3 Super & 34.5 [30.5, 37.8] & 0.224 [0.209, 0.240] & 10\% \\
 \clearpage
 
 \section{Discussion}
-Safety Beyond Refusal changes the unit of comparison from one refusal score to a structured behavioral profile.
-This matters operationally because explicit harmful-request evaluation is a high-salience setting: the model is directly told what action would cause harm.
-The dyadic and commons tasks test whether conservative behavior persists when the safety relevance must be inferred from payoffs, affected parties, and temporal consequences.
+The empirical story is a change in model ordering as the externality becomes less explicit.
+Refusal rates are comparatively compressed, yet the same routes separate sharply in dyadic cooperation, and refusal rank is only weakly associated with both beyond-refusal tasks.
+The stronger association between cooperation and commons restraint suggests that the two externality probes recover related variation that explicit harmful-request refusal largely misses, while their remaining rank differences justify keeping them separate.
 
-The benchmark is most useful when it reveals disagreement.
-A model that refuses reliably but selects focal advantage in Part~1 requires a different intervention from one that cooperates in a one-shot dilemma but overuses a repeated commons.
-Likewise, role-conditioned differences distinguish what a model recommends or predicts from what it selects for itself.
-These are actionable diagnostics for model selection and agent-system testing even when they do not support a single global ordering.
+The role and trajectory analyses explain why that extra variation matters.
+A model can evaluate a welfare-preserving action differently from how it advises, predicts, or acts, so verbal recognition is not a substitute for behavior.
+In the commons, action differences propagate through the reserve and can eventually reduce the surviving population.
+The benchmark therefore distinguishes at least three intervention targets: explicit safeguards, choice policies under bilateral cost shifting, and repeated-action policies under cumulative constraints.
 
-The repeated environment adds information that static choice cannot.
-Restraint is a model action, AURC is a resource consequence, and population retention is a group consequence.
-Reporting all three exposes whether similar action rates produce different trajectories under collapse dynamics and whether a result depends on one nominal parameterization.
+This profile is more useful than a composite score precisely when its components disagree.
+It can reveal a system that refuses reliably but selects focal advantage, or one that cooperates in a one-shot dilemma but overuses a repeated commons.
+Such disagreements identify what should be tested or changed next without implying a universal moral ranking of models.
 
 The same contracts extend naturally to tool-using and multi-agent systems.
 A Part~0 extension can score whether an agent withholds a harmful tool call; Part~1 can offer authorized actions that trade the focal user's benefit against a third party's cost; Part~2 can expose several agents to a shared budget, quota, or service capacity across independent episodes.
