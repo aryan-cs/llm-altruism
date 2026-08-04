@@ -19,7 +19,9 @@ Updated: 2026-08-04 (America/Los_Angeles)
 ## Current source state
 
 - Branch: `master` (no additional branch or tag).
-- Latest pushed source commit at this checkpoint: `5cd54a0`.
+- Definitive paper and release-artifact commit: `5cd54a0`.
+- Final supplemental retry and repair-provenance commit preceding this update:
+  `9272c67`.
 - Important preceding commits:
   - `d11c739`: deterministic, privacy-safe clean-room supplement;
   - `b94e65a`: deterministic paper headline macros and six asset families;
