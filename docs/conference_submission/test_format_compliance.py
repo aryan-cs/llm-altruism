@@ -91,7 +91,6 @@ class ConferenceSubmissionFormatTest(unittest.TestCase):
             "behavioral_fingerprint_heatmap.png",
             "model_behavior_pca.png",
             "part0_refusal_by_language_heatmap.png",
-            "part0_refusal_rate_by_model.png",
             "safety_refusal_vs_restraint.png",
         )
         for figure in retired_figures:
@@ -126,9 +125,9 @@ class ConferenceSubmissionFormatTest(unittest.TestCase):
 
         asset_root = "../../data/processed/provider-safe-v2-paper-assets/"
         static_figures = (
-            "part0_model_language.pdf",
-            "part1_role_calibration.pdf",
-            "part2_sensitivity_effects.pdf",
+            "part0_model_language",
+            "part1_role_calibration",
+            "part2_sensitivity_effects",
         )
         tables = ("compact_matched_core_table.tex",)
         for name in (*static_figures, *tables):
@@ -144,10 +143,17 @@ class ConferenceSubmissionFormatTest(unittest.TestCase):
         ):
             self.assertNotIn(asset_root + name, source, name)
         self.assertEqual(source.count(asset_root + "paper_headlines.tex"), 2)
-        self.assertEqual(source.count("figures/part2_all_models.pdf"), 1)
-        self.assertIn(asset_root + r"part1_all_models_block\block.pdf", source)
+        self.assertEqual(source.count("figures/part2_all_models"), 1)
+        for name in (
+            "part0_refusal_rate_by_model",
+            "part2_restraint_rate_by_model",
+            "part2_shared_reserve_over_time",
+            "part2_population_over_time",
+        ):
+            self.assertEqual(source.count("figures/" + name), 1, name)
+        self.assertIn(asset_root + r"part1_all_models_block\block", source)
         self.assertIn(
-            asset_root + r"all_models_cross_phase_outcome_profile_block\block.pdf",
+            asset_root + r"all_models_cross_phase_outcome_profile_block\block",
             source,
         )
         self.assertIn(r"\foreach \block in {1,2,3}", source)

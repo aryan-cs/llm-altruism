@@ -267,7 +267,7 @@ This is the paper's central empirical transition: making the externality indirec
 
 \begin{figure}[p]
 \centering
-\includegraphics[width=\linewidth,height=0.76\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/refusal_cooperation_overview.pdf}
+\includegraphics[width=\linewidth,height=0.76\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/refusal_cooperation_overview}
 \caption{Current-model refusal bars and cooperation rank profile. In Panel A, each row is one of 22 exact routes over 144 scheduled harmful-request responses. Provider families are contiguous in the order OpenAI, Anthropic, Google, NVIDIA, then the remaining providers; within each family, newer frozen route versions appear above older ones. Blue bars and dots show all-scheduled refusal, and whiskers show 5,000-replicate harmful-root sensitivity intervals. Farther right is favorable because it means less harmful assistance. In Panel B, each orange point is one of 75 exact routes over the same balanced 384-root bank, ordered globally from highest to lowest welfare-preserving self-choice because rank shape is the purpose of that panel. Higher is favorable because it means fewer counterpart costs; the low median and long lower tail show that high explicit refusal does not imply dyadic cooperation. The orange line connects ordered ranks only and is not a time series. Exact Part~1 identities and intervals are reported in the anonymous supplement.}
 \label{fig:refusal-cooperation-overview}
 \end{figure}
@@ -282,7 +282,7 @@ Role wording therefore changes the measured behavior, but none of these verbal f
 
 \begin{figure}[!htbp]
 \centering
-\includegraphics[width=\linewidth,height=0.34\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/part1_role_calibration.pdf}
+\includegraphics[width=\linewidth,height=0.34\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/part1_role_calibration}
 \caption{Role-conditioned Part~1 outcomes for six exact sentinel routes, grouped contiguously by provider family with newer frozen route versions above older ones. Each row is one route; the centered columns show welfare-preserving response rates over 384 scheduled draws when the model gives advice, evaluates an observed action, or predicts an actor's choice. Higher values mean the response less often favors a unilateral advantage that costs the counterpart; lower values mean more focal-advantage responses within that named frame. Columns remain distinct estimands and are not pooled with self-choice.}
 \label{fig:part1-role}
 \end{figure}
@@ -344,7 +344,7 @@ Nemotron 3 Super & 34.5 [30.5, 37.8] & 0.224 [0.209, 0.240] & 10\% \\
 \clearpage
 \begin{figure}[p]
 \centering
-\includegraphics[width=\linewidth,height=0.76\textheight,keepaspectratio]{figures/part2_all_models.pdf}
+\includegraphics[width=\linewidth,height=0.76\textheight,keepaspectratio]{figures/part2_all_models}
 \caption{Repeated-commons outcomes for 19 exact model routes, with provider families contiguous and newer frozen route versions above older ones within each family. Each row is one route evaluated on 12 common environment seeds. The three stacked panels connect model action (mean trajectory restraint), resource consequence (normalized area under the reserve curve), and group consequence (final population divided by initial population); whiskers are trajectory Student-$t$ 95\% intervals. Higher values mean greater action, resource, or population preservation in this simulator; lower values mean more overuse, depletion, or population loss. The axes remain separate outcomes rather than a composite score.}
 \label{fig:part2-completed}
 \end{figure}
@@ -418,33 +418,71 @@ The following figures and tables are generated from the sealed, hash-verified ag
 Times-compatible typography matches the submission template; the original blue, orange, green, and vermillion palette is fixed in the generator.
 
 \begin{figure}[p]\centering
-\includegraphics[width=\linewidth,height=0.74\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/matched_current_route_profile.pdf}
+\includegraphics[width=\linewidth,height=0.74\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/matched_current_route_profile}
 \caption{Matched profile for the 19 current exact routes scheduled in all three parts. Rows remain aligned, provider families are contiguous, and newer frozen route versions appear above older ones within each family. Blue dots show refusal over 144 scheduled responses, orange dots show welfare-preserving self-choice over 384 roots, and green dots show mean trajectory restraint over 12 independent commons trajectories; whiskers use the task-specific uncertainty unit named in the figure. Farther right is favorable within every panel because it means less harmful assistance, fewer counterpart costs, or more commons restraint. Large horizontal changes across a row indicate task-specific disagreement, not temporal change. The panels remain separate estimands and are never averaged.}
 \end{figure}
 
 \clearpage
 \begin{figure}[p]\centering
-\includegraphics[width=\linewidth,height=0.78\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/part0_model_language.pdf}
+\includegraphics[width=\linewidth,height=0.78\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/part0_model_language}
 \caption{Part~0 response-language outcomes, with provider families contiguous and newer frozen route versions above older ones within each family. Each row is one exact target route and each centered column is one requested response language over 48 fixed English harmful-request roots. Values are refusal over all scheduled roots with Wilson 95\% intervals. Higher values mean less assistance on this harmful-only task; lower values mean less refusal under the all-scheduled scoring rule. Exact upstream Model IDs appear in the anonymous supplement.}
 \end{figure}
 
 \newcommand{\PartOneAppendixCaption}[1]{Part~1 hosted self-choice outcomes, portrait segment #1 of one continuous 75-route ranking in global display order. Each row is one exact route over 384 scheduled roots. Orange bars are all-scheduled welfare-preserving shares and whiskers are 5,000-replicate stratified frozen-bank sensitivity intervals. Higher values mean fewer counterpart costs within this task; lower values mean the focal actor more often selects its unilateral advantage. Exact upstream Model IDs and intervals are retained in the anonymous supplement.}
 \foreach \block in {1,2,3}{%
 \clearpage\begin{figure}[p]\centering
-\includegraphics[width=\linewidth,height=0.78\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/part1_all_models_block\block.pdf}
+\includegraphics[width=\linewidth,height=0.78\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/part1_all_models_block\block}
 \caption{\PartOneAppendixCaption{\block}}
 \end{figure}}
 
 \clearpage
 \begin{figure}[p]\centering
-\includegraphics[width=\linewidth,height=0.76\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/part2_sensitivity_effects.pdf}
+\includegraphics[width=\linewidth,height=0.76\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/part2_sensitivity_effects}
 \caption{Part~2 sensitivity effects for five exact compatible sentinel routes, grouped contiguously by provider family with newer frozen route versions above older ones and no route substitution. Rows are routes and columns are the five manipulated environmental factors. Each cell is high-minus-low normalized AURC: positive values mean the high factor level preserves more reserve area, while negative values mean it preserves less. Neither sign is universally good or bad for a parameter; it identifies which setting is more resource-preserving. Holm-adjusted significance is computed across the 25 prespecified route--factor tests.}
+\end{figure}
+
+\clearpage
+\subsection{Original-View Replications on Current Routes}
+The original submission made the benchmark progression concrete with vertical model bars and longitudinal commons trajectories.
+We retain those views here rather than replacing them with tables: the bars show how the current route panel changes the cross-model comparison, while the trajectories show how repeated choices accumulate into environmental consequences.
+The updated design improves the evidence behind the same visual argument.
+Part~0 now uses the frozen harmful-root sensitivity interval, and Part~2 uses 12 common-seed trajectories per route instead of a single run.
+
+The refusal bars in Figure~\ref{fig:original-view-refusal} remain comparatively compressed toward the favorable end of their task, whereas the restraint bars in Figure~\ref{fig:original-view-restraint} separate routes much more sharply.
+That contrast is the paper's central story in the original visual grammar: models that commonly withhold harmful assistance need not occupy the same relative position when private gains impose diffuse, repeated costs on a group.
+
+\begin{figure}[H]\centering
+\includegraphics[width=\linewidth,height=0.70\textheight,keepaspectratio]{figures/part0_refusal_rate_by_model}
+\caption{Updated original-style Part~0 bar graph for all 22 current exact routes. Each bar is one authenticated route's material-refusal percentage over 144 scheduled responses; providers form contiguous colored groups, and newer frozen route versions appear to the left of older versions within each provider. The number above a bar is its point estimate, placed above the whisker so the annotation and interval never overlap. Whiskers are 5,000-replicate harmful-request-root sensitivity intervals. A taller bar and higher percentage are favorable within this harmful-only task because the model supplies less material assistance; a shorter bar means more assistance or an unclear/invalid response retained in the all-scheduled denominator. These values do not measure dyadic cooperation or commons restraint.}
+\label{fig:original-view-refusal}
+\end{figure}
+
+\clearpage
+\begin{figure}[H]\centering
+\includegraphics[width=\linewidth,height=0.70\textheight,keepaspectratio]{figures/part2_restraint_rate_by_model}
+\caption{Updated original-style Part~2 bar graph for all 19 current exact routes. Each bar is one authenticated route's mean all-scheduled restraint percentage across 12 independent common-seed trajectories; providers are contiguous, and newer frozen route versions appear to the left within each provider. The number above each bar is the point estimate and sits beyond the upper whisker. Whiskers are trajectory-level Student-$t$ 95\% intervals. A taller bar and higher percentage are favorable in this simulator because agents more often choose the reserve-preserving action; a shorter bar means more private-gain overuse and therefore greater pressure on the shared reserve. The plot is a task-specific action comparison, not a general safety ranking.}
+\label{fig:original-view-restraint}
+\end{figure}
+
+The temporal views in Figure~\ref{fig:original-view-trajectories} explain why action-rate differences matter.
+Reserve curves separate immediately as overuse accumulates, while population curves remain flat until reserve exhaustion triggers attrition.
+Thus the line graphs add mechanism rather than another ranking: they connect the green action outcome to resource loss and, only in the most depleted trajectories, group collapse.
+
+\clearpage
+\begin{figure}[p]\centering
+\textbf{A. Shared reserve}\par\vspace{6pt}
+\includegraphics[width=\linewidth,height=0.35\textheight,keepaspectratio]{figures/part2_shared_reserve_over_time}
+\vspace{15pt}
+\textbf{B. Living population}\par\vspace{6pt}
+\includegraphics[width=\linewidth,height=0.35\textheight,keepaspectratio]{figures/part2_population_over_time}
+\caption{Updated original-style longitudinal commons views for the 19 current exact routes. Each legend entry is one route, listed in contiguous provider groups with newer frozen versions first; each plotted point is the day-wise mean of 12 common-seed trajectories. Panel~A's horizontal axis is simulation day and its vertical axis is shared reserve units out of the initial 50. Higher curves are favorable because they indicate slower cumulative depletion; lower curves mean that repeated private-gain choices consumed more of the commons. Panel~B uses the same day axis and shows mean living population out of the initial five agents. Higher curves are favorable because more agents remain alive; a downward curve is adverse because reserve exhaustion has triggered matched attrition. Coincident curves legitimately overlap when routes produce the same mean state path; color, line style, marker, and the complete legend preserve identity without adding artificial offsets.}
+\label{fig:original-view-trajectories}
 \end{figure}
 
 \newcommand{\CrossAppendixCaption}[1]{Task-specific portrait profile, segment #1 of 4. Rows are exact target routes grouped contiguously by provider family, with newer frozen route versions above older ones. The three stacked panels show Part~0 refusal versus compliance, Part~1 welfare preservation versus focal advantage, and Part~2 restraint versus overuse, each with its own denominator. Farther-right green circles mean more refusal of harmful assistance, fewer counterpart costs, or more commons restraint; farther-right vermillion diamonds mean more harmful compliance, focal advantage, or overuse. Shape preserves direction in grayscale. A gray cross means the route was not scheduled for that part. Panels are not pooled.}
 \foreach \block in {1,2,3,4}{%
 \clearpage\begin{figure}[p]\centering
-\includegraphics[width=\linewidth,height=0.78\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/all_models_cross_phase_outcome_profile_block\block.pdf}
+\includegraphics[width=\linewidth,height=0.78\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/all_models_cross_phase_outcome_profile_block\block}
 \caption{\CrossAppendixCaption{\block}}
 \end{figure}}
 
@@ -465,6 +503,8 @@ Those ledgers remain hash-bound to the same sealed aggregate graph and can be in
 \label{app:artifact-map}
 The public aggregate adapter validates every source manifest, journal binding, exact route identity, frozen schedule, denominator, and interval contract before producing text-free tables.
 The paper-asset generator validates those tables again, writes vector PDFs and 300-dpi PNGs, centers quantitative table columns, and records file hashes and 15-point outer spacing in its manifest.
+The original-view generator separately replays all 228 bound Part~2 trajectories without network access and requires every final state, AURC, AUPC, and restraint rate to match the released trajectory aggregate before it writes the two temporal figures.
+Its source and rendered PNGs are included in the anonymous supplement; private prompts, responses, reasoning, and journals remain excluded.
 The anonymous supplement includes aggregate CSV/JSONL, current PNG and table assets, schemas, documentation, and Croissant 1.1 metadata; a clean extracted copy can rebuild and verify the archive without a Git object store.
 
 \input{checklist}

@@ -236,16 +236,31 @@ campaigns have priority over supplemental retries.
   manifests, and the anonymous supplement rebuilt deterministically with 243
   files.
 - The final review PDF has the exact title, anonymous author block, nine-page
-  main body, and 30 portrait pages including references, appendices, and the
+  main body, and 33 portrait pages including references, appendices, and the
   NeurIPS checklist. The former 11-page table dump is replaced by one compact
   19-route matched ledger; the full 22-, 75-, and 19-route tables, intervals,
   exact target IDs, language cells, role calibration, sensitivity results, and
-  local controls remain in the supplement. Bundled Tectonic compiled the PDF
-  successfully; all changed figures and pages were rendered and visually
-  inspected with no clipping, overlap, or unreadable glyphs. The focused
-  integrity suite is 43 passed, and all 8 conference-format checks pass. A
-  repository-wide run reached 47\% with no failures before the 300-second
-  command window expired.
+  local controls remain in the supplement.
+- The exact 25-page historical `Safety Beyond Refusal` PDF at commit `5e6a537`
+  was rebuilt and every page was visually inspected. Its two vertical model
+  bars and two commons time-series plots were traced to
+  `data/graphs/paper_visuals.py` and recreated for the current panel by
+  `analysis/build_original_view_figures.py`. The new Part 0 bar covers all 22
+  current routes with harmful-root sensitivity intervals; the Part 2 bar and
+  reserve/population lines cover all 19 current routes and 12 common-seed
+  trajectories per route. All 228 journal replays pass hash-chain, identity,
+  transition, endpoint, AURC, AUPC, and public-aggregate reconciliation.
+  Providers are contiguous and newest frozen route versions appear first.
+  Numeric bar labels sit beyond their upper whiskers, and all four plots use
+  Times-compatible typography and the original paper palette.
+- Bundled Tectonic compiled the PDF successfully; all changed figures, their
+  paper pages, and a 33-page contact sheet were visually inspected with no
+  clipping, element overlap, landscape pages, or unreadable glyphs. The clean
+  extracted 249-file anonymous supplement independently compiles the same
+  33-page portrait paper. The focused supplement/format suite is 27 passed and
+  one extractor-dependent check skipped; all eight conference-format checks
+  pass. A repository-wide run reached 47\% with no failures before the
+  300-second command window expired.
 
 ## Paper requirements that remain fixed
 

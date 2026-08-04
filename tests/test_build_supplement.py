@@ -107,21 +107,17 @@ def test_anonymous_supplement_rewrites_private_gateway_and_author_markers(
     assert "/home/anonymous" in payload
 
 
-def test_supplement_excludes_every_withdrawn_part0_dependent_plot() -> None:
+def test_supplement_excludes_legacy_plots_but_keeps_current_original_view() -> None:
     files = build_supplement.collect_supplement_files()
     names = {path.as_posix() for path in files}
     assert not any(name.startswith("data/graphs/part_0/") for name in names)
     assert not any(name.startswith("data/graphs/cross_part/") for name in names)
-    assert not any(
-        name.endswith(
-            (
-                "part0_refusal_rate_by_model.png",
-                "part0_refusal_by_language_heatmap.png",
-                "behavioral_fingerprint_heatmap.png",
-                "model_behavior_pca.png",
-            )
-        )
-        for name in names
+    assert not any(name.endswith("part0_refusal_by_language_heatmap.png") for name in names)
+    assert not any(name.endswith("behavioral_fingerprint_heatmap.png") for name in names)
+    assert not any(name.endswith("model_behavior_pca.png") for name in names)
+    assert (
+        "docs/conference_submission/figures/part0_refusal_rate_by_model.png"
+        in names
     )
 
 
@@ -260,9 +256,16 @@ def test_supplement_release_boundary_is_aggregate_only_and_current() -> None:
     assert "data/analysis/local_hf_part1_controls.json" in names
     assert not any(name.startswith("data/analysis/final_results/") for name in names)
     assert "data/analysis/croissant_metadata.json" not in names
-    assert not any(
-        name.startswith("docs/conference_submission/figures/") for name in names
-    )
+    assert {
+        name for name in names
+        if name.startswith("docs/conference_submission/figures/")
+    } == {
+        "docs/conference_submission/figures/part0_refusal_rate_by_model.png",
+        "docs/conference_submission/figures/part2_restraint_rate_by_model.png",
+        "docs/conference_submission/figures/part2_shared_reserve_over_time.png",
+        "docs/conference_submission/figures/part2_population_over_time.png",
+        "docs/conference_submission/figures/part2_all_models.png",
+    }
     assert {
         path.as_posix() for path in build_supplement.DEFINITIVE_RELEASE_PATHS
     } == {
