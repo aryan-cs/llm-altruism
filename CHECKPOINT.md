@@ -1,6 +1,6 @@
 # Paper completion checkpoint
 
-Updated: 2026-08-03 (America/Los_Angeles)
+Updated: 2026-08-04 (America/Los_Angeles)
 
 ## North star
 
@@ -19,7 +19,7 @@ Updated: 2026-08-03 (America/Los_Angeles)
 ## Current source state
 
 - Branch: `master` (no additional branch or tag).
-- Latest pushed source commit at this checkpoint: `fd44ae8`.
+- Latest pushed source commit at this checkpoint: `5cd54a0`.
 - Important preceding commits:
   - `d11c739`: deterministic, privacy-safe clean-room supplement;
   - `b94e65a`: deterministic paper headline macros and six asset families;
@@ -71,7 +71,13 @@ target ID, exact route, and upstream provider/model identity.
     provider. The local executor has 256 slots so tasks waiting on the strict
     one-request-per-exact-route semaphore cannot starve unrelated routes; it
     does not raise any network or provider ceiling. The superseded v2/v3/v4
-    partial runs remain preserved but are not paper inputs.
+    partial runs remain preserved but are not paper inputs;
+  - all 28,800 scheduled roots are terminal. The source retained 28,797
+    visible responses, including 704 genuine format-invalid responses, plus
+    three transport-null rows. A separate immutable, source-bound operational
+    overlay repaired exactly those three rows, leaving 28,800 visible effective
+    responses, 28,096 format-valid responses, and all 704 genuine invalids in
+    the all-scheduled denominator. No semantic response was regenerated.
 - Part 2: `data/private/inference_hub/definitive-part2-n12-main19-v3`
   - 19 exact systems, 12 independent common-seed trajectories/system;
   - five agents, 12 days, corrected prompt--engine incentives;
@@ -79,7 +85,10 @@ target ID, exact route, and upstream provider/model identity.
     all-scheduled behavioral rate; affected trajectories are excluded only
     from environmental outcomes;
   - host process resumed with the exact frozen arguments and an eight-hour
-    wrapper after the original one-hour shell timeout.
+    wrapper after the original one-hour shell timeout;
+  - COMPLETE with 228 trajectories, 13,495 realized agent-days, four genuine
+    semantic-invalid actions, 225 environmentally estimable trajectories, and
+    zero operational failures.
 
 Part 2 retains the main accelerated policy at global concurrency 12, provider
 concurrency 2, global 8 starts/second, and provider 1.5 starts/second. Parts 0
@@ -108,11 +117,12 @@ campaigns have priority over supplemental retries.
   trial, prompt, request, original-record, payload, and response-identity
   bindings before merging the four operational replacements.
 
-### Part 2 deadline sensitivity (active, fresh revised panel)
+### Part 2 deadline sensitivity (complete, operationally repaired)
 
 - Path: `data/private/inference_hub/definitive-part2-sensitivity-deadline-fast-v9`.
 - Five exact compatible sentinels × 16 resolution-V cells × two common
-  environment seeds = 160 trajectories and 14,400 scheduled agent-day POSTs.
+  environment seeds = 160 trajectories, with 14,400 as the execution ceiling;
+  agents that die stop producing later calls.
 - Five factors vary: capacity per initial agent, depletion units, collapse death
   rate, society size, and horizon.
 - Invalid visible actions are retained as nonrestraint/zero-effect observations;
@@ -120,6 +130,13 @@ campaigns have priority over supplemental retries.
 - The panel is explicitly deadline-exploratory and underpowered. Twenty-five
   sentinel-by-factor Holm rows document the prespecified family; they do not
   authorize confirmatory robustness claims.
+- Four source trajectories were operationally ineligible after six transport
+  failures and zero identity mismatches. A complete fresh 12-trajectory exact-
+  contract subset supplied four immutable whole-trajectory replacements from
+  day 1. The effective panel has all 160 trajectories, zero transport or
+  identity failures, and no semantic-invalid trajectory retry. Across the 25
+  prespecified effects, the largest absolute high-minus-low AURC contrast is
+  0.2881 and none is significant after global Holm adjustment.
 - The revised v2 design excludes only the frozen Claude Sonnet 4.6 exact route,
   which cannot accept the common `top_p` control. It substitutes no route or
   model and reuses no incomplete v8 evidence. The active
@@ -151,16 +168,33 @@ campaigns have priority over supplemental retries.
   `heartbeat-kimi-k25-20260804-v1.json`. These smoke recoveries do not alter a
   frozen primary panel, substitute a model, or promote partial evidence into
   the paper; complete supplemental fixed schedules remain separate work.
-- Supplemental availability runs are private, separate, and currently paused so
-  primary campaigns retain capacity:
-  - Part 0 Opus 4.5:
-    `data/private/inference_hub/definitive-part0-unavailable-retry-opus45-v2`;
+- Supplemental availability runs are private, separate, and never merged into
+  the primary paper evidence:
+  - Part 0 Opus 4.5 fresh full replicate:
+    `data/private/inference_hub/definitive-part0-unavailable-retry-opus45-v5`;
   - Part 1 Opus 4.5, MiniMax M3, Kimi K2.6, and GLM 5.2:
     `data/private/inference_hub/definitive-part1-unavailable-retry-n384-v2`;
   - Part 2 Opus 4.5, DeepSeek V4 Flash, Nemotron 3 Ultra, and GLM 5.1:
     `data/private/inference_hub/definitive-part2-availability-retry-n12-v1`.
-- Resume supplemental runs only with their original frozen worker arguments,
-  after primary main capacity is released.
+- The Part 2 supplemental schedule is COMPLETE: 48/48 trajectories, 2,824
+  realized agent-days, zero transport failures, zero identity mismatches, and
+  five genuine semantic-invalid actions retained. Opus 4.5 produced 100.0%
+  restraint and 1.000 mean AURC; DeepSeek V4 Flash 50.5% and 0.249; Nemotron 3
+  Ultra 63.8% and 0.299; and GLM 5.1 73.8% and 0.535.
+- The four-route Part 1 source terminalized all 1,536 roots with 1,529 visible
+  responses, seven transport-null rows, zero genuine format-invalid responses,
+  and zero identity mismatches. A separate immutable operational overlay at
+  `definitive-part1-unavailable-retry-n384-v2-operational-repair-v2` recovered
+  all seven exact rows without modifying the source or regenerating any
+  semantic response. Effective welfare-preserving rates are Opus 4.5 99.2%,
+  MiniMax M3 0.0%, Kimi K2.6 0.0%, and GLM 5.2 0.8%.
+- The fresh full Opus 4.5 Part 0 replicate terminalized all 144 units with 121
+  refusals, two compliance outcomes, 12 genuine semantic invalids, and nine
+  exact-route transport failures retained as operational invalids. Judge
+  failures and identity mismatches are both zero. The fail-closed combined
+  supplemental analyzer is not run because this manifest correctly remains
+  non-COMPLETE after the nine transport failures; the isolated row never enters
+  the primary paper evidence.
 - `experiments.misc.inference_hub_part1_semantic_invalid_repair` and
   `experiments.misc.inference_hub_part1_role_semantic_invalid_repair` operate
   only on COMPLETE source manifests. They preserve every primary row and
@@ -191,6 +225,16 @@ campaigns have priority over supplemental retries.
   paper assets from their hash-bound manifest, emits portable Croissant 1.1
   metadata, rebuilds from a clean extraction, and rejects stale, partial,
   private, or tampered inputs. Private/live outputs remain excluded.
+- The definitive analysis and seven figure families were generated and pushed
+  at commit `5cd54a0`. Croissant 1.1 metadata validates against the hash-bound
+  analysis and paper-assets manifests, and the anonymous supplement rebuilt
+  deterministically with 240 files.
+- The final review PDF has the exact title, anonymous author block, eight-page
+  main body, and 41 pages including references, appendices, and the NeurIPS
+  checklist. Bundled Tectonic compiled it successfully; all 41 pages were
+  rendered and visually inspected with no clipping, overlap, or unreadable
+  glyphs. Citation resolution, em-dash, format-compliance, and source/PDF
+  hygiene checks pass. The clean full suite is 914 passed and 1 skipped.
 
 ## Paper requirements that remain fixed
 
@@ -215,27 +259,8 @@ campaigns have priority over supplemental retries.
 
 ## Exact next steps
 
-1. Let primary Part 1 reach a COMPLETE manifest and finish the active Part 2
-   sensitivity schedule; if a host wrapper expires, resume with byte-identical
-   arguments. Part 0, role calibration, and nominal Part 2 are terminal.
-2. Keep any semantic-invalid repair campaigns separate from the primary
-   all-scheduled denominators; never replace visible model-format outcomes.
-3. Resume and complete deadline sensitivity, then resume the three availability
-   retry panels; periodically re-probe still-unavailable MiniMax M2.7 and Kimi
-   K2.5.
-4. The automatic completion watcher now accepts only the explicit
-   all-scheduled Part 0 terminal policy, then runs
-   `analysis.analyze_provider_safe_v2_definitive` and builds the seven figure
-   families, six within-panel tables, nonpooled model-by-phase matrix, and
-   headline macros, then run the separate availability-retry and bounded
-   semantic-repair analyzers.
-5. Replace any residual superseded deadline-scope prose and artifacts in the
-   manuscript with only completed generated 48-root, 384-root, and
-   12-trajectory evidence. Keep role and sensitivity exploratory and keep
-   cross-axis output gated.
-6. Compile with bundled Tectonic, render every PDF page, verify exact title,
-   anonymity, main-body page limit, table spacing/captions, figure legibility,
-   citations, and numeric consistency.
-7. Run the full repository suite, strict validation, deterministic supplement
-   rebuild, three context-fresh paper audits, update this checkpoint with final
-   hashes/counts, commit, and push `master`.
+1. Commit and push this final checkpoint plus the compatibility-bound
+   operational-repair fix and regression test on `master`.
+2. Keep future exact-route availability re-probes isolated. Do not substitute
+   routes, replace genuine semantic invalids, alter sealed primary evidence, or
+   change the submitted paper automatically.

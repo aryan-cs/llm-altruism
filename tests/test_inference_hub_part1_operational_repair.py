@@ -19,11 +19,70 @@ from experiments.misc.inference_hub_part1_operational_repair import (
     RESPONSE_ARTIFACT_TYPE,
     SANITIZED_ARTIFACT_TYPE,
     Part1OperationalRepairError,
+    _rehydrate_compatibility_controls,
     run_repair,
 )
 
 
 BASE_SEED = 20_260_802
+
+
+def test_rehydrates_bound_compatibility_max_tokens_omitted_from_manifest_rows(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    registry_path = tmp_path / "registry.json"
+    compatibility_path = tmp_path / "compatibility.json"
+    registry_path.write_text("{}\n", encoding="utf-8")
+    compatibility_path.write_text("{}\n", encoding="utf-8")
+    target = "provider/model"
+    subject = {
+        "target_id": target,
+        "route": "served/model",
+        "supported_controls": ["seed", "temperature"],
+        "selected_profile_id": "profile_01",
+        "selected_profile_request_sha256": "a" * 64,
+        "candidate_index": 0,
+        "model": "model",
+        "upstream_provider": "provider",
+    }
+    manifest = {
+        "input_artifacts": {
+            "registry": {
+                "path": str(registry_path),
+                "file_sha256": base._sha256_file(registry_path),
+            },
+            "compatibility": {
+                "path": str(compatibility_path),
+                "file_sha256": base._sha256_file(compatibility_path),
+            },
+        }
+    }
+    monkeypatch.setattr(
+        base,
+        "_registry_targets",
+        lambda registry: {
+            target: {"model": "model", "upstream_provider": "provider"}
+        },
+    )
+    monkeypatch.setattr(
+        base,
+        "_validated_compatibility",
+        lambda compatibility, registry: {
+            target: {
+                "route": "served/model",
+                "supported_controls": ["seed", "temperature"],
+                "selected_profile_id": "profile_01",
+                "selected_profile_request_sha256": "a" * 64,
+                "candidate_index": 0,
+                "compatibility_max_tokens": 8192,
+            }
+        },
+    )
+
+    hydrated = _rehydrate_compatibility_controls(manifest, {target: subject})
+
+    assert hydrated[target]["compatibility_max_tokens"] == 8192
+    assert "compatibility_max_tokens" not in subject
 
 
 def _journal(path: Path, payloads: list[dict[str, Any]]) -> dict[str, Any]:

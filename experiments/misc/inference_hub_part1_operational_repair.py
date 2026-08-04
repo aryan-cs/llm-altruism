@@ -59,6 +59,81 @@ class Part1OperationalRepairError(RuntimeError):
     """The operational repair evidence or execution contract is unsafe."""
 
 
+def _rehydrate_compatibility_controls(
+    manifest: Mapping[str, Any],
+    subjects: Mapping[str, Mapping[str, Any]],
+) -> dict[str, Mapping[str, Any]]:
+    """Restore request-affecting compatibility fields omitted from manifest rows."""
+
+    inputs = manifest.get("input_artifacts")
+    if not isinstance(inputs, Mapping):
+        return {target: dict(subject) for target, subject in subjects.items()}
+    registry_ref = inputs.get("registry")
+    compatibility_ref = inputs.get("compatibility")
+    if not isinstance(registry_ref, Mapping) or not isinstance(
+        compatibility_ref, Mapping
+    ):
+        raise Part1OperationalRepairError(
+            "Source compatibility input bindings are incomplete."
+        )
+    bound: dict[str, tuple[Path, Mapping[str, Any]]] = {}
+    for label, reference in (
+        ("registry", registry_ref),
+        ("compatibility", compatibility_ref),
+    ):
+        path_value = reference.get("path")
+        digest = reference.get("file_sha256")
+        if (
+            not isinstance(path_value, str)
+            or not isinstance(digest, str)
+            or len(digest) != 64
+        ):
+            raise Part1OperationalRepairError(
+                f"Source {label} input binding is malformed."
+            )
+        path = Path(path_value).resolve()
+        if not path.is_file() or base._sha256_file(path) != digest:
+            raise Part1OperationalRepairError(
+                f"Source {label} input binding changed."
+            )
+        bound[label] = (path, reference)
+
+    registry = base._read_json(bound["registry"][0], "bound source registry")
+    compatibility = base._read_json(
+        bound["compatibility"][0], "bound source compatibility"
+    )
+    registry_by_id = base._registry_targets(registry)
+    selected_by_id = base._validated_compatibility(compatibility, registry)
+    hydrated: dict[str, Mapping[str, Any]] = {}
+    for target, subject in subjects.items():
+        registered = registry_by_id.get(target)
+        selected = selected_by_id.get(target)
+        if not isinstance(registered, Mapping) or not isinstance(selected, Mapping):
+            raise Part1OperationalRepairError(
+                f"Source compatibility no longer selects {target}."
+            )
+        expected = {
+            "route": selected.get("route"),
+            "supported_controls": selected.get("supported_controls"),
+            "selected_profile_id": selected.get("selected_profile_id"),
+            "selected_profile_request_sha256": selected.get(
+                "selected_profile_request_sha256"
+            ),
+            "candidate_index": selected.get("candidate_index"),
+            "model": registered.get("model"),
+            "upstream_provider": registered.get("upstream_provider"),
+        }
+        if any(subject.get(key) != value for key, value in expected.items()):
+            raise Part1OperationalRepairError(
+                f"Source compatibility identity changed for {target}."
+            )
+        hydrated[target] = {
+            **subject,
+            "compatibility_max_tokens": selected.get("compatibility_max_tokens"),
+        }
+    return hydrated
+
+
 def _require_private_file(path: Path) -> None:
     if not path.is_file():
         raise Part1OperationalRepairError(f"Private evidence is missing: {path}.")
@@ -117,6 +192,7 @@ def _load_source(
         raise Part1OperationalRepairError(
             "Source subject identities are invalid or duplicated."
         )
+    subjects = _rehydrate_compatibility_controls(manifest, subjects)
     judge = manifest.get("judge_reservation")
     if (
         not isinstance(judge, Mapping)
