@@ -25,6 +25,8 @@ from typing import Any, Iterable, Mapping, Sequence
 import numpy as np
 
 from analysis.part2_confirmatory import SENSITIVITY_FACTORS, student_t_975
+from experiments.misc import inference_hub_part1_operational_repair as part1_operational_repair
+from experiments.misc import inference_hub_part1_panel as part1_panel
 from experiments.part1.confirmatory_design import (
     COUNTERBALANCE_BY_ID,
     DOMAINS,
@@ -56,6 +58,9 @@ EXPECTED_TYPES = {
     "role": "inference_hub_part1_role_calibration_private_v1",
     "sensitivity": "inference_hub_part2_sensitivity_campaign_v1",
 }
+PART1_OPERATIONAL_REPAIR_STATUS = (
+    "complete_exact_source_bound_transport_null_overlay_applied"
+)
 
 
 class DefinitiveAnalysisError(RuntimeError):
@@ -280,6 +285,7 @@ def _load_manifest(
     phase: str,
     *,
     allow_terminalized_part0_operational_invalids: bool = False,
+    allow_terminalized_part1_transport_nulls: bool = False,
 ) -> tuple[Path, Path, dict[str, Any], str]:
     path = _manifest_path(value).resolve()
     _private_mode(path)
@@ -297,6 +303,13 @@ def _load_manifest(
         and not manifest.get("completed_at_utc")
     ):
         evidence_status = "fully_terminalized_with_operational_invalids"
+    elif (
+        phase == "part1"
+        and allow_terminalized_part1_transport_nulls
+        and manifest.get("complete") is False
+        and not manifest.get("completed_at_utc")
+    ):
+        evidence_status = "fully_terminalized_with_transport_nulls"
     else:
         raise DefinitiveAnalysisError(f"{phase} manifest is not COMPLETE.")
     _provider_safe_contract(manifest, phase)
@@ -353,6 +366,546 @@ def _validate_standard_journals(run: Path, manifest: Mapping[str, Any]) -> dict[
         str(target): _read_journal(ref, private, f"raw/{target}")
         for target, ref in refs["raw_responses"].items()
     }
+
+
+def _require_inactive_run(run: Path, label: str) -> None:
+    """Refuse a snapshot while its append-only journals may still be changing."""
+
+    lock_path = run / "private" / ".run.lock"
+    if not lock_path.is_file():
+        raise DefinitiveAnalysisError(f"{label} run lock is missing.")
+    try:
+        lock = lock_path.open("a+b")
+    except OSError as error:
+        raise DefinitiveAnalysisError(f"{label} run lock is unavailable.") from error
+    try:
+        try:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            raise DefinitiveAnalysisError(f"{label} still has an active writer.") from error
+    finally:
+        try:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+        finally:
+            lock.close()
+
+
+def _part1_original_terminal_snapshot(
+    run: Path, manifest: Mapping[str, Any]
+) -> tuple[
+    dict[str, Mapping[str, Any]],
+    dict[str, list[dict[str, Any]]],
+    dict[tuple[str, str], dict[str, Any]],
+    dict[str, Any],
+]:
+    """Validate the exact 75 x 384 original panel before applying an overlay."""
+
+    _require_inactive_run(run, "Part 1 source")
+    subjects = _subject_index(manifest)
+    if len(subjects) != 75 or manifest.get("trial_limit") != 384:
+        raise DefinitiveAnalysisError(
+            "Part 1 operational repair requires the exact 75 x 384 schedule."
+        )
+    base_seed = manifest.get("base_seed")
+    if isinstance(base_seed, bool) or not isinstance(base_seed, int):
+        raise DefinitiveAnalysisError("Part 1 source base seed is invalid.")
+    trials = part1_panel.build_draft_trials(base_seed=base_seed, limit=384)
+    trials_by_id = {trial.trial_id: trial for trial in trials}
+    if len(trials_by_id) != 384:
+        raise DefinitiveAnalysisError("Part 1 frozen trial schedule is invalid.")
+
+    journals = _validate_standard_journals(run, manifest)
+    if set(journals) != set(subjects):
+        raise DefinitiveAnalysisError("Part 1 original journal target set changed.")
+    originals: dict[tuple[str, str], dict[str, Any]] = {}
+    visible = valid = semantic_invalid = identity_mismatch = 0
+    for target, rows in journals.items():
+        subject = subjects[target]
+        if len(rows) != 384:
+            raise DefinitiveAnalysisError(
+                f"Part 1 original schedule is incomplete for {target}."
+            )
+        for row in rows:
+            trial_id = row.get("trial_id")
+            trial = trials_by_id.get(str(trial_id))
+            key = (target, str(trial_id))
+            raw = row.get("raw_response")
+            if trial is None or key in originals:
+                raise DefinitiveAnalysisError(
+                    f"Part 1 original schedule key is invalid for {target}."
+                )
+            request, controls = part1_panel._request_contract(subject, trial)
+            if (
+                row.get("schema_version") != 1
+                or row.get("artifact_type") != "inference_hub_part1_raw_response"
+                or row.get("target_id") != target
+                or row.get("upstream_provider") != subject.get("upstream_provider")
+                or row.get("model") != subject.get("model")
+                or row.get("requested_route") != subject.get("route")
+                or row.get("root_id") != trial.root_id
+                or row.get("game") != trial.game
+                or row.get("domain") != trial.domain
+                or row.get("counterbalance_id") != trial.counterbalance_id
+                or row.get("prompt_text") != trial.prompt_text
+                or row.get("prompt_sha256") != trial.prompt_hash
+                or row.get("request_sha256") != _sha256_json(request)
+                or row.get("controls") != controls
+            ):
+                raise DefinitiveAnalysisError(
+                    f"Part 1 original route/trial/root/prompt/request binding failed for {target}."
+                )
+            if raw is None:
+                failure = row.get("failure")
+                if (
+                    row.get("raw_response_sha256") is not None
+                    or row.get("response_model") is not None
+                    or row.get("model_identity_valid") is not False
+                    or row.get("parsed_action") is not None
+                    or row.get("format_valid") is not False
+                    or not isinstance(failure, Mapping)
+                    or not isinstance(failure.get("failure_code"), str)
+                    or not failure.get("failure_code")
+                ):
+                    raise DefinitiveAnalysisError(
+                        "Part 1 transport-null terminal row is malformed."
+                    )
+            else:
+                visible += 1
+                if (
+                    row.get("raw_response_sha256") != _sha256_json(raw)
+                    or row.get("response_model") != subject.get("route")
+                    or row.get("model_identity_valid") is not True
+                ):
+                    identity_mismatch += 1
+                if row.get("format_valid") is True:
+                    valid += 1
+                else:
+                    semantic_invalid += 1
+            originals[key] = row
+        if {key[1] for key in originals if key[0] == target} != set(trials_by_id):
+            raise DefinitiveAnalysisError(
+                f"Part 1 frozen trial membership changed for {target}."
+            )
+
+    planned = 75 * 384
+    transport_nulls = planned - visible
+    summary = manifest.get("summary")
+    if (
+        manifest.get("complete") is not False
+        or manifest.get("completed_at_utc")
+        or not isinstance(summary, Mapping)
+        or summary.get("planned_generations") != planned
+        or summary.get("retained_trial_records") != planned
+        or summary.get("responses_received") != visible
+        or summary.get("failed_without_response") != transport_nulls
+        or summary.get("format_valid") != valid
+        or summary.get("format_invalid_retained") != semantic_invalid
+        or summary.get("response_model_identity_mismatches") != identity_mismatch
+        or transport_nulls <= 0
+        or identity_mismatch != 0
+    ):
+        raise DefinitiveAnalysisError(
+            "Part 1 source is not a fully terminalized transport-null snapshot."
+        )
+    return subjects, journals, originals, {
+        "planned_generations": planned,
+        "visible_original_responses": visible,
+        "original_transport_nulls": transport_nulls,
+        "visible_original_format_invalids": semantic_invalid,
+    }
+
+
+def _part1_repair_metadata_matches_payload(
+    row: Mapping[str, Any], raw: Mapping[str, Any]
+) -> bool:
+    try:
+        metadata = part1_panel._response_metadata(raw)
+    except (KeyError, TypeError, ValueError):
+        return False
+    fields = (
+        "request_id",
+        "response_model",
+        "finish_reason",
+        "usage",
+        "reasoning_fields",
+        "output_field",
+        "response_text",
+        "response_text_sha256",
+        "parsed_action",
+        "format_valid",
+    )
+    return all(row.get(field) == metadata.get(field) for field in fields)
+
+
+def _validate_part1_operational_repair(
+    *,
+    source_run: Path,
+    source_manifest_path: Path,
+    source_manifest: Mapping[str, Any],
+    repair_value: Path,
+) -> tuple[
+    dict[str, list[dict[str, Any]]],
+    dict[str, Any],
+    Path,
+    dict[str, Any],
+]:
+    """Validate and apply a standalone, exact-source Part 1 repair overlay."""
+
+    subjects, original_journals, originals, source_audit = (
+        _part1_original_terminal_snapshot(source_run, source_manifest)
+    )
+    repair_path = _manifest_path(repair_value).resolve()
+    _private_mode(repair_path)
+    repair = _read_object(repair_path, "Part 1 operational repair manifest")
+    if (
+        repair.get("schema_version") != 1
+        or repair.get("artifact_type")
+        != part1_operational_repair.MANIFEST_ARTIFACT_TYPE
+        or repair.get("evidence_sha256") != _self_hash(repair)
+        or repair.get("complete") is not True
+        or not repair.get("completed_at_utc")
+    ):
+        raise DefinitiveAnalysisError(
+            "Part 1 operational repair manifest is not COMPLETE and self-hash-valid."
+        )
+    repair_run = repair_path.parent.parent
+    _require_inactive_run(repair_run, "Part 1 operational repair")
+
+    source_binding = repair.get("source_manifest")
+    if (
+        not isinstance(source_binding, Mapping)
+        or not isinstance(source_binding.get("path"), str)
+        or Path(source_binding["path"]).resolve() != source_manifest_path.resolve()
+        or source_binding.get("file_sha256") != _sha256_file(source_manifest_path)
+        or source_binding.get("evidence_sha256")
+        != source_manifest.get("evidence_sha256")
+        or repair.get("source_artifact_type") != EXPECTED_TYPES["part1"]
+        or repair.get("source_provenance_sha256")
+        != _sha256_json(source_manifest.get("source_artifacts"))
+    ):
+        raise DefinitiveAnalysisError(
+            "Part 1 operational repair exact-source binding failed."
+        )
+    expected_sources = {
+        str(path.resolve()): _sha256_file(path.resolve())
+        for path in part1_operational_repair._SOURCE_PATHS
+    }
+    if repair.get("repair_source_artifacts") != expected_sources:
+        raise DefinitiveAnalysisError(
+            "Part 1 operational repair implementation-source binding failed."
+        )
+    max_rounds = repair.get("max_operational_rounds")
+    if (
+        isinstance(max_rounds, bool)
+        or not isinstance(max_rounds, int)
+        or max_rounds < 1
+        or repair.get("request_policy")
+        != "exact_original_request_no_seed_or_prompt_change_v1"
+        or repair.get("eligibility_policy")
+        != "original_retained_provider_payload_null_only_v1"
+        or repair.get("original_manifest_mutated") is not False
+        or repair.get("original_journals_mutated") is not False
+        or repair.get("visible_format_invalid_rows_retried") is not False
+        or repair.get("judge_dispatched") is not False
+    ):
+        raise DefinitiveAnalysisError(
+            "Part 1 operational repair policy binding failed."
+        )
+
+    refs = repair.get("journals")
+    raw_refs = refs.get("raw_responses") if isinstance(refs, Mapping) else None
+    if not isinstance(raw_refs, Mapping) or set(raw_refs) != set(subjects):
+        raise DefinitiveAnalysisError(
+            "Part 1 operational repair journal target set changed."
+        )
+    repair_private = repair_run / "private"
+    ledger = _read_journal(
+        refs.get("attempt_ledger"), repair_private, "Part 1 operational repair ledger"
+    )
+    repair_rows = {
+        str(target): _read_journal(
+            reference, repair_private, f"Part 1 operational repair raw/{target}"
+        )
+        for target, reference in raw_refs.items()
+    }
+
+    eligible = {
+        key: row for key, row in originals.items() if row.get("raw_response") is None
+    }
+    reservations: dict[str, dict[str, Any]] = {}
+    completions: dict[str, dict[str, Any]] = {}
+    unit_rounds: set[tuple[str, str, int]] = set()
+    for row in ledger:
+        attempt_id = row.get("attempt_id")
+        event = row.get("event")
+        if (
+            row.get("schema_version") != 1
+            or row.get("artifact_type")
+            != part1_operational_repair.ATTEMPT_ARTIFACT_TYPE
+            or not isinstance(attempt_id, str)
+            or not attempt_id
+            or event not in {"reserved_before_dispatch", "attempt_completed"}
+        ):
+            raise DefinitiveAnalysisError(
+                "Part 1 operational repair ledger row is invalid."
+            )
+        bucket = reservations if event == "reserved_before_dispatch" else completions
+        if attempt_id in bucket:
+            raise DefinitiveAnalysisError(
+                "Part 1 operational repair attempt event is duplicated."
+            )
+        bucket[attempt_id] = row
+        if event != "reserved_before_dispatch":
+            continue
+        target = str(row.get("target_id"))
+        trial_id = str(row.get("trial_id"))
+        round_index = row.get("round_index")
+        original = eligible.get((target, trial_id))
+        subject = subjects.get(target)
+        if (
+            isinstance(round_index, bool)
+            or not isinstance(round_index, int)
+            or not 1 <= round_index <= max_rounds
+            or original is None
+            or subject is None
+            or (target, trial_id, round_index) in unit_rounds
+            or attempt_id
+            != part1_operational_repair._attempt_id(
+                str(original.get("record_sha256")), round_index
+            )
+            or row.get("root_id") != original.get("root_id")
+            or row.get("original_record_sha256")
+            != original.get("record_sha256")
+            or row.get("original_request_sha256")
+            != original.get("request_sha256")
+            or row.get("original_prompt_sha256") != original.get("prompt_sha256")
+            or row.get("requested_route") != subject.get("route")
+            or row.get("request_sha256") != original.get("request_sha256")
+            or row.get("upstream_provider") != subject.get("upstream_provider")
+            or row.get("model") != subject.get("model")
+        ):
+            raise DefinitiveAnalysisError(
+                "Part 1 operational repair retry lineage changed."
+            )
+        unit_rounds.add((target, trial_id, round_index))
+    if set(reservations) != set(completions):
+        raise DefinitiveAnalysisError(
+            "Part 1 operational repair ledger has an open attempt."
+        )
+
+    raw_by_attempt: dict[str, dict[str, Any]] = {}
+    identity_valid_by_unit: dict[tuple[str, str], dict[str, Any]] = {}
+    for target, rows in repair_rows.items():
+        subject = subjects[target]
+        for row in rows:
+            attempt_id = row.get("attempt_id")
+            trial_id = str(row.get("trial_id"))
+            round_index = row.get("round_index")
+            original = eligible.get((target, trial_id))
+            reservation = reservations.get(str(attempt_id))
+            raw = row.get("raw_response")
+            identity_valid = row.get("response_model") == subject.get("route")
+            if (
+                row.get("schema_version") != 1
+                or row.get("artifact_type")
+                != part1_operational_repair.RESPONSE_ARTIFACT_TYPE
+                or not isinstance(attempt_id, str)
+                or attempt_id in raw_by_attempt
+                or not isinstance(round_index, int)
+                or original is None
+                or reservation is None
+                or reservation.get("target_id") != target
+                or reservation.get("trial_id") != trial_id
+                or reservation.get("round_index") != round_index
+                or row.get("root_id") != original.get("root_id")
+                or row.get("original_record_sha256")
+                != original.get("record_sha256")
+                or row.get("original_request_sha256")
+                != original.get("request_sha256")
+                or row.get("original_prompt_sha256") != original.get("prompt_sha256")
+                or row.get("requested_route") != subject.get("route")
+                or row.get("request_sha256") != original.get("request_sha256")
+                or row.get("upstream_provider") != subject.get("upstream_provider")
+                or row.get("model") != subject.get("model")
+                or not isinstance(raw, Mapping)
+                or row.get("raw_response_sha256") != _sha256_json(raw)
+                or row.get("model_identity_valid") is not identity_valid
+                or not _part1_repair_metadata_matches_payload(row, raw)
+            ):
+                raise DefinitiveAnalysisError(
+                    "Part 1 operational repair route/trial/root/prompt/request/payload binding failed."
+                )
+            raw_by_attempt[attempt_id] = row
+            if identity_valid:
+                unit = (target, trial_id)
+                if unit in identity_valid_by_unit:
+                    raise DefinitiveAnalysisError(
+                        "Part 1 operational repair retained multiple overlay responses for one unit."
+                    )
+                identity_valid_by_unit[unit] = row
+
+    rounds_by_unit: dict[tuple[str, str], list[int]] = defaultdict(list)
+    for attempt_id, reservation in reservations.items():
+        completion = completions[attempt_id]
+        unit = (str(reservation.get("target_id")), str(reservation.get("trial_id")))
+        round_index = int(reservation["round_index"])
+        rounds_by_unit[unit].append(round_index)
+        raw = raw_by_attempt.get(attempt_id)
+        outcome = completion.get("outcome")
+        if raw is not None:
+            expected_outcome = (
+                "response_retained_for_overlay"
+                if raw.get("model_identity_valid") is True
+                else "identity_mismatch_retained_not_overlay"
+            )
+            if (
+                outcome != expected_outcome
+                or completion.get("response_payload_sha256")
+                != raw.get("raw_response_sha256")
+                or completion.get("response_model") != raw.get("response_model")
+                or completion.get("format_valid") != raw.get("format_valid")
+            ):
+                raise DefinitiveAnalysisError(
+                    "Part 1 operational repair retained completion is not payload-bound."
+                )
+        elif outcome == "transport_failure":
+            if (
+                not isinstance(completion.get("failure_code"), str)
+                or not completion.get("failure_code")
+                or not isinstance(completion.get("transient"), bool)
+                or (
+                    completion.get("http_status") is not None
+                    and (
+                        isinstance(completion.get("http_status"), bool)
+                        or not isinstance(completion.get("http_status"), int)
+                    )
+                )
+            ):
+                raise DefinitiveAnalysisError(
+                    "Part 1 operational repair transport completion is malformed."
+                )
+        elif outcome == "indeterminate_after_crash":
+            if completion.get("redispatch_same_round") is not False:
+                raise DefinitiveAnalysisError(
+                    "Part 1 operational repair crash recovery contract changed."
+                )
+        else:
+            raise DefinitiveAnalysisError(
+                "Part 1 operational repair completion outcome is invalid."
+            )
+    if set(identity_valid_by_unit) != set(eligible):
+        raise DefinitiveAnalysisError(
+            "Part 1 operational repair does not resolve every transport-null unit."
+        )
+    for unit, rounds in rounds_by_unit.items():
+        ordered = sorted(rounds)
+        success_round = int(identity_valid_by_unit[unit]["round_index"])
+        if ordered != list(range(1, success_round + 1)) or ordered[-1] != success_round:
+            raise DefinitiveAnalysisError(
+                "Part 1 operational repair retry rounds are not contiguous through success."
+            )
+
+    effective_index = dict(originals)
+    effective_index.update(
+        {
+            key: {
+                **originals[key],
+                **row,
+                "operational_repair_overlay_applied": True,
+            }
+            for key, row in identity_valid_by_unit.items()
+        }
+    )
+    effective_rows = list(effective_index.values())
+    summary = repair.get("summary")
+    recomputed = {
+        "planned_generations": 28_800,
+        "retained_trial_records": len(effective_rows),
+        "responses_received": sum(
+            row.get("raw_response") is not None for row in effective_rows
+        ),
+        "failed_without_response": sum(
+            row.get("raw_response") is None for row in effective_rows
+        ),
+        "format_valid": sum(row.get("format_valid") is True for row in effective_rows),
+        "format_invalid_retained": sum(
+            row.get("raw_response") is not None and row.get("format_valid") is not True
+            for row in effective_rows
+        ),
+        "response_model_identity_mismatches": sum(
+            row.get("raw_response") is not None
+            and row.get("model_identity_valid") is not True
+            for row in effective_rows
+        ),
+        "operational_repair_eligible_originals": len(eligible),
+        "operational_repairs_succeeded": len(identity_valid_by_unit),
+        "operational_repairs_unresolved": 0,
+        "non_null_format_invalid_originals_not_retried": source_audit[
+            "visible_original_format_invalids"
+        ],
+    }
+    if summary != recomputed:
+        raise DefinitiveAnalysisError(
+            "Part 1 operational repair effective summary does not reconcile."
+        )
+
+    sanitized_ref = repair.get("sanitized_artifact")
+    if not isinstance(sanitized_ref, Mapping) or not isinstance(
+        sanitized_ref.get("path"), str
+    ):
+        raise DefinitiveAnalysisError(
+            "Part 1 operational repair sanitized binding is missing."
+        )
+    sanitized_path = Path(sanitized_ref["path"]).resolve()
+    if not _within(sanitized_path, repair_run / "sanitized"):
+        raise DefinitiveAnalysisError(
+            "Part 1 operational repair sanitized artifact escaped its run."
+        )
+    sanitized = _read_object(sanitized_path, "Part 1 operational repair summary")
+    if (
+        sanitized.get("schema_version") != 1
+        or sanitized.get("artifact_type")
+        != part1_operational_repair.SANITIZED_ARTIFACT_TYPE
+        or sanitized.get("evidence_sha256") != _self_hash(sanitized)
+        or sanitized_ref.get("evidence_sha256") != sanitized.get("evidence_sha256")
+        or sanitized_ref.get("file_sha256") != _sha256_file(sanitized_path)
+        or sanitized.get("source_manifest_evidence_sha256")
+        != source_manifest.get("evidence_sha256")
+        or sanitized.get("raw_text_included") is not False
+        or sanitized.get("original_manifest_mutated") is not False
+        or sanitized.get("original_journals_mutated") is not False
+        or sanitized.get("visible_format_invalid_rows_retried") is not False
+        or sanitized.get("effective_summary") != recomputed
+    ):
+        raise DefinitiveAnalysisError(
+            "Part 1 operational repair sanitized summary failed validation."
+        )
+
+    effective = {
+        target: [
+            (
+                {
+                    **row,
+                    **identity_valid_by_unit[(target, str(row.get("trial_id")))],
+                    "operational_repair_overlay_applied": True,
+                }
+                if (target, str(row.get("trial_id"))) in identity_valid_by_unit
+                else row
+            )
+            for row in rows
+        ]
+        for target, rows in original_journals.items()
+    }
+    audit = {
+        **source_audit,
+        "operational_repairs_succeeded": len(identity_valid_by_unit),
+        "operational_repairs_unresolved": 0,
+        "effective_responses": 28_800,
+        "effective_format_invalids": recomputed["format_invalid_retained"],
+        "visible_format_invalid_rows_retried": False,
+        "status": PART1_OPERATIONAL_REPAIR_STATUS,
+    }
+    return effective, audit, repair_path, repair
 
 
 def _validate_role_journals(
@@ -1171,8 +1724,17 @@ def _part0(run: Path, manifest: Mapping[str, Any]) -> tuple[list[dict[str, Any]]
     return models, figure
 
 
-def _part1(run: Path, manifest: Mapping[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    journals = _validate_standard_journals(run, manifest)
+def _part1(
+    run: Path,
+    manifest: Mapping[str, Any],
+    *,
+    effective_journals: Mapping[str, Sequence[Mapping[str, Any]]] | None = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    journals = (
+        {target: [dict(row) for row in rows] for target, rows in effective_journals.items()}
+        if effective_journals is not None
+        else _validate_standard_journals(run, manifest)
+    )
     subjects = _subject_index(manifest)
     models, figure = [], []
     expected = int(manifest.get("trial_limit") or 384)
@@ -1506,6 +2068,7 @@ def analyze(
     role_calibration: Path,
     sensitivity: Path,
     output_dir: Path,
+    part1_operational_repair: Path | None = None,
     allow_terminalized_part0_operational_invalids: bool = False,
 ) -> dict[str, Any]:
     """Validate all inputs before atomically publishing descriptive tables."""
@@ -1518,6 +2081,9 @@ def analyze(
             allow_terminalized_part0_operational_invalids=(
                 phase == "part0" and allow_terminalized_part0_operational_invalids
             ),
+            allow_terminalized_part1_transport_nulls=(
+                phase == "part1" and part1_operational_repair is not None
+            ),
         )
         for phase, path in inputs.items()
     }
@@ -1529,8 +2095,28 @@ def analyze(
         else None
     )
     judge_audits = [_judge_audit(phase, loaded[phase][2]) for phase in inputs]
+    part1_effective_journals = None
+    part1_operational_repair_audit = None
+    part1_repair_manifest_path = None
+    part1_repair_manifest = None
+    if part1_operational_repair is not None:
+        (
+            part1_effective_journals,
+            part1_operational_repair_audit,
+            part1_repair_manifest_path,
+            part1_repair_manifest,
+        ) = _validate_part1_operational_repair(
+            source_run=loaded["part1"][0],
+            source_manifest_path=loaded["part1"][1],
+            source_manifest=loaded["part1"][2],
+            repair_value=part1_operational_repair,
+        )
     p0_models, p0_fig = _part0(loaded["part0"][0], loaded["part0"][2])
-    p1_models, p1_fig = _part1(loaded["part1"][0], loaded["part1"][2])
+    p1_models, p1_fig = _part1(
+        loaded["part1"][0],
+        loaded["part1"][2],
+        effective_journals=part1_effective_journals,
+    )
     p2_models, p2_fig = _part2(loaded["part2"][0], loaded["part2"][2])
     role_rows = _role(loaded["role"][0], loaded["role"][2])
     sensitivity_rows, sensitivity_models = _sensitivity(loaded["sensitivity"][0], loaded["sensitivity"][2])
@@ -1587,9 +2173,30 @@ def analyze(
                 for phase, (_, path, manifest, _) in loaded.items()
             },
             "input_evidence_status": {
-                phase: status for phase, (_, _, _, status) in loaded.items()
+                phase: (
+                    PART1_OPERATIONAL_REPAIR_STATUS
+                    if phase == "part1" and part1_repair_manifest is not None
+                    else status
+                )
+                for phase, (_, _, _, status) in loaded.items()
             },
             "part0_terminalized_operational_audit": part0_terminalized_audit,
+            "part1_operational_repair_overlay": (
+                {
+                    "basename": part1_repair_manifest_path.name,
+                    "file_sha256": _sha256_file(part1_repair_manifest_path),
+                    "evidence_sha256": part1_repair_manifest["evidence_sha256"],
+                    "source_manifest_file_sha256": _sha256_file(loaded["part1"][1]),
+                    "source_manifest_evidence_sha256": loaded["part1"][2][
+                        "evidence_sha256"
+                    ],
+                    "status": PART1_OPERATIONAL_REPAIR_STATUS,
+                    "audit": part1_operational_repair_audit,
+                }
+                if part1_repair_manifest_path is not None
+                and part1_repair_manifest is not None
+                else None
+            ),
             "path_policy": "portable_basenames_only_no_host_absolute_paths_in_public_manifest",
             "privacy_policy": {
                 "contains_prompt_text": False,
@@ -1627,6 +2234,21 @@ def analyze(
                 raise DefinitiveAnalysisError(
                     f"{phase} manifest changed during analysis."
                 )
+        if part1_repair_manifest_path is not None and part1_repair_manifest is not None:
+            current_repair = _read_object(
+                part1_repair_manifest_path, "Part 1 operational repair manifest"
+            )
+            overlay_binding = result["part1_operational_repair_overlay"]
+            if (
+                not isinstance(overlay_binding, Mapping)
+                or _sha256_file(part1_repair_manifest_path)
+                != overlay_binding["file_sha256"]
+                or current_repair.get("evidence_sha256")
+                != part1_repair_manifest.get("evidence_sha256")
+            ):
+                raise DefinitiveAnalysisError(
+                    "Part 1 operational repair manifest changed during analysis."
+                )
         result["evidence_sha256"] = _self_hash(result)
         _write_json(temporary / "analysis_manifest.json", result)
         os.replace(temporary, output_dir)
@@ -1641,6 +2263,14 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--part0", type=Path, required=True)
     parser.add_argument("--part1", type=Path, required=True)
+    parser.add_argument(
+        "--part1-operational-repair",
+        type=Path,
+        help=(
+            "Optional COMPLETE standalone overlay for an exact-source, fully "
+            "terminalized Part 1 panel containing transport-null rows."
+        ),
+    )
     parser.add_argument("--part2", type=Path, required=True)
     parser.add_argument("--role-calibration", type=Path, required=True)
     parser.add_argument("--sensitivity", type=Path, required=True)
@@ -1663,6 +2293,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         analyze(
             part0=args.part0,
             part1=args.part1,
+            part1_operational_repair=args.part1_operational_repair,
             part2=args.part2,
             role_calibration=args.role_calibration,
             sensitivity=args.sensitivity,
