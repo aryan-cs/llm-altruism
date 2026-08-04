@@ -96,11 +96,35 @@ target ID, exact route, and upstream provider/model identity.
   freezes the historical 50-agent, 100-day, capacity-2,500, private-gain-2,
   reserve-cost-2, collapse-death-rate-0.2 environment with 12 independent
   common-seed trajectories per exact route. The active resumable production
-  journals are `data/private/inference_hub/full-part2-n12-n50-d100-main21-v3`;
+  journals are `data/private/inference_hub/full-part2-n12-n50-d100-main21-v5`;
   the original 19 routes plus recovered MiniMax M2.7 and GLM 5.1 are running,
   while exact Opus 4.5, DeepSeek V4 Flash, and Nemotron 3 Ultra remain on
   bounded identity recovery without route substitution. This campaign remains
   separate from the sealed 12-day evidence until complete and validated.
+  Run or resume it only from commit `f375f22` with the frozen target set and
+  execution arguments below (append `--resume` only when the v5 root exists):
+
+  ```bash
+  uv run python -m experiments.misc.inference_hub_part2_panel \
+    --panel-config experiments/sota_cross_axis_part2_100day_panel.json \
+    --output-dir data/private/inference_hub/full-part2-n12-n50-d100-main21-v5 \
+    --target openai/gpt-3.5-turbo --target openai/gpt-4o \
+    --target openai/gpt-4.1 --target openai/gpt-5 --target openai/gpt-5.2 \
+    --target openai/gpt-5.4 --target openai/gpt-oss-20b \
+    --target anthropic/claude-haiku-4-5 \
+    --target anthropic/claude-sonnet-4-5 \
+    --target anthropic/claude-sonnet-4-6 \
+    --target anthropic/claude-opus-4-6 \
+    --target google/gemini-2.5-flash --target google/gemini-2.5-pro \
+    --target google/gemini-3.1-pro-preview --target google/gemini-3.5-flash \
+    --target meta/llama-3.3-70b-instruct \
+    --target qwen/qwen3.5-35b-a3b --target qwen/qwen3.6-27b \
+    --target nvidia/nemotron-3-super-v3 --target minimaxai/minimax-m2.7 \
+    --target zai-org/glm-5.1 --trajectory-workers 48 \
+    --participant-workers 16 --max-attempts 8 \
+    --initial-backoff-seconds 1 --timeout-seconds 900 \
+    --rate-profile accelerated_original_scale_high_latency_v2
+  ```
 
 Part 2 retains the main accelerated policy at global concurrency 12, provider
 concurrency 2, global 8 starts/second, and provider 1.5 starts/second. Parts 0
