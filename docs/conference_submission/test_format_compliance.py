@@ -48,6 +48,10 @@ def _find_pdftotext() -> str | None:
     return str(bundled) if bundled.is_file() else None
 
 
+def _find_pdfinfo() -> str | None:
+    return shutil.which("pdfinfo")
+
+
 class ConferenceSubmissionFormatTest(unittest.TestCase):
     def test_official_eandd_submission_style(self) -> None:
         source = TEX.read_text(encoding="utf-8")
@@ -147,6 +151,28 @@ class ConferenceSubmissionFormatTest(unittest.TestCase):
         self.assertIn(r"\foreach \block in {1,2,3,4}", source)
         self.assertNotIn("availability_retry", source)
         self.assertNotIn("semantic_invalid_repair", source)
+
+    def test_every_submission_page_remains_portrait(self) -> None:
+        source = TEX.read_text(encoding="utf-8")
+        self.assertNotIn(r"\begin{landscape}", source)
+        self.assertNotIn(r"\end{landscape}", source)
+        self.assertNotIn(r"\usepackage{pdflscape}", source)
+        inspector = _find_pdfinfo()
+        if inspector is None or not PDF.is_file():
+            return
+        result = subprocess.run(
+            [inspector, "-f", "1", "-l", "9999", str(PDF)],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        sizes = re.findall(r"Page\s+\d+\s+size:\s+([0-9.]+)\s+x\s+([0-9.]+)", result.stdout)
+        rotations = re.findall(r"Page\s+\d+\s+rot:\s+(-?\d+)", result.stdout)
+        self.assertTrue(sizes, "pdfinfo did not report per-page sizes")
+        self.assertEqual(len(sizes), len(rotations))
+        for page_number, ((width, height), rotation) in enumerate(zip(sizes, rotations, strict=True), 1):
+            self.assertLess(float(width), float(height), f"page {page_number} is not portrait")
+            self.assertEqual(int(rotation) % 360, 0, f"page {page_number} is rotated")
 
     def test_rendered_main_text_boundary_when_extractor_is_available(self) -> None:
         extractor = _find_pdftotext()

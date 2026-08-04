@@ -15,7 +15,6 @@
 \usepackage{float}
 \usepackage[hidelinks]{hyperref}
 \usepackage{placeins}
-\usepackage{pdflscape}
 \usepackage{tikz}
 \usetikzlibrary{arrows.meta,positioning,shapes.geometric,calc}
 
@@ -324,14 +323,12 @@ Nemotron 3 Super & 34.5 [30.5, 37.8] & 0.224 [0.209, 0.240] & 10\% \\
 \fi
 
 \clearpage
-\begin{landscape}
 \begin{figure}[p]
 \centering
-\includegraphics[width=\linewidth]{figures/part2_all_models.pdf}
-\caption{Repeated-commons outcomes for 19 exact model routes. Each row is one route evaluated on 12 common environment seeds. The centered columns connect model action (mean trajectory restraint), resource consequence (normalized area under the reserve curve), and group consequence (final population divided by initial population); whiskers are trajectory Student-$t$ 95\% intervals. Higher values mean greater action, resource, or population preservation in this simulator; lower values mean more overuse, depletion, or population loss. The axes remain separate outcomes rather than a composite score.}
+\includegraphics[width=\linewidth,height=0.76\textheight,keepaspectratio]{figures/part2_all_models.pdf}
+\caption{Repeated-commons outcomes for 19 exact model routes. Each row is one route evaluated on 12 common environment seeds. The three stacked panels connect model action (mean trajectory restraint), resource consequence (normalized area under the reserve curve), and group consequence (final population divided by initial population); whiskers are trajectory Student-$t$ 95\% intervals. Higher values mean greater action, resource, or population preservation in this simulator; lower values mean more overuse, depletion, or population loss. The axes remain separate outcomes rather than a composite score.}
 \label{fig:part2-completed}
 \end{figure}
-\end{landscape}
 \clearpage
 
 \section{Discussion}
@@ -408,39 +405,33 @@ The following figures and tables are generated from the sealed, hash-verified ag
 Times-compatible typography matches the submission template; the original blue, orange, green, and vermillion palette is fixed in the generator.
 
 \clearpage
-\begin{landscape}
 \begin{figure}[p]\centering
 \includegraphics[width=\linewidth,height=0.78\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/part0_model_language.pdf}
 \caption{Part~0 response-language outcomes. Each row is one exact target route and each centered column is one requested response language over 48 fixed English harmful-request roots. Values are refusal over all scheduled roots with Wilson 95\% intervals. Higher values mean less assistance on this harmful-only task; lower values mean less refusal under the all-scheduled scoring rule. The adjacent table supplies exact upstream Model IDs.}
 \end{figure}
-\end{landscape}
 
-\newcommand{\PartOneAppendixCaption}[1]{Part~1 hosted self-choice outcomes, block #1 of 3 in global display order. Each row is one exact route over 384 scheduled roots. Orange bars are all-scheduled welfare-preserving shares and whiskers are 5,000-replicate stratified frozen-bank sensitivity intervals. Higher values mean fewer counterpart costs within this task; lower values mean the focal actor more often selects its unilateral advantage.}
+\newcommand{\PartOneAppendixCaption}[1]{Part~1 hosted self-choice outcomes, portrait segment #1 of one continuous 75-route ranking in global display order. Each row is one exact route over 384 scheduled roots. Orange bars are all-scheduled welfare-preserving shares and whiskers are 5,000-replicate stratified frozen-bank sensitivity intervals. Higher values mean fewer counterpart costs within this task; lower values mean the focal actor more often selects its unilateral advantage. The full adjacent table supplies exact upstream Model IDs.}
 \foreach \block in {1,2,3}{%
-\clearpage\begin{landscape}\begin{figure}[p]\centering
+\clearpage\begin{figure}[p]\centering
 \includegraphics[width=\linewidth,height=0.78\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/part1_all_models_block\block.pdf}
 \caption{\PartOneAppendixCaption{\block}}
-\end{figure}\end{landscape}}
+\end{figure}}
 
 \clearpage
-\begin{landscape}
 \begin{figure}[p]\centering
 \includegraphics[width=\linewidth,height=0.76\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/part2_sensitivity_effects.pdf}
 \caption{Part~2 sensitivity effects for five exact compatible sentinel routes, with no route substitution. Rows are routes and columns are the five manipulated environmental factors. Each cell is high-minus-low normalized AURC: positive values mean the high factor level preserves more reserve area, while negative values mean it preserves less. Neither sign is universally good or bad for a parameter; it identifies which setting is more resource-preserving. Holm-adjusted significance is computed across the 25 prespecified route--factor tests.}
 \end{figure}
-\end{landscape}
 
-\newcommand{\CrossAppendixCaption}[1]{Task-specific profile, block #1 of 4. Rows are exact target routes. The three centered panels show Part~0 refusal versus compliance, Part~1 welfare preservation versus focal advantage, and Part~2 restraint versus overuse, each with its own denominator. Farther-right green circles mean more refusal of harmful assistance, fewer counterpart costs, or more commons restraint; farther-right vermillion diamonds mean more harmful compliance, focal advantage, or overuse. Shape preserves direction in grayscale. A gray cross means the route was not scheduled for that part. Panels are not pooled.}
+\newcommand{\CrossAppendixCaption}[1]{Task-specific portrait profile, segment #1 of 4. Rows are exact target routes. The three stacked panels show Part~0 refusal versus compliance, Part~1 welfare preservation versus focal advantage, and Part~2 restraint versus overuse, each with its own denominator. Farther-right green circles mean more refusal of harmful assistance, fewer counterpart costs, or more commons restraint; farther-right vermillion diamonds mean more harmful compliance, focal advantage, or overuse. Shape preserves direction in grayscale. A gray cross means the route was not scheduled for that part. Panels are not pooled.}
 \foreach \block in {1,2,3,4}{%
-\clearpage\begin{landscape}\begin{figure}[p]\centering
+\clearpage\begin{figure}[p]\centering
 \includegraphics[width=\linewidth,height=0.78\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/all_models_cross_phase_outcome_profile_block\block.pdf}
 \caption{\CrossAppendixCaption{\block}}
-\end{figure}\end{landscape}}
+\end{figure}}
 
 \clearpage
-\begin{landscape}
 \begingroup
-\setlength{\textwidth}{\linewidth}
 \input{../../data/processed/provider-safe-v2-paper-assets/all_models_cross_phase_table.tex}
 \clearpage
 \input{../../data/processed/provider-safe-v2-paper-assets/part0_model_language_table.tex}
@@ -455,7 +446,6 @@ Times-compatible typography matches the submission template; the original blue, 
 \clearpage
 \input{../../data/processed/provider-safe-v2-paper-assets/part1_local_controls_table.tex}
 \endgroup
-\end{landscape}
 \fi
 
 \section{Artifact Map}

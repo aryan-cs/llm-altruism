@@ -2,50 +2,50 @@
   "artifact_type": "provider_safe_v2_definitive_paper_assets",
   "assets": [
     {
-      "byte_count": 59297,
-      "file_sha256": "78e0c5269624bb0b464e9401cb1899f7c65b236966ff6336c5dadb3d572d2309",
+      "byte_count": 60677,
+      "file_sha256": "8e754aa94abf31bc2626acee944f23e12b1cb81ccc3a1190a4902e37d89aac7f",
       "kind": "vector_pdf",
       "name": "all_models_cross_phase_outcome_profile_block1.pdf"
     },
     {
-      "byte_count": 363320,
-      "file_sha256": "936eeae390d639bc3f85dcd72720f734b386ec42e08e9f283c1cd90831b82cb6",
+      "byte_count": 600411,
+      "file_sha256": "473f5af9254bd56890fa8d1e39911edd728d12b422bedec2f3d1ec26762d8756",
       "kind": "raster_png",
       "name": "all_models_cross_phase_outcome_profile_block1.png"
     },
     {
-      "byte_count": 60125,
-      "file_sha256": "540818a2056718fa82a0f23b1fbbe7dc1b0c30ad27153f4fc5e9c6d7f096fe04",
+      "byte_count": 61689,
+      "file_sha256": "783aa925283887dc9308cc96c9c21f81195a213796c55f966e90015b740e631e",
       "kind": "vector_pdf",
       "name": "all_models_cross_phase_outcome_profile_block2.pdf"
     },
     {
-      "byte_count": 345082,
-      "file_sha256": "f59b016a3da25ca3d7300700e78b1e80495a4f306d7b676c7804c4bdfbcdb450",
+      "byte_count": 552864,
+      "file_sha256": "9244eac6f567c6f077101c7f201c67bf0941c3111536c4ed6920270cd7c1b501",
       "kind": "raster_png",
       "name": "all_models_cross_phase_outcome_profile_block2.png"
     },
     {
-      "byte_count": 58315,
-      "file_sha256": "a793ddafb3ead5b881cd2c750e6e023835d730580c8bd0ea09e73345742990ca",
+      "byte_count": 59483,
+      "file_sha256": "708bb0c0ef3b00e0a700e502e45a5be45f2cce990aaa972d21426a2ec87f16ca",
       "kind": "vector_pdf",
       "name": "all_models_cross_phase_outcome_profile_block3.pdf"
     },
     {
-      "byte_count": 328842,
-      "file_sha256": "5d9c67ce7fcd52b314857775a2663ce25029131669eaeb300180b0d85071891e",
+      "byte_count": 505661,
+      "file_sha256": "8663311ec979bb5de811013c712e066e6a00975c52be499d35988131e27939d4",
       "kind": "raster_png",
       "name": "all_models_cross_phase_outcome_profile_block3.png"
     },
     {
-      "byte_count": 59499,
-      "file_sha256": "7cbb2786ca056a94d021cff250adb339911ca11638628ed15b2635899ae8f6d5",
+      "byte_count": 60732,
+      "file_sha256": "10190a97876977a81feb4f8e41228a54e9800bf1dbe6fe85d6c7d50ebf2854b2",
       "kind": "vector_pdf",
       "name": "all_models_cross_phase_outcome_profile_block4.pdf"
     },
     {
-      "byte_count": 318226,
-      "file_sha256": "4682b6d9d573778d8c6ba3fcfb2e912b73e9803c9eea026298cfcebfa7a94def",
+      "byte_count": 492038,
+      "file_sha256": "7da8888c1098c18ec8bb870576231a68cb138c42266e938d17460b9bec5c5383",
       "kind": "raster_png",
       "name": "all_models_cross_phase_outcome_profile_block4.png"
     },
@@ -68,14 +68,14 @@
       "name": "paper_headlines.tex"
     },
     {
-      "byte_count": 68509,
-      "file_sha256": "67f1fbfa539eacbf90d6a9169137356dc804a58ba0c873c7f7c72b6d0c41a8c3",
+      "byte_count": 68469,
+      "file_sha256": "1425187ed5c931c8f407128f1995773db5cf695ef922064f0016f38e03d1c286",
       "kind": "vector_pdf",
       "name": "part0_model_language.pdf"
     },
     {
-      "byte_count": 621801,
-      "file_sha256": "98a1adda30f546db83f7d31f95029c113ee10e7a98919e08c76871adc405918c",
+      "byte_count": 608341,
+      "file_sha256": "ec629457b8f2a6ff34e2bbb2f04b7a11dd1192ba16834abfe6c62c4988ac8513",
       "kind": "raster_png",
       "name": "part0_model_language.png"
     },
@@ -86,38 +86,38 @@
       "name": "part0_model_language_table.tex"
     },
     {
-      "byte_count": 56805,
-      "file_sha256": "cc6a040d6266786da9ded34d4e95ba041e19bb9cec771f173db4add751ca5aa5",
+      "byte_count": 55695,
+      "file_sha256": "d1db40fc85ddc452205ae00640a43fda77d5741734ae37c8d3cd501f15db20bf",
       "kind": "vector_pdf",
       "name": "part1_all_models_block1.pdf"
     },
     {
-      "byte_count": 455657,
-      "file_sha256": "e20bbdd70d54d3374da55659724da20bf87e20c171716b6972cddec979b99288",
+      "byte_count": 359662,
+      "file_sha256": "b3b4ccb134c13b93b2a56c8032fdc3c292fe3e26762aec2109b40c553748e6fb",
       "kind": "raster_png",
       "name": "part1_all_models_block1.png"
     },
     {
-      "byte_count": 56154,
-      "file_sha256": "9a74a5d13d7b57f82b932950af2ab56ffcd7208a4cbab918d8e0a9b5367cc9e5",
+      "byte_count": 54875,
+      "file_sha256": "6f31c84c7af93fd051b71e46a56ff6fe12dedbc26f384099f3f42071005e7c1b",
       "kind": "vector_pdf",
       "name": "part1_all_models_block2.pdf"
     },
     {
-      "byte_count": 430411,
-      "file_sha256": "2401d03d003ff92df232fabfe9e3960bd296eb22b8fe7b794f4173562a3e7e87",
+      "byte_count": 332903,
+      "file_sha256": "6bfa4ef9ba56ef54c96a44b27ad18c2093ebbb491523b75d0afb1cf3086a5277",
       "kind": "raster_png",
       "name": "part1_all_models_block2.png"
     },
     {
-      "byte_count": 55575,
-      "file_sha256": "a1dafe2d0e90a1a0ee391cf9ebf624fa937b47fa561505553ff26c015b9d6c6c",
+      "byte_count": 54496,
+      "file_sha256": "ec2777269f775eb104cdd768cb3ce27d96b1452df8fedc29b71a5990be713250",
       "kind": "vector_pdf",
       "name": "part1_all_models_block3.pdf"
     },
     {
-      "byte_count": 417950,
-      "file_sha256": "4ca0df6069c7bda4c52f37a74b044775f9c921b4f5ff1ea2ae0eabcd043769f3",
+      "byte_count": 322822,
+      "file_sha256": "da4661101a8e1d697a560e860b498c02a2db618fc7df72c9b29fa4e73c9a6dc3",
       "kind": "raster_png",
       "name": "part1_all_models_block3.png"
     },
@@ -129,7 +129,7 @@
     },
     {
       "byte_count": 52607,
-      "file_sha256": "435125b7b772fdfdd66d2a22f5fdbb80d7880dcd5c361253736eb541b00a6c99",
+      "file_sha256": "a6585260ac356d58be748e7f3075ec7cd741f449f24429dc55a50930f8d59e96",
       "kind": "vector_pdf",
       "name": "part1_local_controls.pdf"
     },
@@ -147,7 +147,7 @@
     },
     {
       "byte_count": 62031,
-      "file_sha256": "64d6e575e02d9d6327740cddfdba2c1520da4e729fbac416b7ede9b7b1883def",
+      "file_sha256": "d7cd201ce1d616cb3e7eae8b65f5f3bf8f68e720e01469883fae1869d9f2b68f",
       "kind": "vector_pdf",
       "name": "part1_role_calibration.pdf"
     },
@@ -164,14 +164,14 @@
       "name": "part1_role_calibration_table.tex"
     },
     {
-      "byte_count": 61702,
-      "file_sha256": "c98efa1661d9a403bf1efc2972e673f22b976d9fdbc974a7bf73e018f223244e",
+      "byte_count": 64186,
+      "file_sha256": "f19af93ad891898a5b8d5cc11daa8ab5bb1994b75d4406a779e279730af06345",
       "kind": "vector_pdf",
       "name": "part2_all_models.pdf"
     },
     {
-      "byte_count": 407562,
-      "file_sha256": "3aaf51522a9906f7c80c24156991ccd6637a3bc36806fa1d8c94f162e8e49113",
+      "byte_count": 663215,
+      "file_sha256": "b7265a4df96872d565a9e7c234cd207e02cf4a22ac4d56fce351abccf6dcc539",
       "kind": "raster_png",
       "name": "part2_all_models.png"
     },
@@ -182,14 +182,14 @@
       "name": "part2_all_models_table.tex"
     },
     {
-      "byte_count": 67969,
-      "file_sha256": "dc5399a05ee7a6a032eacfaa231814095a836dbd5d981b04a58440d6dcd906a3",
+      "byte_count": 67487,
+      "file_sha256": "7756d25752be641c5a285d3f49ced89276e4d94b778af4ecf0f4ac029c38bf65",
       "kind": "vector_pdf",
       "name": "part2_sensitivity_effects.pdf"
     },
     {
-      "byte_count": 318314,
-      "file_sha256": "f785948c292adee6f1eb773887b340f07ff4252f12c60df06428120b4086dc82",
+      "byte_count": 277330,
+      "file_sha256": "e8f008db3017a0498e16204d33517ff706a89436b1dcabca8350960f8b5ce8ca",
       "kind": "raster_png",
       "name": "part2_sensitivity_effects.png"
     },
@@ -203,12 +203,12 @@
   "confirmatory_or_paper_promotion_permitted": false,
   "cross_axis_aggregate_or_score_generated": false,
   "cross_axis_assets_generated": true,
-  "evidence_sha256": "7e96a00ccbb369b067e9f1e8095ba7a6ce0bb4810eddffe2de2dfe4984ab2ac8",
+  "evidence_sha256": "562a92be7ccb47d75418502140a7ed603c1f6a97907624bd84dc7fbd170929f6",
   "exploratory_only": true,
   "figure_font_family": "Times New Roman (NeurIPS ptm-compatible serif)",
   "figure_palette": "original_submission_okabe_ito_blue_orange_green_vermillion",
   "figure_semantic_redundancy": "directional_caption_position_printed_values_and_distinct_marker_shapes",
-  "generated_at_utc": "2026-08-04T06:07:39.948981Z",
+  "generated_at_utc": "2026-08-04T06:30:36.421769Z",
   "human_labels_generated": false,
   "invalid_policy": "first_attempt_invalids_retained_in_all_primary_scheduled_unit_denominators;repairs_reported_separately",
   "local_controls_pooled_with_hosted_routes": false,

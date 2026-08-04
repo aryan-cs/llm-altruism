@@ -1193,9 +1193,9 @@ def _plot_part0(data: Mapping[str, Any], directory: Path) -> list[Path]:
         ]
         for row in rows
     ]
-    # Match the physical landscape insertion aspect so Times annotations are
-    # not silently reduced to 2--3 pt by LaTeX's height constraint.
-    fig, ax = plt.subplots(figsize=(10.2, 7.0))
+    # Match the portrait appendix footprint so the exported figure does not
+    # require a rotated conference page or reduced annotations.
+    fig, ax = plt.subplots(figsize=(7.2, 9.2))
     fig.patch.set_facecolor("white")
     fig.suptitle("Part 0 response-language outcomes by exact model route", x=0.08, ha="left", fontsize=15, fontweight="bold", color=INK)
     fig.text(0.08, 0.93, "Each cell uses 48 scheduled harmful-request roots; rows are ordered by overall within-task refusal rate.", fontsize=9, color=MUTED)
@@ -1325,8 +1325,8 @@ def _plot_cross_phase_outcome_profile(
         block_targets = all_targets[
             block_index * block_size : min(len(all_targets), (block_index + 1) * block_size)
         ]
-        fig, axes = plt.subplots(1, 3, figsize=(12.0, 7.2), squeeze=False)
-        axes_row = axes[0]
+        fig, axes = plt.subplots(3, 1, figsize=(7.2, 10.2), squeeze=False)
+        axes_column = [axes[index][0] for index in range(3)]
         fig.patch.set_facecolor("white")
         fig.suptitle(
             f"Task-specific outcome profiles across exact model routes · block {block_index + 1}/{block_count}",
@@ -1339,7 +1339,7 @@ def _plot_cross_phase_outcome_profile(
         )
         positions = list(range(len(block_targets)))
         for panel_index, (title, index) in enumerate(phase_indices.items()):
-            ax = axes_row[panel_index]
+            ax = axes_column[panel_index]
             for position, target in zip(positions, block_targets, strict=True):
                 row = index.get(target)
                 if row is None:
@@ -1397,20 +1397,16 @@ def _plot_cross_phase_outcome_profile(
             ax.set_axisbelow(True)
             ax.set_title(title, fontsize=8.5, fontweight="bold", loc="left")
             ax.set_yticks(positions)
-            if panel_index == 0:
-                ax.set_yticklabels(
-                    labels[block_index * block_size : block_index * block_size + len(block_targets)],
-                    fontsize=6.8,
-                )
-            else:
-                ax.set_yticklabels([])
-                ax.tick_params(axis="y", length=0)
+            ax.set_yticklabels(
+                labels[block_index * block_size : block_index * block_size + len(block_targets)],
+                fontsize=5.8,
+            )
             _style_axes(ax)
-        axes_row[0].scatter([], [], marker="o", s=26, color=GREEN, edgecolor=INK, linewidth=0.3, label="task-preferable outcome")
-        axes_row[0].scatter([], [], marker="D", s=24, color=RED, edgecolor=INK, linewidth=0.3, label="task-adverse outcome")
-        axes_row[0].scatter([], [], marker="x", s=18, color=MUTED, linewidth=0.7, label="route not in panel")
+        axes_column[0].scatter([], [], marker="o", s=26, color=GREEN, edgecolor=INK, linewidth=0.3, label="task-preferable outcome")
+        axes_column[0].scatter([], [], marker="D", s=24, color=RED, edgecolor=INK, linewidth=0.3, label="task-adverse outcome")
+        axes_column[0].scatter([], [], marker="x", s=18, color=MUTED, linewidth=0.7, label="route not in panel")
         fig.legend(
-            loc="lower center", bbox_to_anchor=(0.53, 0.071), ncol=3,
+            loc="lower center", bbox_to_anchor=(0.53, 0.063), ncol=3,
             frameon=False, fontsize=8,
         )
         _figure_footer(
@@ -1418,9 +1414,9 @@ def _plot_cross_phase_outcome_profile(
             "Green circles are refusal, welfare-preserving choice, and restraint; red diamonds are compliance, focal-advantage choice, and overuse. Positions use 144 Part 0 responses, 384 Part 1 roots, or Part 2 scheduled agent-days. Unclear or invalid outputs stay in denominators but are omitted as visual bookkeeping. Panels are not pooled.",
             x=0.07,
             y=0.008,
-            width=165,
+            width=95,
         )
-        fig.tight_layout(rect=(0.045, 0.145, 0.995, 0.90), w_pad=1.2)
+        fig.tight_layout(rect=(0.025, 0.125, 0.995, 0.90), h_pad=0.8)
         output.extend(
             _save_figure(
                 fig, directory,
@@ -1433,7 +1429,9 @@ def _plot_cross_phase_outcome_profile(
 
 def _plot_part1(data: Mapping[str, Any], directory: Path) -> list[Path]:
     rows = data["part1"]
-    labels = [_label(row) for row in rows]
+    # The adjacent full table preserves each exact upstream Model ID.  Route
+    # IDs alone keep the continuous ranking readable at portrait print scale.
+    labels = [str(row["target_id"]) for row in rows]
     welfare = [float(row["welfare_preserving_rate_all_scheduled"]) for row in rows]
     welfare_intervals = [
         (
@@ -1442,24 +1440,24 @@ def _plot_part1(data: Mapping[str, Any], directory: Path) -> list[Path]:
         )
         for row in rows
     ]
-    # Wrap 75 routes into three print-scale blocks instead of shrinking one
-    # twenty-inch-tall axis into a landscape page.  The generated table beside
-    # this figure retains every exact upstream Model ID.
+    # Treat this as one continuous 75-route ranking displayed in consecutive
+    # portrait segments.  Compressing every row onto one physical page would
+    # leave less than nine points per row and make exact labels unreadable.
     block_count = 3
     block_size = math.ceil(len(rows) / block_count)
     output: list[Path] = []
     for block_index in range(block_count):
         start = block_index * block_size
         stop = min(len(rows), start + block_size)
-        fig, ax = plt.subplots(figsize=(12.0, 7.2))
+        fig, ax = plt.subplots(figsize=(7.2, 9.2))
         fig.patch.set_facecolor("white")
         fig.suptitle(
-            f"Part 1 self-choice outcomes · block {block_index + 1}/{block_count}",
+            "Part 1 self-choice outcomes across all 75 exact routes",
             x=0.08, y=0.995, ha="left", fontsize=15, fontweight="bold", color=INK,
         )
         fig.text(
             0.08, 0.93,
-            "One row per exact route; 384 scheduled roots per route; global within-task display order.",
+            f"Continuous ranking, rows {start + 1}-{stop} of {len(rows)}; 384 scheduled roots per route.",
             fontsize=9, color=MUTED,
         )
         _lollipop_panel(
@@ -1468,9 +1466,13 @@ def _plot_part1(data: Mapping[str, Any], directory: Path) -> list[Path]:
             color=ORANGE, show_labels=True,
             intervals=welfare_intervals[start:stop],
         )
-        ax.tick_params(axis="y", labelsize=6.5)
-        _figure_footer(fig, "Bars are welfare-preserving first attempts over all 384 roots; whiskers are frozen-root-bank sensitivity intervals, not population CIs. Higher values mean fewer counterpart costs in this task.")
-        fig.tight_layout(rect=(0.055, 0.07, 0.995, 0.90))
+        ax.tick_params(axis="y", labelsize=6.2)
+        _figure_footer(
+            fig,
+            "Bars are welfare-preserving first attempts over all 384 roots; whiskers are frozen-root-bank sensitivity intervals, not population CIs. Higher values mean fewer counterpart costs in this task.",
+            width=95,
+        )
+        fig.tight_layout(rect=(0.035, 0.07, 0.995, 0.90))
         output.extend(
             _save_figure(
                 fig, directory, f"part1_all_models_block{block_index + 1}",
@@ -1514,15 +1516,17 @@ def _plot_part2(data: Mapping[str, Any], directory: Path) -> list[Path]:
         )
         for row in rows
     ]
-    fig, axes = plt.subplots(1, 3, figsize=(10.5, 6.8), sharey=False)
+    fig, axes = plt.subplots(3, 1, figsize=(7.2, 10.2), sharey=False)
     fig.patch.set_facecolor("white")
     fig.suptitle("Part 2 commons outcomes for 19 exact model routes", x=0.075, y=0.995, ha="left", fontsize=15, fontweight="bold", color=INK)
     fig.text(0.075, 0.953, "One row per route; 12 trajectories per route; ordered by within-task restraint rate.", fontsize=9, color=MUTED)
-    _lollipop_panel(axes[0], restraint, labels, title="Mean trajectory restraint [t95]", color=GREEN, show_labels=True, intervals=restraint_intervals)
-    _lollipop_panel(axes[1], aurc, labels, title="Mean AURC [t95] / env.", color=GREEN, show_labels=False, intervals=aurc_intervals)
-    _lollipop_panel(axes[2], population, labels, title="Population retained [t95] / env.", color=GREEN, show_labels=False, intervals=population_intervals)
-    _figure_footer(fig, "The three centered bar columns connect model action (restraint), resource consequence (AURC), and group consequence (final population retained). Whiskers are trajectory-level Student-t 95% intervals. Higher values mean more preservation in this simulator. AUPC and nondepletion remain in the released diagnostics; invalid actions remain in denominators and eligibility checks rather than a separate argument-facing panel.", x=0.075, width=155)
-    fig.tight_layout(rect=(0.055, 0.105, 0.995, 0.94), w_pad=1.8)
+    _lollipop_panel(axes[0], restraint, labels, title="Model action: mean trajectory restraint [t95]", color=GREEN, show_labels=True, intervals=restraint_intervals)
+    _lollipop_panel(axes[1], aurc, labels, title="Resource consequence: mean AURC [t95] / env.", color=GREEN, show_labels=True, intervals=aurc_intervals)
+    _lollipop_panel(axes[2], population, labels, title="Group consequence: population retained [t95] / env.", color=GREEN, show_labels=True, intervals=population_intervals)
+    for ax in axes:
+        ax.tick_params(axis="y", labelsize=5.7)
+    _figure_footer(fig, "The three stacked panels connect model action (restraint), resource consequence (AURC), and group consequence (final population retained). Whiskers are trajectory-level Student-t 95% intervals. Higher values mean more preservation in this simulator. AUPC and nondepletion remain in the released diagnostics; invalid actions remain in denominators and eligibility checks rather than a separate argument-facing panel.", x=0.075, width=95)
+    fig.tight_layout(rect=(0.025, 0.08, 0.995, 0.94), h_pad=1.0)
     return _save_figure(fig, directory, "part2_all_models", "Part 2 all-model outcomes")
 
 
@@ -1551,10 +1555,10 @@ def _plot_sensitivity(data: Mapping[str, Any], directory: Path) -> list[Path]:
     targets = data["sensitivity_targets"]
     models = data["sensitivity_models"]
     effects = data["sensitivity"]
-    labels = [_label(models[target]) for target in targets]
+    labels = [str(target) for target in targets]
     matrix = [[float(effects[(target, factor)]["effect_high_minus_low"]) for factor in SENSITIVITY_FACTORS] for target in targets]
     limit = max(0.02, max(abs(value) for row in matrix for value in row))
-    fig, ax = plt.subplots(figsize=(14.8, 6.5))
+    fig, ax = plt.subplots(figsize=(7.2, 7.8))
     fig.patch.set_facecolor("white")
     fig.suptitle("Part 2 exploratory sensitivity: high-minus-low normalized-AURC effects", x=0.09, ha="left", fontsize=15, fontweight="bold", color=INK)
     fig.text(
@@ -1589,7 +1593,7 @@ def _plot_sensitivity(data: Mapping[str, Any], directory: Path) -> list[Path]:
     colorbar.set_label("High - low normalized AURC", fontsize=8, color=INK)
     colorbar.ax.tick_params(labelsize=7, colors=INK)
     _style_axes(ax)
-    _figure_footer(fig, "H: global Holm-adjusted p <= 0.05; n.s.: otherwise. Positive/negative indicates effect direction only and is not automatically good/bad for a parameter factor.", x=0.09, y=0.02)
+    _figure_footer(fig, "H: global Holm-adjusted p <= 0.05; n.s.: otherwise. Positive/negative indicates effect direction only and is not automatically good/bad for a parameter factor.", x=0.09, y=0.02, width=95)
     fig.tight_layout(rect=(0.06, 0.095, 0.99, 0.87))
     return _save_figure(fig, directory, "part2_sensitivity_effects", "Part 2 sensitivity main effects")
 
