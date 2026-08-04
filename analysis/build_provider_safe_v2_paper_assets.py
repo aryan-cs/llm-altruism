@@ -16,6 +16,7 @@ import hashlib
 import json
 import math
 import os
+import re
 import shutil
 import statistics
 import tempfile
@@ -105,6 +106,35 @@ PROVIDER_DISPLAY_NAMES = {
     "deepseek-ai": "DeepSeek",
     "zai-org": "Z.ai",
     "perplexity": "Perplexity",
+}
+
+# Frozen route-version recency for the 22-route current panel.  These values
+# encode the version names in the frozen registry, not mutable vendor aliases
+# or a performance judgment.  Unlisted routes use the natural version parser
+# below, which keeps the broader appendix union deterministic.
+MODEL_RECENCY_BY_TARGET = {
+    "openai/gpt-5.4": (5, 4, 0, 0),
+    "openai/gpt-5.2": (5, 2, 0, 0),
+    "openai/gpt-5": (5, 0, 0, 0),
+    "openai/gpt-oss-20b": (4, 9, 0, 0),
+    "openai/gpt-4.1": (4, 6, 0, 0),
+    "openai/gpt-4o": (4, 4, 0, 0),
+    "openai/gpt-3.5-turbo": (3, 5, 0, 0),
+    "anthropic/claude-opus-4-6": (4, 6, 3, 0),
+    "anthropic/claude-sonnet-4-6": (4, 6, 2, 0),
+    "anthropic/claude-haiku-4-5": (4, 5, 2, 0),
+    "anthropic/claude-sonnet-4-5": (4, 5, 1, 0),
+    "google/gemini-3.5-flash": (3, 5, 0, 0),
+    "google/gemini-3.1-pro-preview": (3, 1, 0, 0),
+    "google/gemini-2.5-flash": (2, 5, 2, 0),
+    "google/gemini-2.5-pro": (2, 5, 1, 0),
+    "nvidia/nemotron-3-super-v3": (3, 3, 0, 0),
+    "nvidia/nemotron-3-ultra": (3, 0, 0, 0),
+    "qwen/qwen3.6-27b": (3, 6, 0, 0),
+    "qwen/qwen3.5-35b-a3b": (3, 5, 0, 0),
+    "meta/llama-3.3-70b-instruct": (3, 3, 0, 0),
+    "deepseek-ai/deepseek-v4-flash": (4, 0, 0, 0),
+    "zai-org/glm-5.1": (5, 1, 0, 0),
 }
 
 
@@ -1107,6 +1137,41 @@ def _provider_order_key(provider: str) -> tuple[int, str]:
         return len(PROVIDER_DISPLAY_ORDER), provider
 
 
+def _model_recency_key(row: Mapping[str, Any]) -> tuple[Any, ...]:
+    target = str(row["target_id"])
+    model = str(row["model"])
+    provider = str(row["upstream_provider"])
+    version = MODEL_RECENCY_BY_TARGET.get(target)
+    if version is None:
+        lowered = model.lower()
+        if provider == "openai" and lowered.startswith("gpt-oss-"):
+            # Parameter count (20B/120B) is not a release version.
+            version = (4, 9, 0, 0)
+        elif provider == "openai" and re.match(r"o4(?:-|$)", lowered):
+            version = (4, 8, 0, 0)
+        elif provider == "openai" and re.match(r"o3(?:-|$)", lowered):
+            version = (4, 7, 0, 0)
+        elif provider == "openai" and re.match(r"o1(?:-|$)", lowered):
+            version = (4, 5, 0, 0)
+        elif provider == "qwen" and lowered == "qwen-235b":
+            # The frozen alias omits its family version; keep it below named
+            # Qwen 3.x routes instead of mistaking 235B for version 235.
+            version = (3, 0, 0, 0)
+        elif provider == "nvidia" and lowered == "nemotron-nano-31b-v3":
+            # Likewise, 31B is scale while the terminal v3 is the version.
+            version = (3, 0, 1, 0)
+        else:
+            normalized = re.sub(r"(?<=\d)-(?=\d(?:\D|$))", ".", lowered)
+            match = re.search(r"\d+(?:\.\d+)*", normalized)
+            parsed = (
+                tuple(int(token) for token in match.group(0).split("."))
+                if match
+                else ()
+            )
+            version = tuple((*parsed, 0, 0, 0, 0)[:4])
+    return (*(-token for token in version), model.lower(), target)
+
+
 def _provider_grouped_rows(
     rows: Sequence[Mapping[str, Any]], *, score_key: str | None = None
 ) -> list[Mapping[str, Any]]:
@@ -1114,8 +1179,12 @@ def _provider_grouped_rows(
 
     def key(row: Mapping[str, Any]) -> tuple[Any, ...]:
         provider = str(row["upstream_provider"])
-        score = 0.0 if score_key is None else -float(row[score_key])
-        return (*_provider_order_key(provider), score, str(row["model"]), str(row["target_id"]))
+        within_provider = (
+            _model_recency_key(row)
+            if score_key is None
+            else (-float(row[score_key]), str(row["model"]), str(row["target_id"]))
+        )
+        return (*_provider_order_key(provider), *within_provider)
 
     return sorted(rows, key=key)
 
@@ -1241,7 +1310,7 @@ def _heatmap(
 
 
 def _plot_part0(data: Mapping[str, Any], directory: Path) -> list[Path]:
-    rows = _provider_grouped_rows(data["part0"], score_key="refusal_rate_all_scheduled")
+    rows = _provider_grouped_rows(data["part0"])
     by_key = data["part0_matrix"]
     labels = _provider_prefixed_labels(rows)
     refusal = [
@@ -1263,7 +1332,7 @@ def _plot_part0(data: Mapping[str, Any], directory: Path) -> list[Path]:
     fig, ax = plt.subplots(figsize=(7.2, 9.2))
     fig.patch.set_facecolor("white")
     fig.suptitle("Part 0 response-language outcomes by exact model route", x=0.08, ha="left", fontsize=15, fontweight="bold", color=INK)
-    fig.text(0.08, 0.93, "Each cell uses 48 scheduled harmful-request roots; provider families are contiguous and ranked within family.", fontsize=9, color=MUTED)
+    fig.text(0.08, 0.93, "Each cell uses 48 scheduled harmful-request roots; provider families are contiguous and newest route versions appear first.", fontsize=9, color=MUTED)
     _heatmap(
         ax, refusal, PART0_LANGUAGES, labels,
         title="Refusal rate [Wilson 95%] / 48 roots", cmap=P0_CMAP,
@@ -1285,9 +1354,7 @@ def _plot_refusal_and_cooperation_overview(
     the ordered Part 1 line look like a longitudinal trajectory.
     """
 
-    part0 = _provider_grouped_rows(
-        data["part0"], score_key="refusal_rate_all_scheduled"
-    )
+    part0 = _provider_grouped_rows(data["part0"])
     part1 = data["part1"]
     refusal = [float(row["refusal_rate_all_scheduled"]) for row in part0]
     refusal_intervals = [
@@ -1376,13 +1443,13 @@ def _plot_refusal_and_cooperation_overview(
         fontweight="bold",
         loc="left",
     )
-    rank_ax.set_xlabel("Within-task route rank (exact-route lookup in Appendix tables)")
+    rank_ax.set_xlabel("Within-task route rank (exact-route lookup in supplement)")
     rank_ax.set_ylabel("Welfare-preserving / 384 roots")
     _style_axes(rank_ax)
 
     _figure_footer(
         fig,
-        "Panel A groups provider families contiguously in the order OpenAI, Anthropic, Google, NVIDIA, then the remaining providers; routes are ranked by refusal only within family. Blue bars end at the all-scheduled point estimate, dots repeat it, and whiskers are 5,000-replicate harmful-root sensitivity intervals. Farther right means less harmful assistance. Panel B remains a global ordered cross-sectional rank profile, not a time series: every orange point is one exact route over the same balanced 384-root bank. Higher means fewer counterpart costs. Part 1 intervals and exact identities appear in the complete appendix bars and table.",
+        "Panel A groups provider families contiguously in the order OpenAI, Anthropic, Google, NVIDIA, then the remaining providers; frozen route versions run newest to oldest within family. Blue bars end at the all-scheduled point estimate, dots repeat it, and whiskers are 5,000-replicate harmful-root sensitivity intervals. Farther right means less harmful assistance. Panel B remains a global ordered cross-sectional rank profile, not a time series: every orange point is one exact route over the same balanced 384-root bank. Higher means fewer counterpart costs. Part 1 intervals and exact identities appear in the supplement.",
         x=0.075,
         y=0.012,
         width=125,
@@ -1423,9 +1490,7 @@ def _plot_matched_current_route_profile(
     targets.sort(
         key=lambda target: (
             *_provider_order_key(str(indices["part0"][target]["upstream_provider"])),
-            -float(indices["part0"][target]["refusal_rate_all_scheduled"]),
-            str(indices["part0"][target]["model"]),
-            target,
+            *_model_recency_key(indices["part0"][target]),
         )
     )
     if not targets:
@@ -1502,7 +1567,7 @@ def _plot_matched_current_route_profile(
     fig.text(
         0.08,
         0.947,
-        "Rows are aligned exact routes; provider families are contiguous and ranked by Part 0 only within family.",
+        "Rows are aligned exact routes; provider families are contiguous and newest route versions appear first.",
         fontsize=8.8,
         color=MUTED,
     )
@@ -1671,8 +1736,13 @@ def _plot_cross_phase_outcome_profile(
     all_targets.sort(
         key=lambda target: (
             *_provider_order_key(identity_by_target[target][0]),
-            identity_by_target[target][1],
-            target,
+            *_model_recency_key(
+                {
+                    "target_id": target,
+                    "upstream_provider": identity_by_target[target][0],
+                    "model": identity_by_target[target][1],
+                }
+            ),
         )
     )
     # The exact Model ID remains in the adjacent generated table.  Route IDs
@@ -1693,7 +1763,7 @@ def _plot_cross_phase_outcome_profile(
         )
         fig.text(
             0.07, 0.93,
-            "Provider families are contiguous; panels retain separate tasks and denominators.",
+            "Provider families are contiguous and newest route versions appear first; panels retain separate denominators.",
             fontsize=9, color=MUTED,
         )
         positions = list(range(len(block_targets)))
@@ -1793,8 +1863,8 @@ def _plot_cross_phase_outcome_profile(
 
 def _plot_part1(data: Mapping[str, Any], directory: Path) -> list[Path]:
     rows = data["part1"]
-    # The adjacent full table preserves each exact upstream Model ID.  Route
-    # IDs alone keep the continuous ranking readable at portrait print scale.
+    # The supplement preserves each exact upstream Model ID. Route IDs alone
+    # keep the continuous ranking readable at portrait print scale.
     labels = [str(row["target_id"]) for row in rows]
     welfare = [float(row["welfare_preserving_rate_all_scheduled"]) for row in rows]
     welfare_intervals = [
@@ -1847,9 +1917,7 @@ def _plot_part1(data: Mapping[str, Any], directory: Path) -> list[Path]:
 
 
 def _plot_part2(data: Mapping[str, Any], directory: Path) -> list[Path]:
-    rows = _provider_grouped_rows(
-        data["part2"], score_key="mean_trajectory_restraint_rate_all_scheduled"
-    )
+    rows = _provider_grouped_rows(data["part2"])
     labels = _provider_prefixed_labels(rows)
     restraint = [
         float(row["mean_trajectory_restraint_rate_all_scheduled"]) for row in rows
@@ -1885,7 +1953,7 @@ def _plot_part2(data: Mapping[str, Any], directory: Path) -> list[Path]:
     fig, axes = plt.subplots(3, 1, figsize=(7.2, 10.2), sharey=False)
     fig.patch.set_facecolor("white")
     fig.suptitle("Part 2 commons outcomes for 19 exact model routes", x=0.075, y=0.995, ha="left", fontsize=15, fontweight="bold", color=INK)
-    fig.text(0.075, 0.953, "One row per route; 12 trajectories per route; provider families are contiguous and ranked within family.", fontsize=9, color=MUTED)
+    fig.text(0.075, 0.953, "One row per route; 12 trajectories per route; provider families are contiguous and newest route versions appear first.", fontsize=9, color=MUTED)
     _lollipop_panel(axes[0], restraint, labels, title="Model action: mean trajectory restraint [t95]", color=GREEN, show_labels=True, intervals=restraint_intervals)
     _lollipop_panel(axes[1], aurc, labels, title="Resource consequence: mean AURC [t95] / env.", color=GREEN, show_labels=True, intervals=aurc_intervals)
     _lollipop_panel(axes[2], population, labels, title="Group consequence: population retained [t95] / env.", color=GREEN, show_labels=True, intervals=population_intervals)
@@ -2051,6 +2119,7 @@ def _table_tex(
     rows: Sequence[Sequence[str]],
     column_spec: str,
     chunk_size: int,
+    placement: str = "tbp",
 ) -> str:
     chunks = [rows[index : index + chunk_size] for index in range(0, len(rows), chunk_size)]
     blocks: list[str] = ["% Generated file. Requires booktabs and graphicx. Do not edit by hand.\n"]
@@ -2059,7 +2128,7 @@ def _table_tex(
         blocks.extend(
             [
                 "\\par\\addvspace{15pt}\n",
-                "\\begin{table*}[tbp]\n",
+                f"\\begin{{table*}}[{placement}]\n",
                 "\\centering\n",
                 f"\\caption{{{caption}{continued}}}\n",
             ]
@@ -2208,6 +2277,81 @@ def _write_tables(data: Mapping[str, Any], directory: Path) -> list[Path]:
     ]
     markdown_path.write_text("\n".join(markdown_lines), encoding="utf-8")
     output.append(markdown_path)
+
+    shared_targets = (
+        set(phase_indices["part0"])
+        & set(phase_indices["part1"])
+        & set(phase_indices["part2"])
+    )
+    if shared_targets and len(shared_targets) != 19:
+        raise PaperAssetsError(
+            f"Compact core table requires 19 matched exact routes, found {len(shared_targets)}."
+        )
+    compact_rows: list[list[str]] = []
+    previous_provider: str | None = None
+    compact_sources = _provider_grouped_rows(
+        [phase_indices["part0"][target] for target in shared_targets]
+    )
+    for p0 in compact_sources:
+        target = str(p0["target_id"])
+        p1 = phase_indices["part1"][target]
+        p2 = phase_indices["part2"][target]
+        identities = {
+            (str(row["upstream_provider"]), str(row["model"]))
+            for row in (p0, p1, p2)
+        }
+        if len(identities) != 1:
+            raise PaperAssetsError(
+                f"Compact core table found inconsistent exact identity for {target!r}."
+            )
+        provider, model = next(iter(identities))
+        if provider != previous_provider:
+            model_cell = (
+                f"\\textbf{{{_tex_escape(PROVIDER_DISPLAY_NAMES.get(provider, provider))}}}: "
+                f"{_tex_escape(model)}"
+            )
+        else:
+            model_cell = f"\\quad {_tex_escape(model)}"
+        compact_rows.append(
+            [
+                model_cell,
+                _pct(float(p0["refusal_rate_all_scheduled"])),
+                _pct(float(p1["welfare_preserving_rate_all_scheduled"])),
+                _pct(float(p2["mean_trajectory_restraint_rate_all_scheduled"])),
+                (
+                    "NE"
+                    if p2["mean_aurc_eligible"] is None
+                    else f"{float(p2['mean_aurc_eligible']):.3f}"
+                ),
+                (
+                    "NE"
+                    if p2["mean_population_retention_eligible"] is None
+                    else _pct(float(p2["mean_population_retention_eligible"]))
+                ),
+            ]
+        )
+        previous_provider = provider
+    if not compact_rows:
+        compact_rows = [["No exact-route overlap", "--", "--", "--", "--", "--"]]
+    compact_path = directory / "compact_matched_core_table.tex"
+    compact_path.write_text(
+        _table_tex(
+            caption=(
+                "Compact matched-model results. Each row is one authenticated exact route scheduled in all three parts, grouped by provider with newer frozen route versions first. Refusal is the Part 0 all-scheduled refusal share over 144 responses; cooperation is the Part 1 all-scheduled welfare-preserving share over 384 roots; restraint is the Part 2 mean trajectory all-scheduled restraint share over 12 trajectories; AURC is normalized reserve area; population is final divided by initial population. Higher values mean less harmful assistance, fewer counterpart costs, more commons restraint, more reserve preservation, or more population retained within the named column. These point estimates are not combined into a composite or general safety ranking. Task-specific intervals, exact target IDs, and the complete 22-, 75-, and 19-route ledgers remain in the supplement."
+            ),
+            label="tab:compact-matched-core",
+            headers=(
+                "Provider / Model ID", "Refusal", "Cooperation",
+                "Restraint", "AURC", "Population",
+            ),
+            rows=compact_rows,
+            column_spec="lccccc",
+            chunk_size=19,
+            placement="!htbp",
+        ),
+        encoding="utf-8",
+    )
+    output.append(compact_path)
 
     part0_rows = []
     for row in data["part0"]:
@@ -2872,7 +3016,7 @@ def build_paper_assets(
             "figure_palette": "original_submission_okabe_ito_blue_orange_green_vermillion",
             "figure_font_family": "Times New Roman (NeurIPS ptm-compatible serif)",
             "figure_row_order": (
-                "provider_family_then_within_family_outcome;"
+                "provider_family_then_newest_frozen_route_version;"
                 "global_outcome_order_retained_only_for_rank_profile_figures"
             ),
             "figure_semantic_redundancy": (

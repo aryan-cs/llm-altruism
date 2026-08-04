@@ -218,42 +218,42 @@
     {
       "@id": "asset-all-models-cross-phase-outcome-profile-block1-png",
       "@type": "cr:FileObject",
-      "contentSize": "415567 B",
+      "contentSize": "423759 B",
       "contentUrl": "provider-safe-v2-paper-assets/all_models_cross_phase_outcome_profile_block1.png",
       "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
       "encodingFormat": "image/png",
       "name": "all_models_cross_phase_outcome_profile_block1.png",
-      "sha256": "e26ef4ebf2aa4246a4cc55fbe73b95b245c552ecde0d1c9a2795eed7bf76185a"
+      "sha256": "5d9bf1813a75e2bc4e9e07b59e75d7da528f5ac0014c7e7a01a0f9bf1b6cdadd"
     },
     {
       "@id": "asset-all-models-cross-phase-outcome-profile-block2-png",
       "@type": "cr:FileObject",
-      "contentSize": "439566 B",
+      "contentSize": "428661 B",
       "contentUrl": "provider-safe-v2-paper-assets/all_models_cross_phase_outcome_profile_block2.png",
       "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
       "encodingFormat": "image/png",
       "name": "all_models_cross_phase_outcome_profile_block2.png",
-      "sha256": "973425d6135a7754286adb65ef057ec46767eebd5b14374efb64a8c26a3ef7d2"
+      "sha256": "a657558b2822a9a18c93b1bc48edebc071ac8172635b0ac602c80505172f4523"
     },
     {
       "@id": "asset-all-models-cross-phase-outcome-profile-block3-png",
       "@type": "cr:FileObject",
-      "contentSize": "497903 B",
+      "contentSize": "510554 B",
       "contentUrl": "provider-safe-v2-paper-assets/all_models_cross_phase_outcome_profile_block3.png",
       "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
       "encodingFormat": "image/png",
       "name": "all_models_cross_phase_outcome_profile_block3.png",
-      "sha256": "51b33606dae5d8f4b15bae09eb601d355eefd8d633ee88feb932a6de2b1a0e47"
+      "sha256": "9163961b7a1de2d162dfa346ced0cf0d9e48e64bd820df8395292314317f07d6"
     },
     {
       "@id": "asset-all-models-cross-phase-outcome-profile-block4-png",
       "@type": "cr:FileObject",
-      "contentSize": "490166 B",
+      "contentSize": "496981 B",
       "contentUrl": "provider-safe-v2-paper-assets/all_models_cross_phase_outcome_profile_block4.png",
       "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
       "encodingFormat": "image/png",
       "name": "all_models_cross_phase_outcome_profile_block4.png",
-      "sha256": "94c8ded9850c3c2c3807d21415c5fd99d5cf13da85ac90281165eeea5d1c924b"
+      "sha256": "477d7ea755f74a5743c3fe155a3fa81fc4f2081ecdf0d5e8cb809eeb89f37e3b"
     },
     {
       "@id": "asset-all-models-cross-phase-table-md",
@@ -276,24 +276,34 @@
       "sha256": "52702faff18883e71c0967c2ddf45e2c88091f9d73c8ca66b397f05fe8ff1530"
     },
     {
+      "@id": "asset-compact-matched-core-table-tex",
+      "@type": "cr:FileObject",
+      "contentSize": "2678 B",
+      "contentUrl": "provider-safe-v2-paper-assets/compact_matched_core_table.tex",
+      "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
+      "encodingFormat": "application/x-tex",
+      "name": "compact_matched_core_table.tex",
+      "sha256": "d0498f2e20c3da76a60f12a34dc37c335f232ff7b114d65519b0e4591b41f93c"
+    },
+    {
       "@id": "asset-matched-current-route-profile-png",
       "@type": "cr:FileObject",
-      "contentSize": "314621 B",
+      "contentSize": "314074 B",
       "contentUrl": "provider-safe-v2-paper-assets/matched_current_route_profile.png",
       "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
       "encodingFormat": "image/png",
       "name": "matched_current_route_profile.png",
-      "sha256": "f17a7c3182f0b04ef71aa8aa5477e623c2359176239ae1c26599d920c963ac94"
+      "sha256": "c497d49172f59c4bfb34f045e522d18ca905e309993ac86add0aa9e6f05de69e"
     },
     {
       "@id": "asset-paper-assets-manifest-json",
       "@type": "cr:FileObject",
-      "contentSize": "9347 B",
+      "contentSize": "9557 B",
       "contentUrl": "provider-safe-v2-paper-assets/paper_assets_manifest.json",
       "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
       "encodingFormat": "application/json",
       "name": "paper_assets_manifest.json",
-      "sha256": "6c866836c1525cc8ee3b307fdb2911ed705c101cd3c0e61403a08fcf1babff2b"
+      "sha256": "5e1da934fca777a1df0c68298d8897b05cbe4cefb01340fcd43cd6d51ff67117"
     },
     {
       "@id": "asset-paper-headlines-tex",
@@ -308,12 +318,12 @@
     {
       "@id": "asset-part0-model-language-png",
       "@type": "cr:FileObject",
-      "contentSize": "582878 B",
+      "contentSize": "584249 B",
       "contentUrl": "provider-safe-v2-paper-assets/part0_model_language.png",
       "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
       "encodingFormat": "image/png",
       "name": "part0_model_language.png",
-      "sha256": "7f03e853edd110b2f3afa3ec5a8a24421402f433271f17826bc6608fd8de4fb6"
+      "sha256": "b5106b6ad5d18551b8ffe957483884d1ea988bdfb02a6013d8ce2f9b1e3989f8"
     },
     {
       "@id": "asset-part0-model-language-table-tex",
@@ -408,12 +418,12 @@
     {
       "@id": "asset-part2-all-models-png",
       "@type": "cr:FileObject",
-      "contentSize": "613085 B",
+      "contentSize": "616227 B",
       "contentUrl": "provider-safe-v2-paper-assets/part2_all_models.png",
       "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
       "encodingFormat": "image/png",
       "name": "part2_all_models.png",
-      "sha256": "833c491d9f482349b3432b009833eac9370c616e50a476363e5a579ac13fac97"
+      "sha256": "cbadb66a3558268395f0b5c2b3818ea756a59d55a96a0bf8d4022585eab6076b"
     },
     {
       "@id": "asset-part2-all-models-table-tex",
@@ -448,12 +458,12 @@
     {
       "@id": "asset-refusal-cooperation-overview-png",
       "@type": "cr:FileObject",
-      "contentSize": "486086 B",
+      "contentSize": "480154 B",
       "contentUrl": "provider-safe-v2-paper-assets/refusal_cooperation_overview.png",
       "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
       "encodingFormat": "image/png",
       "name": "refusal_cooperation_overview.png",
-      "sha256": "5ec9014b9ba9b02ea3ab589e29cc208e1a41b062dc962a661b1aed27237e4eff"
+      "sha256": "c6375e8f07478667d3f267f07e2001b3c3fb318b5e30097cad47b75e97559d89"
     }
   ],
   "isAccessibleForFree": true,
@@ -2622,6 +2632,6 @@
   },
   "sdLicense": "https://opensource.org/license/mit",
   "sourceAnalysisEvidenceSha256": "a62c982d3ef3a04aeaec5e96a1a1db15e2e534890a5436708467c6ba43ff96a1",
-  "sourcePaperAssetsEvidenceSha256": "572db5967e7380d6825bfb4f4fd7bda08d23d75d4c25e9b11f78760e1af5d376",
+  "sourcePaperAssetsEvidenceSha256": "0c503be811ecf39b5a48ef164994b23b7b932c00f54431849a964548bf97fcbe",
   "version": "1.0.0"
 }

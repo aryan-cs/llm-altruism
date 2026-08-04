@@ -1,0 +1,38 @@
+% Generated file. Requires booktabs and graphicx. Do not edit by hand.
+\par\addvspace{15pt}
+\begin{table*}[!htbp]
+\centering
+\caption{Compact matched-model results. Each row is one authenticated exact route scheduled in all three parts, grouped by provider with newer frozen route versions first. Refusal is the Part 0 all-scheduled refusal share over 144 responses; cooperation is the Part 1 all-scheduled welfare-preserving share over 384 roots; restraint is the Part 2 mean trajectory all-scheduled restraint share over 12 trajectories; AURC is normalized reserve area; population is final divided by initial population. Higher values mean less harmful assistance, fewer counterpart costs, more commons restraint, more reserve preservation, or more population retained within the named column. These point estimates are not combined into a composite or general safety ranking. Task-specific intervals, exact target IDs, and the complete 22-, 75-, and 19-route ledgers remain in the supplement.}
+\label{tab:compact-matched-core}
+\scriptsize
+\setlength{\tabcolsep}{3.5pt}
+\renewcommand{\arraystretch}{1.08}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lccccc}
+\toprule
+Provider / Model ID & Refusal & Cooperation & Restraint & AURC & Population \\
+\midrule
+\textbf{OpenAI}: gpt-5.4 & 96.5\% & 0.0\% & 96.7\% & 0.961 & 100.0\% \\
+\quad gpt-5.2 & 84.7\% & 0.0\% & 100.0\% & 1.000 & 100.0\% \\
+\quad gpt-5 & 64.6\% & 0.0\% & 94.0\% & 0.948 & 100.0\% \\
+\quad gpt-oss-20b & 97.9\% & 5.2\% & 43.1\% & 0.315 & 20.0\% \\
+\quad gpt-4.1 & 88.2\% & 21.4\% & 99.9\% & 0.997 & 100.0\% \\
+\quad gpt-4o & 93.1\% & 98.4\% & 100.0\% & 1.000 & 100.0\% \\
+\quad gpt-3.5-turbo & 88.2\% & 6.8\% & 100.0\% & 1.000 & 100.0\% \\
+\textbf{Anthropic}: claude-opus-4-6 & 77.8\% & 95.8\% & 100.0\% & 1.000 & 100.0\% \\
+\quad claude-sonnet-4-6 & 76.4\% & 39.1\% & 100.0\% & 1.000 & 100.0\% \\
+\quad claude-haiku-4-5 & 86.1\% & 18.0\% & 100.0\% & 1.000 & 100.0\% \\
+\quad claude-sonnet-4-5 & 69.4\% & 5.5\% & 91.8\% & 0.836 & 100.0\% \\
+\textbf{Google}: gemini-3.5-flash & 79.2\% & 0.0\% & 73.8\% & 0.514 & 100.0\% \\
+\quad gemini-3.1-pro-preview & 84.0\% & 0.0\% & 80.1\% & 0.621 & 100.0\% \\
+\quad gemini-2.5-flash & 71.5\% & 0.0\% & 66.5\% & 0.299 & 100.0\% \\
+\quad gemini-2.5-pro & 75.0\% & 0.0\% & 73.2\% & 0.462 & 100.0\% \\
+\textbf{NVIDIA}: nemotron-3-super-v3 & 88.9\% & 0.0\% & 34.1\% & 0.224 & 10.0\% \\
+\textbf{Qwen}: qwen3.6-27b & 88.9\% & 0.0\% & 71.4\% & 0.683 & 100.0\% \\
+\quad qwen3.5-35b-a3b & 88.2\% & 0.0\% & 61.2\% & 0.325 & 100.0\% \\
+\textbf{Meta}: llama-3.3-70b-instruct & 74.3\% & 28.9\% & 100.0\% & 1.000 & 100.0\% \\
+\bottomrule
+\end{tabular}%
+}
+\end{table*}
+\par\addvspace{15pt}

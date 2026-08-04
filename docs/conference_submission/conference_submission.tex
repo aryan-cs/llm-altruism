@@ -268,7 +268,7 @@ This is the paper's central empirical transition: making the externality indirec
 \begin{figure}[p]
 \centering
 \includegraphics[width=\linewidth,height=0.76\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/refusal_cooperation_overview.pdf}
-\caption{Current-model refusal bars and cooperation rank profile. In Panel A, each row is one of 22 exact routes over 144 scheduled harmful-request responses. Provider families are contiguous in the order OpenAI, Anthropic, Google, NVIDIA, then the remaining providers; models are ordered by refusal only within family. Blue bars and dots show all-scheduled refusal, and whiskers show 5,000-replicate harmful-root sensitivity intervals. Farther right is favorable because it means less harmful assistance. In Panel B, each orange point is one of 75 exact routes over the same balanced 384-root bank, ordered globally from highest to lowest welfare-preserving self-choice because rank shape is the purpose of that panel. Higher is favorable because it means fewer counterpart costs; the low median and long lower tail show that high explicit refusal does not imply dyadic cooperation. The orange line connects ordered ranks only and is not a time series. Exact Part~1 identities and intervals are reported in Appendix~\ref{app:results}.}
+\caption{Current-model refusal bars and cooperation rank profile. In Panel A, each row is one of 22 exact routes over 144 scheduled harmful-request responses. Provider families are contiguous in the order OpenAI, Anthropic, Google, NVIDIA, then the remaining providers; within each family, newer frozen route versions appear above older ones. Blue bars and dots show all-scheduled refusal, and whiskers show 5,000-replicate harmful-root sensitivity intervals. Farther right is favorable because it means less harmful assistance. In Panel B, each orange point is one of 75 exact routes over the same balanced 384-root bank, ordered globally from highest to lowest welfare-preserving self-choice because rank shape is the purpose of that panel. Higher is favorable because it means fewer counterpart costs; the low median and long lower tail show that high explicit refusal does not imply dyadic cooperation. The orange line connects ordered ranks only and is not a time series. Exact Part~1 identities and intervals are reported in the anonymous supplement.}
 \label{fig:refusal-cooperation-overview}
 \end{figure}
 
@@ -283,7 +283,7 @@ Role wording therefore changes the measured behavior, but none of these verbal f
 \begin{figure}[!htbp]
 \centering
 \includegraphics[width=\linewidth,height=0.34\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/part1_role_calibration.pdf}
-\caption{Role-conditioned Part~1 outcomes for six exact sentinel routes, grouped contiguously by provider family. Each row is one route; the centered columns show welfare-preserving response rates over 384 scheduled draws when the model gives advice, evaluates an observed action, or predicts an actor's choice. Higher values mean the response less often favors a unilateral advantage that costs the counterpart; lower values mean more focal-advantage responses within that named frame. Columns remain distinct estimands and are not pooled with self-choice.}
+\caption{Role-conditioned Part~1 outcomes for six exact sentinel routes, grouped contiguously by provider family with newer frozen route versions above older ones. Each row is one route; the centered columns show welfare-preserving response rates over 384 scheduled draws when the model gives advice, evaluates an observed action, or predicts an actor's choice. Higher values mean the response less often favors a unilateral advantage that costs the counterpart; lower values mean more focal-advantage responses within that named frame. Columns remain distinct estimands and are not pooled with self-choice.}
 \label{fig:part1-role}
 \end{figure}
 
@@ -296,11 +296,9 @@ The trajectory makes the behavioral story concrete: repeated focal advantage bec
 Figure~\ref{fig:part2-completed} keeps those action, resource, and population stages visible rather than compressing them into one score.
 
 \subsection{Environmental Sensitivity}
-The five-compatible-sentinel sensitivity panel estimates 25 prespecified high-minus-low AURC contrasts across five environmental factors.
-Paired common-seed contrasts quantify how capacity, depletion, attrition, society size, and horizon alter reserve preservation.
-The largest absolute high-minus-low AURC contrast is \ProviderSafeSensitivityMaximumAbsoluteEffect{}, and \ProviderSafeSensitivityHolmSignificantCount{} of \ProviderSafeSensitivityEffectCount{} prespecified route--factor tests remain significant after global Holm adjustment.
-The combination matters: individual environmental changes can produce descriptively large movements, but the two-seed-per-cell panel does not distinguish any one route--factor effect from zero after multiplicity correction.
-We therefore use the panel to locate possible parameter dependence, not to promote a universal environmental effect or revise the primary model ordering.
+The five-compatible-sentinel sensitivity panel estimates 25 prespecified high-minus-low AURC contrasts across capacity, depletion, attrition, society size, and horizon using paired common seeds.
+The largest absolute contrast is \ProviderSafeSensitivityMaximumAbsoluteEffect{}, while \ProviderSafeSensitivityHolmSignificantCount{} of \ProviderSafeSensitivityEffectCount{} route--factor tests remain significant after global Holm adjustment.
+Because the panel uses only two seeds per cell, it locates possible parameter dependence rather than establishing a universal environmental effect or revising the primary model ordering.
 \else
 \section{Results}
 \label{app:current-results}
@@ -347,28 +345,22 @@ Nemotron 3 Super & 34.5 [30.5, 37.8] & 0.224 [0.209, 0.240] & 10\% \\
 \begin{figure}[p]
 \centering
 \includegraphics[width=\linewidth,height=0.76\textheight,keepaspectratio]{figures/part2_all_models.pdf}
-\caption{Repeated-commons outcomes for 19 exact model routes, with provider families contiguous and models ordered by restraint only within family. Each row is one route evaluated on 12 common environment seeds. The three stacked panels connect model action (mean trajectory restraint), resource consequence (normalized area under the reserve curve), and group consequence (final population divided by initial population); whiskers are trajectory Student-$t$ 95\% intervals. Higher values mean greater action, resource, or population preservation in this simulator; lower values mean more overuse, depletion, or population loss. The axes remain separate outcomes rather than a composite score.}
+\caption{Repeated-commons outcomes for 19 exact model routes, with provider families contiguous and newer frozen route versions above older ones within each family. Each row is one route evaluated on 12 common environment seeds. The three stacked panels connect model action (mean trajectory restraint), resource consequence (normalized area under the reserve curve), and group consequence (final population divided by initial population); whiskers are trajectory Student-$t$ 95\% intervals. Higher values mean greater action, resource, or population preservation in this simulator; lower values mean more overuse, depletion, or population loss. The axes remain separate outcomes rather than a composite score.}
 \label{fig:part2-completed}
 \end{figure}
 \clearpage
 
 \section{Discussion}
 The empirical story is a change in model ordering as the externality becomes less explicit.
-Refusal rates are comparatively compressed, yet the same routes separate sharply in dyadic cooperation, and refusal rank is only weakly associated with both beyond-refusal tasks.
-The stronger association between cooperation and commons restraint suggests that the two externality probes recover related variation that explicit harmful-request refusal largely misses, while their remaining rank differences justify keeping them separate.
+Refusal is comparatively compressed, whereas the same routes separate sharply in dyadic cooperation and refusal rank is weakly associated with both beyond-refusal tasks.
+Cooperation and commons restraint align more strongly, suggesting related but nonidentical variation that refusal largely misses.
 
-The role and trajectory analyses explain why that extra variation matters.
-A model can evaluate a welfare-preserving action differently from how it advises, predicts, or acts, so verbal recognition is not a substitute for behavior.
-In the commons, action differences propagate through the reserve and can eventually reduce the surviving population.
-The benchmark therefore distinguishes at least three intervention targets: explicit safeguards, choice policies under bilateral cost shifting, and repeated-action policies under cumulative constraints.
+Role and trajectory analyses explain why that variation matters.
+A model may recognize a welfare-preserving action without advising, predicting, or selecting it; repeated choices can then propagate through a resource and reduce the surviving population.
+Component disagreements are therefore diagnostic: they distinguish failures of explicit safeguards, bilateral choice policy, and repeated-action policy without collapsing models into a moral ranking.
 
-This profile is more useful than a composite score precisely when its components disagree.
-It can reveal a system that refuses reliably but selects focal advantage, or one that cooperates in a one-shot dilemma but overuses a repeated commons.
-Such disagreements identify what should be tested or changed next without implying a universal moral ranking of models.
-
-The same contracts extend naturally to tool-using and multi-agent systems.
-A Part~0 extension can score whether an agent withholds a harmful tool call; Part~1 can offer authorized actions that trade the focal user's benefit against a third party's cost; Part~2 can expose several agents to a shared budget, quota, or service capacity across independent episodes.
-In each case, the primary observation should be the executed action and resulting state transition, with communication, memory, and tool feedback introduced as explicit experimental factors rather than folded into a single agent score.
+The same contracts transfer to tool-using and multi-agent systems: withhold a harmful tool call, choose between authorized actions with third-party costs, or share a budget across independent episodes.
+Executed actions and resulting state transitions should remain primary, while communication, memory, and tool feedback enter as explicit experimental factors.
 
 \section{Limitations and Broader Impact}
 \label{sec:scope}
@@ -427,16 +419,16 @@ Times-compatible typography matches the submission template; the original blue, 
 
 \begin{figure}[p]\centering
 \includegraphics[width=\linewidth,height=0.74\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/matched_current_route_profile.pdf}
-\caption{Matched profile for the 19 current exact routes scheduled in all three parts. Rows remain aligned, provider families are contiguous, and models are ordered by Part~0 refusal only within family. Blue dots show refusal over 144 scheduled responses, orange dots show welfare-preserving self-choice over 384 roots, and green dots show mean trajectory restraint over 12 independent commons trajectories; whiskers use the task-specific uncertainty unit named in the figure. Farther right is favorable within every panel because it means less harmful assistance, fewer counterpart costs, or more commons restraint. Large horizontal changes across a row indicate task-specific disagreement, not temporal change. The panels remain separate estimands and are never averaged.}
+\caption{Matched profile for the 19 current exact routes scheduled in all three parts. Rows remain aligned, provider families are contiguous, and newer frozen route versions appear above older ones within each family. Blue dots show refusal over 144 scheduled responses, orange dots show welfare-preserving self-choice over 384 roots, and green dots show mean trajectory restraint over 12 independent commons trajectories; whiskers use the task-specific uncertainty unit named in the figure. Farther right is favorable within every panel because it means less harmful assistance, fewer counterpart costs, or more commons restraint. Large horizontal changes across a row indicate task-specific disagreement, not temporal change. The panels remain separate estimands and are never averaged.}
 \end{figure}
 
 \clearpage
 \begin{figure}[p]\centering
 \includegraphics[width=\linewidth,height=0.78\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/part0_model_language.pdf}
-\caption{Part~0 response-language outcomes, with provider families contiguous and models ordered by overall refusal only within family. Each row is one exact target route and each centered column is one requested response language over 48 fixed English harmful-request roots. Values are refusal over all scheduled roots with Wilson 95\% intervals. Higher values mean less assistance on this harmful-only task; lower values mean less refusal under the all-scheduled scoring rule. The adjacent table supplies exact upstream Model IDs.}
+\caption{Part~0 response-language outcomes, with provider families contiguous and newer frozen route versions above older ones within each family. Each row is one exact target route and each centered column is one requested response language over 48 fixed English harmful-request roots. Values are refusal over all scheduled roots with Wilson 95\% intervals. Higher values mean less assistance on this harmful-only task; lower values mean less refusal under the all-scheduled scoring rule. Exact upstream Model IDs appear in the anonymous supplement.}
 \end{figure}
 
-\newcommand{\PartOneAppendixCaption}[1]{Part~1 hosted self-choice outcomes, portrait segment #1 of one continuous 75-route ranking in global display order. Each row is one exact route over 384 scheduled roots. Orange bars are all-scheduled welfare-preserving shares and whiskers are 5,000-replicate stratified frozen-bank sensitivity intervals. Higher values mean fewer counterpart costs within this task; lower values mean the focal actor more often selects its unilateral advantage. The full adjacent table supplies exact upstream Model IDs.}
+\newcommand{\PartOneAppendixCaption}[1]{Part~1 hosted self-choice outcomes, portrait segment #1 of one continuous 75-route ranking in global display order. Each row is one exact route over 384 scheduled roots. Orange bars are all-scheduled welfare-preserving shares and whiskers are 5,000-replicate stratified frozen-bank sensitivity intervals. Higher values mean fewer counterpart costs within this task; lower values mean the focal actor more often selects its unilateral advantage. Exact upstream Model IDs and intervals are retained in the anonymous supplement.}
 \foreach \block in {1,2,3}{%
 \clearpage\begin{figure}[p]\centering
 \includegraphics[width=\linewidth,height=0.78\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/part1_all_models_block\block.pdf}
@@ -446,10 +438,10 @@ Times-compatible typography matches the submission template; the original blue, 
 \clearpage
 \begin{figure}[p]\centering
 \includegraphics[width=\linewidth,height=0.76\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/part2_sensitivity_effects.pdf}
-\caption{Part~2 sensitivity effects for five exact compatible sentinel routes, grouped contiguously by provider family with no route substitution. Rows are routes and columns are the five manipulated environmental factors. Each cell is high-minus-low normalized AURC: positive values mean the high factor level preserves more reserve area, while negative values mean it preserves less. Neither sign is universally good or bad for a parameter; it identifies which setting is more resource-preserving. Holm-adjusted significance is computed across the 25 prespecified route--factor tests.}
+\caption{Part~2 sensitivity effects for five exact compatible sentinel routes, grouped contiguously by provider family with newer frozen route versions above older ones and no route substitution. Rows are routes and columns are the five manipulated environmental factors. Each cell is high-minus-low normalized AURC: positive values mean the high factor level preserves more reserve area, while negative values mean it preserves less. Neither sign is universally good or bad for a parameter; it identifies which setting is more resource-preserving. Holm-adjusted significance is computed across the 25 prespecified route--factor tests.}
 \end{figure}
 
-\newcommand{\CrossAppendixCaption}[1]{Task-specific portrait profile, segment #1 of 4. Rows are exact target routes grouped contiguously by provider family. The three stacked panels show Part~0 refusal versus compliance, Part~1 welfare preservation versus focal advantage, and Part~2 restraint versus overuse, each with its own denominator. Farther-right green circles mean more refusal of harmful assistance, fewer counterpart costs, or more commons restraint; farther-right vermillion diamonds mean more harmful compliance, focal advantage, or overuse. Shape preserves direction in grayscale. A gray cross means the route was not scheduled for that part. Panels are not pooled.}
+\newcommand{\CrossAppendixCaption}[1]{Task-specific portrait profile, segment #1 of 4. Rows are exact target routes grouped contiguously by provider family, with newer frozen route versions above older ones. The three stacked panels show Part~0 refusal versus compliance, Part~1 welfare preservation versus focal advantage, and Part~2 restraint versus overuse, each with its own denominator. Farther-right green circles mean more refusal of harmful assistance, fewer counterpart costs, or more commons restraint; farther-right vermillion diamonds mean more harmful compliance, focal advantage, or overuse. Shape preserves direction in grayscale. A gray cross means the route was not scheduled for that part. Panels are not pooled.}
 \foreach \block in {1,2,3,4}{%
 \clearpage\begin{figure}[p]\centering
 \includegraphics[width=\linewidth,height=0.78\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/all_models_cross_phase_outcome_profile_block\block.pdf}
@@ -457,20 +449,15 @@ Times-compatible typography matches the submission template; the original blue, 
 \end{figure}}
 
 \clearpage
+\subsection{Compact Matched-Route Ledger}
+The matched panel is the most direct numerical companion to the paper's central comparison: it holds route identity fixed while moving from explicit refusal to bilateral cooperation and then repeated commons restraint.
+Table~\ref{tab:compact-matched-core} therefore retains one row per exact route scheduled in all three parts and reports the action outcome from each task together with the two downstream commons consequences.
+It is a profile, not a composite: differences across columns show where behavior changes with the form of the externality.
+
+The anonymous supplement preserves the complete high-resolution record rather than forcing it into the paper: task-specific confidence intervals, all 22 Part~0 routes, all 75 hosted Part~1 routes, all 19 Part~2 routes, response-language cells, role calibration, environment sensitivity, local controls, and exact upstream target IDs.
+Those ledgers remain hash-bound to the same sealed aggregate graph and can be inspected or regenerated independently.
 \begingroup
-\input{../../data/processed/provider-safe-v2-paper-assets/all_models_cross_phase_table.tex}
-\clearpage
-\input{../../data/processed/provider-safe-v2-paper-assets/part0_model_language_table.tex}
-\clearpage
-\input{../../data/processed/provider-safe-v2-paper-assets/part1_all_models_table.tex}
-\clearpage
-\input{../../data/processed/provider-safe-v2-paper-assets/part2_all_models_table.tex}
-\clearpage
-\input{../../data/processed/provider-safe-v2-paper-assets/part1_role_calibration_table.tex}
-\clearpage
-\input{../../data/processed/provider-safe-v2-paper-assets/part2_sensitivity_effects_table.tex}
-\clearpage
-\input{../../data/processed/provider-safe-v2-paper-assets/part1_local_controls_table.tex}
+\input{../../data/processed/provider-safe-v2-paper-assets/compact_matched_core_table.tex}
 \endgroup
 \fi
 

@@ -130,16 +130,19 @@ class ConferenceSubmissionFormatTest(unittest.TestCase):
             "part1_role_calibration.pdf",
             "part2_sensitivity_effects.pdf",
         )
-        tables = (
+        tables = ("compact_matched_core_table.tex",)
+        for name in (*static_figures, *tables):
+            self.assertEqual(source.count(asset_root + name), 1, name)
+        for name in (
+            "all_models_cross_phase_table.tex",
             "part0_model_language_table.tex",
             "part1_all_models_table.tex",
             "part2_all_models_table.tex",
             "part1_role_calibration_table.tex",
             "part2_sensitivity_effects_table.tex",
             "part1_local_controls_table.tex",
-        )
-        for name in (*static_figures, *tables, "all_models_cross_phase_table.tex"):
-            self.assertEqual(source.count(asset_root + name), 1, name)
+        ):
+            self.assertNotIn(asset_root + name, source, name)
         self.assertEqual(source.count(asset_root + "paper_headlines.tex"), 2)
         self.assertEqual(source.count("figures/part2_all_models.pdf"), 1)
         self.assertIn(asset_root + r"part1_all_models_block\block.pdf", source)

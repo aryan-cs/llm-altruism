@@ -223,8 +223,9 @@ campaigns have priority over supplemental retries.
   headline macros including Part 2 AUPC, reserve-nondepletion, and
   population-retention summaries. Figures use the original submission palette
   and a Times-compatible NeurIPS-template font. Row-based model comparisons
-  group provider families contiguously; global outcome order is retained only
-  where a figure's analytical purpose is the rank distribution. It validates the two-seed
+  group provider families contiguously with newer frozen route versions above
+  older ones; global outcome order is retained only where a figure's analytical
+  purpose is the rank distribution. It validates the two-seed
   sensitivity contract and generates no cross-axis composite.
 - The definitive supplement pipeline at commit `99b56d6` validates all current
   paper assets from their hash-bound manifest, emits portable Croissant 1.1
@@ -232,14 +233,19 @@ campaigns have priority over supplemental retries.
   private, or tampered inputs. Private/live outputs remain excluded.
 - The definitive analysis and nine figure families are current. Croissant 1.1
   metadata validates against the hash-bound analysis and paper-assets
-  manifests, and the anonymous supplement rebuilt deterministically with 242
+  manifests, and the anonymous supplement rebuilt deterministically with 243
   files.
 - The final review PDF has the exact title, anonymous author block, nine-page
-  main body, and 41 pages including references, appendices, and the NeurIPS
-  checklist. Bundled Tectonic compiled it successfully; all 41 pages were
-  rendered and visually inspected with no clipping, overlap, or unreadable
-  glyphs. Citation resolution, em-dash, format-compliance, and source/PDF
-  hygiene checks pass. The clean full suite is 914 passed and 1 skipped.
+  main body, and 30 portrait pages including references, appendices, and the
+  NeurIPS checklist. The former 11-page table dump is replaced by one compact
+  19-route matched ledger; the full 22-, 75-, and 19-route tables, intervals,
+  exact target IDs, language cells, role calibration, sensitivity results, and
+  local controls remain in the supplement. Bundled Tectonic compiled the PDF
+  successfully; all changed figures and pages were rendered and visually
+  inspected with no clipping, overlap, or unreadable glyphs. The focused
+  integrity suite is 43 passed, and all 8 conference-format checks pass. A
+  repository-wide run reached 47\% with no failures before the 300-second
+  command window expired.
 
 ## Paper requirements that remain fixed
 
@@ -264,8 +270,8 @@ campaigns have priority over supplemental retries.
 
 ## Exact next steps
 
-1. Commit and push this final checkpoint plus the compatibility-bound
-   operational-repair fix and regression test on `master`.
+1. Review the regenerated `conference_submission.pdf` and submit the matching
+   anonymous supplement.
 2. Keep future exact-route availability re-probes isolated. Do not substitute
    routes, replace genuine semantic invalids, alter sealed primary evidence, or
    change the submitted paper automatically.

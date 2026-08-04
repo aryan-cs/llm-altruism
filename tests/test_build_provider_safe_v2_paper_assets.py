@@ -85,21 +85,65 @@ def test_lollipop_value_labels_use_a_separate_gutter_from_intervals() -> None:
         plt.close(fig)
 
 
-def test_provider_grouping_is_stable_and_ranks_only_within_family() -> None:
+def test_provider_grouping_is_stable_and_uses_newest_route_version_first() -> None:
     rows = [
-        {"target_id": "n/low", "upstream_provider": "nvidia", "model": "n-low", "score": 0.2},
-        {"target_id": "o/low", "upstream_provider": "openai", "model": "o-low", "score": 0.1},
-        {"target_id": "a/high", "upstream_provider": "anthropic", "model": "a-high", "score": 0.9},
-        {"target_id": "o/high", "upstream_provider": "openai", "model": "o-high", "score": 0.8},
-        {"target_id": "g/high", "upstream_provider": "google", "model": "g-high", "score": 1.0},
+        {"target_id": "nvidia/nemotron-3-ultra", "upstream_provider": "nvidia", "model": "nemotron-3-ultra", "score": 0.2},
+        {"target_id": "openai/gpt-4.1", "upstream_provider": "openai", "model": "gpt-4.1", "score": 0.9},
+        {"target_id": "anthropic/claude-sonnet-4-5", "upstream_provider": "anthropic", "model": "claude-sonnet-4-5", "score": 0.9},
+        {"target_id": "openai/gpt-5.4", "upstream_provider": "openai", "model": "gpt-5.4", "score": 0.1},
+        {"target_id": "google/gemini-3.5-flash", "upstream_provider": "google", "model": "gemini-3.5-flash", "score": 1.0},
     ]
-    grouped = _provider_grouped_rows(rows, score_key="score")
+    grouped = _provider_grouped_rows(rows)
     assert [row["target_id"] for row in grouped] == [
-        "o/high", "o/low", "a/high", "g/high", "n/low"
+        "openai/gpt-5.4", "openai/gpt-4.1",
+        "anthropic/claude-sonnet-4-5", "google/gemini-3.5-flash",
+        "nvidia/nemotron-3-ultra",
     ]
     assert _provider_prefixed_labels(grouped) == [
-        "OpenAI: o-high", "    o-low", "Anthropic: a-high",
-        "Google: g-high", "NVIDIA: n-low",
+        "OpenAI: gpt-5.4", "    gpt-4.1", "Anthropic: claude-sonnet-4-5",
+        "Google: gemini-3.5-flash", "NVIDIA: nemotron-3-ultra",
+    ]
+    ranked = _provider_grouped_rows(rows, score_key="score")
+    assert [row["target_id"] for row in ranked[:2]] == [
+        "openai/gpt-4.1", "openai/gpt-5.4"
+    ]
+
+
+def test_recency_sort_does_not_treat_parameter_count_as_model_version() -> None:
+    rows = [
+        {
+            "upstream_provider": "openai",
+            "target_id": "openai/gpt-oss-120b",
+            "model": "gpt-oss-120b",
+        },
+        {
+            "upstream_provider": "openai",
+            "target_id": "openai/gpt-5.6-sol",
+            "model": "gpt-5.6-sol",
+        },
+        {
+            "upstream_provider": "openai",
+            "target_id": "openai/o4-mini",
+            "model": "o4-mini",
+        },
+        {
+            "upstream_provider": "qwen",
+            "target_id": "qwen/qwen-235b",
+            "model": "qwen-235b",
+        },
+        {
+            "upstream_provider": "qwen",
+            "target_id": "qwen/qwen3.6-27b",
+            "model": "qwen3.6-27b",
+        },
+    ]
+    ordered = _provider_grouped_rows(rows)
+    assert [row["target_id"] for row in ordered] == [
+        "openai/gpt-5.6-sol",
+        "openai/gpt-oss-120b",
+        "openai/o4-mini",
+        "qwen/qwen3.6-27b",
+        "qwen/qwen-235b",
     ]
 
 
@@ -633,7 +677,7 @@ def test_builds_full_production_shaped_vector_png_and_latex_assets(tmp_path: Pat
     )
     assert result["figure_font_family"].startswith("Times New Roman")
     assert result["figure_row_order"] == (
-        "provider_family_then_within_family_outcome;"
+        "provider_family_then_newest_frozen_route_version;"
         "global_outcome_order_retained_only_for_rank_profile_figures"
     )
     assert result["figure_semantic_redundancy"] == (
@@ -642,7 +686,7 @@ def test_builds_full_production_shaped_vector_png_and_latex_assets(tmp_path: Pat
     assert result["paper_use_status"] == "exploratory_descriptive_panels_only"
     assert result["side_by_side_nonpooled_axis_assets_generated"] is True
     assert result["route_and_model_ids_preserved_exactly"] is True
-    assert len(result["assets"]) == 37
+    assert len(result["assets"]) == 38
     assert result["local_controls_pooled_with_hosted_routes"] is False
     assert {path.suffix for path in output.iterdir()} >= {".pdf", ".png", ".tex", ".json"}
 
@@ -824,6 +868,7 @@ def test_latex_tables_preserve_ids_define_directions_and_space_every_float(tmp_p
     )
 
     expected_table_counts = {
+        "compact_matched_core_table.tex": 1,
         "all_models_cross_phase_table.tex": 5,
         "part0_model_language_table.tex": 1,
         "part1_all_models_table.tex": 3,
@@ -840,7 +885,7 @@ def test_latex_tables_preserve_ids_define_directions_and_space_every_float(tmp_p
         assert not re.search(r"(?<!\\)_", text), f"{name} contains an unescaped underscore"
         assert "general safety" in text
         assert "Model ID" in text
-        if name != "part1_local_controls_table.tex":
+        if name not in {"part1_local_controls_table.tex", "compact_matched_core_table.tex"}:
             assert "Target route ID" in text
 
     part0 = (output / "part0_model_language_table.tex").read_text()
@@ -869,6 +914,14 @@ def test_latex_tables_preserve_ids_define_directions_and_space_every_float(tmp_p
     assert "no composite or general safety ranking is computed" in cross_phase
     assert "-- (not in panel)" in cross_phase
     assert "\\begin{tabular}{llccc}" in cross_phase
+    compact = (output / "compact_matched_core_table.tex").read_text()
+    assert "Compact matched-model results" in compact
+    assert "Provider / Model ID" in compact
+    assert "Refusal" in compact and "Cooperation" in compact and "Restraint" in compact
+    assert "AURC" in compact and "Population" in compact
+    assert "newer frozen route versions first" in compact
+    assert "complete 22-, 75-, and 19-route ledgers remain in the supplement" in compact
+    assert "\\begin{tabular}{lccccc}" in compact
     assert "\\begin{tabular}{llcccc}" in part0
     assert "\\begin{tabular}{llc}" in part1
     part2 = (output / "part2_all_models_table.tex").read_text()
