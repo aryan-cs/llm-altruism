@@ -222,7 +222,9 @@ campaigns have priority over supplemental retries.
   original red/green route-profile idiom; full model-row LaTeX tables; and deterministic
   headline macros including Part 2 AUPC, reserve-nondepletion, and
   population-retention summaries. Figures use the original submission palette
-  and a Times-compatible NeurIPS-template font. It validates the two-seed
+  and a Times-compatible NeurIPS-template font. Row-based model comparisons
+  group provider families contiguously; global outcome order is retained only
+  where a figure's analytical purpose is the rank distribution. It validates the two-seed
   sensitivity contract and generates no cross-axis composite.
 - The definitive supplement pipeline at commit `99b56d6` validates all current
   paper assets from their hash-bound manifest, emits portable Croissant 1.1

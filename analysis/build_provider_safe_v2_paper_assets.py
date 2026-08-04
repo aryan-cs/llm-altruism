@@ -3,8 +3,8 @@
 The input is only the completed, sanitized output directory produced by
 ``analysis.analyze_provider_safe_v2_definitive``.  This module never opens the
 private manifests named in that output and never generates human labels.  It
-publishes six within-task figure/table families plus a side-by-side table and
-red/green/gray cross-phase outcome profile atomically into a new output
+publishes nine figure families, including provider-grouped model comparisons,
+plus full exact-route tables atomically into a new output
 directory.  The displays do not pool axes, compute a composite, or fill
 unexecuted cells.
 """
@@ -83,6 +83,29 @@ RED = "#D55E00"
 P0_CMAP = LinearSegmentedColormap.from_list("part0_original_blue", ("#F7FBFF", BLUE))
 P1_CMAP = LinearSegmentedColormap.from_list("part1_original_orange", ("#FFF9E8", ORANGE))
 SIGNED_CMAP = LinearSegmentedColormap.from_list("signed_original", (BLUE, "#FAFAF8", RED))
+
+PROVIDER_DISPLAY_ORDER = (
+    "openai",
+    "anthropic",
+    "google",
+    "nvidia",
+    "qwen",
+    "meta",
+    "deepseek-ai",
+    "zai-org",
+    "perplexity",
+)
+PROVIDER_DISPLAY_NAMES = {
+    "openai": "OpenAI",
+    "anthropic": "Anthropic",
+    "google": "Google",
+    "nvidia": "NVIDIA",
+    "qwen": "Qwen",
+    "meta": "Meta",
+    "deepseek-ai": "DeepSeek",
+    "zai-org": "Z.ai",
+    "perplexity": "Perplexity",
+}
 
 
 def _relative_luminance(rgb: Sequence[float]) -> float:
@@ -1077,6 +1100,48 @@ def _label(row: Mapping[str, Any]) -> str:
     return f"{row['target_id']} | {row['model']}"
 
 
+def _provider_order_key(provider: str) -> tuple[int, str]:
+    try:
+        return PROVIDER_DISPLAY_ORDER.index(provider), provider
+    except ValueError:
+        return len(PROVIDER_DISPLAY_ORDER), provider
+
+
+def _provider_grouped_rows(
+    rows: Sequence[Mapping[str, Any]], *, score_key: str | None = None
+) -> list[Mapping[str, Any]]:
+    """Group exact routes by provider, with optional within-provider ranking."""
+
+    def key(row: Mapping[str, Any]) -> tuple[Any, ...]:
+        provider = str(row["upstream_provider"])
+        score = 0.0 if score_key is None else -float(row[score_key])
+        return (*_provider_order_key(provider), score, str(row["model"]), str(row["target_id"]))
+
+    return sorted(rows, key=key)
+
+
+def _provider_prefixed_labels(rows: Sequence[Mapping[str, Any]]) -> list[str]:
+    labels: list[str] = []
+    previous: str | None = None
+    for row in rows:
+        provider = str(row["upstream_provider"])
+        model = str(row["model"])
+        if provider != previous:
+            labels.append(f"{PROVIDER_DISPLAY_NAMES.get(provider, provider)}: {model}")
+        else:
+            labels.append(f"    {model}")
+        previous = provider
+    return labels
+
+
+def _draw_provider_separators(
+    ax: plt.Axes, rows: Sequence[Mapping[str, Any]]
+) -> None:
+    for index in range(1, len(rows)):
+        if rows[index]["upstream_provider"] != rows[index - 1]["upstream_provider"]:
+            ax.axhline(index - 0.5, color=MUTED, linewidth=0.75, alpha=0.65, zorder=4)
+
+
 def _style_axes(ax: plt.Axes) -> None:
     ax.tick_params(colors=INK, labelcolor=INK)
     ax.xaxis.label.set_color(INK)
@@ -1176,9 +1241,9 @@ def _heatmap(
 
 
 def _plot_part0(data: Mapping[str, Any], directory: Path) -> list[Path]:
-    rows = data["part0"]
+    rows = _provider_grouped_rows(data["part0"], score_key="refusal_rate_all_scheduled")
     by_key = data["part0_matrix"]
-    labels = [str(row["target_id"]) for row in rows]
+    labels = _provider_prefixed_labels(rows)
     refusal = [
         [float(by_key[(row["target_id"], language)]["refusal_rate_all_scheduled"]) for language in PART0_LANGUAGES]
         for row in rows
@@ -1198,12 +1263,13 @@ def _plot_part0(data: Mapping[str, Any], directory: Path) -> list[Path]:
     fig, ax = plt.subplots(figsize=(7.2, 9.2))
     fig.patch.set_facecolor("white")
     fig.suptitle("Part 0 response-language outcomes by exact model route", x=0.08, ha="left", fontsize=15, fontweight="bold", color=INK)
-    fig.text(0.08, 0.93, "Each cell uses 48 scheduled harmful-request roots; rows are ordered by overall within-task refusal rate.", fontsize=9, color=MUTED)
+    fig.text(0.08, 0.93, "Each cell uses 48 scheduled harmful-request roots; provider families are contiguous and ranked within family.", fontsize=9, color=MUTED)
     _heatmap(
         ax, refusal, PART0_LANGUAGES, labels,
         title="Refusal rate [Wilson 95%] / 48 roots", cmap=P0_CMAP,
         vmin=0.0, vmax=1.0, intervals=refusal_intervals,
     )
+    _draw_provider_separators(ax, rows)
     _figure_footer(fig, "Brackets are condition-specific Wilson 95% intervals over 48 roots. Higher refusal means less assistance on this harmful-request task. Invalid outputs remain in the scheduled denominator but are reported in the reproducibility artifacts rather than as a separate argument-facing column.")
     fig.tight_layout(rect=(0.06, 0.085, 0.99, 0.90))
     return _save_figure(fig, directory, "part0_model_language", "Part 0 model by language outcomes")
@@ -1219,7 +1285,9 @@ def _plot_refusal_and_cooperation_overview(
     the ordered Part 1 line look like a longitudinal trajectory.
     """
 
-    part0 = data["part0"]
+    part0 = _provider_grouped_rows(
+        data["part0"], score_key="refusal_rate_all_scheduled"
+    )
     part1 = data["part1"]
     refusal = [float(row["refusal_rate_all_scheduled"]) for row in part0]
     refusal_intervals = [
@@ -1258,12 +1326,13 @@ def _plot_refusal_and_cooperation_overview(
     _lollipop_panel(
         refusal_ax,
         refusal,
-        [str(row["target_id"]) for row in part0],
-        title="A  Harmful-request refusal by exact route [root sensitivity 95%]",
+        _provider_prefixed_labels(part0),
+        title="A  Harmful-request refusal grouped by provider [root sensitivity 95%]",
         color=BLUE,
         show_labels=True,
         intervals=refusal_intervals,
     )
+    _draw_provider_separators(refusal_ax, part0)
     refusal_ax.tick_params(axis="y", labelsize=5.9)
     refusal_ax.set_xlabel("Refusal over 144 scheduled responses")
 
@@ -1313,7 +1382,7 @@ def _plot_refusal_and_cooperation_overview(
 
     _figure_footer(
         fig,
-        "Panel A shows all-scheduled refusal; blue bars end at the point estimate, dots repeat the estimate, and whiskers are 5,000-replicate harmful-root sensitivity intervals. Farther right means less harmful assistance. Panel B is an ordered cross-sectional rank profile, not a time series: every orange point is one exact route over the same balanced 384-root bank. Higher means fewer counterpart costs; the steep decline and low median mean many routes choose focal advantage even though refusal is comparatively high. Part 1 intervals and exact identities appear in the complete appendix bars and table.",
+        "Panel A groups provider families contiguously in the order OpenAI, Anthropic, Google, NVIDIA, then the remaining providers; routes are ranked by refusal only within family. Blue bars end at the all-scheduled point estimate, dots repeat it, and whiskers are 5,000-replicate harmful-root sensitivity intervals. Farther right means less harmful assistance. Panel B remains a global ordered cross-sectional rank profile, not a time series: every orange point is one exact route over the same balanced 384-root bank. Higher means fewer counterpart costs. Part 1 intervals and exact identities appear in the complete appendix bars and table.",
         x=0.075,
         y=0.012,
         width=125,
@@ -1338,13 +1407,7 @@ def _plot_matched_current_route_profile(
         "part2": {str(row["target_id"]): row for row in data["part2"]},
     }
     shared = set(indices["part0"]) & set(indices["part1"]) & set(indices["part2"])
-    targets = sorted(
-        shared,
-        key=lambda target: (
-            -float(indices["part0"][target]["refusal_rate_all_scheduled"]),
-            target,
-        ),
-    )
+    targets = sorted(shared)
     for target in targets:
         identities = {
             (
@@ -1357,6 +1420,14 @@ def _plot_matched_current_route_profile(
             raise PaperAssetsError(
                 f"Matched current-route profile found inconsistent exact identity for {target!r}."
             )
+    targets.sort(
+        key=lambda target: (
+            *_provider_order_key(str(indices["part0"][target]["upstream_provider"])),
+            -float(indices["part0"][target]["refusal_rate_all_scheduled"]),
+            str(indices["part0"][target]["model"]),
+            target,
+        )
+    )
     if not targets:
         fig, ax = plt.subplots(figsize=(7.2, 4.0))
         fig.patch.set_facecolor("white")
@@ -1431,7 +1502,7 @@ def _plot_matched_current_route_profile(
     fig.text(
         0.08,
         0.947,
-        "Rows are aligned exact routes and ordered only by Part 0 refusal; each panel keeps its own estimand.",
+        "Rows are aligned exact routes; provider families are contiguous and ranked by Part 0 only within family.",
         fontsize=8.8,
         color=MUTED,
     )
@@ -1467,11 +1538,14 @@ def _plot_matched_current_route_profile(
         ax.set_title(title, fontsize=9.2, fontweight="bold", loc="left")
         ax.set_xlabel(("higher is safer" if panel_index == 0 else "higher preserves more"), fontsize=7.2)
         _style_axes(ax)
-    axes[0].set_yticks(positions, labels=targets)
+    matched_rows = [indices["part0"][target] for target in targets]
+    axes[0].set_yticks(positions, labels=_provider_prefixed_labels(matched_rows))
     axes[0].tick_params(axis="y", labelsize=5.9, length=0)
     axes[0].invert_yaxis()
     for ax in axes[1:]:
         ax.tick_params(axis="y", length=0, labelleft=False)
+    for ax in axes:
+        _draw_provider_separators(ax, matched_rows)
     _figure_footer(
         fig,
         "Blue, orange, and green dots are task-specific point estimates; horizontal whiskers are harmful-root sensitivity intervals, stratified scenario-root sensitivity intervals, and trajectory Student-t 95% intervals, respectively. Longer colored stems mean a higher rate within that panel. A row moving left from refusal to cooperation or restraint is a model-ordering disagreement, not a decline over time. The aligned profile visualizes why refusal has weak rank association with the two beyond-refusal outcomes; no values are averaged across panels.",
@@ -1581,7 +1655,7 @@ def _plot_cross_phase_outcome_profile(
             str(row["target_id"]): row for row in data["part2"]
         },
     }
-    all_targets = sorted(set().union(*(set(index) for index in phase_indices.values())))
+    all_targets = list(set().union(*(set(index) for index in phase_indices.values())))
     identity_by_target: dict[str, tuple[str, str]] = {}
     for target in all_targets:
         identities = {
@@ -1594,9 +1668,15 @@ def _plot_cross_phase_outcome_profile(
                 f"Cross-phase exact identity differs for target {target!r}."
             )
         identity_by_target[target] = next(iter(identities))
+    all_targets.sort(
+        key=lambda target: (
+            *_provider_order_key(identity_by_target[target][0]),
+            identity_by_target[target][1],
+            target,
+        )
+    )
     # The exact Model ID remains in the adjacent generated table.  Route IDs
     # are used here so the union panel can wrap into print-legible blocks.
-    labels = list(all_targets)
     block_count = min(4, max(1, math.ceil(len(all_targets) / 24)))
     block_size = math.ceil(len(all_targets) / block_count)
     output: list[Path] = []
@@ -1613,7 +1693,7 @@ def _plot_cross_phase_outcome_profile(
         )
         fig.text(
             0.07, 0.93,
-            "One row per authenticated exact route; panels retain separate tasks and denominators.",
+            "Provider families are contiguous; panels retain separate tasks and denominators.",
             fontsize=9, color=MUTED,
         )
         positions = list(range(len(block_targets)))
@@ -1676,10 +1756,15 @@ def _plot_cross_phase_outcome_profile(
             ax.set_axisbelow(True)
             ax.set_title(title, fontsize=8.5, fontweight="bold", loc="left")
             ax.set_yticks(positions)
-            ax.set_yticklabels(
-                labels[block_index * block_size : block_index * block_size + len(block_targets)],
-                fontsize=5.8,
-            )
+            block_identity_rows = [
+                {
+                    "upstream_provider": identity_by_target[target][0],
+                    "model": identity_by_target[target][1],
+                }
+                for target in block_targets
+            ]
+            ax.set_yticklabels(_provider_prefixed_labels(block_identity_rows), fontsize=5.8)
+            _draw_provider_separators(ax, block_identity_rows)
             _style_axes(ax)
         axes_column[0].scatter([], [], marker="o", s=26, color=GREEN, edgecolor=INK, linewidth=0.3, label="task-preferable outcome")
         axes_column[0].scatter([], [], marker="D", s=24, color=RED, edgecolor=INK, linewidth=0.3, label="task-adverse outcome")
@@ -1762,8 +1847,10 @@ def _plot_part1(data: Mapping[str, Any], directory: Path) -> list[Path]:
 
 
 def _plot_part2(data: Mapping[str, Any], directory: Path) -> list[Path]:
-    rows = data["part2"]
-    labels = [str(row["target_id"]) for row in rows]
+    rows = _provider_grouped_rows(
+        data["part2"], score_key="mean_trajectory_restraint_rate_all_scheduled"
+    )
+    labels = _provider_prefixed_labels(rows)
     restraint = [
         float(row["mean_trajectory_restraint_rate_all_scheduled"]) for row in rows
     ]
@@ -1798,21 +1885,25 @@ def _plot_part2(data: Mapping[str, Any], directory: Path) -> list[Path]:
     fig, axes = plt.subplots(3, 1, figsize=(7.2, 10.2), sharey=False)
     fig.patch.set_facecolor("white")
     fig.suptitle("Part 2 commons outcomes for 19 exact model routes", x=0.075, y=0.995, ha="left", fontsize=15, fontweight="bold", color=INK)
-    fig.text(0.075, 0.953, "One row per route; 12 trajectories per route; ordered by within-task restraint rate.", fontsize=9, color=MUTED)
+    fig.text(0.075, 0.953, "One row per route; 12 trajectories per route; provider families are contiguous and ranked within family.", fontsize=9, color=MUTED)
     _lollipop_panel(axes[0], restraint, labels, title="Model action: mean trajectory restraint [t95]", color=GREEN, show_labels=True, intervals=restraint_intervals)
     _lollipop_panel(axes[1], aurc, labels, title="Resource consequence: mean AURC [t95] / env.", color=GREEN, show_labels=True, intervals=aurc_intervals)
     _lollipop_panel(axes[2], population, labels, title="Group consequence: population retained [t95] / env.", color=GREEN, show_labels=True, intervals=population_intervals)
     for ax in axes:
         ax.tick_params(axis="y", labelsize=5.7)
+        _draw_provider_separators(ax, rows)
     _figure_footer(fig, "The three stacked panels connect model action (restraint), resource consequence (AURC), and group consequence (final population retained). Whiskers are trajectory-level Student-t 95% intervals. Higher values mean more preservation in this simulator. AUPC and nondepletion remain in the released diagnostics; invalid actions remain in denominators and eligibility checks rather than a separate argument-facing panel.", x=0.075, width=95)
     fig.tight_layout(rect=(0.025, 0.08, 0.995, 0.94), h_pad=1.0)
     return _save_figure(fig, directory, "part2_all_models", "Part 2 all-model outcomes")
 
 
 def _plot_role(data: Mapping[str, Any], directory: Path) -> list[Path]:
-    targets = data["role_targets"]
     by_key = data["role"]
-    labels = [_label(by_key[(target, ROLE_FRAMES[0])]) for target in targets]
+    role_rows = _provider_grouped_rows(
+        [by_key[(target, ROLE_FRAMES[0])] for target in data["role_targets"]]
+    )
+    targets = [str(row["target_id"]) for row in role_rows]
+    labels = _provider_prefixed_labels(role_rows)
     welfare = [[float(by_key[(target, frame)]["welfare_preserving_rate_all_scheduled"]) for frame in ROLE_FRAMES] for target in targets]
     fig, ax = plt.subplots(figsize=(11.2, 5.6))
     fig.patch.set_facecolor("white")
@@ -1820,21 +1911,25 @@ def _plot_role(data: Mapping[str, Any], directory: Path) -> list[Path]:
     fig.text(
         0.08,
         0.91,
-        f"{len(targets)} sentinels x three separate frames; 384 scheduled draws per route-frame; frames are not pooled.",
+        f"{len(targets)} provider-grouped sentinels x three separate frames; 384 scheduled draws per route-frame; frames are not pooled.",
         fontsize=9,
         color=MUTED,
     )
     _heatmap(ax, welfare, ROLE_FRAMES, labels, title="Welfare-preserving / all scheduled draws", cmap=P1_CMAP, vmin=0.0, vmax=1.0)
+    _draw_provider_separators(ax, role_rows)
     _figure_footer(fig, "Higher welfare preservation means fewer counterpart costs within that role-conditioned task. Frame differences are descriptive, not causal; invalid outputs remain in each scheduled denominator.", y=0.02)
     fig.tight_layout(rect=(0.055, 0.09, 0.995, 0.87))
     return _save_figure(fig, directory, "part1_role_calibration", "Part 1 role-calibration outcomes")
 
 
 def _plot_sensitivity(data: Mapping[str, Any], directory: Path) -> list[Path]:
-    targets = data["sensitivity_targets"]
     models = data["sensitivity_models"]
+    sensitivity_rows = _provider_grouped_rows(
+        [models[target] for target in data["sensitivity_targets"]]
+    )
+    targets = [str(row["target_id"]) for row in sensitivity_rows]
     effects = data["sensitivity"]
-    labels = [str(target) for target in targets]
+    labels = _provider_prefixed_labels(sensitivity_rows)
     matrix = [[float(effects[(target, factor)]["effect_high_minus_low"]) for factor in SENSITIVITY_FACTORS] for target in targets]
     limit = max(0.02, max(abs(value) for row in matrix for value in row))
     fig, ax = plt.subplots(figsize=(7.2, 7.8))
@@ -1858,6 +1953,7 @@ def _plot_sensitivity(data: Mapping[str, Any], directory: Path) -> list[Path]:
     ax.set_yticks([index + 0.5 for index in range(len(targets))], labels=labels)
     ax.tick_params(axis="x", labelrotation=22, labelsize=7)
     ax.tick_params(axis="y", labelsize=7)
+    _draw_provider_separators(ax, sensitivity_rows)
     for row_index, target in enumerate(targets):
         for column_index, factor in enumerate(SENSITIVITY_FACTORS):
             effect = effects[(target, factor)]
@@ -2775,6 +2871,10 @@ def build_paper_assets(
             "table_outer_spacing_approx_css_px_at_96dpi": 20,
             "figure_palette": "original_submission_okabe_ito_blue_orange_green_vermillion",
             "figure_font_family": "Times New Roman (NeurIPS ptm-compatible serif)",
+            "figure_row_order": (
+                "provider_family_then_within_family_outcome;"
+                "global_outcome_order_retained_only_for_rank_profile_figures"
+            ),
             "figure_semantic_redundancy": (
                 "directional_caption_position_printed_values_and_distinct_marker_shapes"
             ),

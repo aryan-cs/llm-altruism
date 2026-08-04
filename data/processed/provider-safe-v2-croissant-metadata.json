@@ -218,42 +218,42 @@
     {
       "@id": "asset-all-models-cross-phase-outcome-profile-block1-png",
       "@type": "cr:FileObject",
-      "contentSize": "600411 B",
+      "contentSize": "415567 B",
       "contentUrl": "provider-safe-v2-paper-assets/all_models_cross_phase_outcome_profile_block1.png",
       "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
       "encodingFormat": "image/png",
       "name": "all_models_cross_phase_outcome_profile_block1.png",
-      "sha256": "473f5af9254bd56890fa8d1e39911edd728d12b422bedec2f3d1ec26762d8756"
+      "sha256": "e26ef4ebf2aa4246a4cc55fbe73b95b245c552ecde0d1c9a2795eed7bf76185a"
     },
     {
       "@id": "asset-all-models-cross-phase-outcome-profile-block2-png",
       "@type": "cr:FileObject",
-      "contentSize": "552864 B",
+      "contentSize": "439566 B",
       "contentUrl": "provider-safe-v2-paper-assets/all_models_cross_phase_outcome_profile_block2.png",
       "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
       "encodingFormat": "image/png",
       "name": "all_models_cross_phase_outcome_profile_block2.png",
-      "sha256": "9244eac6f567c6f077101c7f201c67bf0941c3111536c4ed6920270cd7c1b501"
+      "sha256": "973425d6135a7754286adb65ef057ec46767eebd5b14374efb64a8c26a3ef7d2"
     },
     {
       "@id": "asset-all-models-cross-phase-outcome-profile-block3-png",
       "@type": "cr:FileObject",
-      "contentSize": "505661 B",
+      "contentSize": "497903 B",
       "contentUrl": "provider-safe-v2-paper-assets/all_models_cross_phase_outcome_profile_block3.png",
       "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
       "encodingFormat": "image/png",
       "name": "all_models_cross_phase_outcome_profile_block3.png",
-      "sha256": "8663311ec979bb5de811013c712e066e6a00975c52be499d35988131e27939d4"
+      "sha256": "51b33606dae5d8f4b15bae09eb601d355eefd8d633ee88feb932a6de2b1a0e47"
     },
     {
       "@id": "asset-all-models-cross-phase-outcome-profile-block4-png",
       "@type": "cr:FileObject",
-      "contentSize": "492038 B",
+      "contentSize": "490166 B",
       "contentUrl": "provider-safe-v2-paper-assets/all_models_cross_phase_outcome_profile_block4.png",
       "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
       "encodingFormat": "image/png",
       "name": "all_models_cross_phase_outcome_profile_block4.png",
-      "sha256": "7da8888c1098c18ec8bb870576231a68cb138c42266e938d17460b9bec5c5383"
+      "sha256": "94c8ded9850c3c2c3807d21415c5fd99d5cf13da85ac90281165eeea5d1c924b"
     },
     {
       "@id": "asset-all-models-cross-phase-table-md",
@@ -278,22 +278,22 @@
     {
       "@id": "asset-matched-current-route-profile-png",
       "@type": "cr:FileObject",
-      "contentSize": "336915 B",
+      "contentSize": "314621 B",
       "contentUrl": "provider-safe-v2-paper-assets/matched_current_route_profile.png",
       "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
       "encodingFormat": "image/png",
       "name": "matched_current_route_profile.png",
-      "sha256": "26f140b20a13be0db10759f869ce72cabc6b6f5fdccb49be60d119af7eb82681"
+      "sha256": "f17a7c3182f0b04ef71aa8aa5477e623c2359176239ae1c26599d920c963ac94"
     },
     {
       "@id": "asset-paper-assets-manifest-json",
       "@type": "cr:FileObject",
-      "contentSize": "9219 B",
+      "contentSize": "9347 B",
       "contentUrl": "provider-safe-v2-paper-assets/paper_assets_manifest.json",
       "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
       "encodingFormat": "application/json",
       "name": "paper_assets_manifest.json",
-      "sha256": "5003c5a696a54304443381074e3e471b8ede1d6b1a90cef7e2a902587d7942a8"
+      "sha256": "6c866836c1525cc8ee3b307fdb2911ed705c101cd3c0e61403a08fcf1babff2b"
     },
     {
       "@id": "asset-paper-headlines-tex",
@@ -308,12 +308,12 @@
     {
       "@id": "asset-part0-model-language-png",
       "@type": "cr:FileObject",
-      "contentSize": "608341 B",
+      "contentSize": "582878 B",
       "contentUrl": "provider-safe-v2-paper-assets/part0_model_language.png",
       "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
       "encodingFormat": "image/png",
       "name": "part0_model_language.png",
-      "sha256": "ec629457b8f2a6ff34e2bbb2f04b7a11dd1192ba16834abfe6c62c4988ac8513"
+      "sha256": "7f03e853edd110b2f3afa3ec5a8a24421402f433271f17826bc6608fd8de4fb6"
     },
     {
       "@id": "asset-part0-model-language-table-tex",
@@ -388,12 +388,12 @@
     {
       "@id": "asset-part1-role-calibration-png",
       "@type": "cr:FileObject",
-      "contentSize": "261969 B",
+      "contentSize": "243521 B",
       "contentUrl": "provider-safe-v2-paper-assets/part1_role_calibration.png",
       "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
       "encodingFormat": "image/png",
       "name": "part1_role_calibration.png",
-      "sha256": "cc925f6c26daf0038e6e4c749b803d46ac878831cdf02aa0af5f9176f8b6c505"
+      "sha256": "6681eaef26179edea45a779008777d1e06fcfb41e21d0b82aa78fee073638f02"
     },
     {
       "@id": "asset-part1-role-calibration-table-tex",
@@ -408,12 +408,12 @@
     {
       "@id": "asset-part2-all-models-png",
       "@type": "cr:FileObject",
-      "contentSize": "663215 B",
+      "contentSize": "613085 B",
       "contentUrl": "provider-safe-v2-paper-assets/part2_all_models.png",
       "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
       "encodingFormat": "image/png",
       "name": "part2_all_models.png",
-      "sha256": "b7265a4df96872d565a9e7c234cd207e02cf4a22ac4d56fce351abccf6dcc539"
+      "sha256": "833c491d9f482349b3432b009833eac9370c616e50a476363e5a579ac13fac97"
     },
     {
       "@id": "asset-part2-all-models-table-tex",
@@ -428,12 +428,12 @@
     {
       "@id": "asset-part2-sensitivity-effects-png",
       "@type": "cr:FileObject",
-      "contentSize": "277330 B",
+      "contentSize": "280110 B",
       "contentUrl": "provider-safe-v2-paper-assets/part2_sensitivity_effects.png",
       "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
       "encodingFormat": "image/png",
       "name": "part2_sensitivity_effects.png",
-      "sha256": "e8f008db3017a0498e16204d33517ff706a89436b1dcabca8350960f8b5ce8ca"
+      "sha256": "59abbdc9ef26b0659abdeb7686dbda1df138c76a07dfe83fade32981660cafa6"
     },
     {
       "@id": "asset-part2-sensitivity-effects-table-tex",
@@ -448,12 +448,12 @@
     {
       "@id": "asset-refusal-cooperation-overview-png",
       "@type": "cr:FileObject",
-      "contentSize": "497822 B",
+      "contentSize": "486086 B",
       "contentUrl": "provider-safe-v2-paper-assets/refusal_cooperation_overview.png",
       "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
       "encodingFormat": "image/png",
       "name": "refusal_cooperation_overview.png",
-      "sha256": "b0f6c2781a2eb40975c101270363ab9c4263e0de2aba19c8a732fdcad0e644ec"
+      "sha256": "5ec9014b9ba9b02ea3ab589e29cc208e1a41b062dc962a661b1aed27237e4eff"
     }
   ],
   "isAccessibleForFree": true,
@@ -2622,6 +2622,6 @@
   },
   "sdLicense": "https://opensource.org/license/mit",
   "sourceAnalysisEvidenceSha256": "a62c982d3ef3a04aeaec5e96a1a1db15e2e534890a5436708467c6ba43ff96a1",
-  "sourcePaperAssetsEvidenceSha256": "35234e2e5e6dfbc8be3684970402ab9bc439ec072be569ec81ee3ffdf311efc8",
+  "sourcePaperAssetsEvidenceSha256": "572db5967e7380d6825bfb4f4fd7bda08d23d75d4c25e9b11f78760e1af5d376",
   "version": "1.0.0"
 }

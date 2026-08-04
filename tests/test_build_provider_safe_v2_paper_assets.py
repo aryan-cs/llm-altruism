@@ -29,6 +29,8 @@ from analysis.build_provider_safe_v2_paper_assets import (
     _annotation_color,
     _fixed_panel_pair_diagnostic,
     _lollipop_panel,
+    _provider_grouped_rows,
+    _provider_prefixed_labels,
     _self_hash,
     _validate_part0,
     _validate_sensitivity,
@@ -81,6 +83,24 @@ def test_lollipop_value_labels_use_a_separate_gutter_from_intervals() -> None:
         assert max(axis.get_xticks()) == pytest.approx(1.0)
     finally:
         plt.close(fig)
+
+
+def test_provider_grouping_is_stable_and_ranks_only_within_family() -> None:
+    rows = [
+        {"target_id": "n/low", "upstream_provider": "nvidia", "model": "n-low", "score": 0.2},
+        {"target_id": "o/low", "upstream_provider": "openai", "model": "o-low", "score": 0.1},
+        {"target_id": "a/high", "upstream_provider": "anthropic", "model": "a-high", "score": 0.9},
+        {"target_id": "o/high", "upstream_provider": "openai", "model": "o-high", "score": 0.8},
+        {"target_id": "g/high", "upstream_provider": "google", "model": "g-high", "score": 1.0},
+    ]
+    grouped = _provider_grouped_rows(rows, score_key="score")
+    assert [row["target_id"] for row in grouped] == [
+        "o/high", "o/low", "a/high", "g/high", "n/low"
+    ]
+    assert _provider_prefixed_labels(grouped) == [
+        "OpenAI: o-high", "    o-low", "Anthropic: a-high",
+        "Google: g-high", "NVIDIA: n-low",
+    ]
 
 
 def test_part0_judge_operational_unclears_are_not_invalids() -> None:
@@ -612,6 +632,10 @@ def test_builds_full_production_shaped_vector_png_and_latex_assets(tmp_path: Pat
         "original_submission_okabe_ito_blue_orange_green_vermillion"
     )
     assert result["figure_font_family"].startswith("Times New Roman")
+    assert result["figure_row_order"] == (
+        "provider_family_then_within_family_outcome;"
+        "global_outcome_order_retained_only_for_rank_profile_figures"
+    )
     assert result["figure_semantic_redundancy"] == (
         "directional_caption_position_printed_values_and_distinct_marker_shapes"
     )

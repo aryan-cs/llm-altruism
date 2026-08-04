@@ -2,50 +2,50 @@
   "artifact_type": "provider_safe_v2_definitive_paper_assets",
   "assets": [
     {
-      "byte_count": 60677,
-      "file_sha256": "81ab782dde41159841b84ebd4b97b2c63217dff65d30bab9f7a837215a7803a7",
+      "byte_count": 60837,
+      "file_sha256": "7ddd1e022232417a0b97558ae142fb34a47d0c04c93d2330cfacb6a0c587dbaa",
       "kind": "vector_pdf",
       "name": "all_models_cross_phase_outcome_profile_block1.pdf"
     },
     {
-      "byte_count": 600411,
-      "file_sha256": "473f5af9254bd56890fa8d1e39911edd728d12b422bedec2f3d1ec26762d8756",
+      "byte_count": 415567,
+      "file_sha256": "e26ef4ebf2aa4246a4cc55fbe73b95b245c552ecde0d1c9a2795eed7bf76185a",
       "kind": "raster_png",
       "name": "all_models_cross_phase_outcome_profile_block1.png"
     },
     {
-      "byte_count": 61689,
-      "file_sha256": "60385d89998480bdff0a26477ed7e3221bf7280e2e44f429a172c9a09891ee82",
+      "byte_count": 60251,
+      "file_sha256": "d1e3a87f1dc149141ae1c2e8738fc8bbd26b2714afe6229f116dc25becae4164",
       "kind": "vector_pdf",
       "name": "all_models_cross_phase_outcome_profile_block2.pdf"
     },
     {
-      "byte_count": 552864,
-      "file_sha256": "9244eac6f567c6f077101c7f201c67bf0941c3111536c4ed6920270cd7c1b501",
+      "byte_count": 439566,
+      "file_sha256": "973425d6135a7754286adb65ef057ec46767eebd5b14374efb64a8c26a3ef7d2",
       "kind": "raster_png",
       "name": "all_models_cross_phase_outcome_profile_block2.png"
     },
     {
-      "byte_count": 59483,
-      "file_sha256": "911879e98128436fc62754029bde528ce9e05df7a0b45232b29ce3d3f3bd09c9",
+      "byte_count": 61352,
+      "file_sha256": "482cc5b757c22701d4f45dfa107524ed27fabcd51b8adad09c5a72356c762031",
       "kind": "vector_pdf",
       "name": "all_models_cross_phase_outcome_profile_block3.pdf"
     },
     {
-      "byte_count": 505661,
-      "file_sha256": "8663311ec979bb5de811013c712e066e6a00975c52be499d35988131e27939d4",
+      "byte_count": 497903,
+      "file_sha256": "51b33606dae5d8f4b15bae09eb601d355eefd8d633ee88feb932a6de2b1a0e47",
       "kind": "raster_png",
       "name": "all_models_cross_phase_outcome_profile_block3.png"
     },
     {
-      "byte_count": 60732,
-      "file_sha256": "5d3cc85ecc9629a0ae2525985ca73f218cdddb6a48e6c22db9e4e7d8ac7387b7",
+      "byte_count": 64989,
+      "file_sha256": "ae74a79952c861c64603912a8e812d1f1d10d03b3081814270739389d93e7b09",
       "kind": "vector_pdf",
       "name": "all_models_cross_phase_outcome_profile_block4.pdf"
     },
     {
-      "byte_count": 492038,
-      "file_sha256": "7da8888c1098c18ec8bb870576231a68cb138c42266e938d17460b9bec5c5383",
+      "byte_count": 490166,
+      "file_sha256": "94c8ded9850c3c2c3807d21415c5fd99d5cf13da85ac90281165eeea5d1c924b",
       "kind": "raster_png",
       "name": "all_models_cross_phase_outcome_profile_block4.png"
     },
@@ -62,14 +62,14 @@
       "name": "all_models_cross_phase_table.tex"
     },
     {
-      "byte_count": 57962,
-      "file_sha256": "bdb3289284e058bc078e550af8c44807c10ecc115bf737a26e89a9c7a91001da",
+      "byte_count": 61271,
+      "file_sha256": "e7f3d6a735ebc8f35d6673baf686cc75b912d24918affb222b01dd04feaf861e",
       "kind": "vector_pdf",
       "name": "matched_current_route_profile.pdf"
     },
     {
-      "byte_count": 336915,
-      "file_sha256": "26f140b20a13be0db10759f869ce72cabc6b6f5fdccb49be60d119af7eb82681",
+      "byte_count": 314621,
+      "file_sha256": "f17a7c3182f0b04ef71aa8aa5477e623c2359176239ae1c26599d920c963ac94",
       "kind": "raster_png",
       "name": "matched_current_route_profile.png"
     },
@@ -80,14 +80,14 @@
       "name": "paper_headlines.tex"
     },
     {
-      "byte_count": 68469,
-      "file_sha256": "380ab8a7bcccb45977963b80430271f406f4afbdee7f1f163ae1e2f679416088",
+      "byte_count": 72378,
+      "file_sha256": "2aa567c3a7e62630ab4e7a6b68d0f3610ece6ee800c1d5784c93800efe3ca983",
       "kind": "vector_pdf",
       "name": "part0_model_language.pdf"
     },
     {
-      "byte_count": 608341,
-      "file_sha256": "ec629457b8f2a6ff34e2bbb2f04b7a11dd1192ba16834abfe6c62c4988ac8513",
+      "byte_count": 582878,
+      "file_sha256": "7f03e853edd110b2f3afa3ec5a8a24421402f433271f17826bc6608fd8de4fb6",
       "kind": "raster_png",
       "name": "part0_model_language.png"
     },
@@ -99,7 +99,7 @@
     },
     {
       "byte_count": 55695,
-      "file_sha256": "86b3f5a0543bc90e44dc68d6b3a82397fc8b9e9b920049dfbc61f0366faf82ca",
+      "file_sha256": "6a76416124c51a3c1c07678a3ecd1fb96901999caca9b2be7312a27a92201145",
       "kind": "vector_pdf",
       "name": "part1_all_models_block1.pdf"
     },
@@ -111,7 +111,7 @@
     },
     {
       "byte_count": 54875,
-      "file_sha256": "3270b68c9570805603c573edcdc45e0835e426224c9cb78d13d8421c9a1313ac",
+      "file_sha256": "10aaf061c2802ed799e1ed9055ea8405ac8e5a7d24686bf382b4e767ad144fdb",
       "kind": "vector_pdf",
       "name": "part1_all_models_block2.pdf"
     },
@@ -123,7 +123,7 @@
     },
     {
       "byte_count": 54496,
-      "file_sha256": "d08eb33f18e7e5f89df907f4b57db21fc97cc52f1d750170401f2de81a4fa3bc",
+      "file_sha256": "96bc968331af3cb898a53f9fca953705f69811db79a52c43c2bc3268890989bd",
       "kind": "vector_pdf",
       "name": "part1_all_models_block3.pdf"
     },
@@ -141,7 +141,7 @@
     },
     {
       "byte_count": 52607,
-      "file_sha256": "be21ccfc84573a22510208d6e97d3273524ba8b708fe16871c4dbcfa618b22ea",
+      "file_sha256": "364cd1fcee71c2fbc4e9286994bfa4c7a96ab1c3b7557936b0f20d7bce7fd7d8",
       "kind": "vector_pdf",
       "name": "part1_local_controls.pdf"
     },
@@ -158,14 +158,14 @@
       "name": "part1_local_controls_table.tex"
     },
     {
-      "byte_count": 62031,
-      "file_sha256": "95cab902485509f5bcebf17a7fa2ca62b0c349a4dbbbb8d3f5d2dfeafafc95fc",
+      "byte_count": 65671,
+      "file_sha256": "9549d5db6a9ec75b2d05cc178ef695faa8cc4312581532f8b69921697e19f16a",
       "kind": "vector_pdf",
       "name": "part1_role_calibration.pdf"
     },
     {
-      "byte_count": 261969,
-      "file_sha256": "cc925f6c26daf0038e6e4c749b803d46ac878831cdf02aa0af5f9176f8b6c505",
+      "byte_count": 243521,
+      "file_sha256": "6681eaef26179edea45a779008777d1e06fcfb41e21d0b82aa78fee073638f02",
       "kind": "raster_png",
       "name": "part1_role_calibration.png"
     },
@@ -176,14 +176,14 @@
       "name": "part1_role_calibration_table.tex"
     },
     {
-      "byte_count": 64186,
-      "file_sha256": "674cf4ea2c8e0af82dddb2181af261cbff0b456f70c4c239b636e0b4c4250148",
+      "byte_count": 67183,
+      "file_sha256": "a69186923a1263cea768cf740a75f728854f4e6b44e6933d7c48bf132b0cefc1",
       "kind": "vector_pdf",
       "name": "part2_all_models.pdf"
     },
     {
-      "byte_count": 663215,
-      "file_sha256": "b7265a4df96872d565a9e7c234cd207e02cf4a22ac4d56fce351abccf6dcc539",
+      "byte_count": 613085,
+      "file_sha256": "833c491d9f482349b3432b009833eac9370c616e50a476363e5a579ac13fac97",
       "kind": "raster_png",
       "name": "part2_all_models.png"
     },
@@ -194,14 +194,14 @@
       "name": "part2_all_models_table.tex"
     },
     {
-      "byte_count": 67487,
-      "file_sha256": "af805103332cdc4f55afcd026d96f73cc1b4f1a2a73de62e3b86c1ae9e9d9abc",
+      "byte_count": 69960,
+      "file_sha256": "c54a5c9f782a91911619d7ebb6d1fff9cfdf57af25ab06adea3ac33d4ac39f43",
       "kind": "vector_pdf",
       "name": "part2_sensitivity_effects.pdf"
     },
     {
-      "byte_count": 277330,
-      "file_sha256": "e8f008db3017a0498e16204d33517ff706a89436b1dcabca8350960f8b5ce8ca",
+      "byte_count": 280110,
+      "file_sha256": "59abbdc9ef26b0659abdeb7686dbda1df138c76a07dfe83fade32981660cafa6",
       "kind": "raster_png",
       "name": "part2_sensitivity_effects.png"
     },
@@ -212,14 +212,14 @@
       "name": "part2_sensitivity_effects_table.tex"
     },
     {
-      "byte_count": 63696,
-      "file_sha256": "80dd159b5b8818990058d7585bdca10ba69e16e3ca37efa46cc9446320b29c30",
+      "byte_count": 67317,
+      "file_sha256": "666036f272346f3a2404d37ad17a19f1b3c28c631c9996fc603c86a2deb0f171",
       "kind": "vector_pdf",
       "name": "refusal_cooperation_overview.pdf"
     },
     {
-      "byte_count": 497822,
-      "file_sha256": "b0f6c2781a2eb40975c101270363ab9c4263e0de2aba19c8a732fdcad0e644ec",
+      "byte_count": 486086,
+      "file_sha256": "5ec9014b9ba9b02ea3ab589e29cc208e1a41b062dc962a661b1aed27237e4eff",
       "kind": "raster_png",
       "name": "refusal_cooperation_overview.png"
     }
@@ -227,12 +227,13 @@
   "confirmatory_or_paper_promotion_permitted": false,
   "cross_axis_aggregate_or_score_generated": false,
   "cross_axis_assets_generated": true,
-  "evidence_sha256": "35234e2e5e6dfbc8be3684970402ab9bc439ec072be569ec81ee3ffdf311efc8",
+  "evidence_sha256": "572db5967e7380d6825bfb4f4fd7bda08d23d75d4c25e9b11f78760e1af5d376",
   "exploratory_only": true,
   "figure_font_family": "Times New Roman (NeurIPS ptm-compatible serif)",
   "figure_palette": "original_submission_okabe_ito_blue_orange_green_vermillion",
+  "figure_row_order": "provider_family_then_within_family_outcome;global_outcome_order_retained_only_for_rank_profile_figures",
   "figure_semantic_redundancy": "directional_caption_position_printed_values_and_distinct_marker_shapes",
-  "generated_at_utc": "2026-08-04T07:30:53.147153Z",
+  "generated_at_utc": "2026-08-04T14:51:35.138767Z",
   "human_labels_generated": false,
   "invalid_policy": "first_attempt_invalids_retained_in_all_primary_scheduled_unit_denominators;repairs_reported_separately",
   "local_controls_pooled_with_hosted_routes": false,
