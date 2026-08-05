@@ -88,3 +88,6 @@ docs/conference_submission/supplement.zip
 .hidden-items.json
 .DS_Store
 Thumbs.db
+
+# Local task tracker; never commit or push.
+/TO-DO.md
