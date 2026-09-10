@@ -10,7 +10,10 @@ from __future__ import annotations
 
 import argparse
 import fcntl
+import os
 from pathlib import Path
+import re
+import threading
 from typing import Any, Mapping, Sequence
 
 from experiments.misc import inference_hub_part2_panel as runner
@@ -18,10 +21,89 @@ from experiments.misc import inference_hub_part2_panel as runner
 
 SCHEMA_VERSION = 1
 ARTIFACT_TYPE = "inference_hub_part2_operational_trajectory_repair_v1"
+NUMBERED_BETTER_GOS_KEY = re.compile(r"^BETTER_GOS_NVIDIA_API_KEY(?:_(\d+))?$")
 
 
 class Part2OperationalRepairError(RuntimeError):
     """The source evidence or repair overlay violates its frozen contract."""
+
+
+class PooledInferenceHubClient(runner.InferenceHubClient):
+    """Round-robin exact-route clients with an independent limiter per account."""
+
+    def __init__(self, clients: Sequence[runner.InferenceHubClient]) -> None:
+        if not clients:
+            raise ValueError("A pooled Inference Hub client requires at least one account.")
+        endpoints = {client.base_url for client in clients}
+        contracts = {runner._sha256_json(client.rate_limit_contract) for client in clients}
+        if len(endpoints) != 1 or len(contracts) != 1:
+            raise ValueError("Pooled clients must share one endpoint and rate-limit contract.")
+        self._clients = tuple(clients)
+        self.base_url = self._clients[0].base_url
+        self._cursor = 0
+        self._lock = threading.Lock()
+
+    @property
+    def rate_limit_contract(self) -> dict[str, Any]:
+        return self._clients[0].rate_limit_contract
+
+    @property
+    def account_count(self) -> int:
+        return len(self._clients)
+
+    def post(
+        self, path: str, body: Mapping[str, Any], *,
+        upstream_provider: str | None = None,
+    ) -> dict[str, Any]:
+        with self._lock:
+            client = self._clients[self._cursor]
+            self._cursor = (self._cursor + 1) % len(self._clients)
+        return client.post(path, body, upstream_provider=upstream_provider)
+
+
+def _read_credential_pool(path: Path, expected_count: int) -> tuple[str, ...]:
+    if expected_count < 1:
+        raise Part2OperationalRepairError("Expected API-key count must be positive.")
+    values: list[tuple[int, str]] = []
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        name, value = line.split("=", 1)
+        match = NUMBERED_BETTER_GOS_KEY.fullmatch(name.strip())
+        if match:
+            ordinal = int(match.group(1) or 1)
+            values.append((ordinal, value.strip().strip('"').strip("'")))
+    ordered = sorted(values)
+    ordinals = tuple(ordinal for ordinal, value in ordered if value)
+    keys = tuple(value for _, value in ordered if value)
+    if (
+        ordinals != tuple(range(1, expected_count + 1))
+        or len(keys) != expected_count
+        or len(set(keys)) != expected_count
+    ):
+        raise Part2OperationalRepairError(
+            f"Credential pool must contain exactly {expected_count} unique nonempty accounts."
+        )
+    return keys
+
+
+def _pooled_runtime_client(
+    path: Path, expected_count: int, timeout_seconds: float, rate_profile: str,
+) -> PooledInferenceHubClient:
+    keys = _read_credential_pool(path, expected_count)
+    original_key = os.environ.get("NVIDIA_API_KEY")
+    clients = []
+    try:
+        for key in keys:
+            os.environ["NVIDIA_API_KEY"] = key
+            clients.append(runner._runtime_client(timeout_seconds, rate_profile))
+    finally:
+        if original_key is None:
+            os.environ.pop("NVIDIA_API_KEY", None)
+        else:
+            os.environ["NVIDIA_API_KEY"] = original_key
+    return PooledInferenceHubClient(clients)
 
 
 def _bound_json(reference: Mapping[str, Any], label: str) -> tuple[Path, dict[str, Any]]:
@@ -38,8 +120,11 @@ def _bound_json(reference: Mapping[str, Any], label: str) -> tuple[Path, dict[st
     return path, value
 
 
-def _bindings(source_path: Path, source: Mapping[str, Any], max_rounds: int) -> dict[str, Any]:
-    return {
+def _bindings(
+    source_path: Path, source: Mapping[str, Any], max_rounds: int,
+    credential_pool_binding: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    bindings = {
         "schema_version": SCHEMA_VERSION,
         "artifact_type": ARTIFACT_TYPE,
         "source_manifest": {
@@ -54,6 +139,9 @@ def _bindings(source_path: Path, source: Mapping[str, Any], max_rounds: int) -> 
         "repair_policy": "whole_trajectory_day_one_exact_route_separate_overlay",
         "maximum_rounds": max_rounds,
     }
+    if credential_pool_binding is not None:
+        bindings["credential_pool"] = dict(credential_pool_binding)
+    return bindings
 
 
 def run_repair(
@@ -61,6 +149,7 @@ def run_repair(
     max_rounds: int = 8, trajectory_workers: int = 4,
     participant_workers: int = 16, max_attempts: int = 8,
     initial_backoff_seconds: float = 1.0, resume: bool = False,
+    credential_pool_binding: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     if min(max_rounds, trajectory_workers, participant_workers, max_attempts) < 1:
         raise Part2OperationalRepairError("Repair limits must be positive.")
@@ -113,7 +202,7 @@ def run_repair(
     ):
         raise Part2OperationalRepairError("Semantic INVALID was selected for repair.")
 
-    bindings = _bindings(source_path, source, max_rounds)
+    bindings = _bindings(source_path, source, max_rounds, credential_pool_binding)
     if output_dir.exists() and not resume:
         raise Part2OperationalRepairError("Repair output exists; use --resume.")
     private_dir = output_dir / "private"
@@ -276,6 +365,8 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--initial-backoff-seconds", type=float, default=1.0)
     parser.add_argument("--timeout-seconds", type=float, default=900.0)
     parser.add_argument("--rate-profile", default=runner.HIGH_LATENCY_ORIGINAL_SCALE_RATE_PROFILE)
+    parser.add_argument("--credential-env-file", type=Path)
+    parser.add_argument("--expected-api-key-count", type=int, default=3)
     parser.add_argument("--resume", action="store_true")
     return parser
 
@@ -283,14 +374,33 @@ def _parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
+        if args.credential_env_file is None:
+            client = runner._runtime_client(args.timeout_seconds, args.rate_profile)
+            credential_pool_binding = None
+        else:
+            client = _pooled_runtime_client(
+                args.credential_env_file, args.expected_api_key_count,
+                args.timeout_seconds, args.rate_profile,
+            )
+            credential_pool_binding = {
+                "account_count": client.account_count,
+                "selection_policy": "thread_safe_round_robin",
+                "rate_limit_scope": "independent_per_account",
+                "rate_limit_contract": client.rate_limit_contract,
+                "implementation_files": {
+                    str(Path(__file__).resolve()): runner._sha256_file(Path(__file__).resolve()),
+                    str(Path(runner.__file__).resolve()): runner._sha256_file(Path(runner.__file__).resolve()),
+                },
+            }
         manifest = run_repair(
             source_manifest_path=args.source_manifest, output_dir=args.output_dir,
-            client=runner._runtime_client(args.timeout_seconds, args.rate_profile),
+            client=client,
             max_rounds=args.max_rounds, trajectory_workers=args.trajectory_workers,
             participant_workers=args.participant_workers,
             max_attempts=args.max_attempts,
             initial_backoff_seconds=args.initial_backoff_seconds,
             resume=args.resume,
+            credential_pool_binding=credential_pool_binding,
         )
     except (Part2OperationalRepairError, runner.InferenceHubPart2PanelError, OSError, TypeError, ValueError) as error:
         print(f"Part 2 operational repair failed: {error}")

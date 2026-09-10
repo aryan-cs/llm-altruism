@@ -1,6 +1,6 @@
 # Paper completion checkpoint
 
-Updated: 2026-08-04 (America/Los_Angeles)
+Updated: 2026-09-09 (America/New_York)
 
 ## North star
 
@@ -19,6 +19,7 @@ Updated: 2026-08-04 (America/Los_Angeles)
 ## Current source state
 
 - Branch: `master` (no additional branch or tag).
+- Latest pushed repository commit before this update: `8900532`.
 - Definitive paper and release-artifact commit: `5cd54a0`.
 - Final supplemental retry and repair-provenance commit preceding this update:
   `9272c67`.
@@ -97,12 +98,13 @@ target ID, exact route, and upstream provider/model identity.
   reserve-cost-2, collapse-death-rate-0.2 environment with 12 independent
   common-seed trajectories per exact route. The active resumable production
   journals are `data/private/inference_hub/full-part2-n12-n50-d100-main21-v5`;
-  the original 19 routes plus recovered MiniMax M2.7 and GLM 5.1 are running,
-  while exact Opus 4.5, DeepSeek V4 Flash, and Nemotron 3 Ultra remain on
-  bounded identity recovery without route substitution. This campaign remains
-  separate from the sealed 12-day evidence until complete and validated.
-  Run or resume it only from commit `f375f22` with the frozen target set and
-  execution arguments below (append `--resume` only when the v5 root exists):
+  all 21 routes have now terminalized all 252 trajectories. The source manifest
+  records 1,115,745 scheduled agent-days, 1,114,883 received responses, 862
+  exhausted transport failures, zero identity mismatches, and 214/252
+  operationally eligible trajectories. It correctly remains non-COMPLETE while
+  38 trajectories require operational repair. This campaign remains separate
+  from the sealed 12-day evidence until the repair is complete and validated.
+  Its exact source command was:
 
   ```bash
   uv run python -m experiments.misc.inference_hub_part2_panel \
@@ -126,8 +128,41 @@ target ID, exact route, and upstream provider/model identity.
     --rate-profile accelerated_original_scale_high_latency_v2
   ```
 
-Part 2 retains the main accelerated policy at global concurrency 12, provider
-concurrency 2, global 8 starts/second, and provider 1.5 starts/second. Parts 0
+  Nemotron 3 Ultra and DeepSeek V4 Flash terminal sources remain immutable at
+  `data/private/inference_hub/full-part2-n12-n50-d100-nemotron-3-ultra-recovered-v1`
+  and `data/private/inference_hub/full-part2-n12-n50-d100-deepseek-v4-flash-recovered-v1`.
+  Their complete operational overlays remain at the correspondingly named
+  `-operational-repair-v1` roots; never restart either terminal source.
+
+  The active main repair paper candidate is
+  `data/private/inference_hub/full-part2-n12-n50-d100-main21-v5-operational-repair-multikey-v3`.
+  It reruns only the 38 operationally ineligible source trajectories from day 1,
+  never selects semantic INVALID outputs, uses the three unique authenticated
+  accounts in `/Users/aryagupta/Desktop/cdo-better-gos/.env` without persisting
+  credentials, and binds the account count, independent per-account rate policy,
+  selection policy, source manifest, and implementation hashes. The sealed
+  primary `inference_hub_part2_panel.py` hash is unchanged and matches both the
+  source manifest and v3 repair binding. Run or resume only with:
+
+  ```bash
+  uv run python -m experiments.misc.inference_hub_part2_operational_repair \
+    --source-manifest data/private/inference_hub/full-part2-n12-n50-d100-main21-v5/private/manifest.json \
+    --output-dir data/private/inference_hub/full-part2-n12-n50-d100-main21-v5-operational-repair-multikey-v3 \
+    --max-rounds 8 --trajectory-workers 12 --participant-workers 16 \
+    --max-attempts 8 --initial-backoff-seconds 1 --timeout-seconds 900 \
+    --rate-profile accelerated_original_scale_high_latency_v2 \
+    --credential-env-file /Users/aryagupta/Desktop/cdo-better-gos/.env \
+    --expected-api-key-count 3
+  ```
+
+  Append `--resume` only if this v3 process is absent and its manifest remains
+  incomplete. The earlier single-account `...operational-repair-v1` and pooled
+  `...operational-repair-multikey-v2` roots are preserved as incomplete
+  diagnostic evidence and must not be resumed or merged into the paper.
+
+Part 2 uses the manifest-bound high-latency v2 policy independently per account:
+global concurrency 60, provider concurrency 10, global 12 starts/second, and
+provider 2.5 starts/second. Parts 0
 and 1 use the separately source-bound bounded deadline policies above. Primary
 campaigns have priority over supplemental retries.
 
@@ -322,8 +357,16 @@ campaigns have priority over supplemental retries.
 
 ## Exact next steps
 
-1. Review the regenerated `conference_submission.pdf` and submit the matching
-   anonymous supplement.
-2. Keep future exact-route availability re-probes isolated. Do not substitute
+1. Let the v3 main operational overlay finish; if its single process is absent
+   and its manifest remains incomplete, resume it with the exact command above.
+2. Validate source and all three complete overlays end to end: route identities,
+   hash chains, attempt bindings, simulator transitions, matched denominators,
+   trajectory completeness, and sanitized aggregates.
+3. Regenerate every provenance-bound Part 2 analysis artifact, table, bar/line/
+   raster figure, and manuscript claim from the effective 100-day evidence.
+4. Compile and visually inspect `conference_submission.pdf`, rebuild and clean-
+   compile `supplement.zip`, run focused and full relevant tests, then commit and
+   push `master`. Keep the title exactly **Safety Beyond Refusal**.
+5. Keep future exact-route availability re-probes isolated. Do not substitute
    routes, replace genuine semantic invalids, alter sealed primary evidence, or
    change the submitted paper automatically.
