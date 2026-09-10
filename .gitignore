@@ -71,6 +71,7 @@ docs/**/*.fls
 docs/**/*.out
 docs/**/*.pdf
 !docs/paper.pdf
+!docs/docs/paper.pdf
 docs/**/*.synctex.gz
 docs/conference_submission/anonymous_supplement/
 docs/conference_submission/supplement.zip
