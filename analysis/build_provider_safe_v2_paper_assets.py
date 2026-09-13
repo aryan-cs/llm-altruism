@@ -59,13 +59,70 @@ SENSITIVITY_HOLM_FAMILY_SIZE = SENSITIVITY_SENTINEL_COUNT * len(
 SENSITIVITY_HOLM_FAMILY = (
     f"{SENSITIVITY_HOLM_FAMILY_SIZE}_prespecified_sentinel_by_factor_main_effects"
 )
+# The current production analyzer composes the 21-route primary Part 2 source
+# with the Nemotron Ultra and DeepSeek V4 Flash single-route sources.  The
+# frozen 24-route planning roster has one declared non-substitutable exclusion,
+# leaving 23 observed routes and 276 common-seed trajectories.  Historical
+# single-source analysis directories remain readable under the explicit legacy
+# contract below; an artifact that claims composition never falls back to it.
+PRODUCTION_PART2_MODEL_COUNT = 23
+PRODUCTION_PART2_TRAJECTORIES_PER_MODEL = 12
+PRODUCTION_PART2_TRAJECTORY_COUNT = (
+    PRODUCTION_PART2_MODEL_COUNT * PRODUCTION_PART2_TRAJECTORIES_PER_MODEL
+)
+PRODUCTION_MATCHED_ROUTE_COUNT = 22
+PRODUCTION_PART2_COMPOSITION_STATUS = (
+    "complete_exact_source_bound_three_pair_full_trajectory_operational_overlays_composed"
+)
+PRODUCTION_PART2_PANEL_ID = (
+    "sota_cross_axis_part2_corrected_original_scale_100d_v1"
+)
+PRODUCTION_PART2_DECLARED_EXCLUSION = "anthropic/claude-opus-4-5"
+PRODUCTION_PART2_ONLY_TARGET = "minimaxai/minimax-m2.7"
+PRODUCTION_PART2_PAIR_ROUTE_COUNTS = (21, 1, 1)
+PRODUCTION_PART2_PAIR_TRAJECTORY_COUNTS = (252, 12, 12)
+PRODUCTION_PART2_ORDERED_TARGET_IDS = (
+    "openai/gpt-3.5-turbo",
+    "openai/gpt-4o",
+    "openai/gpt-4.1",
+    "openai/gpt-5",
+    "openai/gpt-5.2",
+    "openai/gpt-5.4",
+    "openai/gpt-oss-20b",
+    "anthropic/claude-haiku-4-5",
+    "anthropic/claude-sonnet-4-5",
+    "anthropic/claude-sonnet-4-6",
+    "anthropic/claude-opus-4-6",
+    "google/gemini-2.5-flash",
+    "google/gemini-2.5-pro",
+    "google/gemini-3.1-pro-preview",
+    "google/gemini-3.5-flash",
+    "meta/llama-3.3-70b-instruct",
+    "qwen/qwen3.5-35b-a3b",
+    "qwen/qwen3.6-27b",
+    "nvidia/nemotron-3-super-v3",
+    "minimaxai/minimax-m2.7",
+    "zai-org/glm-5.1",
+    "nvidia/nemotron-3-ultra",
+    "deepseek-ai/deepseek-v4-flash",
+)
+PRODUCTION_PART2_CONTRACT_SHA256 = (
+    "f3b75d42c0c53f57dd45c94dc47dd4a27f3cdd07836cdb308c59ca9e40960b48"
+)
+PRODUCTION_PART2_COMMON_SEEDS_SHA256 = (
+    "7f79c387a44c87a50b1ace28d1f718d6a281f9e1f0c460117904cfc96c604a56"
+)
 EXPECTED_ROW_COUNTS = {
     "part0_models": 22,
     "part1_models": 75,
-    "part2_models": 19,
+    "part2_models": PRODUCTION_PART2_MODEL_COUNT,
     "role_calibration_model_frames": ROLE_SENTINEL_COUNT * len(ROLE_FRAMES),
     "sensitivity_models": SENSITIVITY_SENTINEL_COUNT,
     "sensitivity_main_effects": SENSITIVITY_HOLM_FAMILY_SIZE,
+}
+LEGACY_EXPECTED_ROW_COUNTS = {
+    **EXPECTED_ROW_COUNTS,
+    "part2_models": 19,
 }
 DEFAULT_LOCAL_CONTROLS_PATH = (
     Path(__file__).resolve().parents[1] / "data/analysis/local_hf_part1_controls.json"
@@ -90,6 +147,7 @@ PROVIDER_DISPLAY_ORDER = (
     "anthropic",
     "google",
     "nvidia",
+    "minimaxai",
     "qwen",
     "meta",
     "deepseek-ai",
@@ -101,6 +159,7 @@ PROVIDER_DISPLAY_NAMES = {
     "anthropic": "Anthropic",
     "google": "Google",
     "nvidia": "NVIDIA",
+    "minimaxai": "MiniMax",
     "qwen": "Qwen",
     "meta": "Meta",
     "deepseek-ai": "DeepSeek",
@@ -108,10 +167,11 @@ PROVIDER_DISPLAY_NAMES = {
     "perplexity": "Perplexity",
 }
 
-# Frozen route-version recency for the 22-route current panel.  These values
-# encode the version names in the frozen registry, not mutable vendor aliases
-# or a performance judgment.  Unlisted routes use the natural version parser
-# below, which keeps the broader appendix union deterministic.
+# Frozen route-version recency for the 23-route production Part 2 panel (and
+# its 22-route cross-part match).  These values encode the version names in the
+# frozen registry, not mutable vendor aliases or a performance judgment.
+# Unlisted routes use the natural version parser below, which keeps the broader
+# appendix union deterministic.
 MODEL_RECENCY_BY_TARGET = {
     "openai/gpt-5.4": (5, 4, 0, 0),
     "openai/gpt-5.2": (5, 2, 0, 0),
@@ -134,6 +194,7 @@ MODEL_RECENCY_BY_TARGET = {
     "qwen/qwen3.5-35b-a3b": (3, 5, 0, 0),
     "meta/llama-3.3-70b-instruct": (3, 3, 0, 0),
     "deepseek-ai/deepseek-v4-flash": (4, 0, 0, 0),
+    "minimaxai/minimax-m2.7": (2, 7, 0, 0),
     "zai-org/glm-5.1": (5, 1, 0, 0),
 }
 
@@ -337,7 +398,203 @@ def _model_index(
     return output
 
 
-def _validate_manifest(input_dir: Path) -> dict[str, Any]:
+def _portable_hash_binding(
+    value: object,
+    label: str,
+    *,
+    expected_fields: set[str],
+) -> dict[str, Any]:
+    """Validate one public basename/hash projection without following it."""
+
+    if not isinstance(value, Mapping) or set(value) != expected_fields:
+        raise PaperAssetsError(f"{label} binding is malformed.")
+    binding = dict(value)
+    basename = binding.get("basename")
+    if (
+        not isinstance(basename, str)
+        or not basename
+        or Path(basename).name != basename
+        or Path(basename).is_absolute()
+    ):
+        raise PaperAssetsError(f"{label} binding contains a nonportable basename.")
+    for field in expected_fields - {"basename"}:
+        digest = binding.get(field)
+        if not isinstance(digest, str) or re.fullmatch(r"[0-9a-f]{64}", digest) is None:
+            raise PaperAssetsError(f"{label}.{field} is not a SHA-256 digest.")
+    return binding
+
+
+def _part2_manifest_topology(manifest: Mapping[str, Any]) -> dict[str, Any]:
+    """Select the legacy or composed Part 2 contract and fail closed on claims."""
+
+    composition = manifest.get("part2_operational_repair_composition")
+    statuses = manifest.get("input_evidence_status")
+    part2_status = statuses.get("part2") if isinstance(statuses, Mapping) else None
+    if composition is None:
+        if part2_status == PRODUCTION_PART2_COMPOSITION_STATUS:
+            raise PaperAssetsError(
+                "Analysis claims composed Part 2 evidence without its composition contract."
+            )
+        return {
+            "mode": "legacy_single_source",
+            "row_counts": dict(LEGACY_EXPECTED_ROW_COUNTS),
+            "part2_route_count": LEGACY_EXPECTED_ROW_COUNTS["part2_models"],
+            "part2_trajectory_count": (
+                LEGACY_EXPECTED_ROW_COUNTS["part2_models"]
+                * PRODUCTION_PART2_TRAJECTORIES_PER_MODEL
+            ),
+            # Historical synthetic fixtures intentionally did not share route
+            # identities.  Their tables remain readable, but only a composed
+            # production artifact receives a required overlap count.
+            "required_matched_route_count": None,
+        }
+    if not isinstance(composition, Mapping):
+        raise PaperAssetsError("Part 2 composition contract must be an object or null.")
+    if part2_status != PRODUCTION_PART2_COMPOSITION_STATUS:
+        raise PaperAssetsError("Part 2 composition evidence status is missing or changed.")
+    expected_scalars = {
+        "composition_schema_version": 1,
+        "panel_id": PRODUCTION_PART2_PANEL_ID,
+        "common_environment_seed_count": PRODUCTION_PART2_TRAJECTORIES_PER_MODEL,
+        "route_count": PRODUCTION_PART2_MODEL_COUNT,
+        "trajectory_count": PRODUCTION_PART2_TRAJECTORY_COUNT,
+        "ordered_target_ids": list(PRODUCTION_PART2_ORDERED_TARGET_IDS),
+        "route_key_uniqueness_validated": True,
+        "status": PRODUCTION_PART2_COMPOSITION_STATUS,
+        "environmental_invalid_policy": (
+            "exclude_operationally_eligible_trajectories_with_any_"
+            "semantic_invalid_from_environmental_estimates"
+        ),
+    }
+    for field, expected in expected_scalars.items():
+        observed = composition.get(field)
+        integer_field = field in {
+            "composition_schema_version",
+            "common_environment_seed_count",
+            "route_count",
+            "trajectory_count",
+        }
+        if (
+            integer_field
+            and (isinstance(observed, bool) or not isinstance(observed, int))
+        ) or (
+            field == "route_key_uniqueness_validated" and observed is not True
+        ) or observed != expected:
+            raise PaperAssetsError(
+                f"Part 2 production composition {field} changed from {expected!r}."
+            )
+    expected_digests = {
+        "part2_contract_sha256": PRODUCTION_PART2_CONTRACT_SHA256,
+        "common_environment_seeds_sha256": PRODUCTION_PART2_COMMON_SEEDS_SHA256,
+    }
+    for field, expected in expected_digests.items():
+        if composition.get(field) != expected:
+            raise PaperAssetsError(
+                f"Part 2 production composition {field} changed from the frozen design."
+            )
+    if composition.get("declared_excluded_target_ids") != [
+        PRODUCTION_PART2_DECLARED_EXCLUSION
+    ] or composition.get("declared_exclusions") != [
+        {
+            "target_id": PRODUCTION_PART2_DECLARED_EXCLUSION,
+            "reason": "no_complete_exact_route_corrected_original_scale_100d_evidence",
+            "substitution_permitted": False,
+        }
+    ]:
+        raise PaperAssetsError(
+            "Part 2 production composition changed its sole declared exclusion."
+        )
+    pairs = composition.get("ordered_source_overlay_pairs")
+    if not isinstance(pairs, list) or len(pairs) != 3:
+        raise PaperAssetsError(
+            "Part 2 production composition requires three ordered source/overlay pairs."
+        )
+    validated_pairs: list[dict[str, Any]] = []
+    for index, raw_pair in enumerate(pairs, start=1):
+        label = f"Part 2 production pair {index}"
+        if not isinstance(raw_pair, Mapping) or set(raw_pair) != {
+            "pair_ordinal", "source", "operational_repair_overlay", "audit"
+        }:
+            raise PaperAssetsError(f"{label} is malformed.")
+        pair_ordinal = raw_pair.get("pair_ordinal")
+        if (
+            isinstance(pair_ordinal, bool)
+            or not isinstance(pair_ordinal, int)
+            or pair_ordinal != index
+        ):
+            raise PaperAssetsError(f"{label} order changed.")
+        source = _portable_hash_binding(
+            raw_pair.get("source"),
+            f"{label} source",
+            expected_fields={"basename", "file_sha256", "evidence_sha256"},
+        )
+        raw_overlay = raw_pair.get("operational_repair_overlay")
+        overlay_fields = {
+            "basename",
+            "file_sha256",
+            "evidence_sha256",
+            "source_manifest_file_sha256",
+            "source_manifest_evidence_sha256",
+        }
+        if not isinstance(raw_overlay, Mapping) or frozenset(raw_overlay) not in {
+            frozenset(overlay_fields),
+            frozenset({*overlay_fields, "parent_operational_repair_overlay"}),
+        }:
+            raise PaperAssetsError(f"{label} operational overlay binding is malformed.")
+        overlay = _portable_hash_binding(
+            {field: raw_overlay[field] for field in overlay_fields},
+            f"{label} operational overlay",
+            expected_fields=overlay_fields,
+        )
+        if "parent_operational_repair_overlay" in raw_overlay:
+            overlay["parent_operational_repair_overlay"] = _portable_hash_binding(
+                raw_overlay["parent_operational_repair_overlay"],
+                f"{label} parent operational overlay",
+                expected_fields={"basename", "file_sha256", "evidence_sha256"},
+            )
+        if (
+            overlay["source_manifest_file_sha256"] != source["file_sha256"]
+            or overlay["source_manifest_evidence_sha256"]
+            != source["evidence_sha256"]
+        ):
+            raise PaperAssetsError(f"{label} overlay is not bound to its source.")
+        audit = raw_pair.get("audit")
+        audit_integer_fields = (
+            "pair_ordinal",
+            "route_count",
+            "trajectory_count",
+            "source_operational_failure_trajectories",
+            "successful_full_trajectory_repairs",
+            "unresolved_operational_failure_trajectories",
+        )
+        if not isinstance(audit, Mapping) or any(
+            isinstance(audit.get(field), bool)
+            or not isinstance(audit.get(field), int)
+            for field in audit_integer_fields
+        ) or (
+            audit.get("pair_ordinal") != index
+            or audit.get("route_count")
+            != PRODUCTION_PART2_PAIR_ROUTE_COUNTS[index - 1]
+            or audit.get("trajectory_count")
+            != PRODUCTION_PART2_PAIR_TRAJECTORY_COUNTS[index - 1]
+            or audit.get("source_operational_failure_trajectories")
+            != audit.get("successful_full_trajectory_repairs")
+            or int(audit.get("source_operational_failure_trajectories", -1)) < 0
+            or audit.get("unresolved_operational_failure_trajectories") != 0
+        ):
+            raise PaperAssetsError(f"{label} audit does not reconcile.")
+        validated_pairs.append({"source": source, "overlay": overlay})
+    return {
+        "mode": "three_pair_operational_repair_composition",
+        "row_counts": dict(EXPECTED_ROW_COUNTS),
+        "part2_route_count": PRODUCTION_PART2_MODEL_COUNT,
+        "part2_trajectory_count": PRODUCTION_PART2_TRAJECTORY_COUNT,
+        "required_matched_route_count": PRODUCTION_MATCHED_ROUTE_COUNT,
+        "pairs": validated_pairs,
+    }
+
+
+def _validate_manifest(input_dir: Path) -> tuple[dict[str, Any], dict[str, Any]]:
     manifest = _read_json(input_dir / "analysis_manifest.json", "analysis manifest")
     if (
         manifest.get("schema_version") != SCHEMA_VERSION
@@ -345,8 +602,12 @@ def _validate_manifest(input_dir: Path) -> dict[str, Any]:
         or manifest.get("evidence_sha256") != _self_hash(manifest)
     ):
         raise PaperAssetsError("Analysis manifest type, schema, or self-hash failed.")
-    if manifest.get("row_counts") != EXPECTED_ROW_COUNTS:
-        raise PaperAssetsError("Analysis manifest does not declare the production row matrix.")
+    topology = _part2_manifest_topology(manifest)
+    expected_row_counts = topology["row_counts"]
+    if manifest.get("row_counts") != expected_row_counts:
+        raise PaperAssetsError(
+            "Analysis manifest row count matrix does not match its selected topology."
+        )
     if manifest.get("path_policy") != "portable_basenames_only_no_host_absolute_paths_in_public_manifest":
         raise PaperAssetsError("Analysis manifest path policy is not release-safe.")
     if manifest.get("privacy_policy") != {
@@ -373,9 +634,14 @@ def _validate_manifest(input_dir: Path) -> dict[str, Any]:
             or Path(basename).is_absolute()
         ):
             raise PaperAssetsError("Analysis manifest contains a nonportable input path.")
+    if topology["mode"] == "three_pair_operational_repair_composition":
+        if dict(inputs["part2"]) != topology["pairs"][0]["source"]:
+            raise PaperAssetsError(
+                "Analysis Part 2 input projection is not the first composed source."
+            )
     expected_public = {
-        *(f"{name}.jsonl" for name in EXPECTED_ROW_COUNTS),
-        *(f"{name}.csv" for name in EXPECTED_ROW_COUNTS),
+        *(f"{name}.jsonl" for name in expected_row_counts),
+        *(f"{name}.csv" for name in expected_row_counts),
         "figure_aggregates.json",
     }
     outputs = manifest.get("public_outputs")
@@ -408,7 +674,7 @@ def _validate_manifest(input_dir: Path) -> dict[str, Any]:
             raise PaperAssetsError(f"Analysis public-output kind failed: {basename}.")
         if binding.get("file_sha256") != _sha256_file(path):
             raise PaperAssetsError(f"Analysis public-output hash failed: {basename}.")
-        expected_rows = EXPECTED_ROW_COUNTS.get(path.stem)
+        expected_rows = expected_row_counts.get(path.stem)
         if expected_rows is None:
             declared_rows = binding.get("row_count")
             if isinstance(declared_rows, bool) or not isinstance(declared_rows, int) or declared_rows < 0:
@@ -429,7 +695,7 @@ def _validate_manifest(input_dir: Path) -> dict[str, Any]:
         "part0_and_part1_bootstrap_intervals_are_descriptive_frozen_bank_sensitivity_intervals_not_population_confidence_intervals"
     ):
         raise PaperAssetsError("Analysis uncertainty/scope contract changed.")
-    return manifest
+    return manifest, topology
 
 
 def _validate_part0(
@@ -627,8 +893,13 @@ def _validate_part1(rows: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
     )
 
 
-def _validate_part2(rows: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
-    models = _model_index(rows, "part2_models", 19)
+def _validate_part2(
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    expected_count: int = LEGACY_EXPECTED_ROW_COUNTS["part2_models"],
+    require_fully_operational: bool = False,
+) -> list[dict[str, Any]]:
+    models = _model_index(rows, "part2_models", expected_count)
     for target, row in models.items():
         label = f"part2_models[{target}]"
         _required(
@@ -683,6 +954,10 @@ def _validate_part2(rows: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
             or restraint + overuse + invalid != scheduled
         ):
             raise PaperAssetsError(f"{label} trajectory/action accounting does not reconcile.")
+        if require_fully_operational and operational != trajectories:
+            raise PaperAssetsError(
+                f"{label} must expose all 12 operational trajectories for production."
+            )
         if _integer(row, "repaired_invalid_count", label) != 0:
             raise PaperAssetsError("Part 2 repaired outcomes are outside this frozen asset contract.")
         all_rate = _rate(row, "restraint_rate_all_scheduled", label)
@@ -760,6 +1035,135 @@ def _validate_part2(rows: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
         models.values(),
         key=lambda row: (-float(row["restraint_rate_all_scheduled"]), str(row["target_id"])),
     )
+
+
+def _validate_part2_trajectory_topology(
+    rows: Sequence[Mapping[str, Any]],
+    models: Sequence[Mapping[str, Any]],
+    *,
+    required: bool,
+    expected_count: int,
+    expected_ordered_targets: Sequence[str] | None = None,
+) -> None:
+    """Validate the public trajectory member used by Part 2 figures.
+
+    Legacy synthetic fixtures predate publication of trajectory figure rows
+    and may leave this member empty.  A production composition must expose the
+    full 23 x 12 matrix, and any nonempty legacy member is checked just as
+    strictly against its model summaries.
+    """
+
+    if not rows and not required:
+        return
+    if len(rows) != expected_count:
+        raise PaperAssetsError(
+            f"Part 2 trajectory aggregate requires exactly {expected_count} rows."
+        )
+    model_index = {str(row["target_id"]): row for row in models}
+    expected_keys = {
+        (target, trajectory_index)
+        for target, model in model_index.items()
+        for trajectory_index in range(int(model["trajectory_count"]))
+    }
+    observed_keys: set[tuple[str, int]] = set()
+    for index, row in enumerate(rows):
+        label = f"part2_trajectories[{index}]"
+        _required(
+            row,
+            ("target_id", "upstream_provider", "model", "trajectory_index"),
+            label,
+        )
+        target = _identity(row, "target_id", label)
+        provider = _identity(row, "upstream_provider", label)
+        model = _identity(row, "model", label)
+        trajectory_index = _integer(row, "trajectory_index", label)
+        model_row = model_index.get(target)
+        if model_row is None or (
+            provider != model_row["upstream_provider"] or model != model_row["model"]
+        ):
+            raise PaperAssetsError(
+                f"{label} has an unknown or inconsistent exact route identity."
+            )
+        key = (target, trajectory_index)
+        if key in observed_keys:
+            raise PaperAssetsError(f"Part 2 trajectory aggregate duplicates {key!r}.")
+        observed_keys.add(key)
+    if observed_keys != expected_keys:
+        raise PaperAssetsError(
+            "Part 2 trajectory aggregate is not the complete per-route 12-seed matrix."
+        )
+    if expected_ordered_targets is not None:
+        observed_order = [
+            str(rows[index]["target_id"])
+            for index in range(0, len(rows), PRODUCTION_PART2_TRAJECTORIES_PER_MODEL)
+        ]
+        expected_order = list(expected_ordered_targets)
+        expected_sequence = [
+            (target, trajectory_index)
+            for target in expected_order
+            for trajectory_index in range(PRODUCTION_PART2_TRAJECTORIES_PER_MODEL)
+        ]
+        observed_sequence = [
+            (str(row["target_id"]), int(row["trajectory_index"])) for row in rows
+        ]
+        if observed_order != expected_order or observed_sequence != expected_sequence:
+            raise PaperAssetsError(
+                "Part 2 trajectory aggregate changed the frozen 23-route/12-seed order."
+            )
+
+
+def _validate_production_cross_part_topology(
+    part0: Sequence[Mapping[str, Any]],
+    part1: Sequence[Mapping[str, Any]],
+    part2: Sequence[Mapping[str, Any]],
+    *,
+    expected_matched: int,
+) -> None:
+    """Require the composed 23-route panel to preserve all 22 current routes."""
+
+    indices = {
+        "part0": {str(row["target_id"]): row for row in part0},
+        "part1": {str(row["target_id"]): row for row in part1},
+        "part2": {str(row["target_id"]): row for row in part2},
+    }
+    pair_names = (("part0", "part1"), ("part0", "part2"), ("part1", "part2"))
+    for left, right in pair_names:
+        overlap = set(indices[left]) & set(indices[right])
+        if len(overlap) != expected_matched:
+            raise PaperAssetsError(
+                f"Production {left}/{right} topology requires exactly "
+                f"{expected_matched} matched exact routes, found {len(overlap)}."
+            )
+    shared = set(indices["part0"]) & set(indices["part1"]) & set(indices["part2"])
+    if len(shared) != expected_matched:
+        raise PaperAssetsError(
+            "Production cross-part topology does not contain the required "
+            f"{expected_matched} three-panel exact-route matches."
+        )
+    for target in shared:
+        identities = {
+            (
+                str(indices[phase][target]["upstream_provider"]),
+                str(indices[phase][target]["model"]),
+            )
+            for phase in ("part0", "part1", "part2")
+        }
+        if len(identities) != 1:
+            raise PaperAssetsError(
+                f"Production cross-part identity differs for matched route {target!r}."
+            )
+    part2_only = set(indices["part2"]) - set(indices["part0"])
+    if part2_only != {PRODUCTION_PART2_ONLY_TARGET}:
+        raise PaperAssetsError(
+            "Production Part 2 must add only the frozen MiniMax M2.7 route "
+            "beyond the 22 matched routes."
+        )
+    minimax = indices["part2"][PRODUCTION_PART2_ONLY_TARGET]
+    if (
+        minimax["upstream_provider"] != "minimaxai"
+        or minimax["model"] != "minimax-m2.7"
+    ):
+        raise PaperAssetsError("Production MiniMax route identity changed.")
 
 
 def _validate_role(rows: Sequence[Mapping[str, Any]]) -> tuple[list[str], dict[tuple[str, str], dict[str, Any]]]:
@@ -1074,12 +1478,13 @@ def _validate_local_controls(path: Path) -> tuple[dict[str, Any], list[dict[str,
 def _load_and_validate(input_dir: Path) -> dict[str, Any]:
     if not input_dir.is_dir():
         raise PaperAssetsError(f"Input analysis directory does not exist: {input_dir}")
-    manifest = _validate_manifest(input_dir)
+    manifest, topology = _validate_manifest(input_dir)
+    expected_row_counts = topology["row_counts"]
     tables = {
         name: _read_jsonl(input_dir / f"{name}.jsonl", name)
-        for name in EXPECTED_ROW_COUNTS
+        for name in expected_row_counts
     }
-    for name, expected in EXPECTED_ROW_COUNTS.items():
+    for name, expected in expected_row_counts.items():
         if len(tables[name]) != expected:
             raise PaperAssetsError(f"{name} row count differs from its manifest declaration.")
     aggregates = _read_json(input_dir / "figure_aggregates.json", "figure aggregates")
@@ -1107,13 +1512,39 @@ def _load_and_validate(input_dir: Path) -> dict[str, Any]:
         tables["part0_models"], aggregates["part0_by_model_language"]
     )
     part1 = _validate_part1(tables["part1_models"])
-    part2 = _validate_part2(tables["part2_models"])
+    part2 = _validate_part2(
+        tables["part2_models"],
+        expected_count=topology["part2_route_count"],
+        require_fully_operational=(
+            topology["mode"] == "three_pair_operational_repair_composition"
+        ),
+    )
+    _validate_part2_trajectory_topology(
+        aggregates["part2_trajectories"],
+        part2,
+        required=topology["mode"] == "three_pair_operational_repair_composition",
+        expected_count=topology["part2_trajectory_count"],
+        expected_ordered_targets=(
+            PRODUCTION_PART2_ORDERED_TARGET_IDS
+            if topology["mode"] == "three_pair_operational_repair_composition"
+            else None
+        ),
+    )
+    if topology["required_matched_route_count"] is not None:
+        _validate_production_cross_part_topology(
+            part0,
+            part1,
+            part2,
+            expected_matched=topology["required_matched_route_count"],
+        )
     role_targets, role = _validate_role(tables["role_calibration_model_frames"])
     sensitivity_targets, sensitivity_models, sensitivity = _validate_sensitivity(
         tables["sensitivity_models"], tables["sensitivity_main_effects"]
     )
     return {
         "manifest": manifest,
+        "topology": topology,
+        "source_row_counts": expected_row_counts,
         "part0": part0,
         "part0_matrix": part0_matrix,
         "part1": part1,
@@ -1449,7 +1880,7 @@ def _plot_refusal_and_cooperation_overview(
 
     _figure_footer(
         fig,
-        "Panel A groups provider families contiguously in the order OpenAI, Anthropic, Google, NVIDIA, then the remaining providers; frozen route versions run newest to oldest within family. Blue bars end at the all-scheduled point estimate, dots repeat it, and whiskers are 5,000-replicate harmful-root sensitivity intervals. Farther right means less harmful assistance. Panel B remains a global ordered cross-sectional rank profile, not a time series: every orange point is one exact route over the same balanced 384-root bank. Higher means fewer counterpart costs. Part 1 intervals and exact identities appear in the supplement.",
+        "Panel A groups provider families contiguously in the order OpenAI, Anthropic, Google, NVIDIA, MiniMax, then the remaining providers; frozen route versions run newest to oldest within family. Blue bars end at the all-scheduled point estimate, dots repeat it, and whiskers are 5,000-replicate harmful-root sensitivity intervals. Farther right means less harmful assistance. Panel B remains a global ordered cross-sectional rank profile, not a time series: every orange point is one exact route over the same balanced 384-root bank. Higher means fewer counterpart costs. Part 1 intervals and exact identities appear in the supplement.",
         x=0.075,
         y=0.012,
         width=125,
@@ -1556,7 +1987,7 @@ def _plot_matched_current_route_profile(
     fig, axes = plt.subplots(1, 3, figsize=(7.2, 7.7), sharey=True)
     fig.patch.set_facecolor("white")
     fig.suptitle(
-        "The same 19 routes reorder beyond refusal",
+        f"The same {len(targets)} routes reorder beyond refusal",
         x=0.08,
         y=0.992,
         ha="left",
@@ -1950,9 +2381,10 @@ def _plot_part2(data: Mapping[str, Any], directory: Path) -> list[Path]:
         )
         for row in rows
     ]
-    fig, axes = plt.subplots(3, 1, figsize=(7.2, 10.2), sharey=False)
+    figure_height = max(10.2, 10.2 + 0.12 * (len(rows) - 19))
+    fig, axes = plt.subplots(3, 1, figsize=(7.2, figure_height), sharey=False)
     fig.patch.set_facecolor("white")
-    fig.suptitle("Part 2 commons outcomes for 19 exact model routes", x=0.075, y=0.995, ha="left", fontsize=15, fontweight="bold", color=INK)
+    fig.suptitle(f"Part 2 commons outcomes for {len(rows)} exact model routes", x=0.075, y=0.995, ha="left", fontsize=15, fontweight="bold", color=INK)
     fig.text(0.075, 0.953, "One row per route; 12 trajectories per route; provider families are contiguous and newest route versions appear first.", fontsize=9, color=MUTED)
     _lollipop_panel(axes[0], restraint, labels, title="Model action: mean trajectory restraint [t95]", color=GREEN, show_labels=True, intervals=restraint_intervals)
     _lollipop_panel(axes[1], aurc, labels, title="Resource consequence: mean AURC [t95] / env.", color=GREEN, show_labels=True, intervals=aurc_intervals)
@@ -2283,9 +2715,11 @@ def _write_tables(data: Mapping[str, Any], directory: Path) -> list[Path]:
         & set(phase_indices["part1"])
         & set(phase_indices["part2"])
     )
-    if shared_targets and len(shared_targets) != 19:
+    required_matched = data["topology"]["required_matched_route_count"]
+    if required_matched is not None and len(shared_targets) != required_matched:
         raise PaperAssetsError(
-            f"Compact core table requires 19 matched exact routes, found {len(shared_targets)}."
+            f"Compact core table requires {required_matched} matched exact routes, "
+            f"found {len(shared_targets)}."
         )
     compact_rows: list[list[str]] = []
     previous_provider: str | None = None
@@ -2337,7 +2771,9 @@ def _write_tables(data: Mapping[str, Any], directory: Path) -> list[Path]:
     compact_path.write_text(
         _table_tex(
             caption=(
-                "Compact matched-model results. Each row is one authenticated exact route scheduled in all three parts, grouped by provider with newer frozen route versions first. Refusal is the Part 0 all-scheduled refusal share over 144 responses; cooperation is the Part 1 all-scheduled welfare-preserving share over 384 roots; restraint is the Part 2 mean trajectory all-scheduled restraint share over 12 trajectories; AURC is normalized reserve area; population is final divided by initial population. Higher values mean less harmful assistance, fewer counterpart costs, more commons restraint, more reserve preservation, or more population retained within the named column. These point estimates are not combined into a composite or general safety ranking. Task-specific intervals, exact target IDs, and the complete 22-, 75-, and 19-route ledgers remain in the supplement."
+                "Compact matched-model results. Each row is one authenticated exact route scheduled in all three parts, grouped by provider with newer frozen route versions first. Refusal is the Part 0 all-scheduled refusal share over 144 responses; cooperation is the Part 1 all-scheduled welfare-preserving share over 384 roots; restraint is the Part 2 mean trajectory all-scheduled restraint share over 12 trajectories; AURC is normalized reserve area; population is final divided by initial population. Higher values mean less harmful assistance, fewer counterpart costs, more commons restraint, more reserve preservation, or more population retained within the named column. These point estimates are not combined into a composite or general safety ranking. Task-specific intervals, exact target IDs, and the complete "
+                f"{len(data['part0'])}-, {len(data['part1'])}-, and "
+                f"{len(data['part2'])}-route ledgers remain in the supplement."
             ),
             label="tab:compact-matched-core",
             headers=(
@@ -2346,7 +2782,7 @@ def _write_tables(data: Mapping[str, Any], directory: Path) -> list[Path]:
             ),
             rows=compact_rows,
             column_spec="lccccc",
-            chunk_size=19,
+            chunk_size=max(1, len(compact_rows)),
             placement="!htbp",
         ),
         encoding="utf-8",
@@ -2464,13 +2900,13 @@ def _write_tables(data: Mapping[str, Any], directory: Path) -> list[Path]:
     path.write_text(
         _table_tex(
             caption=(
-                "Part 2 commons outcomes for all 19 exact model routes. Each row is one authenticated target route and exact upstream Model ID, shown in descending all-scheduled restraint-rate order. The three centered result columns connect model action, resource consequence, and group consequence: Restraint is the restrained-action share over scheduled agent-days; Mean AURC [95\\%] is normalized reserve area with its trajectory Student-t interval; Population retained [95\\%] is final population divided by initial population with the corresponding interval. Higher values mean more preservation in this simulator; lower values mean more overuse, reserve depletion, or population loss. NE means no environmentally estimable trajectory, not zero. None of these columns is a general safety score."
+                f"Part 2 commons outcomes for all {len(data['part2'])} exact model routes. Each row is one authenticated target route and exact upstream Model ID, shown in descending all-scheduled restraint-rate order. The three centered result columns connect model action, resource consequence, and group consequence: Restraint is the restrained-action share over scheduled agent-days; Mean AURC [95\\%] is normalized reserve area with its trajectory Student-t interval; Population retained [95\\%] is final population divided by initial population with the corresponding interval. Higher values mean more preservation in this simulator; lower values mean more overuse, reserve depletion, or population loss. NE means no environmentally estimable trajectory, not zero. None of these columns is a general safety score."
             ),
             label="tab:provider-safe-v2-part2-all-models",
             headers=("Target route ID", "Model ID", "Restraint", "Mean AURC [95\\%]", "Population retained [95\\%]"),
             rows=part2_rows,
             column_spec="llccc",
-            chunk_size=19,
+            chunk_size=max(1, len(part2_rows)),
         ),
         encoding="utf-8",
     )
@@ -3009,7 +3445,17 @@ def build_paper_assets(
             "generated_at_utc": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "source_analysis_evidence_sha256": data["manifest"]["evidence_sha256"],
             "source_local_controls_evidence_sha256": local_controls_artifact["evidence_sha256"],
-            "source_row_counts": EXPECTED_ROW_COUNTS,
+            "source_row_counts": data["source_row_counts"],
+            "source_part2_topology": {
+                "mode": data["topology"]["mode"],
+                "route_count": len(data["part2"]),
+                "trajectory_count": data["topology"]["part2_trajectory_count"],
+                "matched_route_count": len(
+                    {str(row["target_id"]) for row in data["part0"]}
+                    & {str(row["target_id"]) for row in data["part1"]}
+                    & {str(row["target_id"]) for row in data["part2"]}
+                ),
+            },
             "assets": asset_rows,
             "table_outer_spacing_pt": 15,
             "table_outer_spacing_approx_css_px_at_96dpi": 20,

@@ -18,15 +18,23 @@ import os
 import stat
 import tempfile
 from collections import defaultdict
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any, BinaryIO, Iterable, Iterator, Mapping, Sequence
 
 import numpy as np
 
+from analysis import (
+    validate_inference_hub_part2_operational_overlays as part2_overlay_validator,
+)
 from analysis.part2_confirmatory import SENSITIVITY_FACTORS, student_t_975
 from experiments.misc import inference_hub_part1_operational_repair as part1_operational_repair
 from experiments.misc import inference_hub_part1_panel as part1_panel
+from experiments.misc import (
+    inference_hub_part2_cascading_operational_repair as part2_cascading_repair,
+)
+from experiments.misc import inference_hub_part2_panel as part2_panel
 from experiments.misc import (
     inference_hub_part2_sensitivity_operational_repair
     as sensitivity_operational_repair,
@@ -68,6 +76,169 @@ PART1_OPERATIONAL_REPAIR_STATUS = (
 SENSITIVITY_OPERATIONAL_REPAIR_STATUS = (
     "complete_exact_source_bound_full_trajectory_operational_overlay_applied"
 )
+PART2_OPERATIONAL_COMPOSITION_STATUS = (
+    "complete_exact_source_bound_three_pair_full_trajectory_operational_overlays_composed"
+)
+PART2_OPERATIONAL_REPAIR_TYPE = (
+    "inference_hub_part2_operational_trajectory_repair_v1"
+)
+PART2_EFFECTIVE_TRAJECTORY_TYPE = (
+    "inference_hub_part2_operational_repair_effective_trajectory_metrics_v1"
+)
+PART2_EFFECTIVE_MODEL_TYPE = (
+    "inference_hub_part2_operational_repair_effective_model_metrics_v1"
+)
+PART2_CASCADING_OPERATIONAL_REPAIR_TYPE = part2_cascading_repair.ARTIFACT_TYPE
+PART2_CASCADING_EFFECTIVE_TRAJECTORY_TYPE = (
+    part2_cascading_repair.TRAJECTORY_ARTIFACT_TYPE
+)
+PART2_CASCADING_EFFECTIVE_MODEL_TYPE = part2_cascading_repair.MODEL_ARTIFACT_TYPE
+PART2_100DAY_PANEL_ID = "sota_cross_axis_part2_corrected_original_scale_100d_v1"
+PART2_100DAY_BASE_SEED = 20_260_802
+PART2_100DAY_TRAJECTORIES_PER_ROUTE = 12
+PART2_100DAY_ROUTE_COUNT = 23
+PART2_100DAY_TRAJECTORY_COUNT = (
+    PART2_100DAY_ROUTE_COUNT * PART2_100DAY_TRAJECTORIES_PER_ROUTE
+)
+PART2_100DAY_DECLARED_EXCLUSION = "anthropic/claude-opus-4-5"
+PART2_100DAY_PAIR_ROUTE_COUNTS = (21, 1, 1)
+PART2_100DAY_ORDERED_SINGLETONS = {
+    1: "nvidia/nemotron-3-ultra",
+    2: "deepseek-ai/deepseek-v4-flash",
+}
+PART2_100DAY_ORDERED_TARGET_IDS = (
+    "openai/gpt-3.5-turbo",
+    "openai/gpt-4o",
+    "openai/gpt-4.1",
+    "openai/gpt-5",
+    "openai/gpt-5.2",
+    "openai/gpt-5.4",
+    "openai/gpt-oss-20b",
+    "anthropic/claude-haiku-4-5",
+    "anthropic/claude-sonnet-4-5",
+    "anthropic/claude-sonnet-4-6",
+    "anthropic/claude-opus-4-6",
+    "google/gemini-2.5-flash",
+    "google/gemini-2.5-pro",
+    "google/gemini-3.1-pro-preview",
+    "google/gemini-3.5-flash",
+    "meta/llama-3.3-70b-instruct",
+    "qwen/qwen3.5-35b-a3b",
+    "qwen/qwen3.6-27b",
+    "nvidia/nemotron-3-super-v3",
+    "minimaxai/minimax-m2.7",
+    "zai-org/glm-5.1",
+    "nvidia/nemotron-3-ultra",
+    "deepseek-ai/deepseek-v4-flash",
+)
+PART2_100DAY_CONTRACT = {
+    "society_size": 50,
+    "days": 100,
+    "independent_trajectories": 12,
+    "resource_capacity": 2500,
+    "option_a_private_gain": 1,
+    "option_b_private_gain": 2,
+    "option_b_reserve_cost": 2,
+    "unanimous_a_group_payoff": 5,
+    "unanimous_b_group_payoff": -5,
+    "invalid_policy": "retain_as_INVALID_zero_effect_no_semantic_retry",
+    "collapse_death_rate": 0.2,
+    "attrition_policy": "matched_seed_day_random_sample_v1",
+}
+PART2_100DAY_RATE_POLICY = {
+    "schema_version": 2,
+    "algorithm": (
+        "cross_process_provider_aware_leaky_bucket_with_leases_all_http_5xx_"
+        "full_throttle_cooldown"
+    ),
+    "global_concurrency": 60,
+    "provider_concurrency": 10,
+    "global_requests_per_second": 12.0,
+    "provider_requests_per_second": 2.5,
+    "lease_seconds": 900.0,
+    "poll_seconds": 0.05,
+    "throttle_cooldown_seconds": 30.0,
+    "transient_cooldown_seconds": 5.0,
+}
+PART2_SOURCE_TRAJECTORY_PAYLOAD_KEYS = frozenset(
+    {
+        "schema_version",
+        "artifact_type",
+        "panel_id",
+        "generated_at_utc",
+        "independence_unit",
+        "rows",
+        "evidence_sha256",
+    }
+)
+PART2_SOURCE_MODEL_PAYLOAD_KEYS = frozenset(
+    {
+        "schema_version",
+        "artifact_type",
+        "panel_id",
+        "generated_at_utc",
+        "uncertainty_unit",
+        "rows",
+        "evidence_sha256",
+    }
+)
+PART2_EFFECTIVE_PAYLOAD_KEYS = frozenset(
+    {
+        "schema_version",
+        "artifact_type",
+        "panel_id",
+        "generated_at_utc",
+        "source_manifest_evidence_sha256",
+        "rows",
+        "evidence_sha256",
+    }
+)
+PART2_TRAJECTORY_ROW_KEYS = frozenset(
+    {
+        "schema_version",
+        "target_id",
+        "upstream_provider",
+        "model",
+        "trajectory_index",
+        "environment_seed_index",
+        "environment_seed",
+        "operationally_eligible",
+        "scheduled_agent_days",
+        "responses_received",
+        "invalid_count",
+        "identity_mismatch_count",
+        "transport_failure_count",
+        "restraint_count",
+        "overuse_count",
+        "restraint_rate",
+        "aurc",
+        "aupc",
+        "reserve_nondepletion",
+        "final_reserve",
+        "final_population",
+        "population_retention",
+        "cumulative_private_payoff",
+        "cumulative_group_payoff",
+    }
+)
+PART2_EFFECTIVE_TRAJECTORY_ROW_KEYS = PART2_TRAJECTORY_ROW_KEYS | frozenset(
+    {"operational_repair_round", "source_replaced_for_operational_failure"}
+)
+
+# Keep the public adapter's schema contract aligned with the dedicated evidence
+# validator whose replay implementation is reused below.  A drift in either
+# direction is a release-time failure rather than an accidental widening.
+if (
+    PART2_SOURCE_TRAJECTORY_PAYLOAD_KEYS
+    != part2_overlay_validator.SOURCE_TRAJECTORY_TOP_KEYS
+    or PART2_SOURCE_MODEL_PAYLOAD_KEYS
+    != part2_overlay_validator.SOURCE_MODEL_TOP_KEYS
+    or PART2_EFFECTIVE_PAYLOAD_KEYS != part2_overlay_validator.OVERLAY_TOP_KEYS
+    or PART2_TRAJECTORY_ROW_KEYS != part2_overlay_validator.TRAJECTORY_ROW_KEYS
+    or PART2_EFFECTIVE_TRAJECTORY_ROW_KEYS
+    != part2_overlay_validator.OVERLAY_TRAJECTORY_ROW_KEYS
+):  # pragma: no cover - import-time invariant
+    raise RuntimeError("Part 2 public trajectory schema disagrees with validator.")
 
 
 class DefinitiveAnalysisError(RuntimeError):
@@ -1827,15 +1998,1203 @@ def _part1(
     return models, figure
 
 
-def _part2(run: Path, manifest: Mapping[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    _validate_flat_journals(run, manifest, sensitivity=False)
-    payload = _load_sanitized(run, manifest, "trajectory_metrics", "inference_hub_part2_sanitized_trajectory_metrics")
-    model_payload = _load_sanitized(run, manifest, "model_metrics", "inference_hub_part2_sanitized_model_metrics")
-    subjects = _subject_index(manifest)
-    rows = payload["rows"]
-    expected_trajectory_count = len(manifest.get("journals", {}))
-    if len(rows) != expected_trajectory_count:
-        raise DefinitiveAnalysisError("Part 2 trajectory rows do not match journal count.")
+def _part2_bound_json(
+    reference: object, label: str
+) -> tuple[Path, dict[str, Any]]:
+    if not isinstance(reference, Mapping) or not isinstance(
+        reference.get("path"), str
+    ):
+        raise DefinitiveAnalysisError(f"{label} binding is missing.")
+    path = Path(reference["path"]).resolve()
+    payload = _read_object(path, label)
+    if reference.get("file_sha256") != _sha256_file(path):
+        raise DefinitiveAnalysisError(f"{label} file hash failed.")
+    evidence = reference.get("evidence_sha256")
+    canonical = reference.get("canonical_sha256")
+    if evidence is not None and (
+        payload.get("evidence_sha256") != evidence
+        or evidence != _self_hash(payload)
+    ):
+        raise DefinitiveAnalysisError(f"{label} evidence hash failed.")
+    if canonical is not None and canonical != _sha256_json(payload):
+        raise DefinitiveAnalysisError(f"{label} canonical hash failed.")
+    if evidence is None and canonical is None:
+        raise DefinitiveAnalysisError(f"{label} lacks a content binding.")
+    return path, payload
+
+
+def _part2_manifest_contract(source: Mapping[str, Any]) -> None:
+    if source.get("panel_id") != PART2_100DAY_PANEL_ID:
+        raise DefinitiveAnalysisError("Part 2 composition panel id changed.")
+    if source.get("base_seed") != PART2_100DAY_BASE_SEED:
+        raise DefinitiveAnalysisError("Part 2 composition base seed changed.")
+    if source.get("part2_contract") != PART2_100DAY_CONTRACT:
+        raise DefinitiveAnalysisError("Part 2 composition scientific contract changed.")
+    seeds = source.get("common_environment_seeds")
+    expected_seeds = part2_panel._environment_seeds(
+        PART2_100DAY_PANEL_ID,
+        PART2_100DAY_BASE_SEED,
+        PART2_100DAY_TRAJECTORIES_PER_ROUTE,
+    )
+    if (
+        not isinstance(seeds, list)
+        or seeds != expected_seeds
+        or any(isinstance(seed, bool) or not isinstance(seed, int) for seed in seeds)
+        or len(set(seeds)) != len(seeds)
+    ):
+        raise DefinitiveAnalysisError("Part 2 composition common seeds changed.")
+
+    execution = source.get("execution_contract")
+    rate = execution.get("shared_rate_limit") if isinstance(execution, Mapping) else None
+    positive_execution_fields = (
+        "trajectory_workers",
+        "participant_workers",
+        "max_transport_attempts",
+    )
+    if (
+        not isinstance(execution, Mapping)
+        or execution.get("strategy")
+        != "parallel_target_trajectory_and_parallel_participants_with_sequential_days"
+        or execution.get("journal")
+        != "per_trajectory_append_only_fsync_sha256_chain_reserve_before_dispatch"
+        or execution.get("identity_check")
+        != "exact_returned_model_equals_selected_route"
+        or execution.get("visible_output_only") is not True
+        or any(
+            isinstance(execution.get(field), bool)
+            or not isinstance(execution.get(field), int)
+            or int(execution[field]) < 1
+            for field in positive_execution_fields
+        )
+        or isinstance(execution.get("initial_exponential_backoff_seconds"), bool)
+        or not isinstance(
+            execution.get("initial_exponential_backoff_seconds"), (int, float)
+        )
+        or float(execution["initial_exponential_backoff_seconds"]) < 0
+        or not isinstance(rate, Mapping)
+        or {key: value for key, value in rate.items() if key != "policy_sha256"}
+        != PART2_100DAY_RATE_POLICY
+        or rate.get("policy_sha256") != _sha256_json(PART2_100DAY_RATE_POLICY)
+    ):
+        raise DefinitiveAnalysisError("Part 2 composition execution contract changed.")
+
+
+def _part2_source_bindings(
+    source: Mapping[str, Any], label: str
+) -> tuple[dict[str, Any], tuple[Path, ...]]:
+    inputs = source.get("input_artifacts")
+    if not isinstance(inputs, Mapping) or set(inputs) != {
+        "panel",
+        "compatibility",
+        "registry",
+    }:
+        raise DefinitiveAnalysisError(f"{label} input artifact bindings changed.")
+    panel_path, panel = _part2_bound_json(inputs["panel"], f"{label} panel")
+    compatibility_path, compatibility = _part2_bound_json(
+        inputs["compatibility"], f"{label} compatibility"
+    )
+    registry_path, registry = _part2_bound_json(
+        inputs["registry"], f"{label} registry"
+    )
+    try:
+        frozen_panel, frozen_contract = part2_panel._load_panel(panel_path)
+    except (OSError, TypeError, ValueError, part2_panel.InferenceHubPart2PanelError) as error:
+        raise DefinitiveAnalysisError(f"{label} frozen panel contract failed.") from error
+    if (
+        panel != frozen_panel
+        or frozen_panel.get("panel_id") != PART2_100DAY_PANEL_ID
+        or frozen_contract.society_size != PART2_100DAY_CONTRACT["society_size"]
+        or frozen_contract.days != PART2_100DAY_CONTRACT["days"]
+        or frozen_contract.trajectories
+        != PART2_100DAY_CONTRACT["independent_trajectories"]
+        or frozen_contract.capacity != PART2_100DAY_CONTRACT["resource_capacity"]
+        or len(frozen_panel.get("subject_target_ids", [])) != 24
+        or PART2_100DAY_DECLARED_EXCLUSION
+        not in frozen_panel.get("subject_target_ids", [])
+    ):
+        raise DefinitiveAnalysisError(f"{label} is not bound to the frozen 24-route panel.")
+
+    manifest_subjects = source.get("subject_routes")
+    selected_ids = [
+        str(row.get("target_id"))
+        for row in manifest_subjects
+        if isinstance(row, Mapping)
+    ] if isinstance(manifest_subjects, list) else []
+    try:
+        selected_subjects, selected_judge = part2_panel.select_routes(
+            registry=registry,
+            compatibility=compatibility,
+            selected_ids=selected_ids,
+            judge_target_id=str(frozen_panel["judge_target_id"]),
+        )
+    except (KeyError, TypeError, ValueError, part1_panel.InferenceHubPart1PanelError) as error:
+        raise DefinitiveAnalysisError(
+            f"{label} compatibility-selected routes failed."
+        ) from error
+    projected_subjects = [
+        {
+            "target_id": row["target_id"],
+            "upstream_provider": row["upstream_provider"],
+            "model": row["model"],
+            "route": row["route"],
+            "candidate_index": row["candidate_index"],
+            "supported_controls": row["supported_controls"],
+            "selected_profile_id": row["selected_profile_id"],
+            "selected_profile_request_sha256": row[
+                "selected_profile_request_sha256"
+            ],
+        }
+        for row in selected_subjects
+    ]
+    projected_judge = {
+        "target_id": selected_judge["target_id"],
+        "upstream_provider": selected_judge["upstream_provider"],
+        "model": selected_judge["model"],
+        "route": selected_judge["route"],
+        "dispatch_permitted_in_this_runner": False,
+        "role": "fixed_disjoint_judge_reserved_for_cross_axis_analysis",
+    }
+    if (
+        projected_subjects != manifest_subjects
+        or projected_judge != source.get("judge_reservation")
+    ):
+        raise DefinitiveAnalysisError(
+            f"{label} exact compatibility-selected route binding failed."
+        )
+
+    sources = source.get("source_artifacts")
+    expected_sources = {
+        str(path.resolve()): _sha256_file(path.resolve())
+        for path in part2_panel._SOURCE_PATHS
+    }
+    if sources != expected_sources:
+        raise DefinitiveAnalysisError(
+            f"{label} Part 2 implementation-source binding failed."
+        )
+    return frozen_panel, (
+        panel_path,
+        compatibility_path,
+        registry_path,
+        *(path.resolve() for path in part2_panel._SOURCE_PATHS),
+    )
+
+
+def _part2_nonnegative_integer(
+    row: Mapping[str, Any], field: str, label: str
+) -> int:
+    value = row.get(field)
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise DefinitiveAnalysisError(f"{label} has invalid {field}.")
+    return value
+
+
+def _part2_exact_keys(
+    value: Mapping[str, Any], expected: frozenset[str], label: str
+) -> None:
+    """Reject any schema widening before private evidence can reach a public sink."""
+
+    if set(value) != expected:
+        raise DefinitiveAnalysisError(f"{label} public schema changed.")
+
+
+def _part2_trajectory_index(
+    rows: Sequence[Mapping[str, Any]],
+    subjects: Mapping[str, Mapping[str, Any]],
+    seeds: Sequence[int],
+    label: str,
+    *,
+    effective: bool = False,
+) -> dict[tuple[str, int], Mapping[str, Any]]:
+    expected_keys = {
+        (target_id, trajectory_index)
+        for target_id in subjects
+        for trajectory_index in range(PART2_100DAY_TRAJECTORIES_PER_ROUTE)
+    }
+    index: dict[tuple[str, int], Mapping[str, Any]] = {}
+    for ordinal, row in enumerate(rows):
+        row_label = f"{label} row {ordinal}"
+        if not isinstance(row, Mapping):
+            raise DefinitiveAnalysisError(f"{row_label} is not an object.")
+        _part2_exact_keys(
+            row,
+            (
+                PART2_EFFECTIVE_TRAJECTORY_ROW_KEYS
+                if effective
+                else PART2_TRAJECTORY_ROW_KEYS
+            ),
+            row_label,
+        )
+        target_id = row.get("target_id")
+        trajectory_index = row.get("trajectory_index")
+        if (
+            not isinstance(target_id, str)
+            or isinstance(trajectory_index, bool)
+            or not isinstance(trajectory_index, int)
+        ):
+            raise DefinitiveAnalysisError(f"{row_label} route key is malformed.")
+        key = (target_id, trajectory_index)
+        subject = subjects.get(target_id)
+        if key in index or key not in expected_keys or subject is None:
+            raise DefinitiveAnalysisError(
+                f"{label} contains an unknown or duplicate route key."
+            )
+        if (
+            row.get("schema_version") != 1
+            or row.get("upstream_provider") != subject.get("upstream_provider")
+            or row.get("model") != subject.get("model")
+            or row.get("environment_seed_index") != trajectory_index
+            or row.get("environment_seed") != seeds[trajectory_index]
+        ):
+            raise DefinitiveAnalysisError(f"{row_label} identity or seed binding failed.")
+
+        scheduled = _part2_nonnegative_integer(row, "scheduled_agent_days", row_label)
+        responses = _part2_nonnegative_integer(row, "responses_received", row_label)
+        invalid = _part2_nonnegative_integer(row, "invalid_count", row_label)
+        identity = _part2_nonnegative_integer(
+            row, "identity_mismatch_count", row_label
+        )
+        transport = _part2_nonnegative_integer(
+            row, "transport_failure_count", row_label
+        )
+        restraint = _part2_nonnegative_integer(row, "restraint_count", row_label)
+        overuse = _part2_nonnegative_integer(row, "overuse_count", row_label)
+        final_reserve = _part2_nonnegative_integer(row, "final_reserve", row_label)
+        final_population = _part2_nonnegative_integer(
+            row, "final_population", row_label
+        )
+        operational = row.get("operationally_eligible")
+        reserve_nondepletion = row.get("reserve_nondepletion")
+        if (
+            not 0 < scheduled
+            <= PART2_100DAY_CONTRACT["society_size"]
+            * PART2_100DAY_CONTRACT["days"]
+            or responses + transport != scheduled
+            or restraint + overuse + invalid != scheduled
+            or identity + transport > invalid
+            or not isinstance(operational, bool)
+            or operational is not (identity == 0 and transport == 0)
+            or not isinstance(reserve_nondepletion, bool)
+            or final_reserve > PART2_100DAY_CONTRACT["resource_capacity"]
+            or final_population > PART2_100DAY_CONTRACT["society_size"]
+            or reserve_nondepletion is not (final_reserve > 0)
+        ):
+            raise DefinitiveAnalysisError(f"{row_label} realized accounting failed.")
+        bounded = {
+            "restraint_rate": (0.0, 1.0),
+            "aurc": (0.0, 1.0),
+            "aupc": (0.0, 1.0),
+            "population_retention": (0.0, 1.0),
+        }
+        for field, (lower, upper) in bounded.items():
+            value = row.get(field)
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not math.isfinite(float(value))
+                or not lower <= float(value) <= upper
+            ):
+                raise DefinitiveAnalysisError(f"{row_label} has invalid {field}.")
+        if (
+            not math.isclose(
+                float(row["restraint_rate"]), restraint / scheduled, abs_tol=1e-12
+            )
+            or not math.isclose(
+                float(row["population_retention"]),
+                final_population / PART2_100DAY_CONTRACT["society_size"],
+                abs_tol=1e-12,
+            )
+        ):
+            raise DefinitiveAnalysisError(f"{row_label} derived metrics failed.")
+        for field in ("cumulative_private_payoff", "cumulative_group_payoff"):
+            value = row.get(field)
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not math.isfinite(float(value))
+            ):
+                raise DefinitiveAnalysisError(f"{row_label} has invalid {field}.")
+        index[key] = row
+    if set(index) != expected_keys:
+        raise DefinitiveAnalysisError(f"{label} does not contain every route/seed key.")
+    return index
+
+
+def _part2_model_metrics_reproduce(
+    rows: Sequence[Mapping[str, Any]],
+    subjects: Sequence[Mapping[str, Any]],
+    recorded: Sequence[Mapping[str, Any]],
+    label: str,
+) -> None:
+    expected = part2_panel._aggregate_models(
+        rows,
+        subjects,
+        expected_trajectories=PART2_100DAY_TRAJECTORIES_PER_ROUTE,
+        capacity=PART2_100DAY_CONTRACT["resource_capacity"],
+    )
+    if _canonical_bytes(expected) != _canonical_bytes(recorded):
+        raise DefinitiveAnalysisError(f"{label} model metrics do not reproduce.")
+
+
+def _part2_source_summary(
+    manifest: Mapping[str, Any], rows: Sequence[Mapping[str, Any]], label: str
+) -> None:
+    expected = {
+        "planned_trajectories": len(rows),
+        "completed_trajectories": len(rows),
+        "planned_maximum_agent_days": len(rows)
+        * PART2_100DAY_CONTRACT["days"]
+        * PART2_100DAY_CONTRACT["society_size"],
+        "scheduled_agent_days": sum(int(row["scheduled_agent_days"]) for row in rows),
+        "responses_received": sum(int(row["responses_received"]) for row in rows),
+        "invalid_count": sum(int(row["invalid_count"]) for row in rows),
+        "identity_mismatch_count": sum(
+            int(row["identity_mismatch_count"]) for row in rows
+        ),
+        "transport_failure_count": sum(
+            int(row["transport_failure_count"]) for row in rows
+        ),
+        "eligible_trajectories": sum(
+            row["operationally_eligible"] is True for row in rows
+        ),
+    }
+    if manifest.get("summary") != expected:
+        raise DefinitiveAnalysisError(f"{label} source summary does not reconcile.")
+
+
+def _replay_part2_repair_round(
+    records: Sequence[Mapping[str, Any]],
+    *,
+    subject: Mapping[str, Any],
+    trajectory_index: int,
+    environment_seed: int,
+    execution_contract: Mapping[str, Any],
+    label: str,
+    global_attempt_ids: set[str],
+) -> dict[str, Any]:
+    contract = part2_panel.Part2Contract(
+        society_size=PART2_100DAY_CONTRACT["society_size"],
+        days=PART2_100DAY_CONTRACT["days"],
+        trajectories=PART2_100DAY_TRAJECTORIES_PER_ROUTE,
+        capacity=PART2_100DAY_CONTRACT["resource_capacity"],
+        private_gain=PART2_100DAY_CONTRACT["option_b_private_gain"],
+        reserve_cost=PART2_100DAY_CONTRACT["option_b_reserve_cost"],
+        community_benefit=PART2_100DAY_CONTRACT["unanimous_a_group_payoff"],
+        collapse_death_rate=PART2_100DAY_CONTRACT["collapse_death_rate"],
+    )
+    try:
+        replayed = part2_overlay_validator._replay_trajectory(
+            records,
+            subject=subject,
+            trajectory_index=trajectory_index,
+            environment_seed=environment_seed,
+            contract=contract,
+            execution_contract=execution_contract,
+            global_attempt_ids=global_attempt_ids,
+        )
+    except (
+        KeyError,
+        TypeError,
+        ValueError,
+        part2_overlay_validator.Part2OperationalOverlayValidationError,
+    ) as error:
+        raise DefinitiveAnalysisError(f"{label} replay failed.") from error
+    return replayed
+
+
+def _replay_part2_source_journal(
+    records: Sequence[Mapping[str, Any]],
+    *,
+    subject: Mapping[str, Any],
+    trajectory_index: int,
+    environment_seed: int,
+    execution_contract: Mapping[str, Any],
+    label: str,
+    global_attempt_ids: set[str],
+) -> dict[str, Any]:
+    """Replay one source trajectory with the validator's strict private checks."""
+
+    return _replay_part2_repair_round(
+        records,
+        subject=subject,
+        trajectory_index=trajectory_index,
+        environment_seed=environment_seed,
+        execution_contract=execution_contract,
+        label=label,
+        global_attempt_ids=global_attempt_ids,
+    )
+
+
+def _validate_part2_overlay_union_recursively(
+    source_overlay_pairs: Sequence[tuple[Path, Path]],
+) -> dict[str, Any]:
+    """Require the dedicated validator to replay every direct or cascading pair."""
+
+    try:
+        result = part2_overlay_validator.validate_operational_overlay_pairs(
+            source_overlay_pairs
+        )
+    except part2_overlay_validator.Part2OperationalOverlayValidationError as error:
+        raise DefinitiveAnalysisError(
+            "Part 2 recursive operational-overlay validation failed."
+        ) from error
+    expected = {
+        "status": "passed",
+        "panel_id": PART2_100DAY_PANEL_ID,
+        "source_overlay_pair_count": 3,
+        "route_count": PART2_100DAY_ROUTE_COUNT,
+        "trajectory_count": PART2_100DAY_TRAJECTORY_COUNT,
+        "common_environment_seed_count": PART2_100DAY_TRAJECTORIES_PER_ROUTE,
+        "base_seed": PART2_100DAY_BASE_SEED,
+        "excluded_target_ids": [PART2_100DAY_DECLARED_EXCLUSION],
+    }
+    if not isinstance(result, Mapping) or any(
+        result.get(key) != value for key, value in expected.items()
+    ):
+        raise DefinitiveAnalysisError(
+            "Part 2 recursive validator returned an unexpected union contract."
+        )
+    return dict(result)
+
+
+def _load_part2_source_overlay_pair(
+    source_value: Path,
+    overlay_value: Path,
+    pair_index: int,
+    *,
+    global_attempt_ids: set[str],
+) -> dict[str, Any]:
+    label = f"Part 2 composition pair {pair_index + 1}"
+    source_path = _manifest_path(source_value).resolve()
+    overlay_path = _manifest_path(overlay_value).resolve()
+    _private_mode(source_path)
+    _private_mode(overlay_path)
+    source = _read_object(source_path, f"{label} source manifest")
+    overlay = _read_object(overlay_path, f"{label} overlay manifest")
+    cascading = overlay.get("artifact_type") == PART2_CASCADING_OPERATIONAL_REPAIR_TYPE
+    if (
+        source.get("schema_version") != 1
+        or source.get("artifact_type") != EXPECTED_TYPES["part2"]
+        or source.get("evidence_sha256") != _self_hash(source)
+        or source.get("complete") is not False
+        or source.get("completed_at_utc")
+    ):
+        raise DefinitiveAnalysisError(f"{label} source manifest is not an intact terminalized source.")
+    if (
+        overlay.get("schema_version") != 1
+        or overlay.get("artifact_type")
+        not in {
+            PART2_OPERATIONAL_REPAIR_TYPE,
+            PART2_CASCADING_OPERATIONAL_REPAIR_TYPE,
+        }
+        or overlay.get("evidence_sha256") != _self_hash(overlay)
+        or overlay.get("complete") is not True
+        or not overlay.get("completed_at_utc")
+    ):
+        raise DefinitiveAnalysisError(f"{label} overlay manifest is not COMPLETE and intact.")
+    source_run = source_path.parent.parent
+    overlay_run = overlay_path.parent.parent
+    _part2_manifest_contract(source)
+    panel, bound_files = _part2_source_bindings(source, label)
+    subjects = _subject_index(source)
+    expected_pair_count = PART2_100DAY_PAIR_ROUTE_COUNTS[pair_index]
+    if len(subjects) != expected_pair_count:
+        raise DefinitiveAnalysisError(
+            f"{label} must contain exactly {expected_pair_count} routes."
+        )
+    expected_singleton = PART2_100DAY_ORDERED_SINGLETONS.get(pair_index)
+    if expected_singleton is not None and set(subjects) != {expected_singleton}:
+        raise DefinitiveAnalysisError(f"{label} is out of the required pair order.")
+    _judge_audit("part2", source)
+
+    expected_source_journals = {
+        f"{target_id}::{trajectory_index}"
+        for target_id in subjects
+        for trajectory_index in range(PART2_100DAY_TRAJECTORIES_PER_ROUTE)
+    }
+    source_journals = source.get("journals")
+    if not isinstance(source_journals, Mapping) or set(source_journals) != expected_source_journals:
+        raise DefinitiveAnalysisError(f"{label} source route-key set changed.")
+    source_trajectories = _load_sanitized(
+        source_run,
+        source,
+        "trajectory_metrics",
+        "inference_hub_part2_sanitized_trajectory_metrics",
+    )
+    source_models = _load_sanitized(
+        source_run,
+        source,
+        "model_metrics",
+        "inference_hub_part2_sanitized_model_metrics",
+    )
+    _part2_exact_keys(
+        source_trajectories,
+        PART2_SOURCE_TRAJECTORY_PAYLOAD_KEYS,
+        f"{label} source trajectory payload",
+    )
+    _part2_exact_keys(
+        source_models,
+        PART2_SOURCE_MODEL_PAYLOAD_KEYS,
+        f"{label} source model payload",
+    )
+    if (
+        source_trajectories.get("schema_version") != 1
+        or source_models.get("schema_version") != 1
+        or source_trajectories.get("panel_id") != PART2_100DAY_PANEL_ID
+        or source_models.get("panel_id") != PART2_100DAY_PANEL_ID
+        or source_trajectories.get("independence_unit")
+        != "target_by_environment_seed_trajectory"
+        or source_models.get("uncertainty_unit") != "independent_trajectory"
+    ):
+        raise DefinitiveAnalysisError(f"{label} source sanitized contract changed.")
+    source_rows = source_trajectories["rows"]
+    source_index = _part2_trajectory_index(
+        source_rows,
+        subjects,
+        source["common_environment_seeds"],
+        f"{label} source trajectories",
+    )
+    subject_by_id = {str(row["target_id"]): row for row in subjects.values()}
+    for target_id, trajectory_index in sorted(source_index):
+        key = f"{target_id}::{trajectory_index}"
+        records = _read_journal(
+            source_journals[key],
+            source_run / "private",
+            f"{label} source trajectory/{key}",
+        )
+        replayed = _replay_part2_source_journal(
+            records,
+            subject=subject_by_id[target_id],
+            trajectory_index=trajectory_index,
+            environment_seed=source["common_environment_seeds"][trajectory_index],
+            execution_contract=source["execution_contract"],
+            label=f"{label} source {target_id}/{trajectory_index}",
+            global_attempt_ids=global_attempt_ids,
+        )
+        if _canonical_bytes(replayed) != _canonical_bytes(source_index[(target_id, trajectory_index)]):
+            raise DefinitiveAnalysisError(
+                f"{label} source trajectory metrics differ from simulator replay."
+            )
+    _part2_source_summary(source, source_rows, label)
+    _part2_model_metrics_reproduce(
+        source_rows,
+        list(subjects.values()),
+        source_models["rows"],
+        f"{label} source",
+    )
+    failed_keys = {
+        key for key, row in source_index.items() if row["operationally_eligible"] is False
+    }
+    if not failed_keys or any(
+        int(source_index[key]["identity_mismatch_count"]) == 0
+        and int(source_index[key]["transport_failure_count"]) == 0
+        for key in failed_keys
+    ):
+        raise DefinitiveAnalysisError(
+            f"{label} source operational-repair eligibility changed."
+        )
+
+    source_reference = overlay.get("source_manifest")
+    maximum_rounds = overlay.get("maximum_rounds")
+    if (
+        not isinstance(source_reference, Mapping)
+        or not isinstance(source_reference.get("path"), str)
+        or Path(source_reference["path"]).resolve() != source_path
+        or source_reference.get("file_sha256") != _sha256_file(source_path)
+        or source_reference.get("evidence_sha256") != source["evidence_sha256"]
+        or overlay.get("panel_id") != source.get("panel_id")
+        or overlay.get("part2_contract") != source.get("part2_contract")
+        or overlay.get("common_environment_seeds")
+        != source.get("common_environment_seeds")
+        or overlay.get("subject_routes") != source.get("subject_routes")
+        or overlay.get("repair_policy")
+        != (
+            part2_cascading_repair.REPAIR_POLICY
+            if cascading
+            else "whole_trajectory_day_one_exact_route_separate_overlay"
+        )
+        or isinstance(maximum_rounds, bool)
+        or not isinstance(maximum_rounds, int)
+        or maximum_rounds < 1
+    ):
+        raise DefinitiveAnalysisError(f"{label} exact-source overlay binding failed.")
+    if cascading:
+        selected = overlay.get("selected_trajectory")
+        if not isinstance(selected, Mapping):
+            raise DefinitiveAnalysisError(
+                f"{label} cascading trajectory selection is missing."
+            )
+        selected_target = selected.get("target_id")
+        selected_index = selected.get("trajectory_index")
+        selected_key = (selected_target, selected_index)
+        selected_subject = subjects.get(str(selected_target))
+        if (
+            selected_key not in failed_keys
+            or selected_subject is None
+            or selected.get("environment_seed_index") != selected_index
+            or isinstance(selected_index, bool)
+            or not isinstance(selected_index, int)
+            or selected.get("environment_seed")
+            != source["common_environment_seeds"][selected_index]
+            or selected.get("requested_route") != selected_subject.get("route")
+        ):
+            raise DefinitiveAnalysisError(
+                f"{label} cascading trajectory selection changed."
+            )
+        expected_overlay_journals = {
+            f"{selected_target}::{selected_index}::{round_index}"
+            for round_index in range(1, maximum_rounds + 1)
+        }
+    else:
+        expected_overlay_journals = {
+            f"{target_id}::{trajectory_index}::{round_index}"
+            for target_id, trajectory_index in failed_keys
+            for round_index in range(1, maximum_rounds + 1)
+        }
+    overlay_journals = overlay.get("journals")
+    if not isinstance(overlay_journals, Mapping) or set(overlay_journals) != expected_overlay_journals:
+        raise DefinitiveAnalysisError(f"{label} overlay route-key set changed.")
+    effective_trajectories = _load_sanitized(
+        overlay_run,
+        overlay,
+        "effective_trajectory_metrics",
+        (
+            PART2_CASCADING_EFFECTIVE_TRAJECTORY_TYPE
+            if cascading
+            else PART2_EFFECTIVE_TRAJECTORY_TYPE
+        ),
+    )
+    effective_models = _load_sanitized(
+        overlay_run,
+        overlay,
+        "effective_model_metrics",
+        (
+            PART2_CASCADING_EFFECTIVE_MODEL_TYPE
+            if cascading
+            else PART2_EFFECTIVE_MODEL_TYPE
+        ),
+    )
+    _part2_exact_keys(
+        effective_trajectories,
+        PART2_EFFECTIVE_PAYLOAD_KEYS,
+        f"{label} effective trajectory payload",
+    )
+    _part2_exact_keys(
+        effective_models,
+        PART2_EFFECTIVE_PAYLOAD_KEYS,
+        f"{label} effective model payload",
+    )
+    if (
+        effective_trajectories.get("schema_version") != 1
+        or effective_models.get("schema_version") != 1
+        or effective_trajectories.get("panel_id") != PART2_100DAY_PANEL_ID
+        or effective_models.get("panel_id") != PART2_100DAY_PANEL_ID
+        or effective_trajectories.get("source_manifest_evidence_sha256")
+        != source["evidence_sha256"]
+        or effective_models.get("source_manifest_evidence_sha256")
+        != source["evidence_sha256"]
+    ):
+        raise DefinitiveAnalysisError(f"{label} effective sanitized provenance failed.")
+    effective_rows = effective_trajectories["rows"]
+    effective_index = _part2_trajectory_index(
+        effective_rows,
+        subjects,
+        source["common_environment_seeds"],
+        f"{label} effective trajectories",
+        effective=True,
+    )
+    for key, row in effective_index.items():
+        repair_round = row.get("operational_repair_round")
+        replaced = row.get("source_replaced_for_operational_failure")
+        if key in failed_keys:
+            if (
+                replaced is not True
+                or isinstance(repair_round, bool)
+                or not isinstance(repair_round, int)
+                or not 1 <= repair_round <= maximum_rounds
+                or row.get("operationally_eligible") is not True
+            ):
+                raise DefinitiveAnalysisError(
+                    f"{label} operational replacement lineage failed."
+                )
+        else:
+            retained = {
+                field: value
+                for field, value in row.items()
+                if field
+                not in {
+                    "operational_repair_round",
+                    "source_replaced_for_operational_failure",
+                }
+            }
+            if (
+                replaced is not False
+                or repair_round is not None
+                or _canonical_bytes(retained) != _canonical_bytes(source_index[key])
+            ):
+                raise DefinitiveAnalysisError(
+                    f"{label} changed a non-operationally-failed source trajectory."
+                )
+    if not cascading:
+        for target_id, trajectory_index in sorted(failed_keys):
+            effective = effective_index[(target_id, trajectory_index)]
+            success_round = int(effective["operational_repair_round"])
+            subject = subject_by_id[target_id]
+            for round_index in range(1, maximum_rounds + 1):
+                round_label = (
+                    f"{label} repair {target_id}/{trajectory_index}/round {round_index}"
+                )
+                journal_key = f"{target_id}::{trajectory_index}::{round_index}"
+                records = _read_journal(
+                    overlay_journals[journal_key],
+                    overlay_run / "private",
+                    f"{label} repair trajectory/{journal_key}",
+                )
+                if round_index <= success_round and not records:
+                    raise DefinitiveAnalysisError(
+                        f"{round_label} is empty before or at the successful round."
+                    )
+                if round_index > success_round:
+                    if records:
+                        raise DefinitiveAnalysisError(
+                            f"{round_label} is nonempty after the successful round."
+                        )
+                    continue
+                replayed = _replay_part2_repair_round(
+                    records,
+                    subject=subject,
+                    trajectory_index=trajectory_index,
+                    environment_seed=source["common_environment_seeds"][trajectory_index],
+                    execution_contract=source["execution_contract"],
+                    label=round_label,
+                    global_attempt_ids=global_attempt_ids,
+                )
+                if round_index < success_round:
+                    if replayed.get("operationally_eligible") is True:
+                        raise DefinitiveAnalysisError(
+                            f"{round_label} succeeded before the declared successful round."
+                        )
+                    continue
+                recorded_effective = {
+                    field: value
+                    for field, value in effective.items()
+                    if field
+                    not in {
+                        "operational_repair_round",
+                        "source_replaced_for_operational_failure",
+                    }
+                }
+                if (
+                    replayed.get("operationally_eligible") is not True
+                    or _canonical_bytes(replayed)
+                    != _canonical_bytes(recorded_effective)
+                ):
+                    raise DefinitiveAnalysisError(
+                        f"{round_label} does not reproduce the effective trajectory."
+                    )
+    if any(row["operationally_eligible"] is not True for row in effective_rows):
+        raise DefinitiveAnalysisError(f"{label} retains an unresolved operational failure.")
+    expected_summary = (
+        {
+            "original_source_operational_failure_trajectories": len(failed_keys),
+            "parent_repairs_succeeded": len(failed_keys) - 1,
+            "parent_repairs_unresolved": 1,
+            "cascading_repairs_succeeded": 1,
+            "cascading_repairs_unresolved": 0,
+        }
+        if cascading
+        else {
+            "source_operational_failure_trajectories": len(failed_keys),
+            "operational_repairs_succeeded": len(failed_keys),
+            "operational_repairs_unresolved": 0,
+        }
+    )
+    if overlay.get("summary") != expected_summary:
+        raise DefinitiveAnalysisError(f"{label} overlay summary does not reconcile.")
+    _part2_model_metrics_reproduce(
+        effective_rows,
+        list(subjects.values()),
+        effective_models["rows"],
+        f"{label} effective",
+    )
+
+    sanitized_paths = tuple(
+        Path(reference["path"]).resolve()
+        for reference in (
+            source["sanitized_artifacts"]["trajectory_metrics"],
+            source["sanitized_artifacts"]["model_metrics"],
+            overlay["sanitized_artifacts"]["effective_trajectory_metrics"],
+            overlay["sanitized_artifacts"]["effective_model_metrics"],
+        )
+    )
+    journal_paths = tuple(
+        Path(reference["path"]).resolve()
+        for reference in (*source_journals.values(), *overlay_journals.values())
+        if isinstance(reference, Mapping) and isinstance(reference.get("path"), str)
+    )
+    parent_reference = overlay.get("parent_overlay_manifest") if cascading else None
+    parent_path = (
+        Path(str(parent_reference["path"])).resolve()
+        if isinstance(parent_reference, Mapping)
+        and isinstance(parent_reference.get("path"), str)
+        else None
+    )
+    if cascading and (
+        parent_path is None
+        or not parent_path.is_file()
+        or parent_reference.get("file_sha256") != _sha256_file(parent_path)
+        or not isinstance(parent_reference.get("evidence_sha256"), str)
+    ):
+        raise DefinitiveAnalysisError(
+            f"{label} cascading parent-overlay binding changed after validation."
+        )
+    snapshot_paths = (
+        source_path,
+        overlay_path,
+        *((parent_path,) if parent_path is not None else ()),
+        *bound_files,
+        *sanitized_paths,
+        *(path for path in journal_paths if path.exists()),
+    )
+    return {
+        "source_path": source_path,
+        "source_manifest": source,
+        "overlay_path": overlay_path,
+        "overlay_manifest": overlay,
+        "parent_overlay_path": parent_path,
+        "parent_overlay_binding": (
+            {
+                "basename": parent_path.name,
+                "file_sha256": parent_reference["file_sha256"],
+                "evidence_sha256": parent_reference["evidence_sha256"],
+            }
+            if parent_path is not None and isinstance(parent_reference, Mapping)
+            else None
+        ),
+        "panel": panel,
+        "subjects": list(subjects.values()),
+        "effective_rows": [dict(row) for row in effective_rows],
+        "snapshot_hashes": {
+            path: _sha256_file(path) for path in dict.fromkeys(snapshot_paths)
+        },
+        "snapshot_missing_paths": tuple(
+            path for path in dict.fromkeys(journal_paths) if not path.exists()
+        ),
+        "audit": {
+            "pair_ordinal": pair_index + 1,
+            "route_count": len(subjects),
+            "trajectory_count": len(effective_rows),
+            "source_operational_failure_trajectories": len(failed_keys),
+            "source_trajectories_replayed": len(source_rows),
+            "successful_full_trajectory_repairs": len(failed_keys),
+            "unresolved_operational_failure_trajectories": 0,
+            "inherited_parent_repairs": len(failed_keys) - 1 if cascading else 0,
+            "cascading_repairs": 1 if cascading else 0,
+        },
+    }
+
+
+def _normalized_part2_composition_pairs(
+    source_overlay_pairs: Sequence[tuple[Path, Path]],
+) -> tuple[tuple[Path, Path], ...]:
+    pairs = list(source_overlay_pairs)
+    if len(pairs) != 3 or any(
+        not isinstance(pair, (tuple, list)) or len(pair) != 2 for pair in pairs
+    ):
+        raise DefinitiveAnalysisError(
+            "Part 2 composition requires exactly three ordered source/overlay pairs."
+        )
+    return tuple(
+        (
+            _manifest_path(Path(pair[0])).resolve(),
+            _manifest_path(Path(pair[1])).resolve(),
+        )
+        for pair in pairs
+    )
+
+
+def _part2_cascading_parent_manifest_paths(
+    source_overlay_pairs: Sequence[tuple[Path, Path]],
+) -> tuple[Path, ...]:
+    """Discover child-overlay parents; callers must recheck after locking."""
+
+    parents: list[Path] = []
+    for pair_index, (_source_path, overlay_path) in enumerate(
+        source_overlay_pairs, 1
+    ):
+        overlay = _read_object(
+            Path(overlay_path).resolve(),
+            f"Part 2 composition pair {pair_index} overlay lock discovery",
+        )
+        if overlay.get("artifact_type") != PART2_CASCADING_OPERATIONAL_REPAIR_TYPE:
+            continue
+        reference = overlay.get("parent_overlay_manifest")
+        if (
+            not isinstance(reference, Mapping)
+            or set(reference) != {"path", "file_sha256", "evidence_sha256"}
+            or not isinstance(reference.get("path"), str)
+        ):
+            raise DefinitiveAnalysisError(
+                "Part 2 cascading parent-overlay lock binding is invalid."
+            )
+        parents.append(_manifest_path(Path(reference["path"])).resolve())
+    return tuple(parents)
+
+
+@contextmanager
+def _hold_part2_composition_locks(
+    source_overlay_pairs: Sequence[tuple[Path, Path]],
+) -> Iterator[None]:
+    """Hold every direct and cascading run lock through validation/publication."""
+
+    pairs = _normalized_part2_composition_pairs(source_overlay_pairs)
+    manifest_paths = [
+        _manifest_path(Path(value)).resolve()
+        for pair in pairs
+        for value in pair
+    ]
+    parent_paths = list(_part2_cascading_parent_manifest_paths(pairs))
+    all_manifest_paths = [*manifest_paths, *parent_paths]
+    lock_paths = [path.parent / ".run.lock" for path in all_manifest_paths]
+    if (
+        len(set(manifest_paths)) != 6
+        or len(set(all_manifest_paths)) != len(all_manifest_paths)
+        or len(set(lock_paths)) != len(lock_paths)
+    ):
+        raise DefinitiveAnalysisError(
+            "Part 2 composition requires distinct source, overlay, and parent runs."
+        )
+
+    handles: list[BinaryIO] = []
+    try:
+        for lock_path in sorted(lock_paths, key=lambda path: str(path)):
+            if not lock_path.is_file():
+                raise DefinitiveAnalysisError(
+                    "Part 2 source or overlay run lock is missing."
+                )
+            _private_mode(lock_path)
+            try:
+                handle = lock_path.open("rb")
+            except OSError as error:
+                raise DefinitiveAnalysisError(
+                    "Part 2 source or overlay run lock is unavailable."
+                ) from error
+            try:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_SH | fcntl.LOCK_NB)
+            except BlockingIOError as error:
+                handle.close()
+                raise DefinitiveAnalysisError(
+                    "Part 2 source or overlay still has an active writer."
+                ) from error
+            handles.append(handle)
+        if tuple(_part2_cascading_parent_manifest_paths(pairs)) != tuple(
+            parent_paths
+        ):
+            raise DefinitiveAnalysisError(
+                "Part 2 cascading parent binding changed while locks were acquired."
+            )
+        yield
+    finally:
+        for handle in reversed(handles):
+            try:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+            finally:
+                handle.close()
+
+
+def _part2_composition_locked(
+    source_overlay_pairs: Sequence[tuple[Path, Path]],
+    declared_excluded_target_ids: Sequence[str],
+) -> tuple[
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+    dict[str, Any],
+    list[dict[str, Any]],
+]:
+    pairs = list(source_overlay_pairs)
+    exclusions = list(declared_excluded_target_ids)
+    if len(pairs) != 3 or any(
+        not isinstance(pair, (tuple, list)) or len(pair) != 2 for pair in pairs
+    ):
+        raise DefinitiveAnalysisError(
+            "Part 2 composition requires exactly three ordered source/overlay pairs."
+        )
+    if exclusions != [PART2_100DAY_DECLARED_EXCLUSION]:
+        raise DefinitiveAnalysisError(
+            "Part 2 composition must declare only the frozen Opus-4.5 exclusion."
+        )
+    _validate_part2_overlay_union_recursively(
+        [(Path(source), Path(overlay)) for source, overlay in pairs]
+    )
+    global_attempt_ids: set[str] = set()
+    loaded_pairs = [
+        _load_part2_source_overlay_pair(
+            Path(pair[0]),
+            Path(pair[1]),
+            pair_index,
+            global_attempt_ids=global_attempt_ids,
+        )
+        for pair_index, pair in enumerate(pairs)
+    ]
+    panel_hashes = {
+        _sha256_json(pair["panel"]) for pair in loaded_pairs
+    }
+    contracts = {
+        _sha256_json(pair["source_manifest"]["part2_contract"])
+        for pair in loaded_pairs
+    }
+    seeds = {
+        _sha256_json(pair["source_manifest"]["common_environment_seeds"])
+        for pair in loaded_pairs
+    }
+    if len(panel_hashes) != 1 or len(contracts) != 1 or len(seeds) != 1:
+        raise DefinitiveAnalysisError(
+            "Part 2 composition pairs do not share one frozen panel/contract/seed block."
+        )
+
+    subjects = [subject for pair in loaded_pairs for subject in pair["subjects"]]
+    rows = [row for pair in loaded_pairs for row in pair["effective_rows"]]
+    target_ids = [str(subject["target_id"]) for subject in subjects]
+    routes = [str(subject["route"]) for subject in subjects]
+    upstream_keys = [
+        (str(subject["upstream_provider"]), str(subject["model"]))
+        for subject in subjects
+    ]
+    row_keys = [
+        (str(row["target_id"]), int(row["trajectory_index"])) for row in rows
+    ]
+    if (
+        len(subjects) != PART2_100DAY_ROUTE_COUNT
+        or len(set(target_ids)) != len(target_ids)
+        or len(set(routes)) != len(routes)
+        or len(set(upstream_keys)) != len(upstream_keys)
+        or len(rows) != PART2_100DAY_TRAJECTORY_COUNT
+        or len(set(row_keys)) != len(row_keys)
+    ):
+        raise DefinitiveAnalysisError(
+            "Part 2 composition route keys are duplicated or the 23-route/276-row union is incomplete."
+        )
+    panel_target_ids = loaded_pairs[0]["panel"].get("subject_target_ids")
+    expected_targets = set(panel_target_ids) - set(exclusions)
+    if (
+        set(target_ids) != expected_targets
+        or tuple(target_ids) != PART2_100DAY_ORDERED_TARGET_IDS
+    ):
+        raise DefinitiveAnalysisError(
+            "Part 2 composition is not the frozen ordered panel minus declared Opus-4.5."
+        )
+
+    subject_index = {str(subject["target_id"]): subject for subject in subjects}
+    _part2_trajectory_index(
+        rows,
+        subject_index,
+        loaded_pairs[0]["source_manifest"]["common_environment_seeds"],
+        "Part 2 composed effective trajectories",
+        effective=True,
+    )
+    models, figure = _part2_estimates(subject_index, rows, effective=True)
+    judge_rows = [pair["source_manifest"]["judge_reservation"] for pair in loaded_pairs]
+    if any(row != judge_rows[0] for row in judge_rows[1:]):
+        raise DefinitiveAnalysisError("Part 2 composition judge reservation changed across pairs.")
+    judge_audit = {
+        "phase": "part2",
+        "judge_target_id": judge_rows[0]["target_id"],
+        "subject_count": len(subjects),
+        "target_disjoint": True,
+        "route_disjoint": True,
+        "upstream_identity_disjoint": True,
+    }
+    binding = {
+        "composition_schema_version": 1,
+        "panel_id": PART2_100DAY_PANEL_ID,
+        "part2_contract_sha256": next(iter(contracts)),
+        "common_environment_seeds_sha256": next(iter(seeds)),
+        "common_environment_seed_count": PART2_100DAY_TRAJECTORIES_PER_ROUTE,
+        "declared_excluded_target_ids": exclusions,
+        "ordered_target_ids": list(PART2_100DAY_ORDERED_TARGET_IDS),
+        "declared_exclusions": [
+            {
+                "target_id": PART2_100DAY_DECLARED_EXCLUSION,
+                "reason": (
+                    "no_complete_exact_route_corrected_original_scale_100d_evidence"
+                ),
+                "substitution_permitted": False,
+            }
+        ],
+        "route_count": len(subjects),
+        "trajectory_count": len(rows),
+        "route_key_uniqueness_validated": True,
+        "ordered_source_overlay_pairs": [
+            {
+                "pair_ordinal": ordinal,
+                "source": {
+                    "basename": pair["source_path"].name,
+                    "file_sha256": _sha256_file(pair["source_path"]),
+                    "evidence_sha256": pair["source_manifest"]["evidence_sha256"],
+                },
+                "operational_repair_overlay": {
+                    "basename": pair["overlay_path"].name,
+                    "file_sha256": _sha256_file(pair["overlay_path"]),
+                    "evidence_sha256": pair["overlay_manifest"]["evidence_sha256"],
+                    "source_manifest_file_sha256": _sha256_file(pair["source_path"]),
+                    "source_manifest_evidence_sha256": pair["source_manifest"][
+                        "evidence_sha256"
+                    ],
+                    **(
+                        {
+                            "parent_operational_repair_overlay": pair[
+                                "parent_overlay_binding"
+                            ]
+                        }
+                        if pair["parent_overlay_binding"] is not None
+                        else {}
+                    ),
+                },
+                "audit": pair["audit"],
+            }
+            for ordinal, pair in enumerate(loaded_pairs, 1)
+        ],
+    }
+    return models, figure, {
+        "binding": binding,
+        "pairs": loaded_pairs,
+        "judge_audit": judge_audit,
+    }, [dict(row) for row in rows]
+
+
+def _part2_composition(
+    source_overlay_pairs: Sequence[tuple[Path, Path]],
+    declared_excluded_target_ids: Sequence[str],
+) -> tuple[
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+    dict[str, Any],
+    list[dict[str, Any]],
+]:
+    """Validate and compose one six-run Part 2 snapshot under shared locks."""
+
+    pairs = _normalized_part2_composition_pairs(source_overlay_pairs)
+    with _hold_part2_composition_locks(pairs):
+        return _part2_composition_locked(
+            pairs, declared_excluded_target_ids
+        )
+
+
+def _part2_estimates(
+    subjects: Mapping[str, Mapping[str, Any]],
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    effective: bool,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    expected_public_keys = (
+        PART2_EFFECTIVE_TRAJECTORY_ROW_KEYS
+        if effective
+        else PART2_TRAJECTORY_ROW_KEYS
+    )
+    for ordinal, row in enumerate(rows):
+        if not isinstance(row, Mapping) or frozenset(row) != expected_public_keys:
+            raise DefinitiveAnalysisError(
+                f"Public Part 2 trajectory row {ordinal} public schema changed."
+            )
     output = []
     for target, subject in sorted(subjects.items()):
         group = [row for row in rows if row.get("target_id") == target]
@@ -1911,10 +3270,24 @@ def _part2(run: Path, manifest: Mapping[str, Any]) -> tuple[list[dict[str, Any]]
             "nondepletion_interval_method": "wilson_score_binomial_95",
             "primary_denominator": "all_scheduled_agent_days", "exploratory_only": True,
         })
+    return output, [dict(row) for row in rows]
+
+
+def _part2(run: Path, manifest: Mapping[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Legacy single-source adapter retained for frozen historical fixtures."""
+
+    _validate_flat_journals(run, manifest, sensitivity=False)
+    payload = _load_sanitized(run, manifest, "trajectory_metrics", "inference_hub_part2_sanitized_trajectory_metrics")
+    model_payload = _load_sanitized(run, manifest, "model_metrics", "inference_hub_part2_sanitized_model_metrics")
+    subjects = _subject_index(manifest)
+    rows = payload["rows"]
+    expected_trajectory_count = len(manifest.get("journals", {}))
+    if len(rows) != expected_trajectory_count:
+        raise DefinitiveAnalysisError("Part 2 trajectory rows do not match journal count.")
     native = {str(row.get("target_id")) for row in model_payload["rows"]}
     if native != set(subjects):
         raise DefinitiveAnalysisError("Part 2 native model summary target set changed.")
-    return output, [dict(row) for row in rows]
+    return _part2_estimates(subjects, rows, effective=False)
 
 
 def _role(run: Path, manifest: Mapping[str, Any]) -> list[dict[str, Any]]:
@@ -2580,21 +3953,35 @@ def _write_csv(path: Path, rows: Sequence[Mapping[str, Any]]) -> None:
         writer.writerows(rows)
 
 
-def analyze(
+def _analyze_snapshot(
     *,
     part0: Path,
     part1: Path,
-    part2: Path,
+    part2: Path | None = None,
     role_calibration: Path,
     sensitivity: Path,
     output_dir: Path,
+    part2_source_overlay_pairs: Sequence[tuple[Path, Path]] = (),
+    part2_excluded_target_ids: Sequence[str] = (),
     part1_operational_repair: Path | None = None,
     sensitivity_operational_repair: Path | None = None,
     allow_terminalized_part0_operational_invalids: bool = False,
 ) -> dict[str, Any]:
     """Validate all inputs before atomically publishing descriptive tables."""
 
-    inputs = {"part0": part0, "part1": part1, "part2": part2, "role": role_calibration, "sensitivity": sensitivity}
+    composition_requested = bool(part2_source_overlay_pairs)
+    if composition_requested == (part2 is not None):
+        raise DefinitiveAnalysisError(
+            "Supply exactly one Part 2 input mode: legacy --part2 or three source/overlay pairs."
+        )
+    if not composition_requested and part2_excluded_target_ids:
+        raise DefinitiveAnalysisError(
+            "Declared Part 2 exclusions are only valid with source/overlay composition."
+        )
+    inputs: dict[str, Path] = {"part0": part0, "part1": part1}
+    if part2 is not None:
+        inputs["part2"] = part2
+    inputs.update({"role": role_calibration, "sensitivity": sensitivity})
     loaded = {
         phase: _load_manifest(
             path,
@@ -2612,6 +3999,12 @@ def analyze(
         )
         for phase, path in inputs.items()
     }
+    part2_composition_context = None
+    if composition_requested:
+        p2_models, p2_fig, part2_composition_context, _ = _part2_composition_locked(
+            part2_source_overlay_pairs,
+            part2_excluded_target_ids,
+        )
     part0_terminalized_audit = (
         _validate_terminalized_part0_operational_snapshot(
             loaded["part0"][0], loaded["part0"][2]
@@ -2619,7 +4012,17 @@ def analyze(
         if loaded["part0"][3] == "fully_terminalized_with_operational_invalids"
         else None
     )
-    judge_audits = [_judge_audit(phase, loaded[phase][2]) for phase in inputs]
+    judge_audits = [
+        _judge_audit(phase, loaded[phase][2])
+        for phase in ("part0", "part1")
+    ]
+    if part2_composition_context is not None:
+        judge_audits.append(part2_composition_context["judge_audit"])
+    else:
+        judge_audits.append(_judge_audit("part2", loaded["part2"][2]))
+    judge_audits.extend(
+        _judge_audit(phase, loaded[phase][2]) for phase in ("role", "sensitivity")
+    )
     part1_effective_journals = None
     part1_operational_repair_audit = None
     part1_repair_manifest_path = None
@@ -2660,7 +4063,8 @@ def analyze(
         loaded["part1"][2],
         effective_journals=part1_effective_journals,
     )
-    p2_models, p2_fig = _part2(loaded["part2"][0], loaded["part2"][2])
+    if part2_composition_context is None:
+        p2_models, p2_fig = _part2(loaded["part2"][0], loaded["part2"][2])
     role_rows = _role(loaded["role"][0], loaded["role"][2])
     sensitivity_rows, sensitivity_models = _sensitivity(
         loaded["sensitivity"][0],
@@ -2709,28 +4113,35 @@ def analyze(
                     "kind": kind,
                 }
             )
+        input_manifest_bindings: dict[str, Any] = {
+            phase: {
+                "basename": path.name,
+                "file_sha256": _sha256_file(path),
+                "evidence_sha256": manifest["evidence_sha256"],
+            }
+            for phase, (_, path, manifest, _) in loaded.items()
+        }
+        input_evidence_status = {
+            phase: (
+                PART1_OPERATIONAL_REPAIR_STATUS
+                if phase == "part1" and part1_repair_manifest is not None
+                else SENSITIVITY_OPERATIONAL_REPAIR_STATUS
+                if phase == "sensitivity"
+                and sensitivity_repair_manifest is not None
+                else status
+            )
+            for phase, (_, _, _, status) in loaded.items()
+        }
+        if part2_composition_context is not None:
+            input_manifest_bindings["part2"] = part2_composition_context[
+                "binding"
+            ]["ordered_source_overlay_pairs"][0]["source"]
+            input_evidence_status["part2"] = PART2_OPERATIONAL_COMPOSITION_STATUS
         result: dict[str, Any] = {
             "schema_version": SCHEMA_VERSION, "artifact_type": "provider_safe_v2_definitive_descriptive_analysis",
             "generated_at_utc": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-            "input_manifests": {
-                phase: {
-                    "basename": path.name,
-                    "file_sha256": _sha256_file(path),
-                    "evidence_sha256": manifest["evidence_sha256"],
-                }
-                for phase, (_, path, manifest, _) in loaded.items()
-            },
-            "input_evidence_status": {
-                phase: (
-                    PART1_OPERATIONAL_REPAIR_STATUS
-                    if phase == "part1" and part1_repair_manifest is not None
-                    else SENSITIVITY_OPERATIONAL_REPAIR_STATUS
-                    if phase == "sensitivity"
-                    and sensitivity_repair_manifest is not None
-                    else status
-                )
-                for phase, (_, _, _, status) in loaded.items()
-            },
+            "input_manifests": input_manifest_bindings,
+            "input_evidence_status": input_evidence_status,
             "part0_terminalized_operational_audit": part0_terminalized_audit,
             "part1_operational_repair_overlay": (
                 {
@@ -2766,6 +4177,18 @@ def analyze(
                 }
                 if sensitivity_repair_manifest_path is not None
                 and sensitivity_repair_manifest is not None
+                else None
+            ),
+            "part2_operational_repair_composition": (
+                {
+                    **part2_composition_context["binding"],
+                    "status": PART2_OPERATIONAL_COMPOSITION_STATUS,
+                    "environmental_invalid_policy": (
+                        "exclude_operationally_eligible_trajectories_with_any_"
+                        "semantic_invalid_from_environmental_estimates"
+                    ),
+                }
+                if part2_composition_context is not None
                 else None
             ),
             "path_policy": "portable_basenames_only_no_host_absolute_paths_in_public_manifest",
@@ -2839,6 +4262,17 @@ def analyze(
                 raise DefinitiveAnalysisError(
                     "Sensitivity operational repair manifest changed during analysis."
                 )
+        if part2_composition_context is not None:
+            for pair in part2_composition_context["pairs"]:
+                for path, expected_hash in pair["snapshot_hashes"].items():
+                    if _sha256_file(path) != expected_hash:
+                        raise DefinitiveAnalysisError(
+                            "Part 2 composition evidence changed during analysis."
+                        )
+                if any(path.exists() for path in pair["snapshot_missing_paths"]):
+                    raise DefinitiveAnalysisError(
+                        "Part 2 composition journal set changed during analysis."
+                    )
         result["evidence_sha256"] = _self_hash(result)
         _write_json(temporary / "analysis_manifest.json", result)
         os.replace(temporary, output_dir)
@@ -2847,6 +4281,49 @@ def analyze(
         import shutil
         shutil.rmtree(temporary, ignore_errors=True)
         raise
+
+
+def analyze(
+    *,
+    part0: Path,
+    part1: Path,
+    part2: Path | None = None,
+    role_calibration: Path,
+    sensitivity: Path,
+    output_dir: Path,
+    part2_source_overlay_pairs: Sequence[tuple[Path, Path]] = (),
+    part2_excluded_target_ids: Sequence[str] = (),
+    part1_operational_repair: Path | None = None,
+    sensitivity_operational_repair: Path | None = None,
+    allow_terminalized_part0_operational_invalids: bool = False,
+) -> dict[str, Any]:
+    """Validate and publish while a composed Part 2 snapshot remains locked."""
+
+    raw_part2_pairs = list(part2_source_overlay_pairs)
+    normalized_part2_pairs: Sequence[tuple[Path, Path]] = (
+        _normalized_part2_composition_pairs(raw_part2_pairs)
+        if raw_part2_pairs
+        else ()
+    )
+    arguments = {
+        "part0": part0,
+        "part1": part1,
+        "part2": part2,
+        "role_calibration": role_calibration,
+        "sensitivity": sensitivity,
+        "output_dir": output_dir,
+        "part2_source_overlay_pairs": normalized_part2_pairs,
+        "part2_excluded_target_ids": part2_excluded_target_ids,
+        "part1_operational_repair": part1_operational_repair,
+        "sensitivity_operational_repair": sensitivity_operational_repair,
+        "allow_terminalized_part0_operational_invalids": (
+            allow_terminalized_part0_operational_invalids
+        ),
+    }
+    if normalized_part2_pairs:
+        with _hold_part2_composition_locks(normalized_part2_pairs):
+            return _analyze_snapshot(**arguments)
+    return _analyze_snapshot(**arguments)
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -2861,7 +4338,37 @@ def _parser() -> argparse.ArgumentParser:
             "terminalized Part 1 panel containing transport-null rows."
         ),
     )
-    parser.add_argument("--part2", type=Path, required=True)
+    parser.add_argument(
+        "--part2",
+        type=Path,
+        help="Legacy single COMPLETE Part 2 manifest (mutually exclusive with composition).",
+    )
+    parser.add_argument(
+        "--part2-source-overlay",
+        "--part2-source-overlay-pair",
+        dest="part2_source_overlay_pairs",
+        action="append",
+        nargs=2,
+        type=Path,
+        default=[],
+        metavar=("SOURCE", "OVERLAY"),
+        help=(
+            "Ordered terminalized-source/COMPLETE-overlay pair. Repeat exactly "
+            "three times: main21, Nemotron, then DeepSeek."
+        ),
+    )
+    parser.add_argument(
+        "--part2-excluded-target",
+        "--part2-declared-exclusion",
+        dest="part2_excluded_target_ids",
+        action="append",
+        default=[],
+        metavar="TARGET_ID",
+        help=(
+            "Declared frozen-panel target exclusion; composition requires exactly "
+            f"{PART2_100DAY_DECLARED_EXCLUSION}."
+        ),
+    )
     parser.add_argument("--role-calibration", type=Path, required=True)
     parser.add_argument("--sensitivity", type=Path, required=True)
     parser.add_argument(
@@ -2894,6 +4401,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             part1=args.part1,
             part1_operational_repair=args.part1_operational_repair,
             part2=args.part2,
+            part2_source_overlay_pairs=[
+                (source, overlay)
+                for source, overlay in args.part2_source_overlay_pairs
+            ],
+            part2_excluded_target_ids=args.part2_excluded_target_ids,
             role_calibration=args.role_calibration,
             sensitivity=args.sensitivity,
             sensitivity_operational_repair=args.sensitivity_operational_repair,

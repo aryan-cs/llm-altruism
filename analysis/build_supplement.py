@@ -24,6 +24,10 @@ DEFAULT_OUTPUT = PROJECT_ROOT / "docs" / "conference_submission" / "supplement.z
 MANIFEST_NAME = "SUPPLEMENT_MANIFEST.json"
 ANONYMIZATION_POLICY_NAME = ".supplement-anonymization.json"
 REPRODUCIBLE_CREATED_UTC = "2026-01-01T00:00:00+00:00"
+CONFERENCE_TEX_PATH = Path("docs") / "conference_submission" / "conference_submission.tex"
+ANONYMOUS_LATEX_AUTHOR = (
+    r"\author{Anonymous Author\\\texttt{anonymous@example.invalid}}"
+)
 
 # Hosted-panel code is admitted by exact path, never by a substring or broad
 # data-directory rule.  This makes additions review-visible and prevents a new
@@ -47,8 +51,10 @@ HOSTED_REPRODUCIBILITY_ALLOWLIST = frozenset(
         Path("analysis") / "merge_sota_compatibility_with_judge.py",
         Path("analysis") / "part2_confirmatory.py",
         Path("analysis") / "reconcile_inference_hub_routes.py",
+        Path("analysis") / "validate_inference_hub_part2_operational_overlays.py",
         Path("docs") / "AVAILABILITY_RETRY_ANALYSIS.md",
         Path("experiments") / "sota_cross_axis_panel.json",
+        Path("experiments") / "sota_cross_axis_part2_100day_panel.json",
         Path("experiments") / "part1" / "role_calibration_panel_v1.json",
         Path("experiments") / "part2" / "part2_sensitivity_v1.json",
         Path("experiments") / "part2" / "part2_sensitivity_deadline_exploratory_v1.json",
@@ -65,6 +71,8 @@ HOSTED_REPRODUCIBILITY_ALLOWLIST = frozenset(
         Path("experiments") / "misc" / "inference_hub_part1_role_calibration_v1.py",
         Path("experiments") / "misc" / "inference_hub_part1_role_semantic_invalid_repair.py",
         Path("experiments") / "misc" / "inference_hub_part1_stratified_panel.py",
+        Path("experiments") / "misc" / "inference_hub_part2_cascading_operational_repair.py",
+        Path("experiments") / "misc" / "inference_hub_part2_operational_repair.py",
         Path("experiments") / "misc" / "inference_hub_part2_panel.py",
         Path("experiments") / "misc" / "inference_hub_part2_sensitivity_v1.py",
         Path("experiments") / "misc" / "inference_hub_provider_safe.py",
@@ -77,6 +85,7 @@ HOSTED_REPRODUCIBILITY_ALLOWLIST = frozenset(
         Path("tests") / "test_analyze_availability_retry_panels.py",
         Path("tests") / "test_analyze_provider_safe_v2_definitive.py",
         Path("tests") / "test_analyze_semantic_invalid_repairs.py",
+        Path("tests") / "test_build_original_view_figures.py",
         Path("tests") / "test_build_provider_safe_v2_paper_assets.py",
         Path("tests") / "test_build_provider_safe_v2_croissant_metadata.py",
         Path("tests") / "test_inference_hub_compatibility.py",
@@ -92,6 +101,8 @@ HOSTED_REPRODUCIBILITY_ALLOWLIST = frozenset(
         Path("tests") / "test_inference_hub_part1_role_calibration_v1.py",
         Path("tests") / "test_inference_hub_part1_role_semantic_invalid_repair.py",
         Path("tests") / "test_inference_hub_part1_stratified_panel.py",
+        Path("tests") / "test_inference_hub_part2_cascading_operational_repair.py",
+        Path("tests") / "test_inference_hub_part2_operational_repair.py",
         Path("tests") / "test_inference_hub_part2_panel.py",
         Path("tests") / "test_inference_hub_part2_sensitivity_v1.py",
         Path("tests") / "test_inference_hub_provider_safe.py",
@@ -110,6 +121,7 @@ HOSTED_REPRODUCIBILITY_ALLOWLIST = frozenset(
         Path("tests") / "test_part2_confirmatory_cli.py",
         Path("tests") / "test_part2_confirmatory_statistics.py",
         Path("tests") / "test_sota_cross_axis_panel.py",
+        Path("tests") / "test_validate_inference_hub_part2_operational_overlays.py",
     }
 )
 
@@ -350,11 +362,10 @@ def _is_hosted_reproducibility_path(path: Path) -> bool:
     return (
         "inference_hub" in name
         or "availability_retry" in name
+        or "sota_cross_axis" in name
         or name in {
             "reconcile_inference_hub_routes.py",
             "test_reconcile_inference_hub_routes.py",
-            "sota_cross_axis_panel.json",
-            "test_sota_cross_axis_panel.py",
         }
     )
 
@@ -578,16 +589,21 @@ def _writestr(zf: zipfile.ZipFile, arcname: str, data: bytes) -> None:
     zf.writestr(info, data)
 
 
-def _git_value(project_root: Path, *arguments: str) -> str | None:
+def _git_values(project_root: Path, *arguments: str) -> tuple[str, ...]:
     try:
         completed = subprocess.run(
             ["git", *arguments], cwd=project_root, check=True,
             capture_output=True, text=True, timeout=5,
         )
     except (OSError, subprocess.SubprocessError):
-        return None
-    value = completed.stdout.strip()
-    return value or None
+        return ()
+    return tuple(
+        dict.fromkeys(
+            value
+            for line in completed.stdout.splitlines()
+            if (value := line.strip())
+        )
+    )
 
 
 def _identity_replacements(project_root: Path) -> tuple[tuple[str, str], ...]:
@@ -596,18 +612,20 @@ def _identity_replacements(project_root: Path) -> tuple[tuple[str, str], ...]:
     candidates: dict[str, str] = {}
     home = str(Path.home())
     login = getpass.getuser().strip()
-    name = _git_value(project_root, "config", "user.name")
-    email = _git_value(project_root, "config", "user.email")
-    remote = _git_value(project_root, "remote", "get-url", "origin")
+    names = _git_values(project_root, "config", "--get-all", "user.name")
+    emails = _git_values(project_root, "config", "--get-all", "user.email")
+    remotes = _git_values(project_root, "remote", "get-url", "--all", "origin")
     if home and home not in {"/", "/home/anonymous"}:
         candidates[home] = "/home/anonymous"
     if login and login.lower() not in {"root", "anonymous"}:
         candidates[login] = "anonymous"
-    if name and name.lower() != "anonymous author":
-        candidates[name] = "Anonymous Author"
-    if email and email.lower() != "anonymous@example.invalid":
-        candidates[email] = "anonymous@example.invalid"
-    if remote:
+    for name in names:
+        if name.lower() != "anonymous author":
+            candidates[name] = "Anonymous Author"
+    for email in emails:
+        if email.lower() != "anonymous@example.invalid":
+            candidates[email] = "anonymous@example.invalid"
+    for remote in remotes:
         owner_match = re.search(r"(?:github\.com|gitlab\.com)[:/]([^/]+)/", remote)
         if owner_match and owner_match.group(1).lower() not in {"anonymous", "anonymous-author"}:
             candidates[owner_match.group(1)] = "anonymous-author"
@@ -670,23 +688,82 @@ def _anonymous_text(text: str, replacements: tuple[tuple[str, str], ...]) -> str
     return text
 
 
+def _anonymous_conference_tex(text: str) -> str:
+    """Replace the complete author declaration without relying on host identity."""
+
+    pattern = re.compile(r"(?m)^([ \t]*)\\author\{[^\r\n]*\}([ \t]*)$")
+    transformed, count = pattern.subn(
+        lambda match: f"{match.group(1)}{ANONYMOUS_LATEX_AUTHOR}{match.group(2)}",
+        text,
+    )
+    if count != 1:
+        raise ValueError("Conference TeX must contain exactly one single-line author declaration")
+    return transformed
+
+
 def _anonymous_archive_payload(
-    payload: bytes, replacements: tuple[tuple[str, str], ...]
+    rel_path: Path,
+    payload: bytes,
+    replacements: tuple[tuple[str, str], ...],
 ) -> bytes:
     try:
         text = payload.decode("utf-8")
     except UnicodeDecodeError:
         return payload
-    return _anonymous_text(text, replacements).encode("utf-8")
+    text = _anonymous_text(text, replacements)
+    if rel_path == CONFERENCE_TEX_PATH:
+        text = _anonymous_conference_tex(text)
+    return text.encode("utf-8")
+
+
+def _is_verified_anonymous_extraction(project_root: Path, files: list[Path]) -> bool:
+    """Recognize an unchanged extracted ZIP before consulting rebuild-host identity."""
+
+    if (
+        (project_root / ".git").exists()
+        or (project_root / ANONYMIZATION_POLICY_NAME).exists()
+    ):
+        return False
+    manifest_path = project_root / MANIFEST_NAME
+    if not manifest_path.is_file():
+        return False
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return False
+    if not isinstance(manifest, dict):
+        return False
+    archive_paths = [_anonymous_archive_path(rel_path, ()) for rel_path in files]
+    hashes = manifest.get("file_sha256s")
+    if (
+        len(set(archive_paths)) != len(archive_paths)
+        or manifest.get("package") != "anonymous NeurIPS supplement"
+        or manifest.get("file_count") != len(files)
+        or manifest.get("files") != sorted(archive_paths)
+        or not isinstance(hashes, dict)
+        or set(hashes) != set(archive_paths)
+    ):
+        return False
+    return all(
+        isinstance(hashes[archive_path], str)
+        and hashlib.sha256((project_root / rel_path).read_bytes()).hexdigest()
+        == hashes[archive_path]
+        for rel_path, archive_path in zip(files, archive_paths)
+    )
 
 
 def audit_anonymous_archive(
-    output_path: Path, project_root: Path = PROJECT_ROOT
+    output_path: Path,
+    project_root: Path = PROJECT_ROOT,
+    *,
+    replacements: tuple[tuple[str, str], ...] | None = None,
 ) -> list[str]:
     """Return entry/marker descriptions for anonymity leaks in a built ZIP."""
 
     findings: list[str] = []
-    markers = tuple(source.lower() for source, _ in _archive_replacements(project_root))
+    if replacements is None:
+        replacements = _archive_replacements(project_root)
+    markers = tuple(source.lower() for source, _ in replacements)
     with zipfile.ZipFile(output_path) as zf:
         for info in zf.infolist():
             name_lower = info.filename.lower()
@@ -717,13 +794,16 @@ def build_supplement(
         require_definitive_artifacts=require_definitive_artifacts,
     )
     files = collect_supplement_files(project_root=project_root, output_path=output_path)
-    replacements = _archive_replacements(project_root)
+    verified_extraction = _is_verified_anonymous_extraction(project_root, files)
+    replacements = () if verified_extraction else _archive_replacements(project_root)
     archive_payloads = dict(
         sorted(
             (
                 _anonymous_archive_path(rel_path, replacements),
                 _anonymous_archive_payload(
-                    (project_root / rel_path).read_bytes(), replacements
+                    rel_path,
+                    (project_root / rel_path).read_bytes(),
+                    replacements,
                 ),
             )
             for rel_path in files
@@ -766,7 +846,9 @@ def build_supplement(
         for name, payload in archive_payloads.items():
             _writestr(zf, name, payload)
 
-    findings = audit_anonymous_archive(output_path, project_root)
+    findings = audit_anonymous_archive(
+        output_path, project_root, replacements=replacements
+    )
     if findings:
         output_path.unlink()
         raise ValueError("Anonymous supplement audit failed: " + "; ".join(findings))

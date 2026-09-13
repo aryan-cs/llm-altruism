@@ -28,7 +28,19 @@ def test_supplement_has_no_declared_missing_include_roots() -> None:
         ) is None
     ]
 
-    assert missing == []
+    is_extracted_archive = (
+        build_supplement.PROJECT_ROOT / build_supplement.MANIFEST_NAME
+    ).is_file()
+    expected_missing = (
+        [
+            path
+            for path in build_supplement.INCLUDE_PATHS
+            if build_supplement._suffix(path) in build_supplement.EXCLUDED_SUFFIXES
+        ]
+        if is_extracted_archive
+        else []
+    )
+    assert missing == expected_missing
     policy_path = (
         build_supplement.PROJECT_ROOT / build_supplement.ANONYMIZATION_POLICY_NAME
     )
@@ -152,6 +164,7 @@ def test_supplement_includes_exact_hosted_reproducibility_surface_only() -> None
         "analysis/analyze_provider_safe_v2_definitive.py",
         "analysis/build_provider_safe_v2_paper_assets.py",
         "analysis/part2_confirmatory.py",
+        "analysis/validate_inference_hub_part2_operational_overlays.py",
         "docs/ACCELERATED_PART0_HUMAN_VALIDATION.md",
         "docs/AVAILABILITY_RETRY_ANALYSIS.md",
         "docs/PART1_ROLE_CALIBRATION_V1.md",
@@ -169,17 +182,21 @@ def test_supplement_includes_exact_hosted_reproducibility_surface_only() -> None
         "experiments/misc/inference_hub_part1_role_calibration_v1.py",
         "experiments/misc/inference_hub_part1_semantic_invalid_repair.py",
         "experiments/misc/inference_hub_part1_role_semantic_invalid_repair.py",
+        "experiments/misc/inference_hub_part2_cascading_operational_repair.py",
+        "experiments/misc/inference_hub_part2_operational_repair.py",
         "experiments/misc/inference_hub_part2_sensitivity_v1.py",
         "experiments/misc/inference_hub_provider_safe.py",
         "experiments/misc/inference_hub_provider_safe_v2.py",
         "experiments/misc/inference_hub_sensitivity_deadline_accelerated.py",
         "experiments/misc/inference_hub_visible_compatibility.py",
         "experiments/part1/role_calibration_panel_v1.json",
+        "experiments/sota_cross_axis_part2_100day_panel.json",
         "experiments/part2/part2_sensitivity_v1.json",
         "experiments/part2/part2_sensitivity_deadline_exploratory_v1.json",
         "tests/test_accelerated_part0_human_validation.py",
         "tests/test_analyze_availability_retry_panels.py",
         "tests/test_analyze_provider_safe_v2_definitive.py",
+        "tests/test_build_original_view_figures.py",
         "tests/test_build_provider_safe_v2_paper_assets.py",
         "tests/test_inference_hub_compatibility_provider_safe.py",
         "tests/test_inference_hub_exploratory_accelerated.py",
@@ -189,6 +206,8 @@ def test_supplement_includes_exact_hosted_reproducibility_surface_only() -> None
         "tests/test_inference_hub_part1_role_calibration_v1.py",
         "tests/test_inference_hub_part1_semantic_invalid_repair.py",
         "tests/test_inference_hub_part1_role_semantic_invalid_repair.py",
+        "tests/test_inference_hub_part2_cascading_operational_repair.py",
+        "tests/test_inference_hub_part2_operational_repair.py",
         "tests/test_inference_hub_part2_sensitivity_v1.py",
         "tests/test_inference_hub_provider_safe.py",
         "tests/test_inference_hub_provider_safe_v2.py",
@@ -197,6 +216,7 @@ def test_supplement_includes_exact_hosted_reproducibility_surface_only() -> None
         "tests/test_merge_sota_compatibility_with_judge.py",
         "tests/test_part2_confirmatory_cli.py",
         "tests/test_part2_confirmatory_statistics.py",
+        "tests/test_validate_inference_hub_part2_operational_overlays.py",
     } <= names
 
     assert "analysis/build_provider_safe_v2_croissant_metadata.py" in names
@@ -217,7 +237,19 @@ def test_unreviewed_availability_retry_source_is_fail_closed(
     (analysis_dir / "ordinary_release_helper.py").write_text(
         "# ordinary packaged helper\n", encoding="utf-8"
     )
-    monkeypatch.setattr(build_supplement, "INCLUDE_PATHS", (Path("analysis"),))
+    experiments_dir = root / "experiments"
+    experiments_dir.mkdir()
+    (experiments_dir / "sota_cross_axis_part2_100day_panel_v2.json").write_text(
+        "{}\n", encoding="utf-8"
+    )
+    (experiments_dir / "ordinary_public_panel.json").write_text(
+        "{}\n", encoding="utf-8"
+    )
+    monkeypatch.setattr(
+        build_supplement,
+        "INCLUDE_PATHS",
+        (Path("analysis"), Path("experiments")),
+    )
 
     names = {
         path.as_posix()
@@ -228,6 +260,8 @@ def test_unreviewed_availability_retry_source_is_fail_closed(
 
     assert "analysis/analyze_availability_retry_panels_v2.py" not in names
     assert "analysis/ordinary_release_helper.py" in names
+    assert "experiments/sota_cross_axis_part2_100day_panel_v2.json" not in names
+    assert "experiments/ordinary_public_panel.json" in names
 
 
 def test_supplement_release_boundary_is_aggregate_only_and_current() -> None:
@@ -348,6 +382,51 @@ def test_supplement_builder_does_not_embed_local_identity_literals() -> None:
         assert marker.lower() not in source
 
 
+def test_identity_replacements_include_every_git_config_layer(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    values = {
+        ("config", "--get-all", "user.name"): (
+            "Base Researcher",
+            "Scoped Researcher",
+        ),
+        ("config", "--get-all", "user.email"): (
+            "base@example.test",
+            "scoped@example.test",
+        ),
+        ("remote", "get-url", "--all", "origin"): (
+            "https://github.com/source-owner/repository.git",
+        ),
+    }
+    monkeypatch.setattr(
+        build_supplement,
+        "_git_values",
+        lambda project_root, *arguments: values.get(arguments, ()),
+    )
+
+    replacements = dict(build_supplement._identity_replacements(tmp_path))
+
+    assert replacements["Base Researcher"] == "Anonymous Author"
+    assert replacements["Scoped Researcher"] == "Anonymous Author"
+    assert replacements["base@example.test"] == "anonymous@example.invalid"
+    assert replacements["scoped@example.test"] == "anonymous@example.invalid"
+    assert replacements["source-owner"] == "anonymous-author"
+
+
+def test_conference_author_redaction_does_not_depend_on_git_identity() -> None:
+    source = br"\author{Private Author\\\texttt{private@example.test}}" + b"\n"
+
+    payload = build_supplement._anonymous_archive_payload(
+        build_supplement.CONFERENCE_TEX_PATH,
+        source,
+        (),
+    ).decode("utf-8")
+
+    assert payload == build_supplement.ANONYMOUS_LATEX_AUTHOR + "\n"
+    assert "Private Author" not in payload
+    assert "private@example.test" not in payload
+
+
 def test_anonymity_audit_rejects_private_gateway_affiliation_marker(
     tmp_path: Path,
 ) -> None:
@@ -433,13 +512,104 @@ def test_clean_extraction_rebuild_preserves_payload_manifest(tmp_path: Path) -> 
         first_manifest = json.loads(
             first_archive.read(build_supplement.MANIFEST_NAME).decode("utf-8")
         )
+        conference_tex = first_archive.read(
+            build_supplement.CONFERENCE_TEX_PATH.as_posix()
+        ).decode("utf-8")
     with zipfile.ZipFile(second_output) as second_archive:
         second_manifest = json.loads(
             second_archive.read(build_supplement.MANIFEST_NAME).decode("utf-8")
         )
 
+    assert build_supplement.ANONYMOUS_LATEX_AUTHOR in conference_tex
     assert first_manifest == second_manifest
     assert first_output.read_bytes() == second_output.read_bytes()
+
+
+def test_verified_clean_extraction_ignores_rebuild_host_identity(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "repo"
+    note = root / "notes" / "public.txt"
+    note.parent.mkdir(parents=True)
+    note.write_text(
+        "source-private-marker and public-control-token\n",
+        encoding="utf-8",
+    )
+    identity = {
+        "replacements": (("source-private-marker", "anonymous-source"),)
+    }
+    monkeypatch.setattr(build_supplement, "INCLUDE_PATHS", (Path("notes"),))
+    monkeypatch.setattr(
+        build_supplement,
+        "_identity_replacements",
+        lambda project_root: identity["replacements"],
+    )
+
+    first_output, _ = build_supplement.build_supplement(
+        root, tmp_path / "first.zip"
+    )
+    with zipfile.ZipFile(first_output) as archive:
+        first_payload = archive.read("notes/public.txt").decode("utf-8")
+        extracted = tmp_path / "extracted"
+        archive.extractall(extracted)
+    assert "source-private-marker" not in first_payload
+    assert "public-control-token" in first_payload
+    extracted_files = build_supplement.collect_supplement_files(
+        extracted, tmp_path / "second.zip"
+    )
+    assert build_supplement._is_verified_anonymous_extraction(
+        extracted, extracted_files
+    )
+
+    identity["replacements"] = (
+        ("public-control-token", "Anonymous Author"),
+    )
+    second_output, _ = build_supplement.build_supplement(
+        extracted, tmp_path / "second.zip"
+    )
+
+    assert first_output.read_bytes() == second_output.read_bytes()
+
+
+def test_modified_extraction_reenters_host_anonymization(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "repo"
+    note = root / "notes" / "public.txt"
+    note.parent.mkdir(parents=True)
+    note.write_text("stable public payload\n", encoding="utf-8")
+    identity = {"replacements": ()}
+    monkeypatch.setattr(build_supplement, "INCLUDE_PATHS", (Path("notes"),))
+    monkeypatch.setattr(
+        build_supplement,
+        "_identity_replacements",
+        lambda project_root: identity["replacements"],
+    )
+    first_output, _ = build_supplement.build_supplement(
+        root, tmp_path / "first.zip"
+    )
+    extracted = tmp_path / "extracted"
+    with zipfile.ZipFile(first_output) as archive:
+        archive.extractall(extracted)
+    extracted_note = extracted / "notes" / "public.txt"
+    extracted_note.write_text("rebuild-private-marker\n", encoding="utf-8")
+    extracted_files = build_supplement.collect_supplement_files(
+        extracted, tmp_path / "second.zip"
+    )
+    assert not build_supplement._is_verified_anonymous_extraction(
+        extracted, extracted_files
+    )
+
+    identity["replacements"] = (
+        ("rebuild-private-marker", "anonymous-rebuild"),
+    )
+    second_output, _ = build_supplement.build_supplement(
+        extracted, tmp_path / "second.zip"
+    )
+    with zipfile.ZipFile(second_output) as archive:
+        second_payload = archive.read("notes/public.txt").decode("utf-8")
+
+    assert second_payload == "anonymous-rebuild\n"
 
 
 def test_repeated_build_is_byte_reproducible(tmp_path: Path) -> None:

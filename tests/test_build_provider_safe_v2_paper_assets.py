@@ -15,10 +15,20 @@ from analysis.build_provider_safe_v2_paper_assets import (
     DEFAULT_LOCAL_CONTROLS_PATH,
     EXPECTED_ROW_COUNTS,
     INVALID_POLICY,
+    LEGACY_EXPECTED_ROW_COUNTS,
     BLUE,
     ORANGE,
     RED,
     PaperAssetsError,
+    PRODUCTION_MATCHED_ROUTE_COUNT,
+    PRODUCTION_PART2_COMPOSITION_STATUS,
+    PRODUCTION_PART2_COMMON_SEEDS_SHA256,
+    PRODUCTION_PART2_CONTRACT_SHA256,
+    PRODUCTION_PART2_DECLARED_EXCLUSION,
+    PRODUCTION_PART2_MODEL_COUNT,
+    PRODUCTION_PART2_ORDERED_TARGET_IDS,
+    PRODUCTION_PART2_PANEL_ID,
+    PRODUCTION_PART2_TRAJECTORY_COUNT,
     ROLE_SENTINEL_COUNT,
     SENSITIVITY_FACTORS,
     SENSITIVITY_HOLM_FAMILY,
@@ -31,6 +41,7 @@ from analysis.build_provider_safe_v2_paper_assets import (
     _lollipop_panel,
     _provider_grouped_rows,
     _provider_prefixed_labels,
+    _part2_manifest_topology,
     _self_hash,
     _validate_part0,
     _validate_sensitivity,
@@ -92,16 +103,18 @@ def test_provider_grouping_is_stable_and_uses_newest_route_version_first() -> No
         {"target_id": "anthropic/claude-sonnet-4-5", "upstream_provider": "anthropic", "model": "claude-sonnet-4-5", "score": 0.9},
         {"target_id": "openai/gpt-5.4", "upstream_provider": "openai", "model": "gpt-5.4", "score": 0.1},
         {"target_id": "google/gemini-3.5-flash", "upstream_provider": "google", "model": "gemini-3.5-flash", "score": 1.0},
+        {"target_id": "minimaxai/minimax-m2.7", "upstream_provider": "minimaxai", "model": "minimax-m2.7", "score": 0.4},
     ]
     grouped = _provider_grouped_rows(rows)
     assert [row["target_id"] for row in grouped] == [
         "openai/gpt-5.4", "openai/gpt-4.1",
         "anthropic/claude-sonnet-4-5", "google/gemini-3.5-flash",
-        "nvidia/nemotron-3-ultra",
+        "nvidia/nemotron-3-ultra", "minimaxai/minimax-m2.7",
     ]
     assert _provider_prefixed_labels(grouped) == [
         "OpenAI: gpt-5.4", "    gpt-4.1", "Anthropic: claude-sonnet-4-5",
         "Google: gemini-3.5-flash", "NVIDIA: nemotron-3-ultra",
+        "MiniMax: minimax-m2.7",
     ]
     ranked = _provider_grouped_rows(rows, score_key="score")
     assert [row["target_id"] for row in ranked[:2]] == [
@@ -248,15 +261,30 @@ def _write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
     )
 
 
-def _source_payload() -> tuple[dict[str, list[dict[str, Any]]], dict[str, Any]]:
+def _source_payload(
+    *, production_composition: bool = False
+) -> tuple[dict[str, list[dict[str, Any]]], dict[str, Any]]:
     tables: dict[str, list[dict[str, Any]]] = {}
 
     part0_models: list[dict[str, Any]] = []
     part0_language: list[dict[str, Any]] = []
     languages = ("english", "chinese", "russian")
+    production_matched_targets = tuple(
+        target
+        for target in PRODUCTION_PART2_ORDERED_TARGET_IDS
+        if target != "minimaxai/minimax-m2.7"
+    )
     for model_index in range(22):
-        target = f"route/p0_{model_index:02d}:exact"
-        model = f"model/p0_{model_index:02d}_exact"
+        target = (
+            production_matched_targets[model_index]
+            if production_composition
+            else f"route/p0_{model_index:02d}:exact"
+        )
+        model = (
+            target.split("/", 1)[1]
+            if production_composition
+            else f"model/p0_{model_index:02d}_exact"
+        )
         language_rows = []
         for language_index, language in enumerate(languages):
             refusal = 14 + ((model_index + language_index) % 10)
@@ -288,7 +316,11 @@ def _source_payload() -> tuple[dict[str, list[dict[str, Any]]], dict[str, Any]]:
             {
                 "phase": "part0",
                 "target_id": target,
-                "upstream_provider": f"provider_{model_index % 5}",
+                "upstream_provider": (
+                    target.split("/", 1)[0]
+                    if production_composition
+                    else f"provider_{model_index % 5}"
+                ),
                 "model": model,
                 "scheduled_units": 144,
                 "refusal_count": refusal,
@@ -343,29 +375,54 @@ def _source_payload() -> tuple[dict[str, list[dict[str, Any]]], dict[str, Any]]:
                 "exploratory_only": True,
             }
         )
+    if production_composition:
+        for model_index, part0_row in enumerate(part0_models):
+            part1_models[model_index].update(
+                {
+                    "target_id": part0_row["target_id"],
+                    "upstream_provider": part0_row["upstream_provider"],
+                    "model": part0_row["model"],
+                }
+            )
     tables["part1_models"] = part1_models
 
     part2_models: list[dict[str, Any]] = []
-    for model_index in range(19):
+    part2_count = PRODUCTION_PART2_MODEL_COUNT if production_composition else 19
+    for model_index in range(part2_count):
         scheduled = 120
         invalid = scheduled if model_index == 0 else model_index % 3
         restraint = 0 if model_index == 0 else 58 + model_index
         overuse = scheduled - invalid - restraint
-        part2_models.append(
-            {
-                "phase": "part2",
+        if production_composition:
+            target = PRODUCTION_PART2_ORDERED_TARGET_IDS[model_index]
+            identity = {
+                "target_id": target,
+                "upstream_provider": target.split("/", 1)[0],
+                "model": target.split("/", 1)[1],
+            }
+        else:
+            identity = {
                 "target_id": f"route/p2_{model_index:02d}:exact",
                 "upstream_provider": f"provider_{model_index % 7}",
                 "model": f"model/p2_{model_index:02d}_exact",
+            }
+        part2_models.append(
+            {
+                "phase": "part2",
+                **identity,
                 "trajectory_count": 12,
-                "operationally_eligible_trajectory_count": 0 if model_index == 0 else 12,
+                "operationally_eligible_trajectory_count": (
+                    12 if production_composition else 0 if model_index == 0 else 12
+                ),
                 "environmentally_estimable_trajectory_count": (
                     0
                     if model_index == 0
                     else 11 if invalid > 0 else 12
                 ),
                 "semantic_invalid_trajectory_count": (
-                    0
+                    12
+                    if production_composition and model_index == 0
+                    else 0
                     if model_index == 0
                     else 1 if invalid > 0 else 0
                 ),
@@ -507,7 +564,20 @@ def _source_payload() -> tuple[dict[str, list[dict[str, Any]]], dict[str, Any]]:
     aggregates = {
         "part0_by_model_language": part0_language,
         "part1_by_model_game_domain": [],
-        "part2_trajectories": [],
+        "part2_trajectories": (
+            [
+                {
+                    "target_id": row["target_id"],
+                    "upstream_provider": row["upstream_provider"],
+                    "model": row["model"],
+                    "trajectory_index": trajectory_index,
+                }
+                for row in part2_models
+                for trajectory_index in range(12)
+            ]
+            if production_composition
+            else []
+        ),
         "role_calibration_by_model_frame": role_rows,
         "sensitivity_main_effects": sensitivity_rows,
     }
@@ -530,10 +600,111 @@ def test_sensitivity_accepts_realized_living_agent_days_below_ceiling() -> None:
     assert realized["primary_denominator"] == "all_scheduled_living_agent_days"
 
 
-def _write_source(root: Path, *, mutate=None) -> Path:
+def _production_composition_contract() -> dict[str, Any]:
+    pairs = []
+    for ordinal, (route_count, trajectory_count) in enumerate(
+        zip((21, 1, 1), (252, 12, 12), strict=True), start=1
+    ):
+        source = {
+            "basename": "manifest.json",
+            "file_sha256": str(ordinal) * 64,
+            "evidence_sha256": chr(ord("a") + ordinal - 1) * 64,
+        }
+        overlay = {
+            "basename": "manifest.json",
+            "file_sha256": chr(ord("d") + ordinal - 1) * 64,
+            "evidence_sha256": chr(ord("7") + ordinal - 1) * 64,
+            "source_manifest_file_sha256": source["file_sha256"],
+            "source_manifest_evidence_sha256": source["evidence_sha256"],
+        }
+        pairs.append(
+            {
+                "pair_ordinal": ordinal,
+                "source": source,
+                "operational_repair_overlay": overlay,
+                "audit": {
+                    "pair_ordinal": ordinal,
+                    "route_count": route_count,
+                    "trajectory_count": trajectory_count,
+                    "source_operational_failure_trajectories": 1,
+                    "successful_full_trajectory_repairs": 1,
+                    "unresolved_operational_failure_trajectories": 0,
+                },
+            }
+        )
+    return {
+        "composition_schema_version": 1,
+        "panel_id": PRODUCTION_PART2_PANEL_ID,
+        "part2_contract_sha256": PRODUCTION_PART2_CONTRACT_SHA256,
+        "common_environment_seeds_sha256": PRODUCTION_PART2_COMMON_SEEDS_SHA256,
+        "common_environment_seed_count": 12,
+        "ordered_target_ids": list(PRODUCTION_PART2_ORDERED_TARGET_IDS),
+        "declared_excluded_target_ids": [PRODUCTION_PART2_DECLARED_EXCLUSION],
+        "declared_exclusions": [
+            {
+                "target_id": PRODUCTION_PART2_DECLARED_EXCLUSION,
+                "reason": "no_complete_exact_route_corrected_original_scale_100d_evidence",
+                "substitution_permitted": False,
+            }
+        ],
+        "route_count": PRODUCTION_PART2_MODEL_COUNT,
+        "trajectory_count": PRODUCTION_PART2_TRAJECTORY_COUNT,
+        "route_key_uniqueness_validated": True,
+        "ordered_source_overlay_pairs": pairs,
+        "status": PRODUCTION_PART2_COMPOSITION_STATUS,
+        "environmental_invalid_policy": (
+            "exclude_operationally_eligible_trajectories_with_any_"
+            "semantic_invalid_from_environmental_estimates"
+        ),
+    }
+
+
+def test_production_topology_accepts_one_bound_cascading_parent_only() -> None:
+    composition = _production_composition_contract()
+    parent = {
+        "basename": "manifest.json",
+        "file_sha256": "a" * 64,
+        "evidence_sha256": "b" * 64,
+    }
+    first = composition["ordered_source_overlay_pairs"][0]
+    first["operational_repair_overlay"][
+        "parent_operational_repair_overlay"
+    ] = parent
+    first["audit"].update({"inherited_parent_repairs": 37, "cascading_repairs": 1})
+    manifest = {
+        "input_evidence_status": {
+            "part2": PRODUCTION_PART2_COMPOSITION_STATUS
+        },
+        "part2_operational_repair_composition": composition,
+    }
+
+    topology = _part2_manifest_topology(manifest)
+
+    assert topology["pairs"][0]["overlay"][
+        "parent_operational_repair_overlay"
+    ] == parent
+    broken = copy.deepcopy(manifest)
+    broken["part2_operational_repair_composition"][
+        "ordered_source_overlay_pairs"
+    ][0]["operational_repair_overlay"]["parent_operational_repair_overlay"][
+        "basename"
+    ] = "../private/manifest.json"
+    with pytest.raises(PaperAssetsError, match="parent operational overlay"):
+        _part2_manifest_topology(broken)
+
+
+def _write_source(
+    root: Path,
+    *,
+    mutate=None,
+    manifest_mutate=None,
+    production_composition: bool = False,
+) -> Path:
     source = root / "definitive-analysis"
     source.mkdir()
-    tables, aggregates = _source_payload()
+    tables, aggregates = _source_payload(
+        production_composition=production_composition
+    )
     if mutate is not None:
         mutate(tables, aggregates)
     for name, rows in tables.items():
@@ -549,17 +720,37 @@ def _write_source(root: Path, *, mutate=None) -> Path:
         [*source.glob("*.jsonl"), *source.glob("*.csv"), source / "figure_aggregates.json"],
         key=lambda value: value.name,
     )
+    composition = (
+        _production_composition_contract() if production_composition else None
+    )
     manifest: dict[str, Any] = {
         "schema_version": 1,
         "artifact_type": "provider_safe_v2_definitive_descriptive_analysis",
         "generated_at_utc": "2026-08-03T12:00:00Z",
         "input_manifests": {
-            phase: {
-                "basename": "manifest.json", "file_sha256": "a" * 64,
-                "evidence_sha256": "b" * 64,
-            }
+            phase: (
+                copy.deepcopy(composition["ordered_source_overlay_pairs"][0]["source"])
+                if phase == "part2" and composition is not None
+                else {
+                    "basename": "manifest.json",
+                    "file_sha256": "a" * 64,
+                    "evidence_sha256": "b" * 64,
+                }
+            )
             for phase in ("part0", "part1", "part2", "role", "sensitivity")
         },
+        "input_evidence_status": {
+            "part0": "fixture",
+            "part1": "fixture",
+            "part2": (
+                PRODUCTION_PART2_COMPOSITION_STATUS
+                if production_composition
+                else "complete"
+            ),
+            "role": "fixture",
+            "sensitivity": "fixture",
+        },
+        "part2_operational_repair_composition": composition,
         "path_policy": "portable_basenames_only_no_host_absolute_paths_in_public_manifest",
         "privacy_policy": {
             "contains_prompt_text": False,
@@ -586,7 +777,7 @@ def _write_source(root: Path, *, mutate=None) -> Path:
         ],
         "public_output_inventory_scope": "all_nonmanifest_outputs_created_before_manifest_self_seal",
         "judge_disjointness": [],
-        "row_counts": copy.deepcopy(EXPECTED_ROW_COUNTS),
+        "row_counts": {name: len(rows) for name, rows in tables.items()},
         "invalid_policy": INVALID_POLICY,
         "uncertainty_policy": {
             "bootstrap_replicates": 5_000,
@@ -596,6 +787,8 @@ def _write_source(root: Path, *, mutate=None) -> Path:
         "exploratory_only": True,
         "confirmatory_or_paper_promotion_permitted": False,
     }
+    if manifest_mutate is not None:
+        manifest_mutate(manifest)
     manifest["evidence_sha256"] = _self_hash(manifest)
     (source / "analysis_manifest.json").write_text(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
@@ -734,6 +927,179 @@ def test_builds_full_production_shaped_vector_png_and_latex_assets(tmp_path: Pat
     assert "Part 0: R [95%]" in markdown
     assert "Part 2: R; A [95%]" in markdown
     assert len([line for line in markdown.splitlines() if line.startswith("|")]) == 118
+
+
+def test_composed_production_build_validates_23_routes_276_trajectories_and_22_matches(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    assert EXPECTED_ROW_COUNTS["part2_models"] == PRODUCTION_PART2_MODEL_COUNT
+    assert LEGACY_EXPECTED_ROW_COUNTS["part2_models"] == 19
+    source = _write_source(tmp_path, production_composition=True)
+    data = _load_and_validate(source)
+    assert data["topology"]["mode"] == "three_pair_operational_repair_composition"
+    assert len(data["part2"]) == PRODUCTION_PART2_MODEL_COUNT
+    assert len(
+        {
+            row["target_id"]
+            for row in json.loads((source / "figure_aggregates.json").read_text())[
+                "part2_trajectories"
+            ]
+        }
+    ) == PRODUCTION_PART2_MODEL_COUNT
+    shared = (
+        {row["target_id"] for row in data["part0"]}
+        & {row["target_id"] for row in data["part1"]}
+        & {row["target_id"] for row in data["part2"]}
+    )
+    assert len(shared) == PRODUCTION_MATCHED_ROUTE_COUNT
+
+    figure_titles: list[str] = []
+    original_suptitle = plt.Figure.suptitle
+
+    def capture_suptitle(figure, title, *args, **kwargs):
+        figure_titles.append(str(title))
+        return original_suptitle(figure, title, *args, **kwargs)
+
+    monkeypatch.setattr(plt.Figure, "suptitle", capture_suptitle)
+    output = tmp_path / "composed-paper-assets"
+    result = build_paper_assets(source, output, tmp_path / "local_controls.json")
+    assert result["source_row_counts"]["part2_models"] == 23
+    assert result["source_part2_topology"] == {
+        "mode": "three_pair_operational_repair_composition",
+        "route_count": 23,
+        "trajectory_count": 276,
+        "matched_route_count": 22,
+    }
+    assert len(result["assets"]) == 38
+    assert "The same 22 routes reorder beyond refusal" in figure_titles
+    assert "Part 2 commons outcomes for 23 exact model routes" in figure_titles
+
+    macros = _headline_macros(output / "paper_headlines.tex")
+    assert macros["ProviderSafePartTwoModelCount"] == "23"
+    assert macros["ProviderSafePartTwoTrajectoryCount"] == "276"
+    assert macros["ProviderSafePairwisePartZeroPartOneMatchedRouteCount"] == "22"
+    assert macros["ProviderSafePairwisePartZeroPartTwoMatchedRouteCount"] == "22"
+    assert macros["ProviderSafePairwisePartOnePartTwoMatchedRouteCount"] == "22"
+
+    compact = (output / "compact_matched_core_table.tex").read_text()
+    part2 = (output / "part2_all_models_table.tex").read_text()
+    assert "complete 22-, 75-, and 23-route ledgers" in compact
+    assert "all 23 exact model routes" in part2
+    assert "all 19 exact model routes" not in part2
+    assert r"minimaxai/minimax-m2.7" in part2
+    assert "minimax-m2.7" in part2
+    assert compact.count("\\begin{table*}") == 1
+    assert part2.count("\\begin{table*}") == 1
+
+
+def _break_production_match(
+    tables: dict[str, list[dict[str, Any]]], aggregates: dict[str, Any]
+) -> None:
+    old_target = tables["part2_models"][0]["target_id"]
+    replacement = {
+        "target_id": "replacement/not-a-current-route",
+        "upstream_provider": "replacement",
+        "model": "not-a-current-model",
+    }
+    tables["part2_models"][0].update(replacement)
+    for row in aggregates["part2_trajectories"]:
+        if row["target_id"] == old_target:
+            row.update(replacement)
+
+
+def _break_production_operational_completion(
+    tables: dict[str, list[dict[str, Any]]], aggregates: dict[str, Any]
+) -> None:
+    del aggregates
+    row = tables["part2_models"][0]
+    row["operationally_eligible_trajectory_count"] = 11
+    # Preserve the earlier accounting invariants so this mutation reaches and
+    # directly exercises the production-only 12/12 operational guard.
+    row["semantic_invalid_trajectory_count"] = 11
+
+
+def _reverse_production_trajectory_order(
+    tables: dict[str, list[dict[str, Any]]], aggregates: dict[str, Any]
+) -> None:
+    del tables
+    rows = aggregates["part2_trajectories"]
+    rows[:24] = rows[12:24] + rows[:12]
+
+
+@pytest.mark.parametrize(
+    ("mutation", "manifest_mutation", "message"),
+    [
+        (
+            lambda tables, aggregates: tables["part2_models"].pop(),
+            None,
+            "row count matrix",
+        ),
+        (
+            lambda tables, aggregates: aggregates["part2_trajectories"].pop(),
+            None,
+            "exactly 276 rows",
+        ),
+        (_break_production_match, None, "frozen 23-route/12-seed order"),
+        (
+            _break_production_operational_completion,
+            None,
+            "all 12 operational trajectories",
+        ),
+        (
+            _reverse_production_trajectory_order,
+            None,
+            "frozen 23-route/12-seed order",
+        ),
+        (
+            None,
+            lambda manifest: manifest[
+                "part2_operational_repair_composition"
+            ].__setitem__("route_count", 22),
+            "route_count changed",
+        ),
+        (
+            None,
+            lambda manifest: manifest["input_evidence_status"].__setitem__(
+                "part2", "complete"
+            ),
+            "evidence status",
+        ),
+        (
+            None,
+            lambda manifest: manifest[
+                "part2_operational_repair_composition"
+            ].__setitem__("part2_contract_sha256", "0" * 64),
+            "part2_contract_sha256 changed",
+        ),
+        (
+            None,
+            lambda manifest: manifest[
+                "part2_operational_repair_composition"
+            ]["ordered_target_ids"].reverse(),
+            "ordered_target_ids changed",
+        ),
+    ],
+)
+def test_composed_production_topology_tampering_fails_closed_before_output(
+    tmp_path: Path, mutation, manifest_mutation, message: str
+) -> None:
+    source = _write_source(
+        tmp_path,
+        mutate=mutation,
+        manifest_mutate=manifest_mutation,
+        production_composition=True,
+    )
+    output = tmp_path / "must-not-exist"
+    with pytest.raises(PaperAssetsError, match=message):
+        build_paper_assets(source, output, tmp_path / "local_controls.json")
+    assert not output.exists()
+
+
+def test_legacy_19_route_analysis_fixture_remains_readable(tmp_path: Path) -> None:
+    data = _load_and_validate(_write_source(tmp_path))
+    assert data["topology"]["mode"] == "legacy_single_source"
+    assert data["source_row_counts"] == LEGACY_EXPECTED_ROW_COUNTS
+    assert len(data["part2"]) == 19
 
 
 def test_hash_bound_public_analysis_output_tamper_fails_closed(tmp_path: Path) -> None:

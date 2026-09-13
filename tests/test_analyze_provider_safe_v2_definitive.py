@@ -4,19 +4,33 @@ import hashlib
 import json
 import os
 import shutil
+import subprocess
+import sys
 from pathlib import Path
 from typing import Any, Mapping
 
 import pytest
 
+import analysis.analyze_provider_safe_v2_definitive as definitive
 from analysis.analyze_provider_safe_v2_definitive import (
     DefinitiveAnalysisError,
+    PART2_100DAY_CONTRACT,
+    PART2_100DAY_DECLARED_EXCLUSION,
+    PART2_100DAY_ORDERED_TARGET_IDS,
+    PART2_EFFECTIVE_MODEL_TYPE,
+    PART2_EFFECTIVE_TRAJECTORY_ROW_KEYS,
+    PART2_EFFECTIVE_TRAJECTORY_TYPE,
+    PART2_OPERATIONAL_REPAIR_TYPE,
+    PART2_TRAJECTORY_ROW_KEYS,
     SENSITIVITY_DIAGNOSTIC_FAMILY,
     SENSITIVITY_HOLM_FAMILY,
     SENSITIVITY_HOLM_FAMILY_SIZE,
     _analyze_deadline_sensitivity,
     _provider_safe_contract,
     _mean_t_95,
+    _parser,
+    _part2_composition,
+    _replay_part2_source_journal,
     _root_cluster_bootstrap_95,
     _self_hash,
     _stratified_root_bootstrap_95,
@@ -24,6 +38,7 @@ from analysis.analyze_provider_safe_v2_definitive import (
     _wilson_95,
     analyze,
 )
+from experiments.misc import inference_hub_part2_panel as part2_panel
 from experiments.misc.inference_hub_part2_sensitivity_v1 import load_sensitivity_design
 from experiments.part1.confirmatory_design import COUNTERBALANCES, DOMAINS, GAMES
 
@@ -79,6 +94,70 @@ def _journal(path: Path, rows: list[dict[str, Any]]) -> dict[str, Any]:
     return {
         "path": str(path.resolve()), "record_count": len(rows),
         "tail_record_sha256": previous, "file_sha256": _sha_file(path),
+    }
+
+
+class _MemoryChainedJournal:
+    def __init__(self) -> None:
+        self.records: list[dict[str, Any]] = []
+
+    def append(self, payload: Mapping[str, Any]) -> dict[str, Any]:
+        previous = self.records[-1]["record_sha256"] if self.records else None
+        row = {**payload, "previous_record_sha256": previous}
+        row["record_sha256"] = _canonical_sha(row)
+        self.records.append(row)
+        return row
+
+
+class _CompositionTrajectoryClient:
+    def __init__(self, *, semantic_invalid_first: bool) -> None:
+        self.semantic_invalid_first = semantic_invalid_first
+        self.calls = 0
+
+    def post(self, path: str, body: Mapping[str, Any]) -> dict[str, Any]:
+        assert path == "/chat/completions"
+        self.calls += 1
+        content = (
+            "not-json"
+            if self.semantic_invalid_first and self.calls == 1
+            else json.dumps({"action": "OPTION_B", "reasoning": "Use reserve."})
+        )
+        return {
+            "id": f"composition-{self.calls}",
+            "model": body["model"],
+            "choices": [
+                {
+                    "message": {"role": "assistant", "content": content},
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {
+                "prompt_tokens": 50,
+                "completion_tokens": 10,
+                "total_tokens": 60,
+            },
+        }
+
+
+def _persist_memory_journal(
+    path: Path, journal: _MemoryChainedJournal
+) -> dict[str, Any]:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "".join(
+            json.dumps(row, sort_keys=True, ensure_ascii=False) + "\n"
+            for row in journal.records
+        ),
+        encoding="utf-8",
+    )
+    os.chmod(path, 0o600)
+    return {
+        "path": str(path.resolve()),
+        "record_count": len(journal.records),
+        "tail_record_sha256": (
+            journal.records[-1]["record_sha256"] if journal.records else None
+        ),
+        "file_sha256": _sha_file(path),
     }
 
 
@@ -269,6 +348,600 @@ def _artifact(run: Path, name: str, artifact_type: str, rows: list[dict[str, Any
     }
 
 
+def _composition_subject(target_id: str, index: int) -> dict[str, Any]:
+    provider, model = target_id.split("/", 1)
+    return {
+        "target_id": target_id,
+        "upstream_provider": provider,
+        "model": model,
+        "route": f"fixture-route/{target_id}",
+        "candidate_index": 0,
+        "supported_controls": ["seed", "temperature", "top_p"],
+        "selected_profile_id": "profile_00_seed_temperature_top_p",
+        "selected_profile_request_sha256": hashlib.sha256(
+            target_id.encode("utf-8")
+        ).hexdigest(),
+    }
+
+
+def _composition_trajectory(
+    subject: Mapping[str, Any],
+    trajectory_index: int,
+    environment_seed: int,
+    *,
+    transport_failure: bool = False,
+    semantic_invalid: bool = False,
+) -> dict[str, Any]:
+    invalid = int(transport_failure or semantic_invalid)
+    restraint = 3_999 if invalid else 4_000
+    return {
+        "schema_version": 1,
+        "target_id": subject["target_id"],
+        "upstream_provider": subject["upstream_provider"],
+        "model": subject["model"],
+        "trajectory_index": trajectory_index,
+        "environment_seed_index": trajectory_index,
+        "environment_seed": environment_seed,
+        "operationally_eligible": not transport_failure,
+        "scheduled_agent_days": 5_000,
+        "responses_received": 4_999 if transport_failure else 5_000,
+        "invalid_count": invalid,
+        "identity_mismatch_count": 0,
+        "transport_failure_count": int(transport_failure),
+        "restraint_count": restraint,
+        "overuse_count": 1_000,
+        "restraint_rate": restraint / 5_000,
+        "aurc": 0.8,
+        "aupc": 0.9,
+        "reserve_nondepletion": True,
+        "final_reserve": 500,
+        "final_population": 40,
+        "population_retention": 0.8,
+        "cumulative_private_payoff": 6_000,
+        "cumulative_group_payoff": 0,
+    }
+
+
+def _composition_payload(
+    run: Path,
+    name: str,
+    artifact_type: str,
+    rows: list[dict[str, Any]],
+    *,
+    source_evidence: str | None = None,
+) -> tuple[dict[str, Any], Path]:
+    payload: dict[str, Any] = {
+        "schema_version": 1,
+        "artifact_type": artifact_type,
+        "panel_id": "sota_cross_axis_part2_corrected_original_scale_100d_v1",
+        "generated_at_utc": "2026-08-22T12:00:00Z",
+        "rows": rows,
+    }
+    if artifact_type == "inference_hub_part2_sanitized_trajectory_metrics":
+        payload["independence_unit"] = "target_by_environment_seed_trajectory"
+    elif artifact_type == "inference_hub_part2_sanitized_model_metrics":
+        payload["uncertainty_unit"] = "independent_trajectory"
+    if source_evidence is not None:
+        payload["source_manifest_evidence_sha256"] = source_evidence
+    _seal(payload)
+    path = run / "sanitized" / f"{name}.json"
+    _write_json(path, payload)
+    return {
+        "path": str(path.resolve()),
+        "file_sha256": _sha_file(path),
+        "evidence_sha256": payload["evidence_sha256"],
+    }, path
+
+
+def _composition_fixture(
+    root: Path,
+) -> list[tuple[Path, Path]]:
+    panel_path = ROOT / "experiments/sota_cross_axis_part2_100day_panel.json"
+    panel = json.loads(panel_path.read_text(encoding="utf-8"))
+    panel_ref = {
+        "path": str(panel_path.resolve()),
+        "file_sha256": _sha_file(panel_path),
+        "canonical_sha256": _canonical_sha(panel),
+    }
+    source_artifacts = {
+        str(path.resolve()): _sha_file(path.resolve())
+        for path in part2_panel._SOURCE_PATHS
+    }
+    common_seeds = part2_panel._environment_seeds(
+        "sota_cross_axis_part2_corrected_original_scale_100d_v1",
+        20_260_802,
+        12,
+    )
+    panel_targets = list(panel["subject_target_ids"])
+    composition_judge = {
+        "target_id": panel["judge_target_id"],
+        "upstream_provider": "nvidia",
+        "model": "nvidia/evals-nemotron-3-30b-a3b",
+        "route": "nvidia/nvidia/evals-nemotron-3-30b-a3b",
+        "dispatch_permitted_in_this_runner": False,
+        "role": "fixed_disjoint_judge_reserved_for_cross_axis_analysis",
+    }
+    all_routes = [_composition_subject(target, 0) for target in panel_targets]
+    all_routes.append(
+        {
+            "target_id": composition_judge["target_id"],
+            "upstream_provider": composition_judge["upstream_provider"],
+            "model": composition_judge["model"],
+            "route": composition_judge["route"],
+            "candidate_index": 0,
+            "supported_controls": ["seed", "temperature", "top_p"],
+            "selected_profile_id": "profile_00_seed_temperature_top_p",
+            "selected_profile_request_sha256": hashlib.sha256(
+                composition_judge["target_id"].encode("utf-8")
+            ).hexdigest(),
+        }
+    )
+    registry = {
+        "schema_version": 1,
+        "artifact_type": "composition_test_registry",
+        "targets": [
+            {
+                "id": route["target_id"],
+                "provider": "inference_hub",
+                "upstream_provider": route["upstream_provider"],
+                "model": route["model"],
+            }
+            for route in all_routes
+        ],
+    }
+    registry_path = root / "inputs/registry.json"
+    _write_json(registry_path, registry)
+    registry_ref = {
+        "path": str(registry_path.resolve()),
+        "file_sha256": _sha_file(registry_path),
+        "canonical_sha256": _canonical_sha(registry),
+    }
+    compatibility_targets = []
+    for route in all_routes:
+        profile = {
+            "route": route["route"],
+            "status": "passed",
+            "profile_id": route["selected_profile_id"],
+            "controls": route["supported_controls"],
+            "request_sha256": route["selected_profile_request_sha256"],
+            "validation_source": "execution_profile_probe",
+        }
+        compatibility_targets.append(
+            {
+                "target_id": route["target_id"],
+                "model": route["model"],
+                "status": "execution_candidate_selected",
+                "selected_execution_candidate": route["route"],
+                "selected_execution_profile": profile,
+                "candidates": [
+                    {
+                        "route": route["route"],
+                        "execution_compatible": True,
+                        "candidate_index": route["candidate_index"],
+                        "max_tokens": 2_048,
+                        "selected_execution_profile": profile,
+                    }
+                ],
+            }
+        )
+    compatibility = _seal(
+        {
+            "schema_version": 2,
+            "artifact_type": "inference_hub_provider_compatibility",
+            "registry_sha256": _canonical_sha(registry),
+            "target_count": len(compatibility_targets),
+            "selected_count": len(compatibility_targets),
+            "unresolved_count": 0,
+            "targets": compatibility_targets,
+        }
+    )
+    compatibility_path = root / "inputs/compatibility.json"
+    _write_json(compatibility_path, compatibility)
+    compatibility_ref = {
+        "path": str(compatibility_path.resolve()),
+        "file_sha256": _sha_file(compatibility_path),
+        "evidence_sha256": compatibility["evidence_sha256"],
+    }
+    main_targets = [
+        target
+        for target in panel_targets
+        if target
+        not in {
+            PART2_100DAY_DECLARED_EXCLUSION,
+            "nvidia/nemotron-3-ultra",
+            "deepseek-ai/deepseek-v4-flash",
+        }
+    ]
+    pair_targets = [
+        main_targets,
+        ["nvidia/nemotron-3-ultra"],
+        ["deepseek-ai/deepseek-v4-flash"],
+    ]
+    shared_rate = {
+        "schema_version": 2,
+        "algorithm": (
+            "cross_process_provider_aware_leaky_bucket_with_leases_all_http_"
+            "5xx_full_throttle_cooldown"
+        ),
+        "global_concurrency": 60,
+        "provider_concurrency": 10,
+        "global_requests_per_second": 12.0,
+        "provider_requests_per_second": 2.5,
+        "lease_seconds": 900.0,
+        "poll_seconds": 0.05,
+        "throttle_cooldown_seconds": 30.0,
+        "transient_cooldown_seconds": 5.0,
+    }
+    shared_rate["policy_sha256"] = _canonical_sha(shared_rate)
+
+    result: list[tuple[Path, Path]] = []
+    for pair_index, targets in enumerate(pair_targets):
+        source_run = root / f"source-{pair_index}"
+        overlay_run = root / f"overlay-{pair_index}"
+        subjects = [
+            _composition_subject(target, index)
+            for index, target in enumerate(targets)
+        ]
+        source_rows: list[dict[str, Any]] = []
+        source_journals: dict[str, Any] = {}
+        for subject_index, subject in enumerate(subjects):
+            for trajectory_index, environment_seed in enumerate(common_seeds):
+                failed = subject_index == 0 and trajectory_index == 0
+                semantic_invalid = (
+                    (pair_index == 2 and not failed)
+                    or (
+                        pair_index == 1
+                        and trajectory_index in {1, 2, 3}
+                    )
+                )
+                source_rows.append(
+                    _composition_trajectory(
+                        subject,
+                        trajectory_index,
+                        environment_seed,
+                        transport_failure=failed,
+                        semantic_invalid=semantic_invalid,
+                    )
+                )
+                key = f"{subject['target_id']}::{trajectory_index}"
+                source_journals[key] = _journal(
+                    source_run
+                    / "private/trajectories"
+                    / f"{subject_index}-{trajectory_index}.jsonl",
+                    [],
+                )
+        source_models = part2_panel._aggregate_models(
+            source_rows,
+            subjects,
+            expected_trajectories=12,
+            capacity=2_500,
+        )
+        source_manifest: dict[str, Any] = {
+            "schema_version": 1,
+            "artifact_type": "inference_hub_part2_corrected_matched_panel",
+            "created_at_utc": "2026-08-20T12:00:00Z",
+            "panel_id": "sota_cross_axis_part2_corrected_original_scale_100d_v1",
+            "input_artifacts": {
+                "panel": panel_ref,
+                "compatibility": compatibility_ref,
+                "registry": registry_ref,
+            },
+            "source_artifacts": source_artifacts,
+            "subject_routes": subjects,
+            "judge_reservation": composition_judge,
+            "part2_contract": dict(PART2_100DAY_CONTRACT),
+            "base_seed": 20_260_802,
+            "common_environment_seeds": common_seeds,
+            "execution_contract": {
+                "strategy": (
+                    "parallel_target_trajectory_and_parallel_participants_"
+                    "with_sequential_days"
+                ),
+                "trajectory_workers": 4,
+                "participant_workers": 4,
+                "max_transport_attempts": 3,
+                "initial_exponential_backoff_seconds": 1.0,
+                "shared_rate_limit": shared_rate,
+                "journal": (
+                    "per_trajectory_append_only_fsync_sha256_chain_"
+                    "reserve_before_dispatch"
+                ),
+                "identity_check": "exact_returned_model_equals_selected_route",
+                "visible_output_only": True,
+            },
+            "complete": False,
+            "summary": {
+                "planned_trajectories": len(source_rows),
+                "completed_trajectories": len(source_rows),
+                "planned_maximum_agent_days": len(source_rows) * 5_000,
+                "scheduled_agent_days": sum(
+                    row["scheduled_agent_days"] for row in source_rows
+                ),
+                "responses_received": sum(
+                    row["responses_received"] for row in source_rows
+                ),
+                "invalid_count": sum(row["invalid_count"] for row in source_rows),
+                "identity_mismatch_count": 0,
+                "transport_failure_count": 1,
+                "eligible_trajectories": len(source_rows) - 1,
+            },
+            "journals": source_journals,
+            "sanitized_artifacts": {},
+        }
+        source_trajectory_ref, _ = _composition_payload(
+            source_run,
+            "trajectory_metrics",
+            "inference_hub_part2_sanitized_trajectory_metrics",
+            source_rows,
+        )
+        source_model_ref, _ = _composition_payload(
+            source_run,
+            "model_metrics",
+            "inference_hub_part2_sanitized_model_metrics",
+            source_models,
+        )
+        source_manifest["sanitized_artifacts"] = {
+            "trajectory_metrics": source_trajectory_ref,
+            "model_metrics": source_model_ref,
+        }
+        source_manifest_path = source_run / "private/manifest.json"
+        _write_json(source_manifest_path, _seal(source_manifest), private=True)
+        source_lock = source_run / "private/.run.lock"
+        source_lock.touch()
+        os.chmod(source_lock, 0o600)
+
+        effective_rows = []
+        overlay_journals: dict[str, Any] = {}
+        replay_contract = part2_panel.Part2Contract(
+            society_size=50,
+            days=100,
+            trajectories=12,
+            capacity=2_500,
+            private_gain=2,
+            reserve_cost=2,
+            community_benefit=5,
+            collapse_death_rate=0.2,
+        )
+        for row in source_rows:
+            repaired = row["operationally_eligible"] is False
+            if repaired:
+                subject = next(
+                    subject
+                    for subject in subjects
+                    if subject["target_id"] == row["target_id"]
+                )
+                memory_journal = _MemoryChainedJournal()
+                effective = part2_panel._run_trajectory(
+                    subject=subject,
+                    trajectory_index=int(row["trajectory_index"]),
+                    environment_seed=int(row["environment_seed"]),
+                    contract=replay_contract,
+                    journal=memory_journal,
+                    client=_CompositionTrajectoryClient(
+                        semantic_invalid_first=pair_index == 2
+                    ),
+                    participant_workers=1,
+                    max_attempts=3,
+                    initial_backoff_seconds=1.0,
+                    sleep_fn=lambda _seconds: None,
+                )
+                overlay_journals[
+                    f"{subject['target_id']}::{row['trajectory_index']}::1"
+                ] = _persist_memory_journal(
+                    overlay_run / "private/trajectories/0-0-1.jsonl",
+                    memory_journal,
+                )
+            else:
+                effective = dict(row)
+            effective.update(
+                {
+                    "operational_repair_round": 1 if repaired else None,
+                    "source_replaced_for_operational_failure": repaired,
+                }
+            )
+            effective_rows.append(effective)
+        effective_models = part2_panel._aggregate_models(
+            effective_rows,
+            subjects,
+            expected_trajectories=12,
+            capacity=2_500,
+        )
+        source_evidence = source_manifest["evidence_sha256"]
+        effective_trajectory_ref, _ = _composition_payload(
+            overlay_run,
+            "effective_trajectory_metrics",
+            PART2_EFFECTIVE_TRAJECTORY_TYPE,
+            effective_rows,
+            source_evidence=source_evidence,
+        )
+        effective_model_ref, _ = _composition_payload(
+            overlay_run,
+            "effective_model_metrics",
+            PART2_EFFECTIVE_MODEL_TYPE,
+            effective_models,
+            source_evidence=source_evidence,
+        )
+        overlay_manifest = {
+            "schema_version": 1,
+            "artifact_type": (
+                "inference_hub_part2_operational_trajectory_repair_v1"
+            ),
+            "source_manifest": {
+                "path": str(source_manifest_path.resolve()),
+                "file_sha256": _sha_file(source_manifest_path),
+                "evidence_sha256": source_evidence,
+            },
+            "panel_id": source_manifest["panel_id"],
+            "part2_contract": source_manifest["part2_contract"],
+            "common_environment_seeds": common_seeds,
+            "subject_routes": subjects,
+            "repair_policy": (
+                "whole_trajectory_day_one_exact_route_separate_overlay"
+            ),
+            "maximum_rounds": 1,
+            "created_at_utc": "2026-08-21T12:00:00Z",
+            "completed_at_utc": "2026-08-22T12:00:00Z",
+            "complete": True,
+            "summary": {
+                "source_operational_failure_trajectories": 1,
+                "operational_repairs_succeeded": 1,
+                "operational_repairs_unresolved": 0,
+            },
+            "journals": overlay_journals,
+            "sanitized_artifacts": {
+                "effective_trajectory_metrics": effective_trajectory_ref,
+                "effective_model_metrics": effective_model_ref,
+            },
+        }
+        overlay_manifest_path = overlay_run / "private/manifest.json"
+        _write_json(overlay_manifest_path, _seal(overlay_manifest), private=True)
+        overlay_lock = overlay_run / "private/.run.lock"
+        overlay_lock.touch()
+        os.chmod(overlay_lock, 0o600)
+        result.append((source_manifest_path, overlay_manifest_path))
+    return result
+
+
+def _convert_main_overlay_to_cascading(
+    root: Path, pairs: list[tuple[Path, Path]],
+) -> Path:
+    """Make a validator-approved test-double child around the main fixture pair."""
+
+    source_path, child_path = pairs[0]
+    source = json.loads(source_path.read_text(encoding="utf-8"))
+    child = json.loads(child_path.read_text(encoding="utf-8"))
+    parent_path = root / "parent-overlay/private/manifest.json"
+    parent = _seal(
+        {
+            "schema_version": 1,
+            "artifact_type": PART2_OPERATIONAL_REPAIR_TYPE,
+            "complete": False,
+            "summary": {
+                "source_operational_failure_trajectories": 1,
+                "operational_repairs_succeeded": 0,
+                "operational_repairs_unresolved": 1,
+            },
+        }
+    )
+    _write_json(parent_path, parent, private=True)
+    parent_lock = parent_path.parent / ".run.lock"
+    parent_lock.touch()
+    os.chmod(parent_lock, 0o600)
+
+    child["artifact_type"] = definitive.PART2_CASCADING_OPERATIONAL_REPAIR_TYPE
+    child["parent_overlay_manifest"] = {
+        "path": str(parent_path.resolve()),
+        "file_sha256": _sha_file(parent_path),
+        "evidence_sha256": parent["evidence_sha256"],
+    }
+    child["base_seed"] = source["base_seed"]
+    child["repair_policy"] = definitive.part2_cascading_repair.REPAIR_POLICY
+    failed = next(
+        row
+        for row in json.loads(
+            Path(
+                source["sanitized_artifacts"]["trajectory_metrics"]["path"]
+            ).read_text(encoding="utf-8")
+        )["rows"]
+        if row["operationally_eligible"] is False
+    )
+    subject = next(
+        row
+        for row in source["subject_routes"]
+        if row["target_id"] == failed["target_id"]
+    )
+    child["selected_trajectory"] = {
+        "target_id": failed["target_id"],
+        "trajectory_index": failed["trajectory_index"],
+        "environment_seed_index": failed["environment_seed_index"],
+        "environment_seed": failed["environment_seed"],
+        "requested_route": subject["route"],
+    }
+    child["summary"] = {
+        "original_source_operational_failure_trajectories": 1,
+        "parent_repairs_succeeded": 0,
+        "parent_repairs_unresolved": 1,
+        "cascading_repairs_succeeded": 1,
+        "cascading_repairs_unresolved": 0,
+    }
+    for key, artifact_type in (
+        (
+            "effective_trajectory_metrics",
+            definitive.PART2_CASCADING_EFFECTIVE_TRAJECTORY_TYPE,
+        ),
+        (
+            "effective_model_metrics",
+            definitive.PART2_CASCADING_EFFECTIVE_MODEL_TYPE,
+        ),
+    ):
+        payload_path = Path(child["sanitized_artifacts"][key]["path"])
+        payload = json.loads(payload_path.read_text(encoding="utf-8"))
+        payload["artifact_type"] = artifact_type
+        _write_json(payload_path, _seal(payload))
+        child["sanitized_artifacts"][key] = {
+            "path": str(payload_path.resolve()),
+            "file_sha256": _sha_file(payload_path),
+            "evidence_sha256": payload["evidence_sha256"],
+        }
+    _write_json(child_path, _seal(child), private=True)
+    return parent_path
+
+
+def _install_source_replay_test_double(
+    monkeypatch: pytest.MonkeyPatch,
+    pairs: list[tuple[Path, Path]],
+) -> tuple[set[tuple[str, int]], list[tuple[str, int]]]:
+    """Avoid materializing 273 multi-megabyte source journals in union tests."""
+
+    baseline: dict[tuple[str, int], dict[str, Any]] = {}
+    for source_path, _overlay_path in pairs:
+        source = json.loads(source_path.read_text(encoding="utf-8"))
+        payload_path = Path(
+            source["sanitized_artifacts"]["trajectory_metrics"]["path"]
+        )
+        payload = json.loads(payload_path.read_text(encoding="utf-8"))
+        for row in payload["rows"]:
+            key = (str(row["target_id"]), int(row["trajectory_index"]))
+            baseline[key] = dict(row)
+
+    observed: list[tuple[str, int]] = []
+
+    def replay(
+        records: list[dict[str, Any]],
+        *,
+        subject: Mapping[str, Any],
+        trajectory_index: int,
+        environment_seed: int,
+        execution_contract: Mapping[str, Any],
+        label: str,
+        global_attempt_ids: set[str],
+    ) -> dict[str, Any]:
+        del environment_seed, execution_contract, label, global_attempt_ids
+        assert records == []
+        key = (str(subject["target_id"]), trajectory_index)
+        observed.append(key)
+        return dict(baseline[key])
+
+    monkeypatch.setattr(definitive, "_replay_part2_source_journal", replay)
+    monkeypatch.setattr(
+        definitive,
+        "_validate_part2_overlay_union_recursively",
+        lambda _pairs: {
+            "status": "passed",
+            "panel_id": (
+                "sota_cross_axis_part2_corrected_original_scale_100d_v1"
+            ),
+            "source_overlay_pair_count": 3,
+            "route_count": 23,
+            "trajectory_count": 276,
+            "common_environment_seed_count": 12,
+            "base_seed": 20_260_802,
+            "excluded_target_ids": [PART2_100DAY_DECLARED_EXCLUSION],
+        },
+    )
+    return set(baseline), observed
+
+
 @pytest.fixture(scope="module")
 def production_bundle(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Path]:
     root = tmp_path_factory.mktemp("provider-safe-v2-definitive")
@@ -337,16 +1010,27 @@ def production_bundle(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Pat
             key = f"{subject['target_id']}::{index}"
             refs[key] = _journal(run / "private/trajectories" / f"{subject['model']}-{index}.jsonl", [])
             trajectory_rows.append({
-                "target_id": subject["target_id"], "trajectory_index": index,
+                "schema_version": 1,
+                "target_id": subject["target_id"],
+                "upstream_provider": subject["upstream_provider"],
+                "model": subject["model"],
+                "trajectory_index": index,
+                "environment_seed_index": index,
+                "environment_seed": index,
                 "scheduled_agent_days": 10, "responses_received": 10,
                 "invalid_count": 1 if index == 0 else 0,
                 "identity_mismatch_count": 0,
                 "transport_failure_count": 0, "restraint_count": 7,
                 "overuse_count": 2 if index == 0 else 3,
                 "operationally_eligible": True,
+                "restraint_rate": 0.7,
                 "aurc": 0.8, "aupc": 0.9,
                 "reserve_nondepletion": True,
+                "final_reserve": 500,
+                "final_population": 40,
                 "population_retention": 0.8,
+                "cumulative_private_payoff": 13,
+                "cumulative_group_payoff": 0,
             })
     manifest["journals"] = refs
     _artifact(run, "trajectory_metrics", "inference_hub_part2_sanitized_trajectory_metrics", trajectory_rows, manifest)
@@ -684,6 +1368,688 @@ def test_full_production_shaped_analysis_and_invalid_denominators(
     serialized_manifest = json.dumps(manifest, sort_keys=True)
     assert "/Users/" not in serialized_manifest
     assert "/private/" not in serialized_manifest
+
+
+def test_three_pair_part2_composition_recomputes_effective_estimates(
+    production_bundle: Mapping[str, Path],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pairs = _composition_fixture(tmp_path / "composition")
+    expected_replays, observed_replays = _install_source_replay_test_double(
+        monkeypatch, pairs
+    )
+    lock_paths = [path.parent / ".run.lock" for pair in pairs for path in pair]
+    original_write_json = definitive._write_json
+    publication_lock_checks: list[bool] = []
+
+    def write_json_with_lock_probe(path: Path, value: Any) -> None:
+        if path.name == "analysis_manifest.json":
+            probe = _lock_probe(lock_paths, expect_blocked=True)
+            publication_lock_checks.append(probe.returncode == 0)
+        original_write_json(path, value)
+
+    monkeypatch.setattr(definitive, "_write_json", write_json_with_lock_probe)
+    output = tmp_path / "composed-out"
+    result = analyze(
+        part0=production_bundle["part0"],
+        part1=production_bundle["part1"],
+        part2_source_overlay_pairs=pairs,
+        part2_excluded_target_ids=[PART2_100DAY_DECLARED_EXCLUSION],
+        role_calibration=production_bundle["role"],
+        sensitivity=production_bundle["sensitivity"],
+        output_dir=output,
+    )
+
+    assert result["row_counts"]["part2_models"] == 23
+    composition = result["part2_operational_repair_composition"]
+    assert composition["route_count"] == 23
+    assert composition["trajectory_count"] == 276
+    assert composition["ordered_target_ids"] == list(
+        PART2_100DAY_ORDERED_TARGET_IDS
+    )
+    assert set(observed_replays) == expected_replays
+    assert len(observed_replays) == 276
+    assert publication_lock_checks == [True]
+    assert composition["declared_excluded_target_ids"] == [
+        PART2_100DAY_DECLARED_EXCLUSION
+    ]
+    assert [
+        row["audit"]["route_count"]
+        for row in composition["ordered_source_overlay_pairs"]
+    ] == [21, 1, 1]
+    assert [
+        row["audit"]["source_trajectories_replayed"]
+        for row in composition["ordered_source_overlay_pairs"]
+    ] == [252, 12, 12]
+    assert set(result["input_manifests"]["part2"]) == {
+        "basename",
+        "file_sha256",
+        "evidence_sha256",
+    }
+
+    models = {
+        row["target_id"]: row
+        for row in map(
+            json.loads,
+            (output / "part2_models.jsonl").read_text().splitlines(),
+        )
+    }
+    nemotron = models["nvidia/nemotron-3-ultra"]
+    assert nemotron["operationally_eligible_trajectory_count"] == 12
+    assert nemotron["environmentally_estimable_trajectory_count"] == 9
+    assert nemotron["semantic_invalid_trajectory_count"] == 3
+    deepseek = models["deepseek-ai/deepseek-v4-flash"]
+    assert deepseek["operationally_eligible_trajectory_count"] == 12
+    assert deepseek["environmentally_estimable_trajectory_count"] == 0
+    assert deepseek["semantic_invalid_trajectory_count"] == 12
+    assert deepseek["restraint_interval_trajectory_count"] == 12
+    for field in (
+        "mean_aurc_eligible",
+        "mean_aurc_eligible_t95_low",
+        "mean_aurc_eligible_t95_high",
+        "mean_aupc_eligible",
+        "mean_population_retention_eligible",
+        "reserve_nondepletion_rate_eligible",
+        "reserve_nondepletion_rate_eligible_wilson95_low",
+        "reserve_nondepletion_rate_eligible_wilson95_high",
+    ):
+        assert deepseek[field] is None
+    trajectories = json.loads((output / "figure_aggregates.json").read_text())[
+        "part2_trajectories"
+    ]
+    assert len(trajectories) == 276
+    assert all(set(row) == PART2_EFFECTIVE_TRAJECTORY_ROW_KEYS for row in trajectories)
+    assert len(
+        {
+            (row["target_id"], row["trajectory_index"])
+            for row in trajectories
+        }
+    ) == 276
+    serialized = json.dumps(result, sort_keys=True)
+    assert "/Users/" not in serialized
+    assert "/private/" not in serialized
+
+
+def test_part2_composition_requires_recursive_validator_contract(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pairs = [
+        (Path("main-source"), Path("main-overlay")),
+        (Path("nemotron-source"), Path("nemotron-overlay")),
+        (Path("deepseek-source"), Path("deepseek-overlay")),
+    ]
+    observed: list[list[tuple[Path, Path]]] = []
+
+    def validate(values: list[tuple[Path, Path]]) -> dict[str, Any]:
+        observed.append(list(values))
+        return {
+            "status": "passed",
+            "panel_id": (
+                "sota_cross_axis_part2_corrected_original_scale_100d_v1"
+            ),
+            "source_overlay_pair_count": 3,
+            "route_count": 23,
+            "trajectory_count": 276,
+            "common_environment_seed_count": 12,
+            "base_seed": 20_260_802,
+            "excluded_target_ids": [PART2_100DAY_DECLARED_EXCLUSION],
+        }
+
+    monkeypatch.setattr(
+        definitive.part2_overlay_validator,
+        "validate_operational_overlay_pairs",
+        validate,
+    )
+    result = definitive._validate_part2_overlay_union_recursively(pairs)
+
+    assert observed == [pairs]
+    assert result["trajectory_count"] == 276
+
+    monkeypatch.setattr(
+        definitive.part2_overlay_validator,
+        "validate_operational_overlay_pairs",
+        lambda _pairs: {**result, "trajectory_count": 275},
+    )
+    with pytest.raises(DefinitiveAnalysisError, match="unexpected union contract"):
+        definitive._validate_part2_overlay_union_recursively(pairs)
+
+
+def test_part2_composition_accepts_complete_cascading_main_child(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pairs = _composition_fixture(tmp_path / "composition-cascading")
+    parent_path = _convert_main_overlay_to_cascading(tmp_path, pairs)
+    _install_source_replay_test_double(monkeypatch, pairs)
+
+    models, _figure, context, rows = _part2_composition(
+        pairs, [PART2_100DAY_DECLARED_EXCLUSION]
+    )
+
+    assert len(models) == 23
+    assert len(rows) == 276
+    assert len(context["pairs"][0]["effective_rows"]) == 252
+    assert context["binding"]["ordered_target_ids"] == list(
+        PART2_100DAY_ORDERED_TARGET_IDS
+    )
+    child_binding = context["binding"]["ordered_source_overlay_pairs"][0][
+        "operational_repair_overlay"
+    ]
+    assert child_binding["parent_operational_repair_overlay"] == {
+        "basename": parent_path.name,
+        "file_sha256": _sha_file(parent_path),
+        "evidence_sha256": json.loads(
+            parent_path.read_text(encoding="utf-8")
+        )["evidence_sha256"],
+    }
+
+
+def test_part2_cascading_composition_holds_parent_lock(
+    tmp_path: Path,
+) -> None:
+    pairs = _composition_fixture(tmp_path / "composition-cascading-lock")
+    parent_path = _convert_main_overlay_to_cascading(tmp_path, pairs)
+    lock_paths = [
+        *(path.parent / ".run.lock" for pair in pairs for path in pair),
+        parent_path.parent / ".run.lock",
+    ]
+
+    with definitive._hold_part2_composition_locks(pairs):
+        probe = _lock_probe(lock_paths, expect_blocked=True)
+        assert probe.returncode == 0, probe.stderr
+    released = _lock_probe(lock_paths, expect_blocked=False)
+    assert released.returncode == 0, released.stderr
+
+
+def test_part2_cascading_composition_rejects_active_parent_writer(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pairs = _composition_fixture(tmp_path / "composition-cascading-writer")
+    parent_path = _convert_main_overlay_to_cascading(tmp_path, pairs)
+    called = False
+
+    def must_not_validate(*_args: Any, **_kwargs: Any) -> Any:
+        nonlocal called
+        called = True
+        raise AssertionError("validation began while the parent writer was active")
+
+    monkeypatch.setattr(definitive, "_part2_composition_locked", must_not_validate)
+    writer_program = """
+import fcntl
+import sys
+
+with open(sys.argv[1], "rb") as handle:
+    fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+    print("locked", flush=True)
+    sys.stdin.readline()
+"""
+    writer = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            writer_program,
+            str(parent_path.parent / ".run.lock"),
+        ],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        assert writer.stdout is not None
+        assert writer.stdout.readline().strip() == "locked"
+        with pytest.raises(DefinitiveAnalysisError, match="active writer"):
+            _part2_composition(pairs, [PART2_100DAY_DECLARED_EXCLUSION])
+        assert called is False
+    finally:
+        if writer.stdin is not None:
+            writer.stdin.write("release\n")
+            writer.stdin.flush()
+            writer.stdin.close()
+        writer.wait(timeout=10)
+
+
+def test_three_pair_part2_composition_fails_closed_on_order_exclusion_and_hash(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pairs = _composition_fixture(tmp_path / "composition-negative")
+    _install_source_replay_test_double(monkeypatch, pairs)
+    with pytest.raises(DefinitiveAnalysisError, match="Opus-4.5 exclusion"):
+        _part2_composition(pairs, [])
+    with pytest.raises(DefinitiveAnalysisError, match="exactly 21 routes"):
+        _part2_composition([pairs[1], pairs[0], pairs[2]], [PART2_100DAY_DECLARED_EXCLUSION])
+
+    effective_path = pairs[2][1].parents[1] / "sanitized/effective_trajectory_metrics.json"
+    effective_path.write_text(
+        effective_path.read_text(encoding="utf-8") + " ", encoding="utf-8"
+    )
+    with pytest.raises(DefinitiveAnalysisError, match="integrity failed"):
+        _part2_composition(pairs, [PART2_100DAY_DECLARED_EXCLUSION])
+
+
+def test_part2_composition_rejects_reordered_main_target_ids(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pairs = _composition_fixture(tmp_path / "composition-target-order")
+    _install_source_replay_test_double(monkeypatch, pairs)
+    load_pair = definitive._load_part2_source_overlay_pair
+
+    def reorder_main_pair(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        loaded = load_pair(*args, **kwargs)
+        if loaded["audit"]["pair_ordinal"] == 1:
+            loaded["subjects"][0], loaded["subjects"][1] = (
+                loaded["subjects"][1],
+                loaded["subjects"][0],
+            )
+        return loaded
+
+    monkeypatch.setattr(
+        definitive, "_load_part2_source_overlay_pair", reorder_main_pair
+    )
+    with pytest.raises(DefinitiveAnalysisError, match="frozen ordered panel"):
+        _part2_composition(pairs, [PART2_100DAY_DECLARED_EXCLUSION])
+
+
+def test_part2_composition_replays_repaired_metrics_instead_of_trusting_reseal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pairs = _composition_fixture(tmp_path / "composition-replay-negative")
+    _install_source_replay_test_double(monkeypatch, pairs)
+    overlay_path = pairs[0][1]
+    overlay = json.loads(overlay_path.read_text(encoding="utf-8"))
+    trajectory_path = Path(
+        overlay["sanitized_artifacts"]["effective_trajectory_metrics"]["path"]
+    )
+    trajectories = json.loads(trajectory_path.read_text(encoding="utf-8"))
+    repaired = next(
+        row
+        for row in trajectories["rows"]
+        if row["source_replaced_for_operational_failure"] is True
+    )
+    repaired["aurc"] = float(repaired["aurc"]) + 0.01
+    _write_json(trajectory_path, _seal(trajectories))
+    overlay["sanitized_artifacts"]["effective_trajectory_metrics"] = {
+        "path": str(trajectory_path.resolve()),
+        "file_sha256": _sha_file(trajectory_path),
+        "evidence_sha256": trajectories["evidence_sha256"],
+    }
+
+    model_path = Path(
+        overlay["sanitized_artifacts"]["effective_model_metrics"]["path"]
+    )
+    models = json.loads(model_path.read_text(encoding="utf-8"))
+    models["rows"] = part2_panel._aggregate_models(
+        trajectories["rows"],
+        overlay["subject_routes"],
+        expected_trajectories=12,
+        capacity=2_500,
+    )
+    _write_json(model_path, _seal(models))
+    overlay["sanitized_artifacts"]["effective_model_metrics"] = {
+        "path": str(model_path.resolve()),
+        "file_sha256": _sha_file(model_path),
+        "evidence_sha256": models["evidence_sha256"],
+    }
+    _write_json(overlay_path, _seal(overlay), private=True)
+
+    with pytest.raises(DefinitiveAnalysisError, match="does not reproduce"):
+        _part2_composition(pairs, [PART2_100DAY_DECLARED_EXCLUSION])
+
+
+def test_part2_composition_replays_successful_source_instead_of_trusting_reseal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pairs = _composition_fixture(tmp_path / "composition-source-replay-negative")
+    _install_source_replay_test_double(monkeypatch, pairs)
+    source_path, overlay_path = pairs[0]
+    source = json.loads(source_path.read_text(encoding="utf-8"))
+    source_trajectory_path = Path(
+        source["sanitized_artifacts"]["trajectory_metrics"]["path"]
+    )
+    source_trajectories = json.loads(
+        source_trajectory_path.read_text(encoding="utf-8")
+    )
+    changed_key = (
+        source_trajectories["rows"][1]["target_id"],
+        source_trajectories["rows"][1]["trajectory_index"],
+    )
+    source_trajectories["rows"][1]["aurc"] += 0.01
+    _write_json(source_trajectory_path, _seal(source_trajectories))
+    source["sanitized_artifacts"]["trajectory_metrics"] = {
+        "path": str(source_trajectory_path.resolve()),
+        "file_sha256": _sha_file(source_trajectory_path),
+        "evidence_sha256": source_trajectories["evidence_sha256"],
+    }
+
+    source_model_path = Path(
+        source["sanitized_artifacts"]["model_metrics"]["path"]
+    )
+    source_models = json.loads(source_model_path.read_text(encoding="utf-8"))
+    source_models["rows"] = part2_panel._aggregate_models(
+        source_trajectories["rows"],
+        source["subject_routes"],
+        expected_trajectories=12,
+        capacity=2_500,
+    )
+    _write_json(source_model_path, _seal(source_models))
+    source["sanitized_artifacts"]["model_metrics"] = {
+        "path": str(source_model_path.resolve()),
+        "file_sha256": _sha_file(source_model_path),
+        "evidence_sha256": source_models["evidence_sha256"],
+    }
+    _write_json(source_path, _seal(source), private=True)
+
+    overlay = json.loads(overlay_path.read_text(encoding="utf-8"))
+    effective_path = Path(
+        overlay["sanitized_artifacts"]["effective_trajectory_metrics"]["path"]
+    )
+    effective = json.loads(effective_path.read_text(encoding="utf-8"))
+    changed_effective = next(
+        row
+        for row in effective["rows"]
+        if (row["target_id"], row["trajectory_index"]) == changed_key
+    )
+    changed_effective["aurc"] += 0.01
+    effective["source_manifest_evidence_sha256"] = source["evidence_sha256"]
+    _write_json(effective_path, _seal(effective))
+    overlay["sanitized_artifacts"]["effective_trajectory_metrics"] = {
+        "path": str(effective_path.resolve()),
+        "file_sha256": _sha_file(effective_path),
+        "evidence_sha256": effective["evidence_sha256"],
+    }
+
+    effective_model_path = Path(
+        overlay["sanitized_artifacts"]["effective_model_metrics"]["path"]
+    )
+    effective_models = json.loads(
+        effective_model_path.read_text(encoding="utf-8")
+    )
+    effective_models["rows"] = part2_panel._aggregate_models(
+        effective["rows"],
+        overlay["subject_routes"],
+        expected_trajectories=12,
+        capacity=2_500,
+    )
+    effective_models["source_manifest_evidence_sha256"] = source[
+        "evidence_sha256"
+    ]
+    _write_json(effective_model_path, _seal(effective_models))
+    overlay["sanitized_artifacts"]["effective_model_metrics"] = {
+        "path": str(effective_model_path.resolve()),
+        "file_sha256": _sha_file(effective_model_path),
+        "evidence_sha256": effective_models["evidence_sha256"],
+    }
+    overlay["source_manifest"] = {
+        "path": str(source_path.resolve()),
+        "file_sha256": _sha_file(source_path),
+        "evidence_sha256": source["evidence_sha256"],
+    }
+    _write_json(overlay_path, _seal(overlay), private=True)
+
+    with pytest.raises(
+        DefinitiveAnalysisError,
+        match="source trajectory metrics differ from simulator replay",
+    ):
+        _part2_composition(pairs, [PART2_100DAY_DECLARED_EXCLUSION])
+
+
+@pytest.mark.parametrize(
+    ("field", "private_value"),
+    [
+        ("private_path", "/private/evidence/journal.jsonl"),
+        ("response_text", "private response"),
+        ("raw_response", {"choices": []}),
+        ("request_body", {"model": "private-route"}),
+        ("prompt_text", "private prompt"),
+        ("reasoning", "private reasoning"),
+        ("route", "provider/private-route"),
+    ],
+)
+def test_part2_public_trajectory_schema_rejects_private_fields(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    field: str,
+    private_value: Any,
+) -> None:
+    pairs = _composition_fixture(tmp_path / f"composition-schema-{field}")
+    _install_source_replay_test_double(monkeypatch, pairs)
+    overlay_path = pairs[0][1]
+    overlay = json.loads(overlay_path.read_text(encoding="utf-8"))
+    trajectory_path = Path(
+        overlay["sanitized_artifacts"]["effective_trajectory_metrics"]["path"]
+    )
+    trajectories = json.loads(trajectory_path.read_text(encoding="utf-8"))
+    trajectories["rows"][0][field] = private_value
+    _write_json(trajectory_path, _seal(trajectories))
+    overlay["sanitized_artifacts"]["effective_trajectory_metrics"] = {
+        "path": str(trajectory_path.resolve()),
+        "file_sha256": _sha_file(trajectory_path),
+        "evidence_sha256": trajectories["evidence_sha256"],
+    }
+    _write_json(overlay_path, _seal(overlay), private=True)
+
+    with pytest.raises(DefinitiveAnalysisError, match="public schema changed"):
+        _part2_composition(pairs, [PART2_100DAY_DECLARED_EXCLUSION])
+
+
+def _lock_probe(lock_paths: list[Path], *, expect_blocked: bool) -> subprocess.CompletedProcess[str]:
+    program = """
+import fcntl
+import json
+import sys
+
+expect_blocked = sys.argv[1] == "blocked"
+paths = json.loads(sys.argv[2])
+observed = []
+for path in paths:
+    with open(path, "rb") as handle:
+        try:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            observed.append(True)
+        else:
+            observed.append(False)
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+valid = all(observed) if expect_blocked else not any(observed)
+raise SystemExit(0 if valid else 9)
+"""
+    return subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            program,
+            "blocked" if expect_blocked else "available",
+            json.dumps([str(path) for path in lock_paths]),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+
+def test_part2_composition_holds_all_six_shared_locks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pairs = _composition_fixture(tmp_path / "composition-locks")
+    lock_paths = [path.parent / ".run.lock" for pair in pairs for path in pair]
+    sentinel = ([], [], {}, [])
+
+    def probe_locked(
+        source_overlay_pairs: list[tuple[Path, Path]],
+        declared_excluded_target_ids: list[str],
+    ) -> tuple[list[Any], list[Any], dict[str, Any], list[Any]]:
+        assert list(source_overlay_pairs) == pairs
+        assert declared_excluded_target_ids == [PART2_100DAY_DECLARED_EXCLUSION]
+        probe = _lock_probe(lock_paths, expect_blocked=True)
+        assert probe.returncode == 0, probe.stderr
+        return sentinel
+
+    monkeypatch.setattr(definitive, "_part2_composition_locked", probe_locked)
+    assert _part2_composition(
+        pairs, [PART2_100DAY_DECLARED_EXCLUSION]
+    ) == sentinel
+    released = _lock_probe(lock_paths, expect_blocked=False)
+    assert released.returncode == 0, released.stderr
+
+
+def test_part2_composition_pins_symlink_before_locking_and_loading(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pairs = _composition_fixture(tmp_path / "composition-symlink")
+    source_alias = tmp_path / "source-manifest-alias.json"
+    source_alias.symlink_to(pairs[0][0])
+    aliased_pairs = [(source_alias, pairs[0][1]), *pairs[1:]]
+    sentinel = ([], [], {}, [])
+
+    def retarget_after_lock(
+        source_overlay_pairs: list[tuple[Path, Path]],
+        _declared_excluded_target_ids: list[str],
+    ) -> tuple[list[Any], list[Any], dict[str, Any], list[Any]]:
+        source_alias.unlink()
+        source_alias.symlink_to(pairs[1][0])
+        normalized = list(source_overlay_pairs)
+        assert normalized[0][0] == pairs[0][0].resolve()
+        assert normalized[0][0] != source_alias.resolve()
+        return sentinel
+
+    monkeypatch.setattr(
+        definitive, "_part2_composition_locked", retarget_after_lock
+    )
+    assert _part2_composition(
+        aliased_pairs, [PART2_100DAY_DECLARED_EXCLUSION]
+    ) == sentinel
+
+
+def test_part2_composition_rejects_active_writer_before_validation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pairs = _composition_fixture(tmp_path / "composition-active-writer")
+    lock_paths = sorted(
+        [path.parent / ".run.lock" for pair in pairs for path in pair],
+        key=lambda path: str(path),
+    )
+    called = False
+
+    def must_not_validate(*_args: Any, **_kwargs: Any) -> Any:
+        nonlocal called
+        called = True
+        raise AssertionError("validation began before all six locks were held")
+
+    monkeypatch.setattr(definitive, "_part2_composition_locked", must_not_validate)
+    writer_program = """
+import fcntl
+import sys
+
+with open(sys.argv[1], "rb") as handle:
+    fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+    print("locked", flush=True)
+    sys.stdin.readline()
+"""
+    writer = subprocess.Popen(
+        [sys.executable, "-c", writer_program, str(lock_paths[-1])],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        assert writer.stdout is not None
+        assert writer.stdout.readline().strip() == "locked"
+        with pytest.raises(DefinitiveAnalysisError, match="active writer"):
+            _part2_composition(pairs, [PART2_100DAY_DECLARED_EXCLUSION])
+        assert called is False
+    finally:
+        if writer.stdin is not None:
+            writer.stdin.write("release\n")
+            writer.stdin.flush()
+            writer.stdin.close()
+        writer.wait(timeout=10)
+    released = _lock_probe(lock_paths, expect_blocked=False)
+    assert released.returncode == 0, released.stderr
+
+
+def test_part2_source_replay_uses_full_frozen_simulator(
+    tmp_path: Path,
+) -> None:
+    pairs = _composition_fixture(tmp_path / "composition-real-source-replay")
+    source = json.loads(pairs[0][0].read_text(encoding="utf-8"))
+    overlay = json.loads(pairs[0][1].read_text(encoding="utf-8"))
+    journal_key = next(iter(overlay["journals"]))
+    reference = overlay["journals"][journal_key]
+    records = [
+        json.loads(line)
+        for line in Path(reference["path"]).read_text(encoding="utf-8").splitlines()
+    ]
+    target_id, trajectory_text, _round_text = journal_key.rsplit("::", 2)
+    trajectory_index = int(trajectory_text)
+    subject = next(
+        row for row in source["subject_routes"] if row["target_id"] == target_id
+    )
+    replayed = _replay_part2_source_journal(
+        records,
+        subject=subject,
+        trajectory_index=trajectory_index,
+        environment_seed=source["common_environment_seeds"][trajectory_index],
+        execution_contract=source["execution_contract"],
+        label="real frozen source replay",
+        global_attempt_ids=set(),
+    )
+    effective_payload = json.loads(
+        Path(
+            overlay["sanitized_artifacts"]["effective_trajectory_metrics"]["path"]
+        ).read_text(encoding="utf-8")
+    )
+    expected = next(
+        row
+        for row in effective_payload["rows"]
+        if row["target_id"] == target_id
+        and row["trajectory_index"] == trajectory_index
+    )
+    expected = {
+        key: value
+        for key, value in expected.items()
+        if key in PART2_TRAJECTORY_ROW_KEYS
+    }
+    assert replayed == expected
+
+    tampered = [dict(row) for row in records]
+    semantic = next(row for row in tampered if row["event"] == "semantic_result")
+    semantic["controls"] = {"temperature": 0.125}
+    with pytest.raises(DefinitiveAnalysisError, match="replay failed"):
+        _replay_part2_source_journal(
+            tampered,
+            subject=subject,
+            trajectory_index=trajectory_index,
+            environment_seed=source["common_environment_seeds"][trajectory_index],
+            execution_contract=source["execution_contract"],
+            label="tampered frozen source replay",
+            global_attempt_ids=set(),
+        )
+
+
+def test_part2_composition_cli_preserves_order_and_legacy_mode() -> None:
+    required = [
+        "--part0", "p0", "--part1", "p1", "--role-calibration", "role",
+        "--sensitivity", "sensitivity", "--output-dir", "out",
+    ]
+    composed = _parser().parse_args(
+        [
+            *required,
+            "--part2-source-overlay", "main-source", "main-overlay",
+            "--part2-source-overlay", "nem-source", "nem-overlay",
+            "--part2-source-overlay", "deep-source", "deep-overlay",
+            "--part2-declared-exclusion", PART2_100DAY_DECLARED_EXCLUSION,
+        ]
+    )
+    assert composed.part2 is None
+    assert composed.part2_source_overlay_pairs == [
+        [Path("main-source"), Path("main-overlay")],
+        [Path("nem-source"), Path("nem-overlay")],
+        [Path("deep-source"), Path("deep-overlay")],
+    ]
+    legacy = _parser().parse_args([*required, "--part2", "legacy-part2"])
+    assert legacy.part2 == Path("legacy-part2")
+    assert legacy.part2_source_overlay_pairs == []
 
 
 def test_incomplete_manifest_fails_before_output(tmp_path: Path) -> None:

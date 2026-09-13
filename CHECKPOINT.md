@@ -1,6 +1,6 @@
 # Paper completion checkpoint
 
-Updated: 2026-09-09 (America/New_York)
+Updated: 2026-09-13 (America/New_York)
 
 ## North star
 
@@ -19,7 +19,7 @@ Updated: 2026-09-09 (America/New_York)
 ## Current source state
 
 - Branch: `master` (no additional branch or tag).
-- Latest pushed repository commit before this update: `8900532`.
+- Latest pushed repository commit before this update: `a0859ac`.
 - Definitive paper and release-artifact commit: `5cd54a0`.
 - Final supplemental retry and repair-provenance commit preceding this update:
   `9272c67`.
@@ -134,31 +134,82 @@ target ID, exact route, and upstream provider/model identity.
   Their complete operational overlays remain at the correspondingly named
   `-operational-repair-v1` roots; never restart either terminal source.
 
-  The active main repair paper candidate is
-  `data/private/inference_hub/full-part2-n12-n50-d100-main21-v5-operational-repair-multikey-v3`.
-  It reruns only the 38 operationally ineligible source trajectories from day 1,
-  never selects semantic INVALID outputs, uses the three unique authenticated
-  accounts in `/Users/aryagupta/Desktop/cdo-better-gos/.env` without persisting
-  credentials, and binds the account count, independent per-account rate policy,
-  selection policy, source manifest, and implementation hashes. The sealed
-  primary `inference_hub_part2_panel.py` hash is unchanged and matches both the
-  source manifest and v3 repair binding. Run or resume only with:
+  The v3 main repair at
+  `data/private/inference_hub/full-part2-n12-n50-d100-main21-v5-operational-repair-multikey-v3`
+  is immutable terminal diagnostic evidence and must never be resumed or used
+  directly as the paper overlay. It exhausted all eight rounds with 37/38
+  successful full-trajectory repairs. Its sole unresolved item is exact route
+  `gcp/google/gemini-3.5-flash`, trajectory/seed index 1, common environment seed
+  674434863. Across rounds 3--8, 9,915/30,000 semantic units received HTTP 401,
+  matching one failed position in the former blind three-account rotation. A
+  secret-free live qualification check found two accounts that authenticate,
+  list, and identity-match this exact route and one account that fails catalog
+  authentication. This is credential-pool operational failure, not model
+  behavior; v3 lacks per-attempt account provenance and cannot be repaired in
+  place.
+
+  The next paper candidate is a fresh child overlay at
+  `data/private/inference_hub/full-part2-n12-n50-d100-main21-v5-operational-completion-capability-v4`.
+  Its new runner is
+  `experiments.misc.inference_hub_part2_cascading_operational_repair`. It binds
+  the immutable original source plus the immutable incomplete v3 parent,
+  inherits exactly 37 successful parent replacements, and reruns only the one
+  unresolved trajectory from day 1. Before launch, its focused tests, pinned
+  implementation hash, recursive validator, non-secret per-slot credential
+  commitments, canonical endpoint binding, fresh resume preflight, account-slot
+  and global-dispatch provenance, independent v2 limiter scopes, and fail-closed
+  post-preflight 401/403 quarantine must all pass. Once those gates are recorded
+  here, launch only this exact command (append `--resume` only for this v4 root
+  after all resume bindings pass):
 
   ```bash
-  uv run python -m experiments.misc.inference_hub_part2_operational_repair \
+  .venv/bin/python -m experiments.misc.inference_hub_part2_cascading_operational_repair \
     --source-manifest data/private/inference_hub/full-part2-n12-n50-d100-main21-v5/private/manifest.json \
-    --output-dir data/private/inference_hub/full-part2-n12-n50-d100-main21-v5-operational-repair-multikey-v3 \
-    --max-rounds 8 --trajectory-workers 12 --participant-workers 16 \
+    --parent-overlay-manifest data/private/inference_hub/full-part2-n12-n50-d100-main21-v5-operational-repair-multikey-v3/private/manifest.json \
+    --output-dir data/private/inference_hub/full-part2-n12-n50-d100-main21-v5-operational-completion-capability-v4 \
+    --maximum-rounds 8 --trajectory-workers 1 --participant-workers 30 \
     --max-attempts 8 --initial-backoff-seconds 1 --timeout-seconds 900 \
     --rate-profile accelerated_original_scale_high_latency_v2 \
     --credential-env-file /Users/aryagupta/Desktop/cdo-better-gos/.env \
     --expected-api-key-count 3
   ```
 
-  Append `--resume` only if this v3 process is absent and its manifest remains
-  incomplete. The earlier single-account `...operational-repair-v1` and pooled
-  `...operational-repair-multikey-v2` roots are preserved as incomplete
-  diagnostic evidence and must not be resumed or merged into the paper.
+  The v4 throughput setting is a deliberate three-account completion override:
+  the local executor exposes 30 participant slots, while the runtime cap is
+  recomputed as 10 per currently qualified account (30/20/10 workers for
+  three/two/one qualified accounts). Each account retains its own file-backed
+  high-latency-v2 limiter at 10 in flight and 2.5 starts/second, so aggregate
+  throughput never borrows another account's rate budget. Clients are built
+  directly from held-fd credential reads and never through process-global API
+  key mutation.
+
+  The prelaunch runner is frozen at SHA-256
+  `3d18d7a0ab11cc43e5648c60abc24b243e18e5195437cc345cd7479e43301dec`.
+  The validator pins that exact digest. A secret-free configuration check saw
+  exactly three ordered, distinct credential commitments, three distinct
+  limiter scopes, and the canonical InferenceHub endpoint; credential values
+  were neither printed nor persisted. The runner/validator/analyzer gate passes 123
+  focused tests, including simultaneous pool construction, exact round-robin
+  allocation, post-preflight 401/403 quarantine, bootstrap reprobe, nofollow
+  credential/preflight/journal reads, exact journal references, retained-state
+  causal timestamps, and a physical-reservation crash followed by a complete
+  resume and recursive validation. The four downstream analysis/asset suites
+  pass 99 tests with one intentional skip. Direct recursive validation of the
+  immutable v3 parent passes with 37 successful replacements, exactly one
+  unresolved trajectory, and 58 populated parent round journals.
+
+  A failed/crashed initial qualification may be retried without `--resume`
+  only when the v4 tree is the exact uncommitted bootstrap shape. A lone sealed
+  `preflight-000.json` is treated only as a cursor/account crash binding: all
+  three accounts are freshly re-probed and that ledger is atomically replaced
+  before any manifest seal or experiment dispatch. Once `manifest.json`
+  exists, only the exact `--resume` command is permitted.
+
+  The earlier single-account `...operational-repair-v1`, pooled
+  `...operational-repair-multikey-v2`, and terminal pooled v3 roots are preserved
+  as incomplete diagnostic evidence and must not be resumed or merged into the
+  paper. Never launch v4 while its implementation/test/hash gate above is
+  incomplete.
 
 Part 2 uses the manifest-bound high-latency v2 policy independently per account:
 global concurrency 60, provider concurrency 10, global 12 starts/second, and
@@ -357,8 +408,9 @@ campaigns have priority over supplemental retries.
 
 ## Exact next steps
 
-1. Let the v3 main operational overlay finish; if its single process is absent
-   and its manifest remains incomplete, resume it with the exact command above.
+1. Finish and verify the new v4 cascading runner/validator gate, pin its exact
+   implementation hash, then launch or safely resume only the v4 child with the
+   exact command above. Never resume v3.
 2. Validate source and all three complete overlays end to end: route identities,
    hash chains, attempt bindings, simulator transitions, matched denominators,
    trajectory completeness, and sanitized aggregates.
