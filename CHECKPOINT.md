@@ -19,7 +19,7 @@ Updated: 2026-09-13 (America/New_York)
 ## Current source state
 
 - Branch: `master` (no additional branch or tag).
-- Latest pushed repository commit before this update: `a0859ac`.
+- Latest pushed repository commit before this status update: `ea863e2`.
 - Definitive paper and release-artifact commit: `5cd54a0`.
 - Final supplemental retry and repair-provenance commit preceding this update:
   `9272c67`.
@@ -204,6 +204,27 @@ target ID, exact route, and upstream provider/model identity.
   three accounts are freshly re-probed and that ledger is atomically replaced
   before any manifest seal or experiment dispatch. Once `manifest.json`
   exists, only the exact `--resume` command is permitted.
+
+  V4 was launched from pushed `master` commit `ea863e2` at approximately
+  2026-09-13 15:21 America/New_York, after an exact process check found no
+  competing Python campaign. All three configured accounts were blind-probed.
+  Slots 01 and 03 authenticated, listed the exact route, and returned the exact
+  route identity; slot 02 failed catalog authentication and is excluded from
+  dispatch. Therefore the live executor cap is 20 workers, and the two
+  qualified accounts are used in locked round-robin order. At the bounded
+  2026-09-13T19:27:53Z snapshot, round 1 had 400 reservations split exactly
+  200/200 across the two qualified slots, 392 semantic results through day 8,
+  and zero failed attempts. The single Python worker was healthy; these counts
+  are an as-of snapshot, not final evidence.
+
+  Recent live progress is about 2.7--2.9 completed agent-days/second. If that
+  rate and the current zero-retry behavior hold, the first-round evidence ETA
+  is roughly 25--40 minutes from the snapshot; provider latency, attrition, or
+  a later retry round can widen it materially. V4 is the only active and thus
+  slowest remaining evidence campaign. Full recursive validation, regenerated
+  paper assets/narrative, PDF and supplement clean builds, visual inspection,
+  full relevant tests, and final push are estimated at a further 2--4 hours
+  after evidence completion, with ordinary build/debug uncertainty.
 
   The earlier single-account `...operational-repair-v1`, pooled
   `...operational-repair-multikey-v2`, and terminal pooled v3 roots are preserved
