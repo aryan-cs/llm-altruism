@@ -39,17 +39,26 @@ The definitive Part 0 manifest selects 22 exact routes and schedules 48 roots
 under each of three response-language instructions (144 responses per route).
 `anthropic/claude-opus-4-5` and `minimaxai/minimax-m2.7` are explicit
 planning-roster exclusions. The manifest remains incomplete; reportable model
-coverage must therefore be computed only after it seals.
+coverage is accepted only through the explicit all-scheduled
+operational-invalid terminal policy, while missing human judge validation
+remains disclosed.
 
-The definitive Part 2 manifest selects 19 exact routes and is complete at 12
-independent common-seed trajectories per route (228 total). It records zero
-transport or identity failures and four invalid actions across three
-trajectories; 225 trajectories contain no invalid action and support
-environmental estimates. The five planning-roster routes outside the primary
-Part 2 manifest are `anthropic/claude-opus-4-5`,
-`deepseek-ai/deepseek-v4-flash`, `nvidia/nemotron-3-ultra`,
-`minimaxai/minimax-m2.7`, and `zai-org/glm-5.1`. They receive no primary Part 2
-estimate, and any bounded availability retry remains separate.
+The definitive Part 2 composition contains 23 exact routes and is complete at
+12 independent common-seed trajectories per route (276 total). Its ordered
+evidence consists of the 21-route main source with the complete cascading v4
+overlay, the Nemotron Ultra singleton source/overlay pair, and the DeepSeek V4
+Flash singleton source/overlay pair. All 276 trajectories are operationally
+eligible after 57 whole-trajectory repairs, and 198 zero-invalid trajectories
+support environmental estimates. The other 78 trajectories are invalid-bearing;
+18 routes have an environmental summary and five zero-eligible routes are
+reported as NE. `anthropic/claude-opus-4-5` is the sole planning-roster
+exclusion and receives no substitute.
+
+The fixed Part 2 environment has 50 agents, 100 days, initial capacity 2,500,
+OPTION_B private gain 2, reserve cost 2, unanimous group benefit/penalty 5, and
+collapse death rate 0.2. Across 1,206,808 scheduled living agent-days it records
+1,180,046 valid actions, 26,762 genuine semantic `INVALID` actions, 969,640
+restraint actions, and 210,406 overuse actions.
 
 ## Part 1 expansion
 
@@ -59,13 +68,14 @@ six registry exclusions are `anthropic/claude-opus-4-5`,
 `minimaxai/minimax-m2.7`, `minimaxai/minimax-m3`,
 `moonshotai/kimi-k2.5`, `moonshotai/kimi-k2.6`, and `zai-org/glm-5.2`. No
 excluded target is substituted. The primary manifest remains incomplete, so
-the 75-route schedule is not yet described as 75 reportable estimates.
+the 75-route evidence is accepted only together with its complete exact-source
+operational overlay, which resolves three transport-null units.
 
 First-attempt malformed outputs remain in every route's 384-unit primary
 denominator. Periodic semantic-invalid repair uses the exact same route and
 frozen work ID, but its artifact is isolated and cannot overwrite the primary
 response, change that denominator, or enter the primary rate. The wider Part 1
-registry does not enlarge the 19-route overlap shared by all three current
+registry does not enlarge the 22-route overlap shared by all three current
 primary phases.
 
 ## Fixed judge

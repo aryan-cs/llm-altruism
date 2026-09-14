@@ -14,26 +14,34 @@ or cross-axis composite score.
   response-language instructions (144 responses per route). One fixed judge is
   disjoint from every evaluated subject. First-attempt invalids remain in the
   scheduled-response denominator. Because the bank has no benign controls and
-  human judge validation is incomplete, these estimates are exploratory. The
-  source manifest was still running at the documentation checkpoint, so the
-  schedule is not presented as completed coverage.
+  human judge validation is incomplete, these estimates are exploratory. All
+  3,168 scheduled units are terminal only under the explicit all-scheduled
+  operational-invalid policy; a bare incomplete source is not promoted.
 - **Part 1:** 75 exact model routes are scheduled on the same balanced
   384-root bank, stratified over 12 game-domain cells. First-attempt malformed
   actions remain in the primary denominator as non-welfare-preserving choices.
   The prompt bank lacks independent content approval, so these estimates are
   exploratory. Four local open-weight controls use the same 384-root design
-  and are displayed separately rather than pooled with hosted routes. The
-  hosted source manifest was still running at the documentation checkpoint.
-- **Part 2:** 19 exact model routes are scheduled for 12 independent,
-  common-seed trajectories under the corrected five-agent, 12-step commons
-  engine (228 trajectories total). Behavioral restraint retains every
-  scheduled agent-day in its denominator. Environmental AURC, AUPC, reserve
-  nondepletion, and population retention use only trajectories that are both
-  operationally eligible and environmentally estimable; semantic-invalid
-  trajectories are enumerated rather than silently imputed. This source
-  manifest is complete at 228 trajectories and 13,495 scheduled agent-days;
-  four invalid actions occur across three trajectories, leaving 225
-  environmentally estimable trajectories.
+  and are displayed separately rather than pooled with hosted routes. A
+  complete exact-source overlay resolves the three transport-null units, while
+  all 704 malformed first responses remain scheduled nonsuccesses.
+- **Part 2:** 23 exact model routes completed 12 independent, common-seed
+  trajectories under the corrected 50-agent, 100-day commons engine (276
+  trajectories total). Its fixed dynamics use initial capacity 2,500,
+  OPTION_B private gain 2, reserve cost 2, unanimous group benefit/penalty 5,
+  and collapse death rate 0.2. Behavioral restraint retains all 1,206,808
+  scheduled living agent-days in its denominator: 1,180,046 valid actions and
+  26,762 genuine semantic `INVALID` actions, with 969,640 restraint and
+  210,406 overuse actions. The primary descriptive restraint proportion pools
+  scheduled living agent-days within each route; figures with trajectory
+  Student-$t$ intervals instead use the equal-seed-weighted mean of the 12
+  trajectory-specific proportions, which can differ under attrition.
+  Environmental AURC, AUPC, reserve nondepletion, and
+  population retention use only the 198 zero-invalid trajectories. The other
+  78 trajectories are invalid-bearing, leaving 18 route summaries and five
+  zero-eligible routes reported as NE. All 276 are operationally eligible after
+  57 whole-trajectory repairs, each bound to its exact source route.
+  Opus 4.5 is the sole frozen exclusion and is not substituted.
 - **Role calibration and sensitivity:** Six prespecified role routes are scheduled
   under three role frames over 96 roots with four counterbalances per frame
   (384 units per route/frame). A separate
@@ -41,11 +49,14 @@ or cross-axis composite score.
   in 16 fractional-factorial cells under two independent common seeds. The one
   incompatible exact route is excluded without substitution. These artifacts diagnose
   framing and environment sensitivity; they are not confirmatory promotions.
-- **Unavailable routes and invalid recovery:** Bounded availability retries and
-  semantic-invalid repairs are isolated supplemental artifacts. They never
-  substitute a different model, overwrite a primary response, alter a primary
-  denominator, or enter a cross-axis score. If an exact route remains
-  unavailable, it receives no behavioral estimate.
+- **Operational recovery and semantic invalids:** The final Part 2 composition
+  uses the ordered 21-route main, Nemotron Ultra singleton, and DeepSeek V4
+  Flash singleton source/overlay pairs. Each overlay reruns only an
+  operationally failed source trajectory, from day 1 on the exact route, while
+  preserving source lineage. Genuine semantic invalids are never regenerated.
+  Other bounded availability retries and semantic-invalid repairs remain
+  isolated supplemental artifacts: they never substitute a model, overwrite a
+  primary response, alter a denominator, or enter a cross-axis score.
 
 All reportable counts in the Croissant metadata and paper tables are computed
 from the hash-bound definitive CSVs. The builders contain no legacy coverage
@@ -73,12 +84,12 @@ uv run python -m analysis.build_provider_safe_v2_paper_assets \
   --output-dir "$release_tmp/provider-safe-v2-paper-assets"
 ```
 
-`analysis.analyze_provider_safe_v2_definitive` is the sole bridge from the five
-private campaign manifests to the primary public aggregate graph, and it runs
-only after all five are complete. It
-validates complete self-hashed manifests and journals, exact response-model
-identity, fixed judge disjointness, expected schedules, parser outcomes,
-invalid-denominator policy, and source bindings before atomically publishing a
+`analysis.analyze_provider_safe_v2_definitive` is the sole bridge from the
+private terminal source phases and their required operational overlays to the
+primary public aggregate graph. It validates self-hashed manifests and
+journals, exact response-model identity, fixed judge disjointness, expected
+schedules, parser outcomes, invalid-denominator policy, source bindings, and
+the ordered three-pair Part 2 composition before atomically publishing a
 text-free directory. Its public manifest uses portable basenames only and
 SHA-256-binds every nonmanifest output.
 

@@ -50,6 +50,18 @@ DEFAULT_PARTICIPANT_WORKERS = 8
 DEFAULT_MAX_ATTEMPTS = 8
 DEFAULT_BACKOFF_SECONDS = 1.0
 DEFAULT_TIMEOUT_SECONDS = 900.0
+FROZEN_COMPLETE_SUBSET_SOURCE_EVIDENCE_SHA256 = (
+    "0bbe90e8d852758f80f5c61ab366e735fd92534d764bf271b5025efb5ba876ac"
+)
+FROZEN_COMPLETE_SUBSET_EVIDENCE_SHA256 = (
+    "500b32850cd41c03bb097a66bb3080f6930e2fb27df6082ae0e51cbf5570c34d"
+)
+FROZEN_COMPLETE_SUBSET_PART2_RUNNER_SHA256 = (
+    "3cf76f3f0ebfd7d309f675b4cbc422f79e7858594baef4bf614651c3cb018e45"
+)
+COMPATIBLE_CURRENT_COMPLETE_SUBSET_PART2_RUNNER_SHA256 = (
+    "28c05c1c730390c61577b3874b74f5a3b2252f6bdc4badac8d9e393b70eaa138"
+)
 _SOURCE_PATHS = (
     Path(__file__),
     Path(runner.__file__),
@@ -59,6 +71,11 @@ _SOURCE_PATHS = (
     Path(__file__).parents[1] / "part2" / "part_2.py",
     Path(__file__).parents[2] / "agents" / "agent_2.py",
     Path(__file__).parents[2] / "analysis" / "part2_confirmatory.py",
+)
+_PART2_RUNNER_PATH = Path(__file__).with_name("inference_hub_part2_panel.py")
+_COMPLETE_SUBSET_SOURCE_PATHS = (
+    *runner._SOURCE_PATHS,
+    Path(__file__).with_name("inference_hub_sensitivity_deadline_accelerated.py"),
 )
 
 
@@ -126,6 +143,45 @@ def _source_key(row: Mapping[str, Any]) -> tuple[str, str, int]:
         str(row.get("target_id")),
         int(row.get("trajectory_index")),
     )
+
+
+def _subset_source_artifacts_match_current_or_frozen_execution(
+    value: object,
+    *,
+    source_evidence_sha256: object,
+    subset_evidence_sha256: object,
+) -> bool:
+    """Accept current bytes or the one exact historical complete-subset map."""
+
+    if not isinstance(value, Mapping) or not value:
+        return False
+    current: dict[str, str] = {}
+    try:
+        for source_path in _COMPLETE_SUBSET_SOURCE_PATHS:
+            path = source_path.resolve()
+            if not path.is_file():
+                return False
+            current[str(path)] = runner._sha256_file(path)
+    except (OSError, TypeError, ValueError):
+        return False
+    if value == current:
+        return True
+    if (
+        source_evidence_sha256
+        != FROZEN_COMPLETE_SUBSET_SOURCE_EVIDENCE_SHA256
+        or subset_evidence_sha256 != FROZEN_COMPLETE_SUBSET_EVIDENCE_SHA256
+    ):
+        return False
+    runner_key = str(_PART2_RUNNER_PATH.resolve())
+    if (
+        runner_key not in current
+        or current[runner_key]
+        != COMPATIBLE_CURRENT_COMPLETE_SUBSET_PART2_RUNNER_SHA256
+    ):
+        return False
+    frozen = dict(current)
+    frozen[runner_key] = FROZEN_COMPLETE_SUBSET_PART2_RUNNER_SHA256
+    return value == frozen
 
 
 def _load_source(
@@ -353,10 +409,10 @@ def _load_complete_subset(
             "Repair subset is not COMPLETE under the exact frozen source contract."
         )
     source_artifacts = subset.get("source_artifacts")
-    if not isinstance(source_artifacts, Mapping) or any(
-        not Path(str(source_path)).is_file()
-        or runner._sha256_file(Path(str(source_path))) != digest
-        for source_path, digest in source_artifacts.items()
+    if not _subset_source_artifacts_match_current_or_frozen_execution(
+        source_artifacts,
+        source_evidence_sha256=source.get("evidence_sha256"),
+        subset_evidence_sha256=subset.get("evidence_sha256"),
     ):
         raise Part2SensitivityOperationalRepairError(
             "Repair subset implementation provenance changed."

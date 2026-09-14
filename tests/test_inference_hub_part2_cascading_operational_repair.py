@@ -19,6 +19,32 @@ from experiments.misc.inference_hub_discovery import InferenceHubDiscoveryError
 
 ROUTE = "gcp/google/gemini-3.5-flash"
 CURSOR_EPOCH = "cursor-epoch-0123456789abcdef0123456789abcdef"
+ROOT = Path(__file__).resolve().parents[1]
+IS_ANONYMOUS_SUPPLEMENT = (ROOT / "SUPPLEMENT_MANIFEST.json").is_file()
+
+
+def _bind_validator_runtime_hashes(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Use distributed source hashes only inside the anonymized test archive."""
+
+    cascading_path = Path(repair.__file__).resolve()
+    paths = {
+        "EXPECTED_CASCADING_REPAIR_IMPLEMENTATION_SHA256": cascading_path,
+        "EXPECTED_RUNNER_IMPLEMENTATION_SHA256": Path(runner.__file__).resolve(),
+        "EXPECTED_REPAIR_IMPLEMENTATION_SHA256": Path(
+            validator.repair.__file__
+        ).resolve(),
+        "EXPECTED_DISCOVERY_IMPLEMENTATION_SHA256": cascading_path.with_name(
+            "inference_hub_discovery.py"
+        ),
+        "EXPECTED_RATE_LIMIT_IMPLEMENTATION_SHA256": cascading_path.with_name(
+            "inference_hub_rate_limit.py"
+        ),
+    }
+    for attribute, path in paths.items():
+        if IS_ANONYMOUS_SUPPLEMENT or attribute == (
+            "EXPECTED_CASCADING_REPAIR_IMPLEMENTATION_SHA256"
+        ):
+            monkeypatch.setattr(validator, attribute, runner._sha256_file(path))
 
 
 class _Limiter:
@@ -887,6 +913,19 @@ def _parent_chain(tmp_path: Path) -> Any:
             "selected_profile_id": f"profile-{index}",
             "selected_profile_request_sha256": f"{index:064x}",
         })
+    hydrated_subjects = [
+        {
+            **subject,
+            "id": subject["target_id"],
+            "provider": subject["upstream_provider"],
+            "target_model": subject["model"],
+            "endpoint_profile": "nvidia_inference_hub",
+            "verification_status": "fixture_verified",
+            "route_source": "fixture_registry",
+            "compatibility_max_tokens": runner.PART2_MAX_TOKENS_FLOOR,
+        }
+        for subject in subjects
+    ]
     rows = []
     for subject in subjects:
         for trajectory_index in range(12):
@@ -935,7 +974,7 @@ def _parent_chain(tmp_path: Path) -> Any:
                 ),
             },
         },
-        subjects=tuple(subjects),
+        subjects=tuple(hydrated_subjects),
         environment_seeds=validator.EXPECTED_COMMON_ENVIRONMENT_SEEDS,
         contract=runner.Part2Contract(2, 2, 12, 10, 2, 2, 5, 0.2),
     )
@@ -1751,6 +1790,7 @@ def test_resume_rejects_retained_401_before_credentials_or_fresh_preflight(
 def test_crash_after_physical_reservation_resumes_and_recursively_validates(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    _bind_validator_runtime_hashes(monkeypatch)
     chain = _parent_chain(tmp_path)
     clients = (_Client(1), _Client(2, catalog_error=401), _Client(3))
     runtime_calls = 0
@@ -1889,11 +1929,6 @@ def test_crash_after_physical_reservation_resumes_and_recursively_validates(
     )
     tracker = validator._FileTracker()
     tracker.add(manifest_path)
-    monkeypatch.setattr(
-        validator,
-        "EXPECTED_CASCADING_REPAIR_IMPLEMENTATION_SHA256",
-        runner._sha256_file(Path(repair.__file__).resolve()),
-    )
     validated = validator._validate_cascading_overlay(
         manifest_path,
         manifest,
@@ -2190,6 +2225,7 @@ def test_terminally_exhausted_resume_rejects_before_credentials_or_network(
 def test_complete_cascading_run_preserves_parent_rows_and_seals_child(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    _bind_validator_runtime_hashes(monkeypatch)
     chain = _parent_chain(tmp_path)
     clients = (_Client(1), _Client(2, catalog_error=401), _Client(3))
     monkeypatch.setattr(repair, "_load_parent_chain", lambda *_args: chain)
@@ -2265,11 +2301,6 @@ def test_complete_cascading_run_preserves_parent_rows_and_seals_child(
     tracker = validator._FileTracker()
     manifest_path = tmp_path / "v4/private/manifest.json"
     tracker.add(manifest_path)
-    monkeypatch.setattr(
-        validator,
-        "EXPECTED_CASCADING_REPAIR_IMPLEMENTATION_SHA256",
-        runner._sha256_file(Path(repair.__file__).resolve()),
-    )
     validated = validator._validate_cascading_overlay(
         manifest_path, manifest, parent=parent_evidence, tracker=tracker,
         global_attempt_ids=set(),

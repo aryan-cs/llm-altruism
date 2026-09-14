@@ -1,7 +1,7 @@
 \PassOptionsToPackage{numbers,compress}{natbib}
 \documentclass{article}
 
-\usepackage[preprint,eandd]{neurips_2026}
+\usepackage[eandd]{neurips_2026}
 \usepackage[T1]{fontenc}
 \usepackage[utf8]{inputenc}
 \usepackage{amsmath}
@@ -34,7 +34,7 @@
 }{\definitiveresultsfalse}
 
 \title{Safety Beyond Refusal}
-\author{Aryan Gupta\\\texttt{aryan.cs.app@gmail.com}}
+\author{Anonymous Authors}
 
 \begin{document}
 \maketitle
@@ -44,13 +44,12 @@ Refusing an explicit harmful request is necessary, but many consequential choice
 We introduce \textbf{Prosocial Readiness Bench}, a three-part evaluation of harmful-request refusal, self-directed cooperation in dyadic dilemmas, and restraint in a repeated commons environment.
 The tasks form a staged progression from explicit and identifiable harm to bilateral and then diffuse, cumulative externalities; they measure complementary observable behaviors rather than a latent moral trait.
 \ifdefinitiveresults
-Refusal rates occupy a comparatively narrow \ProviderSafePartZeroModelRefusalRatePctMinimum--\ProviderSafePartZeroModelRefusalRatePctMaximum\% band, while welfare-preserving self-choice spans \ProviderSafePartOneModelWelfareRatePctMinimum--\ProviderSafePartOneModelWelfareRatePctMaximum\% and commons restraint spans \ProviderSafePartTwoModelRestraintRatePctMinimum--\ProviderSafePartTwoModelRestraintRatePctMaximum\%.
+Refusal rates occupy a comparatively narrow \ProviderSafePartZeroModelRefusalRatePctMinimum--\ProviderSafePartZeroModelRefusalRatePctMaximum\% band, while welfare-preserving self-choice spans \ProviderSafePartOneModelWelfareRatePctMinimum--\ProviderSafePartOneModelWelfareRatePctMaximum\% and the pooled all-scheduled commons-restraint proportion spans \ProviderSafePartTwoModelRestraintRatePctMinimum--\ProviderSafePartTwoModelRestraintRatePctMaximum\%.
+Semantic-invalid commons actions remain in the restraint denominator as nonrestraint but have zero simulator effect.
 On exact-route overlaps, refusal rank is only weakly related to cooperation ($\rho=\ProviderSafePairwisePartZeroPartOneSpearmanRho{}$) and commons restraint ($\rho=\ProviderSafePairwisePartZeroPartTwoSpearmanRho{}$), whereas cooperation and restraint align more strongly ($\rho=\ProviderSafePairwisePartOnePartTwoSpearmanRho{}$).
-In the commons, seven systems preserve both the reserve and population perfectly in every run, while GPT-OSS 20B and Nemotron 3 Super cross the collapse threshold and retain only 20\% and 10\% of the initial population.
+Among the 18 commons routes with at least one of the \ProviderSafePartTwoEnvironmentallyEstimableTrajectoryCount{} zero-invalid trajectories, normalized reserve area spans \ProviderSafePartTwoModelNormalizedAURCMinimum--\ProviderSafePartTwoModelNormalizedAURCMaximum{} and final population retention spans \ProviderSafePartTwoModelPopulationRetentionPctMinimum--\ProviderSafePartTwoModelPopulationRetentionPctMaximum\%; the other \ProviderSafePartTwoNonestimableModelCount{} routes are not environmentally estimable (NE).
 \else
-Refusal rates occupy a comparatively narrow 64.6--97.9\% band, while welfare-preserving self-choice spans 0.0--98.4\% and commons restraint spans 34.5--100.0\%.
-On exact-route overlaps, refusal rank is only weakly related to cooperation ($\rho=0.139$) and commons restraint ($\rho=-0.162$), whereas cooperation and restraint align more strongly ($\rho=0.686$).
-In the commons, seven systems preserve both the reserve and population perfectly in every run, while GPT-OSS 20B and Nemotron 3 Super cross the collapse threshold and retain only 20\% and 10\% of the initial population.
+Definitive numerical results require the hash-bound generated asset bundle distributed with the submission.
 \fi
 The comparison changes once costs become socially mediated or accumulate through an environment, which is precisely the behavior a refusal-only evaluation cannot reveal.
 \end{abstract}
@@ -125,7 +124,7 @@ Our contributions are:
 \draw[arrow] (p1.south) -- (p2.north);
 \draw[arrow] (p2.south) -- (shared.north);
 \end{tikzpicture}}
-\caption{Prosocial Readiness Bench evaluates increasingly indirect cost shifting in a vertical progression. Each stage box names the prompted conflict, affected party, primary outcome, and independent evidence unit. Part~0 tests explicit harmful assistance; Part~1 tests bilateral cost shifting; Part~2 tests diffuse, cumulative commons harm. Higher task-specific values mean more refusal, cooperation, or preservation, while lower values mean more harmful assistance, focal advantage, or commons overuse. The outcomes remain separate.}
+\caption{Prosocial Readiness Bench evaluates increasingly indirect cost shifting in a vertical progression. Each stage box names the prompted conflict, affected party, primary outcome, and independent evidence unit. Part~0 tests explicit harmful assistance; Part~1 tests bilateral cost shifting; Part~2 tests diffuse, cumulative commons harm. Higher task-specific values mean more refusal, cooperation, or preservation, while lower values mean more harmful assistance, focal advantage, or, in Part~2, overuse and/or a semantic-invalid nonaction. A semantic invalid has zero simulator effect. The outcomes remain separate.}
 \label{fig:overview}
 \end{figure}
 
@@ -146,15 +145,16 @@ Together they reveal which systems remain conservative as harm becomes less expl
 The useful object is the profile: where conservative behavior persists across distinct conflicts and where it appears only when the rule is explicit.
 
 \section{Related Work}
-HarmBench, JailbreakBench, and related red-teaming suites evaluate harmful-request compliance, refusal, and safeguard robustness \citep{mazeika2024harmbench,chao2024jailbreakbench,ganguli2022redteaming,bai2022constitutional,zou2023universal,wang2024donotanswer,rottger2024xstest}.
+HarmBench, JailbreakBench, and related benchmarks and methods evaluate harmful-request compliance, refusal, and safeguard robustness \citep{mazeika2024harmbench,chao2024jailbreakbench,ganguli2022redteaming,bai2022constitutional,zou2023universal,wang2024donotanswer,rottger2024xstest}.
 They motivate Part~0 but do not directly measure choices in social dilemmas or repeated resource environments.
 
 LLM game-theory studies test strategic behavior in settings inspired by classical work on cooperation and common-pool resources \citep{axelrod1984evolution,hardin1968tragedy,ostrom1990governing,dafoe2020open,akata2025playing,brookins2024playing,horton2023homo}.
-GovSim evaluates collective resource governance in multi-agent simulations \citep{piatti2024govsim}; our repeated commons instead holds an exact model society to a short common-seed transition contract and reports action, reserve, and population outcomes separately.
+GovSim evaluates collective resource governance in multi-agent simulations \citep{piatti2024govsim}; our repeated commons instead holds an exact model society to a fixed 100-day common-seed transition contract and reports action, reserve, and population outcomes separately.
 AgentBench, generative agents, and SOTOPIA broaden evaluation to tool use and open-ended social interaction \citep{liu2024agentbench,park2023generative,zhou2024sotopia}.
+MACHIAVELLI measures reward--ethics trade-offs in interactive fiction, SocialEval measures goal achievement and interpersonal abilities in scripted social worlds, and CoopEval compares cooperation-sustaining mechanisms across social dilemmas; our benchmark instead connects explicit refusal, one-shot self-choice, and state-coupled commons restraint through exact-route overlaps \citep{pan2023machiavelli,zhou2025socialeval,tewolde2026coopeval}.
 Our contribution is a controlled comparison across explicit refusal, a one-shot interpersonal externality, and a repeated collective externality, with exact-identity comparisons on overlapping routes.
 
-Multi-axis suites such as HELM and DecodingTrust show the value of reporting distinct capabilities and risks rather than one score \citep{hendrycks2021measuring,srivastava2023beyond,liang2023helm,openai2023gpt4,wang2023decodingtrust,kirk2024prism}.
+Broad evaluations and multi-axis suites such as HELM and DecodingTrust show the value of reporting distinct capabilities and risks rather than one score \citep{hendrycks2021measuring,srivastava2023beyond,liang2023helm,openai2023gpt4,wang2023decodingtrust,kirk2024prism}.
 Dataset and model documentation standards motivate our emphasis on provenance and reproducible release artifacts \citep{bender2018datastatements,holland2018datasetnutrition,mitchell2019modelcards,gebru2021datasheets,pushkarna2022datacards,akhtar2024croissant}.
 Prosocial Readiness Bench combines those principles with one staged behavioral question: what changes when evaluation moves beyond refusal?
 
@@ -207,27 +207,30 @@ They remain distinct estimands: advice asks what another actor should do, observ
 Comparing them diagnoses role-conditioned behavior without treating verbal advice as the model's own action.
 
 \subsection{Part 2: Repeated Commons Restraint}
-Part~2 places five same-model agents in a 12-day common-pool environment.
-At each agent-day, \texttt{OPTION\_A} awards one private point and preserves the reserve; \texttt{OPTION\_B} awards two private points and removes two reserve units.
+Part~2 places 50 same-model agents in a 100-day common-pool environment initialized with 2,500 reserve units.
+At each agent-day, \texttt{OPTION\_A} awards one private point and preserves the reserve; \texttt{OPTION\_B} awards two private points and removes two reserve units. If every living agent chooses \texttt{OPTION\_A}, the group score increases by five; if every living agent chooses \texttt{OPTION\_B}, it decreases by five.
 Agents observe current population and resource state, so repeated overuse can reduce both the reserve and the surviving group.
-The prompt and engine implement and record the same payoffs.
+Invalid actions earn no private points, have no reserve effect, count as nonrestraint, and block either unanimous group update. When the reserve is empty at day end, matched seeded attrition removes 20\% of the living population. The prompt and engine implement and record the same payoffs and transitions.
 
-Each system receives 12 independent common environment seeds.
-The action metric is restraint over all scheduled agent-days.
-Environmental outcomes are normalized area under the reserve curve (AURC), reserve nondepletion, and final population retention.
+Each system receives the same set of 12 independently drawn common environment seeds.
+The primary descriptive action proportion pools all scheduled living agent-days within a route: total restraint actions divided by total scheduled living agent-days, with semantic invalids retained as nonrestraint.
+For seed-level inference, we additionally report the unweighted mean of the 12 trajectory-specific all-scheduled restraint proportions and its Student-$t$ interval. Because attrition can change the number of scheduled living agent-days by trajectory, this equal-seed-weighted estimate need not equal the pooled descriptive proportion.
+Environmental outcomes are normalized area under the reserve curve (AURC), normalized area under the population curve (AUPC), reserve nondepletion, and final population retention.
 For a trajectory of horizon $T$,
 \[
   \mathrm{AURC}=\frac{1}{T}\sum_{t=1}^{T}\frac{R_t}{R_{\max}},
   \qquad
+  \mathrm{AUPC}=\frac{1}{T}\sum_{t=1}^{T}\frac{P_t}{P_0},
+  \qquad
   \mathrm{PopulationRetention}=\frac{P_T}{P_0}.
 \]
-Intervals are Student-$t$ intervals over independent trajectories, not binomial intervals over state-coupled agent-days.
+Environmental summaries use only complete zero-invalid trajectories. The seed-level restraint mean uses a Student-$t$ interval over all 12 independent trajectories. Continuous environmental outcomes use Student-$t$ intervals over the zero-invalid eligible trajectories available to that route, while reserve nondepletion uses Wilson score intervals over those eligible trajectories; neither treats state-coupled agent-days as independent. A route with no eligible trajectory is NE, while a route with one eligible trajectory has a point estimate but no estimable Student-$t$ interval.
 A separate resolution-V panel varies capacity, depletion units, collapse death rate, society size, and horizon for five exact routes compatible with every frozen cell; no replacement route is substituted.
 
 \section{Experimental Setup}
 \subsection{Model Coverage and Exact Identity}
 The frozen registry covers current GPT, Claude Haiku/Sonnet/Opus, Gemini, Llama, DeepSeek, Qwen, Nemotron, MiniMax, Kimi, GLM, Mistral, and other compatible frontier or strong open-weight routes through exact authenticated endpoints.
-Coverage follows task compatibility rather than a forced common roster: Part~0 schedules 22 systems, Part~1 schedules 75 hosted routes, and Part~2 schedules 19 systems.
+Coverage follows task compatibility rather than a forced common roster: Part~0 schedules 22 systems, Part~1 schedules 75 hosted routes, and Part~2 observes 23 systems after one exact-route exclusion without substitution.
 Cross-task comparisons therefore use only exact overlapping routes, while each task retains the broader evidence available for its own estimand.
 Four pinned local Hugging Face controls separately complete the Part~1 bank to probe execution scale; they are neither substitutes for unavailable hosted routes nor pooled into the hosted panel.
 The manifest records requested route, upstream provider, and returned model identity for every call.
@@ -249,7 +252,7 @@ They are descriptive profiles, not a composite score or causal model-family comp
 \section{Results}
 \label{app:current-results}
 The results follow the benchmark's progression from a conspicuous safety rule to increasingly indirect externalities.
-The campaigns contribute \ProviderSafePartZeroScheduledResponseCount{} Part~0 responses, \ProviderSafePartOneScheduledUnitCount{} Part~1 scenario roots, and \ProviderSafePartTwoTrajectoryCount{} independent Part~2 trajectories.
+The campaigns contribute \ProviderSafePartZeroScheduledResponseCount{} Part~0 responses, \ProviderSafePartOneScheduledUnitCount{} Part~1 self-choice units, and \ProviderSafePartTwoTrajectoryCount{} Part~2 trajectories: 12 independently seeded trajectories per route, using the same common seed set across routes.
 Those counts establish the evidence at each task's proper unit; they are not pooled into a common denominator.
 
 \subsection{Refusal Does Not Preserve the Model Ordering}
@@ -288,11 +291,11 @@ Role wording therefore changes the measured behavior, but none of these verbal f
 \end{figure}
 
 \subsection{Commons Restraint and Consequences}
-Across \ProviderSafePartTwoModelCount{} systems, median normalized AURC is \ProviderSafePartTwoModelNormalizedAURCMedian{}, median all-scheduled restraint is \ProviderSafePartTwoModelRestraintRatePctMedian\%, and median final population retention is \ProviderSafePartTwoModelPopulationRetentionPctMedian\%.
-These medians describe a nominal environment in which most systems avoid group collapse, but they conceal a consequential lower tail.
-Seven systems preserve the resource, population, and every scheduled action perfectly in all 12 trajectories.
-At the other extreme, GPT-OSS 20B and Nemotron 3 Super combine low restraint with reserve depletion and retain only 20\% and 10\% of the initial population.
-The trajectory makes the behavioral story concrete: repeated focal advantage becomes resource loss and, after the collapse threshold, group loss.
+Across all \ProviderSafePartTwoModelCount{} systems, the median pooled all-scheduled restraint proportion is \ProviderSafePartTwoModelRestraintRatePctMedian\%.
+Semantic-invalid actions count as nonrestraint but have zero simulator effect: the panel records \ProviderSafePartTwoInvalidAgentDayCount{} such agent-days across \ProviderSafePartTwoSemanticInvalidTrajectoryCount{} trajectories.
+Environmental summaries instead use the \ProviderSafePartTwoEnvironmentallyEstimableTrajectoryCount{} zero-invalid trajectories. The \ProviderSafePartTwoNonestimableModelCount{} systems with no eligible trajectory are NE; among the remaining 18 route summaries, median normalized AURC is \ProviderSafePartTwoModelNormalizedAURCMedian{}, median normalized AUPC is \ProviderSafePartTwoModelNormalizedAUPCMedian{}, and median final population retention is \ProviderSafePartTwoModelPopulationRetentionPctMedian\%.
+Across those 18 environmentally estimable route summaries, normalized AURC spans \ProviderSafePartTwoModelNormalizedAURCMinimum--\ProviderSafePartTwoModelNormalizedAURCMaximum{}, normalized AUPC spans \ProviderSafePartTwoModelNormalizedAUPCMinimum--\ProviderSafePartTwoModelNormalizedAUPCMaximum{}, and final population retention spans \ProviderSafePartTwoModelPopulationRetentionPctMinimum--\ProviderSafePartTwoModelPopulationRetentionPctMaximum\%.
+Thus a low all-scheduled restraint rate can reflect overuse, semantic invalids, or both; only overuse changes the reserve. Within the zero-invalid environmental subset, repeated overuse produces measurable reserve loss and, after exhaustion, group loss.
 Figure~\ref{fig:part2-completed} keeps those action, resource, and population stages visible rather than compressing them into one score.
 
 \subsection{Environmental Sensitivity}
@@ -302,50 +305,14 @@ Because the panel uses only two seeds per cell, it locates possible parameter de
 \else
 \section{Results}
 \label{app:current-results}
-The repeated-commons evaluation contains 228 independent trajectories across 19 exact routes and 13,495 scheduled agent-days.
-Mean system restraint ranges from 34.5--100.0\%, and normalized reserve area ranges from 0.224--1.000.
-Seven systems preserve both the reserve and population perfectly in every run; GPT-OSS 20B and Nemotron 3 Super instead deplete the reserve and retain only 20\% and 10\% of the initial population.
-Table~\ref{tab:part2-current} reports the complete action--resource--population profile.
-
-\begin{table}[!htbp]
-\centering
-\caption{Part~2 results. Each row is one exact model route evaluated on 12 common environment seeds. ``Restraint'' is the mean share of scheduled agent-days choosing the resource-preserving action; ``AURC'' is normalized area under the reserve curve; ``final population'' is final divided by initial population. Brackets give trajectory Student-$t$ 95\% intervals. Higher values in every numeric column mean more action, resource, or group preservation in this simulator; lower values mean more overuse, reserve depletion, or population loss.}
-\label{tab:part2-current}
-\scriptsize
-\setlength{\tabcolsep}{3.7pt}
-\begin{tabular}{lccc}
-\toprule
-Model & Restraint \% [95\%] & AURC [95\%] & Final population \\
-\midrule
-Claude Haiku 4.5 & 100.0 [100.0, 100.0] & 1.000 [1.000, 1.000] & 100\% \\
-Claude Opus 4.6 & 100.0 [100.0, 100.0] & 1.000 [1.000, 1.000] & 100\% \\
-Claude Sonnet 4.6 & 100.0 [100.0, 100.0] & 1.000 [1.000, 1.000] & 100\% \\
-Llama 3.3 70B Instruct & 100.0 [100.0, 100.0] & 1.000 [1.000, 1.000] & 100\% \\
-GPT-3.5 Turbo & 100.0 [100.0, 100.0] & 1.000 [1.000, 1.000] & 100\% \\
-GPT-4o & 100.0 [100.0, 100.0] & 1.000 [1.000, 1.000] & 100\% \\
-GPT-5.2 & 100.0 [100.0, 100.0] & 1.000 [1.000, 1.000] & 100\% \\
-GPT-4.1 & 99.9 [99.6, 100.0] & 0.997 [0.989, 1.000] & 100\% \\
-GPT-5.4 & 96.7 [92.4, 100.0] & 0.961 [0.912, 1.000] & 100\% \\
-GPT-5 & 94.0 [87.8, 100.0] & 0.948 [0.880, 1.000] & 100\% \\
-Claude Sonnet 4.5 & 91.8 [91.5, 92.1] & 0.836 [0.830, 0.842] & 100\% \\
-Gemini 3.1 Pro Preview & 80.1 [69.5, 90.8] & 0.621 [0.419, 0.823] & 100\% \\
-Gemini 3.5 Flash & 73.8 [63.9, 83.6] & 0.514 [0.331, 0.696] & 100\% \\
-Gemini 2.5 Pro & 73.2 [71.5, 74.9] & 0.462 [0.440, 0.484] & 100\% \\
-Qwen 3.6 27B & 71.4 [66.2, 76.6] & 0.683 [0.624, 0.742] & 100\% \\
-Gemini 2.5 Flash & 66.5 [66.2, 66.8] & 0.299 [0.296, 0.301] & 100\% \\
-Qwen 3.5 35B-A3B & 61.3 [60.6, 61.9] & 0.325 [0.301, 0.349] & 100\% \\
-GPT-OSS 20B & 43.2 [39.9, 46.2] & 0.315 [0.300, 0.330] & 20\% \\
-Nemotron 3 Super & 34.5 [30.5, 37.8] & 0.224 [0.209, 0.240] & 10\% \\
-\bottomrule
-\end{tabular}
-\end{table}
+The hash-bound generated result bundle is required for a numerical build of this submission.
 \fi
 
 \clearpage
 \begin{figure}[p]
 \centering
 \includegraphics[width=\linewidth,height=0.76\textheight,keepaspectratio]{figures/part2_all_models}
-\caption{Repeated-commons outcomes for 19 exact model routes, with provider families contiguous and newer frozen route versions above older ones within each family. Each row is one route evaluated on 12 common environment seeds. The three stacked panels connect model action (mean trajectory restraint), resource consequence (normalized area under the reserve curve), and group consequence (final population divided by initial population); whiskers are trajectory Student-$t$ 95\% intervals. Higher values mean greater action, resource, or population preservation in this simulator; lower values mean more overuse, depletion, or population loss. The axes remain separate outcomes rather than a composite score.}
+\caption{Repeated-commons outcomes for 23 exact model routes, with provider families contiguous and newer frozen route versions above older ones within each family. Each route has 12 independently seeded trajectories under the same common seed set in the 50-agent, 100-day environment. The action panel uses all 276 trajectories and reports the equal-seed-weighted mean of each trajectory's all-scheduled restraint proportion, with semantic invalids counted as nonrestraint and given zero simulator effect. Because attrition changes realized living-agent-day denominators, this inferential trajectory mean can differ from the pooled all-scheduled descriptive proportion used for the headline range and complete ledger. The resource and population panels use only the 198 zero-invalid trajectories: 18 routes have at least one eligible trajectory, while five routes are NE. Whiskers for these continuous outcomes are trajectory-level Student-$t$ 95\% intervals. Higher values mean greater action, resource, or population preservation; low restraint can reflect overuse, invalids, or both, whereas only overuse causes depletion or population loss. The axes remain separate outcomes rather than a composite score.}
 \label{fig:part2-completed}
 \end{figure}
 \clearpage
@@ -365,9 +332,9 @@ Executed actions and resulting state transitions should remain primary, while co
 \section{Limitations and Broader Impact}
 \label{sec:scope}
 The benchmark measures observable outputs in controlled tasks rather than intent or real-world trustworthiness.
-Part~0 estimates harmful-only refusal and response-language sensitivity; its automated rankings remain descriptive until language-qualified human validation is complete.
+Part~0 estimates harmful-only refusal and response-language sensitivity; its automated rankings remain descriptive until language-qualified human validation is complete. It uses archived public English requests with response-language instructions, not translated request banks, and those public items may have appeared in model training or tuning.
 Part~1 isolates bilateral cost shifting in stylized dilemmas; its procedurally balanced bank has not yet received independent domain-expert content validation, so inference is scoped to the frozen design.
-Part~2 isolates cumulative externalities in homogeneous five-agent societies and a controlled 12-day environment; communication, institutions, heterogeneous roles, memory, and human interaction remain important extensions.
+Part~2 isolates cumulative externalities in homogeneous 50-agent societies and a controlled 100-day environment; communication, institutions, heterogeneous roles, memory, and human interaction remain important extensions.
 The sensitivity panel uses two seeds per cell, limiting the precision of route--factor contrasts.
 Exact endpoint results describe frozen routes and prompts, not vendors or model families in general.
 
@@ -419,7 +386,7 @@ Times-compatible typography matches the submission template; the original blue, 
 
 \begin{figure}[p]\centering
 \includegraphics[width=\linewidth,height=0.74\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/matched_current_route_profile}
-\caption{Matched profile for the 19 current exact routes scheduled in all three parts. Rows remain aligned, provider families are contiguous, and newer frozen route versions appear above older ones within each family. Blue dots show refusal over 144 scheduled responses, orange dots show welfare-preserving self-choice over 384 roots, and green dots show mean trajectory restraint over 12 independent commons trajectories; whiskers use the task-specific uncertainty unit named in the figure. Farther right is favorable within every panel because it means less harmful assistance, fewer counterpart costs, or more commons restraint. Large horizontal changes across a row indicate task-specific disagreement, not temporal change. The panels remain separate estimands and are never averaged.}
+\caption{Matched profile for the 22 current exact routes scheduled in all three parts. Rows remain aligned, provider families are contiguous, and newer frozen route versions appear above older ones within each family. Blue dots show refusal over 144 scheduled responses, orange dots show welfare-preserving self-choice over 384 roots, and green dots show the equal-seed-weighted mean of the 12 trajectory-specific all-scheduled restraint proportions from independent 100-day commons trajectories; whiskers use the task-specific uncertainty unit named in the figure. The green seed-level inferential estimate can differ from the pooled all-scheduled descriptive proportion when attrition changes trajectory denominators. Farther right is favorable within every panel because it means less harmful assistance, fewer counterpart costs, or more commons restraint. Large horizontal changes across a row indicate task-specific disagreement, not temporal change. The panels remain separate estimands and are never averaged.}
 \end{figure}
 
 \clearpage
@@ -460,7 +427,7 @@ That contrast is the paper's central story in the original visual grammar: model
 \clearpage
 \begin{figure}[H]\centering
 \includegraphics[width=\linewidth,height=0.70\textheight,keepaspectratio]{figures/part2_restraint_rate_by_model}
-\caption{Updated original-style Part~2 bar graph for all 19 current exact routes. Each bar is one authenticated route's mean all-scheduled restraint percentage across 12 independent common-seed trajectories; providers are contiguous, and newer frozen route versions appear to the left within each provider. The number above each bar is the point estimate and sits beyond the upper whisker. Whiskers are trajectory-level Student-$t$ 95\% intervals. A taller bar and higher percentage are favorable in this simulator because agents more often choose the reserve-preserving action; a shorter bar means more private-gain overuse and therefore greater pressure on the shared reserve. The plot is a task-specific action comparison, not a general safety ranking.}
+\caption{Updated original-style Part~2 bar graph for all 23 current exact routes. Each bar is one authenticated route's equal-seed-weighted mean of the 12 trajectory-specific all-scheduled restraint proportions from independent 100-day common-seed trajectories; providers are contiguous, and newer frozen route versions appear to the left within each provider. The number above each bar is the seed-level inferential point estimate and sits beyond the upper whisker. Whiskers are trajectory-level Student-$t$ 95\% intervals. Because attrition changes realized living-agent-day denominators, these equal-seed-weighted estimates can differ from the pooled all-scheduled descriptive proportions in the headline range and complete ledger. A taller bar and higher percentage are favorable in this simulator because agents more often choose the reserve-preserving action. A shorter bar can reflect private-gain overuse, semantic-invalid nonactions, or both; invalids count as nonrestraint but have zero simulator effect, so only overuse pressures the reserve. The plot is a task-specific action comparison, not a general safety ranking.}
 \label{fig:original-view-restraint}
 \end{figure}
 
@@ -475,18 +442,18 @@ Thus the line graphs add mechanism rather than another ranking: they connect the
 \vspace{15pt}
 \textbf{B. Living population}\par\vspace{6pt}
 \includegraphics[width=\linewidth,height=0.35\textheight,keepaspectratio]{figures/part2_population_over_time}
-\caption{Updated original-style longitudinal commons views for the 19 current exact routes. Each legend entry is one route, listed in contiguous provider groups with newer frozen versions first; each plotted point is the day-wise mean of 12 common-seed trajectories. Panel~A's horizontal axis is simulation day and its vertical axis is shared reserve units out of the initial 50. Higher curves are favorable because they indicate slower cumulative depletion; lower curves mean that repeated private-gain choices consumed more of the commons. Panel~B uses the same day axis and shows mean living population out of the initial five agents. Higher curves are favorable because more agents remain alive; a downward curve is adverse because reserve exhaustion has triggered matched attrition. Coincident curves legitimately overlap when routes produce the same mean state path; color, line style, marker, and the complete legend preserve identity without adding artificial offsets.}
+\caption{Updated original-style longitudinal commons views for the environmentally estimable subset. Each legend entry is one route, listed in contiguous provider groups with newer frozen versions first; each plotted point is the day-wise mean over that route's zero-invalid eligible trajectories. Eighteen routes have at least one eligible trajectory; five zero-eligible routes are omitted and reported as NE rather than assigned a curve. Panel~A's horizontal axis is simulation day and its vertical axis is shared reserve units out of the initial 2,500. Higher curves indicate slower cumulative depletion; lower curves mean repeated private-gain choices consumed more of the commons. Panel~B uses the same day axis and shows mean living population out of the initial 50 agents. Higher curves mean more agents remain alive; a downward curve means reserve exhaustion triggered matched attrition. Coincident curves legitimately overlap when routes produce the same eligible mean state path; color, line style, marker, and the complete legend preserve identity without adding artificial offsets.}
 \label{fig:original-view-trajectories}
 \end{figure}
 
 \clearpage
 \begin{figure}[p]\centering
 \includegraphics[width=\linewidth,height=0.79\textheight,keepaspectratio]{figures/part2_agent_day_raster_current}
-\caption{Updated original-style Part~2 agent-day action raster for all 19 current exact routes. Each labeled route is a five-row block, one subrow for each initially living agent; columns are simulation days 1--12. The displayed trajectory is prespecified seed index~0 for every route, so the detailed patterns are comparable and were not selected after observing outcomes. Green cells are reserve-preserving restraint choices (\texttt{OPTION\_A}), so more green is favorable within this commons task. Vermillion cells are private-gain overuse choices (\texttt{OPTION\_B}), so more red is adverse because it depletes the shared reserve. Gray cells mean that attrition had already removed that agent and no decision was scheduled; gray is therefore a downstream consequence, not refusal or an invalid response. Providers are contiguous and newer frozen route versions appear above older ones. Because this is one illustrative common-seed trajectory rather than an uncertainty summary, route-level claims remain based on the 12-trajectory bars and mean curves.}
+\caption{Updated original-style Part~2 agent-day action raster for all 23 current exact routes. Each labeled route is a 50-row block, one subrow for each initially living agent; columns are simulation days 1--100. The displayed trajectory is prespecified seed index~0 for every route, so the detailed patterns are comparable and were not selected after observing outcomes. Green cells are reserve-preserving restraint choices (\texttt{OPTION\_A}). Vermillion cells are private-gain overuse choices (\texttt{OPTION\_B}) that deplete the reserve. Orange cells are genuine semantic-invalid nonactions: they count as nonrestraint but have zero simulator effect. Gray cells mean attrition had already removed that agent and no decision was scheduled; gray is therefore a downstream consequence, not refusal or an invalid response. Providers are contiguous and newer frozen route versions appear above older ones. Because this is one illustrative common-seed trajectory rather than an uncertainty summary, action-rate claims use the 12-trajectory bars, while environmental claims use only eligible zero-invalid trajectories and report zero-eligible routes as NE.}
 \label{fig:original-view-agent-day-raster}
 \end{figure}
 
-\newcommand{\CrossAppendixCaption}[1]{Task-specific portrait profile, segment #1 of 4. Rows are exact target routes grouped contiguously by provider family, with newer frozen route versions above older ones. The three stacked panels show Part~0 refusal versus compliance, Part~1 welfare preservation versus focal advantage, and Part~2 restraint versus overuse, each with its own denominator. Farther-right green circles mean more refusal of harmful assistance, fewer counterpart costs, or more commons restraint; farther-right vermillion diamonds mean more harmful compliance, focal advantage, or overuse. Shape preserves direction in grayscale. A gray cross means the route was not scheduled for that part. Panels are not pooled.}
+\newcommand{\CrossAppendixCaption}[1]{Task-specific portrait profile, segment #1 of 4. Rows are exact target routes grouped contiguously by provider family, with newer frozen route versions above older ones. The three stacked panels show Part~0 refusal versus compliance, Part~1 welfare preservation versus focal advantage, and Part~2 restraint versus overuse, each over its own all-scheduled denominator. Farther-right green circles mean more refusal of harmful assistance, fewer counterpart costs, or more commons restraint; farther-right vermillion diamonds mean more harmful compliance, focal advantage, or Part~2 overuse. Unclear or invalid outcomes remain in the corresponding denominator but are omitted as visual bookkeeping; a Part~2 semantic invalid has zero simulator effect. Shape preserves direction in grayscale. A gray cross means the route was not scheduled for that part. Panels are not pooled.}
 \foreach \block in {1,2,3,4}{%
 \clearpage\begin{figure}[p]\centering
 \includegraphics[width=\linewidth,height=0.78\textheight,keepaspectratio]{../../data/processed/provider-safe-v2-paper-assets/all_models_cross_phase_outcome_profile_block\block}
@@ -496,10 +463,10 @@ Thus the line graphs add mechanism rather than another ranking: they connect the
 \clearpage
 \subsection{Compact Matched-Route Ledger}
 The matched panel is the most direct numerical companion to the paper's central comparison: it holds route identity fixed while moving from explicit refusal to bilateral cooperation and then repeated commons restraint.
-Table~\ref{tab:compact-matched-core} therefore retains one row per exact route scheduled in all three parts and reports the action outcome from each task together with the two downstream commons consequences.
+Table~\ref{tab:compact-matched-core} therefore retains one row per exact route scheduled in all three parts and reports the Part~0/1 all-scheduled action proportions, the Part~2 equal-seed-weighted trajectory-mean action estimate, and the two downstream commons consequences.
 It is a profile, not a composite: differences across columns show where behavior changes with the form of the externality.
 
-The anonymous supplement preserves the complete high-resolution record rather than forcing it into the paper: task-specific confidence intervals, all 22 Part~0 routes, all 75 hosted Part~1 routes, all 19 Part~2 routes, response-language cells, role calibration, environment sensitivity, local controls, and exact upstream target IDs.
+The anonymous supplement preserves the complete high-resolution record rather than forcing it into the paper: task-specific confidence intervals, all 22 Part~0 routes, all 75 hosted Part~1 routes, all 23 Part~2 routes, response-language cells, role calibration, environment sensitivity, local controls, and exact upstream target IDs.
 Those ledgers remain hash-bound to the same sealed aggregate graph and can be inspected or regenerated independently.
 \begingroup
 \input{../../data/processed/provider-safe-v2-paper-assets/compact_matched_core_table.tex}
@@ -510,7 +477,7 @@ Those ledgers remain hash-bound to the same sealed aggregate graph and can be in
 \label{app:artifact-map}
 The public aggregate adapter validates every source manifest, journal binding, exact route identity, frozen schedule, denominator, and interval contract before producing text-free tables.
 The paper-asset generator validates those tables again, writes vector PDFs and 300-dpi PNGs, centers quantitative table columns, and records file hashes and 15-point outer spacing in its manifest.
-The original-view generator separately replays all 228 bound Part~2 trajectories without network access and requires every final state, AURC, AUPC, restraint rate, and retained agent-day action to match the released evidence before it writes the two aggregate temporal figures and the common-seed action raster.
+The original-view generator separately replays all 276 bound Part~2 trajectories without network access and requires every final state, AURC, AUPC, restraint rate, and retained agent-day action to match the released evidence. It then writes all-trajectory action views, eligible-only temporal means for the 198 zero-invalid trajectories, and the prespecified common-seed action raster; zero-eligible routes remain NE.
 Its source and rendered PNGs are included in the anonymous supplement; private prompts, responses, reasoning, and journals remain excluded.
 The anonymous supplement includes aggregate CSV/JSONL, current PNG and table assets, schemas, documentation, and Croissant 1.1 metadata; a clean extracted copy can rebuild and verify the archive without a Git object store.
 

@@ -1975,7 +1975,7 @@ def _plot_matched_current_route_profile(
             ORANGE,
         ),
         (
-            "Part 2: restraint",
+            "Part 2: seed-mean restraint",
             "part2",
             "mean_trajectory_restraint_rate_all_scheduled",
             "mean_trajectory_restraint_rate_all_scheduled_t95_low",
@@ -2044,7 +2044,7 @@ def _plot_matched_current_route_profile(
         _draw_provider_separators(ax, matched_rows)
     _figure_footer(
         fig,
-        "Blue, orange, and green dots are task-specific point estimates; horizontal whiskers are harmful-root sensitivity intervals, stratified scenario-root sensitivity intervals, and trajectory Student-t 95% intervals, respectively. Longer colored stems mean a higher rate within that panel. A row moving left from refusal to cooperation or restraint is a model-ordering disagreement, not a decline over time. The aligned profile visualizes why refusal has weak rank association with the two beyond-refusal outcomes; no values are averaged across panels.",
+        "Blue, orange, and green dots are task-specific point estimates; horizontal whiskers are harmful-root sensitivity intervals, stratified scenario-root sensitivity intervals, and trajectory Student-t 95% intervals, respectively. Part 2 is the equal-seed-weighted mean of 12 trajectory-specific all-scheduled proportions, not the pooled living-agent-day proportion; attrition can make them differ. Longer colored stems mean a higher rate within that panel. A row moving left from refusal to cooperation or restraint is a model-ordering disagreement, not a decline over time. No values are averaged across panels.",
         x=0.08,
         y=0.012,
         width=110,
@@ -2386,13 +2386,13 @@ def _plot_part2(data: Mapping[str, Any], directory: Path) -> list[Path]:
     fig.patch.set_facecolor("white")
     fig.suptitle(f"Part 2 commons outcomes for {len(rows)} exact model routes", x=0.075, y=0.995, ha="left", fontsize=15, fontweight="bold", color=INK)
     fig.text(0.075, 0.953, "One row per route; 12 trajectories per route; provider families are contiguous and newest route versions appear first.", fontsize=9, color=MUTED)
-    _lollipop_panel(axes[0], restraint, labels, title="Model action: mean trajectory restraint [t95]", color=GREEN, show_labels=True, intervals=restraint_intervals)
+    _lollipop_panel(axes[0], restraint, labels, title="Model action: equal-seed mean trajectory restraint [t95]", color=GREEN, show_labels=True, intervals=restraint_intervals)
     _lollipop_panel(axes[1], aurc, labels, title="Resource consequence: mean AURC [t95] / env.", color=GREEN, show_labels=True, intervals=aurc_intervals)
     _lollipop_panel(axes[2], population, labels, title="Group consequence: population retained [t95] / env.", color=GREEN, show_labels=True, intervals=population_intervals)
     for ax in axes:
         ax.tick_params(axis="y", labelsize=5.7)
         _draw_provider_separators(ax, rows)
-    _figure_footer(fig, "The three stacked panels connect model action (restraint), resource consequence (AURC), and group consequence (final population retained). Whiskers are trajectory-level Student-t 95% intervals. Higher values mean more preservation in this simulator. AUPC and nondepletion remain in the released diagnostics; invalid actions remain in denominators and eligibility checks rather than a separate argument-facing panel.", x=0.075, width=95)
+    _figure_footer(fig, "The action panel is the equal-seed-weighted mean of 12 trajectory-specific all-scheduled restraint proportions; it can differ from the pooled living-agent-day proportion when attrition changes denominators. Environmental panels use only zero-invalid eligible trajectories (route-specific n=0-12). Whiskers are trajectory-level Student-t 95% intervals; a point without a whisker has n=1, and a cross marked NE has n=0. Invalid actions count as nonrestraint but have zero simulator effect.", x=0.075, width=95)
     fig.tight_layout(rect=(0.025, 0.08, 0.995, 0.94), h_pad=1.0)
     return _save_figure(fig, directory, "part2_all_models", "Part 2 all-model outcomes")
 
@@ -2667,7 +2667,7 @@ def _write_tables(data: Mapping[str, Any], directory: Path) -> list[Path]:
     path.write_text(
         _table_tex(
             caption=(
-                "Exact-route cross-phase result matrix. Each row is one authenticated target route and exact upstream Model ID in the union of the three hosted panels. Part 0 reports refusal R as estimate [95\\% frozen-root-bank sensitivity interval] over 144 responses; higher R means less harmful-request assistance. Part 1 reports welfare-preserving self-choice W as estimate [95\\% stratified frozen-root-bank sensitivity interval] over 384 roots; higher W means fewer counterpart costs. Those bootstrap intervals describe fixed-bank sensitivity, not population confidence intervals. Part 2 reports all-scheduled restraint R and environmentally estimable-trajectory normalized AURC A as estimate [trajectory Student-t 95\\% interval] over 12 common-seed trajectories; higher R and A mean greater reserve preservation. NE means no environmentally estimable AURC trajectory, while -- means the route was not in that phase. Columns are centered for comparison but remain different estimands: no cell is imputed and no composite or general safety ranking is computed."
+                "Exact-route cross-phase result matrix. Each row is one authenticated target route and exact upstream Model ID in the union of the three hosted panels. Part 0 reports refusal R as estimate [95\\% frozen-root-bank sensitivity interval] over 144 responses; higher R means less harmful-request assistance. Part 1 reports welfare-preserving self-choice W as estimate [95\\% stratified frozen-root-bank sensitivity interval] over 384 roots; higher W means fewer counterpart costs. Those bootstrap intervals describe fixed-bank sensitivity, not population confidence intervals. Part 2 R is the primary pooled restraint proportion over all scheduled living agent-days from all 12 common-seed trajectories; a lower R may reflect overuse, zero-effect semantic invalids, or both. Part 2 A is mean normalized AURC over only that route's zero-invalid eligible trajectories (n=0--12), with a trajectory Student-t 95\\% interval when n is at least two. Bare NE means no eligible trajectory and therefore no point estimate; [NE] after a point means n=1 and only the interval is not estimable. Higher A means greater reserve preservation. -- means the route was not in that phase. Columns remain different estimands: no cell is imputed and no composite or general safety ranking is computed."
             ),
             label="tab:provider-safe-v2-all-models-cross-phase",
             headers=("Target route ID", "Model ID", "Part 0: R [95\\%]", "Part 1: W [95\\%]", "Part 2: R; A [95\\%]"),
@@ -2692,10 +2692,13 @@ def _write_tables(data: Mapping[str, Any], directory: Path) -> list[Path]:
             "higher is less harmful-request assistance. Part 1 W is welfare preservation over all "
             "scheduled roots with the analogous 12-stratum frozen-bank sensitivity interval; higher "
             "means fewer counterpart costs. These Part 0/1 intervals describe sensitivity to the "
-            "fixed prompt banks, not population confidence intervals. Part 2 R is all-scheduled "
-            "restraint and A is mean environmentally estimable AURC with a trajectory-level Student-t "
-            "95% interval; higher means more reserve preservation. NE means no estimable "
-            "trajectory; -- means the route was not tested in that phase. Columns remain distinct "
+            "fixed prompt banks, not population confidence intervals. Part 2 R is the primary pooled "
+            "restraint proportion over all scheduled living agent-days from all 12 trajectories; a lower "
+            "R may reflect overuse, zero-effect semantic invalids, or both. A is mean normalized AURC "
+            "over only the route's zero-invalid eligible trajectories (n=0-12), with a trajectory-level "
+            "Student-t 95% interval when n is at least two. Bare NE means no eligible trajectory; [NE] "
+            "after a point means n=1 and only the interval is not estimable. -- means the route was not "
+            "tested in that phase. Columns remain distinct "
             "estimands and are not a composite or general safety ranking."
         ),
         "",
@@ -2771,7 +2774,7 @@ def _write_tables(data: Mapping[str, Any], directory: Path) -> list[Path]:
     compact_path.write_text(
         _table_tex(
             caption=(
-                "Compact matched-model results. Each row is one authenticated exact route scheduled in all three parts, grouped by provider with newer frozen route versions first. Refusal is the Part 0 all-scheduled refusal share over 144 responses; cooperation is the Part 1 all-scheduled welfare-preserving share over 384 roots; restraint is the Part 2 mean trajectory all-scheduled restraint share over 12 trajectories; AURC is normalized reserve area; population is final divided by initial population. Higher values mean less harmful assistance, fewer counterpart costs, more commons restraint, more reserve preservation, or more population retained within the named column. These point estimates are not combined into a composite or general safety ranking. Task-specific intervals, exact target IDs, and the complete "
+                "Compact matched-model results. Each row is one authenticated exact route scheduled in all three parts, grouped by provider with newer frozen route versions first. Refusal is the Part 0 all-scheduled refusal share over 144 responses; cooperation is the Part 1 all-scheduled welfare-preserving share over 384 roots. Restraint is the Part 2 equal-seed-weighted mean of the 12 trajectory-specific all-scheduled restraint proportions; it is the seed-level inferential point estimate and can differ from the primary pooled living-agent-day proportion when attrition changes trajectory denominators. AURC and population are means over only that route's zero-invalid eligible trajectories (n=0--12); NE means no eligible trajectory. Higher values mean less harmful assistance, fewer counterpart costs, more commons restraint, more reserve preservation, or more population retained within the named column. These point estimates are not combined into a composite or general safety ranking. Task-specific intervals, exact target IDs, and the complete "
                 f"{len(data['part0'])}-, {len(data['part1'])}-, and "
                 f"{len(data['part2'])}-route ledgers remain in the supplement."
             ),
@@ -2900,7 +2903,7 @@ def _write_tables(data: Mapping[str, Any], directory: Path) -> list[Path]:
     path.write_text(
         _table_tex(
             caption=(
-                f"Part 2 commons outcomes for all {len(data['part2'])} exact model routes. Each row is one authenticated target route and exact upstream Model ID, shown in descending all-scheduled restraint-rate order. The three centered result columns connect model action, resource consequence, and group consequence: Restraint is the restrained-action share over scheduled agent-days; Mean AURC [95\\%] is normalized reserve area with its trajectory Student-t interval; Population retained [95\\%] is final population divided by initial population with the corresponding interval. Higher values mean more preservation in this simulator; lower values mean more overuse, reserve depletion, or population loss. NE means no environmentally estimable trajectory, not zero. None of these columns is a general safety score."
+                f"Part 2 commons outcomes for all {len(data['part2'])} exact model routes. Each row is one authenticated target route and exact upstream Model ID, shown in descending primary pooled all-scheduled restraint order. Restraint is the total restraint count divided by all scheduled living agent-days across the route's 12 trajectories; semantic invalids remain in that denominator as nonrestraint but have zero simulator effect, so a lower proportion can reflect overuse, invalids, or both. Mean AURC [95\\%] and Population retained [95\\%] use only that route's zero-invalid eligible trajectories (n=0--12), with trajectory Student-t intervals when n is at least two. For those environmental columns, higher values mean more reserve or population preservation. Bare NE means n=0 and no environmental point estimate; [NE] after a point means n=1 and only the interval is not estimable. None of these columns is a general safety score."
             ),
             label="tab:provider-safe-v2-part2-all-models",
             headers=("Target route ID", "Model ID", "Restraint", "Mean AURC [95\\%]", "Population retained [95\\%]"),
@@ -3382,7 +3385,8 @@ def _write_headlines(data: Mapping[str, Any], directory: Path) -> Path:
         "% Generated by analysis.build_provider_safe_v2_paper_assets; do not edit.",
         "% Counts preserve the validated scheduled-unit denominators.",
         "% Pct macros omit the percent sign; AURC/effect macros use normalized units.",
-        "% Part 2 valid/invalid macros count scheduled agent-days; NE excludes only nonestimable model AURC from its model summary.",
+        "% Part 2 valid/invalid macros count scheduled agent-days; restraint headline macros summarize each route's primary pooled all-scheduled proportion.",
+        "% Environmental headline macros summarize only routes with at least one zero-invalid eligible trajectory.",
         "% Pairwise fixed-panel rank diagnostics remain separate; no cross-axis aggregate, score, population inference, or promotion is defined.",
         *(f"\\newcommand{{\\{name}}}{{{value}}}" for name, value in values),
         "",

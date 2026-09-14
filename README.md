@@ -12,20 +12,32 @@ The definitive provider-safe-v2 design is:
   harmful-request roots crossed with three requested response languages (144
   responses per route). One fixed judge is disjoint from every subject at the
   target, route, and served-identity levels. Two exact planning-roster routes
-  are operationally excluded without substitution. Collection is still in
-  progress, so this repository does not yet claim final Part 0 coverage or
-  rates. The inputs are English requests with response-language instructions,
-  not translated request banks.
+  are operationally excluded without substitution. All 3,168 scheduled units
+  are terminal under the explicit all-scheduled operational-invalid policy;
+  the estimates remain exploratory because the task lacks benign controls and
+  the judge has not completed human validation. The inputs are English requests
+  with response-language instructions, not translated request banks.
 - **Part 1:** 75 exact subject routes, each scheduled on the same balanced
   384-root direct self-choice bank. Six additional frozen registry targets are
-  operationally excluded without substitution. Collection is still in
-  progress, and malformed first responses remain scheduled nonsuccesses.
-- **Part 2:** 19 exact subject routes completed 12 independent common-seed
-  trajectories each (228 total) under the corrected five-agent, 12-step
-  commons engine. The sealed source manifest records 13,495 scheduled
-  agent-days, zero transport or identity failures, four invalid actions across
-  three trajectories, and 225 trajectories eligible for environmental
-  estimates under the no-invalid-action rule.
+  operationally excluded without substitution. A complete exact-source overlay
+  resolves the three transport-null units, while all 704 malformed first
+  responses remain scheduled nonsuccesses. The prompt bank still lacks
+  independent content approval.
+- **Part 2:** 23 exact subject routes completed 12 independent common-seed
+  trajectories each (276 total) under the corrected 50-agent, 100-day commons
+  engine. The three exact source/overlay pairs contain 1,206,808 scheduled
+  living agent-days: 1,180,046 valid actions and 26,762 genuine semantic
+  `INVALID` actions, of which 969,640 are restraint and 210,406 are overuse.
+  The primary descriptive restraint proportion pools those scheduled living
+  agent-days within each route. Figures with trajectory Student-$t$ intervals
+  instead show the equal-seed-weighted mean of the 12 trajectory-specific
+  proportions; attrition can make the two route estimates differ.
+  All 276 trajectories are operationally eligible after 57 whole-trajectory
+  repairs. Environmental estimates use the 198 zero-invalid trajectories;
+  78 trajectories contain at least one semantic invalid, leaving 18 routes
+  with an environmental summary and five zero-eligible routes reported as NE.
+  `anthropic/claude-opus-4-5` is the sole frozen exclusion and is not
+  substituted.
 
 The April pilot remains historical provenance. Its audit led to the corrected
 response-only judge, balanced Part 1 bank, repeated-commons engine, provenance
@@ -53,12 +65,12 @@ tests/                        Unit and integration tests
 ```
 
 Parts 3-5 are roadmap placeholders. Parts 0-2 are the implemented benchmark
-scope. The definitive public aggregate will be written to
-`data/processed/provider-safe-v2-definitive-analysis` only after all five
-source manifests (Parts 0-2, role calibration, and sensitivity) are complete
-and pass the fail-closed analyzer. The prior
-`data/analysis/final_results/final_results.json` is a superseded deadline
-artifact and is not a current paper input. Part 0 and Part 1 remain exploratory
+scope. The definitive public aggregate is written to
+`data/processed/provider-safe-v2-definitive-analysis` only after every source
+phase and required operational overlay (Parts 0-2, role calibration, and
+sensitivity) passes the fail-closed analyzer. The sealed 12-day
+`data/analysis/final_results/final_results.json` is historical, superseded
+evidence and is not a current paper input. Part 0 and Part 1 remain exploratory
 because their external validation gates are incomplete.
 
 ## Setup
@@ -139,17 +151,24 @@ Interrupted runs can be resumed with `--resume`. Result CSVs are written increme
 
 ## Reproducing The Paper Artifacts
 
-After all five definitive source manifests are complete, build the text-free
-aggregate graph, paper assets, Croissant metadata, and strict supplement:
+After every definitive source phase and bound operational overlay is terminal,
+build the text-free aggregate graph, paper assets, Croissant metadata, and
+strict supplement:
 
 ```bash
 uv run pytest -q
 uv run python -m analysis.analyze_provider_safe_v2_definitive \
   --part0 data/private/inference_hub/definitive-part0-large-n48-main22-deadline-v6 \
+  --part0-terminal-policy all-scheduled-operational-invalid-v1 \
   --part1 data/private/inference_hub/definitive-part1-large-n384-main75-deadline-v5 \
-  --part2 data/private/inference_hub/definitive-part2-n12-main19-v3 \
+  --part1-operational-repair data/private/inference_hub/definitive-part1-large-n384-main75-deadline-v5-operational-repair-v1 \
+  --part2-source-overlay data/private/inference_hub/full-part2-n12-n50-d100-main21-v5 data/private/inference_hub/full-part2-n12-n50-d100-main21-v5-operational-completion-capability-v4 \
+  --part2-source-overlay data/private/inference_hub/full-part2-n12-n50-d100-nemotron-3-ultra-recovered-v1 data/private/inference_hub/full-part2-n12-n50-d100-nemotron-3-ultra-operational-repair-v1 \
+  --part2-source-overlay data/private/inference_hub/full-part2-n12-n50-d100-deepseek-v4-flash-recovered-v1 data/private/inference_hub/full-part2-n12-n50-d100-deepseek-v4-flash-operational-repair-v1 \
+  --part2-declared-exclusion anthropic/claude-opus-4-5 \
   --role-calibration data/private/inference_hub/definitive-part1-role-calibration-v3 \
   --sensitivity data/private/inference_hub/definitive-part2-sensitivity-deadline-fast-v9 \
+  --sensitivity-operational-repair data/private/inference_hub/definitive-part2-sensitivity-deadline-fast-v9-operational-repair-v1 \
   --output-dir data/processed/provider-safe-v2-definitive-analysis
 uv run python -m analysis.build_provider_safe_v2_paper_assets \
   --input-dir data/processed/provider-safe-v2-definitive-analysis \
@@ -160,12 +179,13 @@ uv run python -m analysis.build_provider_safe_v2_croissant_metadata --check
 uv run python -m analysis.build_supplement --require-definitive-artifacts
 ```
 
-The analyzer intentionally fails while any source manifest is incomplete. It
-checks source and policy hashes, exact schedules, journals, response identity,
-judge separation, invalid-denominator policy, and privacy before writing an
-output directory. The paper-asset builder emits one-route-per-row tables,
-headline macros, and seven visual families. Detailed commands and the clean-
-extraction verification procedure are in
+The analyzer intentionally fails while any source phase lacks the terminal
+evidence required by its explicit policy. It validates the Part 2 three-pair
+composition recursively and checks source and policy hashes, exact schedules,
+journals, response identity, judge separation, invalid-denominator policy, and
+privacy before writing an output directory. The paper-asset builder emits
+one-route-per-row tables, headline macros, and nine visual families. Detailed
+commands and the clean-extraction verification procedure are in
 `docs/release/REPRODUCIBILITY.md`.
 
 The April pilot pipeline remains in the repository for historical forensic
@@ -173,13 +193,17 @@ replay, but its legacy labels, broken commons mechanics, tables, and plots are
 not inputs to the definitive analyzer, Croissant metadata, or supplement.
 
 The paper-facing definitive campaign uses the planning roster in
-`experiments/sota_cross_axis_panel.json`, then freezes the exact executable
-subsets in its source manifests: 22 Part 0 routes, 75 Part 1 routes, and 19
-Part 2 routes. Exact authenticated routes were compatibility-probed before
-dispatch; study target IDs, returned identities, requests, and response hashes
-remain bound in private journals. The final public artifact includes only
-validated, text-free aggregates and explicit availability records. Exact
-finalization commands are in `docs/release/REPRODUCIBILITY.md`.
+`experiments/sota_cross_axis_panel.json` and the original-scale Part 2 contract
+in `experiments/sota_cross_axis_part2_100day_panel.json`, then freezes the exact
+executable subsets in its source manifests: 22 Part 0 routes, 75 Part 1 routes,
+and 23 Part 2 routes. Part 2 composes a 21-route source/overlay pair with exact
+Nemotron Ultra and DeepSeek V4 Flash singleton source/overlay pairs; Opus 4.5
+is the sole declared exclusion, without substitution. Exact authenticated
+routes were compatibility-probed before dispatch; study target IDs, returned
+identities, requests, and response hashes remain bound in private journals.
+The final public artifact includes only validated, text-free aggregates and
+explicit availability records. Exact finalization commands are in
+`docs/release/REPRODUCIBILITY.md`.
 
 After setting the exact InferenceHub base URL and credential, verify the full
 current-plus-historical panel in one fail-closed batch:
@@ -330,11 +354,14 @@ only reviewed code, documentation, tests, and validated text-free definitive
 aggregates.
 
 The current results are task-specific descriptive evidence, not a leaderboard.
-Part 2 uses the corrected five-agent, 12-step engine and completed 228
-independent trajectories across 19 exact routes. Environmental estimates use
-the 225 trajectories with no invalid action; simulator continuation after an
-invalid action is not treated as environmental evidence. It does not reuse the
-mismatched April pilot trajectories.
+Part 2 uses the corrected 50-agent, 100-day engine and completed 12 independent
+common-seed trajectories per route across 23 exact routes (276 total); the seed
+set is common across routes. Its fixed dynamics use initial capacity 2,500,
+OPTION_B private gain 2, reserve cost 2, unanimous group benefit/penalty 5, and
+collapse death rate 0.2. Environmental estimates use the 198 zero-invalid
+trajectories; simulator continuation after a genuine semantic `INVALID` action
+is not treated as environmental evidence. It does not reuse the mismatched
+April pilot trajectories or the sealed historical 12-day result.
 
 ## Useful Release Documents
 
@@ -348,7 +375,8 @@ mismatched April pilot trajectories.
 
 Before using new results in a paper or release:
 
-1. All five definitive source manifests are complete and pass the fail-closed
+1. Every definitive source phase and required operational overlay is terminal,
+   and the ordered three-pair Part 2 composition passes the fail-closed
    analyzer.
 2. `uv run pytest -q` passes.
 3. Every paper-used table, macro, and figure is bound by the definitive analysis

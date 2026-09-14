@@ -18,18 +18,19 @@ CURSOR_EPOCH = "cursor-epoch-11111111111111111111111111111111"
 JUDGE = "judge.nvidia-evals-nemotron-3-30b-a3b"
 PANEL_PATH = Path("experiments/sota_cross_axis_part2_100day_panel.json").resolve()
 ROOT = Path(__file__).resolve().parents[1]
+IS_ANONYMOUS_SUPPLEMENT = (ROOT / "SUPPLEMENT_MANIFEST.json").is_file()
 PRODUCTION_PAIRS = (
     (
         ROOT / "data/private/inference_hub/full-part2-n12-n50-d100-main21-v5/private/manifest.json",
-        ROOT / "data/private/inference_hub/full-part2-n12-n50-d100-main21-v5-operational-repair-multikey-v3/private/manifest.json",
-    ),
-    (
-        ROOT / "data/private/inference_hub/full-part2-n12-n50-d100-deepseek-v4-flash-recovered-v1/private/manifest.json",
-        ROOT / "data/private/inference_hub/full-part2-n12-n50-d100-deepseek-v4-flash-operational-repair-v1/private/manifest.json",
+        ROOT / "data/private/inference_hub/full-part2-n12-n50-d100-main21-v5-operational-completion-capability-v4/private/manifest.json",
     ),
     (
         ROOT / "data/private/inference_hub/full-part2-n12-n50-d100-nemotron-3-ultra-recovered-v1/private/manifest.json",
         ROOT / "data/private/inference_hub/full-part2-n12-n50-d100-nemotron-3-ultra-operational-repair-v1/private/manifest.json",
+    ),
+    (
+        ROOT / "data/private/inference_hub/full-part2-n12-n50-d100-deepseek-v4-flash-recovered-v1/private/manifest.json",
+        ROOT / "data/private/inference_hub/full-part2-n12-n50-d100-deepseek-v4-flash-operational-repair-v1/private/manifest.json",
     ),
 )
 
@@ -238,6 +239,107 @@ def test_frozen_original_scale_source_design_is_exact_and_fail_closed() -> None:
         )
 
 
+def _hydrated_subject(subject: dict[str, Any]) -> dict[str, Any]:
+    return {
+        **subject,
+        "id": subject["target_id"],
+        "provider": "inference_hub",
+        "target_model": subject["model"],
+        "endpoint_profile": "inference_hub",
+        "verification_status": "unverified",
+        "route_source": "sealed_sota_roster_preferred_candidate",
+        "compatibility_max_tokens": 256,
+    }
+
+
+def test_cascading_subject_routes_accept_authentic_registry_superset() -> None:
+    source = [_subject("subject.alpha", 0)]
+    hydrated = [_hydrated_subject(source[0])]
+
+    validator._validate_cascading_subject_route_lineage(
+        deepcopy(hydrated),
+        source_manifest_routes=source,
+        hydrated_source_routes=hydrated,
+    )
+
+
+@pytest.mark.parametrize(
+    "mutator, message",
+    [
+        (
+            lambda row: row.__setitem__("route", "region/changed-route"),
+            "frozen route/control/hash binding",
+        ),
+        (
+            lambda row: row.__setitem__("candidate_index", False),
+            "frozen route/control/hash binding",
+        ),
+        (
+            lambda row: row.pop("supported_controls"),
+            "lineage schema changed",
+        ),
+        (
+            lambda row: row.pop("compatibility_max_tokens"),
+            "lineage schema changed",
+        ),
+        (
+            lambda row: row.__setitem__("request_timeout_seconds", 1),
+            "lineage schema changed",
+        ),
+        (
+            lambda row: row.__setitem__("compatibility_max_tokens", 1),
+            "bound registry route metadata",
+        ),
+        (
+            lambda row: row.__setitem__("compatibility_max_tokens", 256.0),
+            "bound registry route metadata",
+        ),
+    ],
+)
+def test_cascading_subject_routes_reject_changed_missing_or_unknown_values(
+    mutator: Any, message: str,
+) -> None:
+    source = [_subject("subject.alpha", 0)]
+    hydrated = [_hydrated_subject(source[0])]
+    overlay = deepcopy(hydrated)
+    mutator(overlay[0])
+
+    with pytest.raises(
+        validator.Part2OperationalOverlayValidationError, match=message,
+    ):
+        validator._validate_cascading_subject_route_lineage(
+            overlay,
+            source_manifest_routes=source,
+            hydrated_source_routes=hydrated,
+        )
+
+
+def test_cascading_subject_routes_reject_reordered_hydrated_pairing() -> None:
+    source = [_subject("subject.alpha", 0), _subject("subject.beta", 1)]
+    hydrated = [_hydrated_subject(row) for row in source]
+    reordered = list(reversed(hydrated))
+    overlay = [
+        {
+            **source_row,
+            **{
+                key: hydrated_row[key]
+                for key in validator.CASCADING_SUBJECT_ROUTE_REGISTRY_METADATA_KEYS
+            },
+        }
+        for source_row, hydrated_row in zip(source, reordered, strict=True)
+    ]
+
+    with pytest.raises(
+        validator.Part2OperationalOverlayValidationError,
+        match="frozen route/control/hash binding",
+    ):
+        validator._validate_cascading_subject_route_lineage(
+            overlay,
+            source_manifest_routes=source,
+            hydrated_source_routes=reordered,
+        )
+
+
 @pytest.mark.parametrize(
     "mutator, message",
     [
@@ -320,7 +422,39 @@ def _credential_source_manifest() -> dict[str, Any]:
     }
 
 
-def test_multikey_credential_pool_exact_provenance_and_implementation_hashes() -> None:
+def _bind_anonymous_archive_implementation_hashes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Exercise structural checks against intentionally anonymized source bytes.
+
+    Production constants remain untouched. The supplement rewrites private
+    deployment literals, so only its tests bind the distributed bytes locally.
+    """
+
+    if not IS_ANONYMOUS_SUPPLEMENT:
+        return
+    cascading_path = Path(validator.cascading.__file__).resolve()
+    paths = {
+        "EXPECTED_CASCADING_REPAIR_IMPLEMENTATION_SHA256": cascading_path,
+        "EXPECTED_RUNNER_IMPLEMENTATION_SHA256": Path(runner.__file__).resolve(),
+        "EXPECTED_REPAIR_IMPLEMENTATION_SHA256": Path(
+            validator.repair.__file__
+        ).resolve(),
+        "EXPECTED_DISCOVERY_IMPLEMENTATION_SHA256": cascading_path.with_name(
+            "inference_hub_discovery.py"
+        ),
+        "EXPECTED_RATE_LIMIT_IMPLEMENTATION_SHA256": cascading_path.with_name(
+            "inference_hub_rate_limit.py"
+        ),
+    }
+    for attribute, path in paths.items():
+        monkeypatch.setattr(validator, attribute, _sha256_file(path))
+
+
+def test_multikey_credential_pool_exact_provenance_and_implementation_hashes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _bind_anonymous_archive_implementation_hashes(monkeypatch)
     binding = _credential_pool_binding()
     assert _sha256_file(Path(runner.__file__).resolve()) == (
         validator.EXPECTED_RUNNER_IMPLEMENTATION_SHA256
@@ -1402,6 +1536,7 @@ def _cascading_credential_pool_fixture() -> tuple[
 def test_cascading_credential_pool_binds_three_slots_and_independent_limiters(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    _bind_anonymous_archive_implementation_hashes(monkeypatch)
     pool, qualified, commitments, source_manifest = (
         _cascading_credential_pool_fixture()
     )
@@ -2093,23 +2228,21 @@ def test_cascading_stale_attempt_eight_closes_only_with_synthetic_nine(
     not all(path.is_file() for pair in PRODUCTION_PAIRS for path in pair),
     reason="Private production source/overlay evidence is intentionally not distributed.",
 )
-def test_production_three_pair_gate_fails_closed_until_every_overlay_is_complete() -> None:
-    try:
-        result = validator.validate_operational_overlay_pairs(PRODUCTION_PAIRS)
-    except validator.Part2OperationalOverlayValidationError as error:
-        assert "active" in str(error) or "incomplete" in str(error)
-    else:
-        assert result["route_count"] == 23
-        assert result["trajectory_count"] == 276
-        assert result["common_environment_seed_count"] == 12
+def test_production_three_pair_gate_replays_complete_union() -> None:
+    result = validator.validate_operational_overlay_pairs(PRODUCTION_PAIRS)
+
+    assert result["status"] == "passed"
+    assert result["route_count"] == 23
+    assert result["trajectory_count"] == 276
+    assert result["common_environment_seed_count"] == 12
 
 
 @pytest.mark.skipif(
-    not all(path.is_file() for path in PRODUCTION_PAIRS[1]),
+    not all(path.is_file() for path in PRODUCTION_PAIRS[2]),
     reason="Private completed DeepSeek source/overlay evidence is intentionally not distributed.",
 )
 def test_completed_production_pair_replays_and_reconciles_end_to_end() -> None:
-    source_path, overlay_path = (path.resolve() for path in PRODUCTION_PAIRS[1])
+    source_path, overlay_path = (path.resolve() for path in PRODUCTION_PAIRS[2])
     tracker = validator._FileTracker()
     attempt_ids: set[str] = set()
     with validator._hold_run_locks([overlay_path, source_path]):

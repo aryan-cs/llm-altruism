@@ -1,16 +1,22 @@
 from pathlib import Path
 
+import pytest
 from PIL import Image
 
 from analysis.build_paper_visuals import build_paper_visuals
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+SEALED_RESULTS = PROJECT_ROOT / "data/analysis/final_results/final_results.json"
 
 
+@pytest.mark.skipif(
+    not SEALED_RESULTS.is_file(),
+    reason="The historical sealed results are intentionally excluded from the anonymous supplement.",
+)
 def test_builds_all_axis_specific_visuals_from_sealed_results(tmp_path: Path) -> None:
     paths = build_paper_visuals(
-        PROJECT_ROOT / "data/analysis/final_results/final_results.json",
+        SEALED_RESULTS,
         tmp_path,
     )
 

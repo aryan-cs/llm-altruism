@@ -29,21 +29,28 @@ operational safeguards, not model hyperparameters.
 - Part 1: 75 exact routes are scheduled on the same balanced 384-root bank
   (28,800 direct choices). Six additional frozen registry targets are excluded
   without substitution. The source manifest remains incomplete.
-- Part 2: 19 exact routes completed 12 independent trajectories × 12 steps × up
-  to 5 active participants per step, for 228 trajectories and 13,495 scheduled
-  agent-days. The complete manifest records zero transport or identity failures
-  and four invalid actions across three trajectories; 225 trajectories contain
-  no invalid action and support environmental estimates.
+- Part 2: 23 exact routes completed 12 independent common-seed trajectories ×
+  100 days × up to 50 living participants per day, for 276 trajectories and
+  1,206,808 scheduled living agent-days. The ordered evidence is three exact
+  source/overlay pairs: 21 main routes, Nemotron Ultra, and DeepSeek V4 Flash.
+  All 276 trajectories are operationally eligible after 57 source-bound
+  whole-trajectory repairs. Opus 4.5 is the sole frozen exclusion and is not
+  substituted.
 
 Final compute totals must be calculated from the executed rows and sanitized
 availability bindings. A target-bound operationally unavailable system is
 counted in frozen coverage but contributes no scored units; scheduled maxima
 must not be reported as completed calls.
 
-The definitive Part 2 aggregate contains four invalid actions among 13,495
-scheduled agent-days. Their zero simulator effect permits deterministic
-continuation and they count as nonrestraint; affected trajectories are excluded
-from environmental estimates.
+The definitive Part 2 aggregate contains 1,180,046 valid actions and 26,762
+genuine semantic `INVALID` actions among 1,206,808 scheduled living agent-days.
+The valid actions divide into 969,640 restraint and 210,406 overuse actions.
+An invalid action has zero simulator effect, permits deterministic continuation,
+and counts as nonrestraint; the 78 trajectories containing at least one invalid
+are excluded from environmental estimates, leaving 198 estimable trajectories.
+Eighteen routes have at least one such trajectory; the five zero-eligible routes
+are reported as NE for AURC, AUPC, reserve nondepletion, and population
+retention.
 
 Retries are transport-only and bounded. Invalid structured output is retained
 and is not regenerated. Durable reservation and append-only journal records
@@ -52,10 +59,13 @@ as a new independent observation.
 
 ## Planning versus execution
 
-The planning-roster JSON retains settings of 48 Part 0 roots per condition and
-12 Part 2 trajectories. The definitive manifests implement those settings for
-their exact selected subsets. Completed manifests and retained-unit counts,
-rather than scheduled maxima, are authoritative for compute accounting.
+The planning-roster JSON retains settings of 48 Part 0 roots per condition.
+`experiments/sota_cross_axis_part2_100day_panel.json` freezes 12 Part 2
+trajectories, 50 agents, 100 days, initial capacity 2,500, OPTION_B private gain
+2, reserve cost 2, unanimous group benefit/penalty 5, and collapse death rate
+0.2. The definitive source/overlay pairs implement that contract for their
+exact selected routes. Validated realized living-agent-day counts, rather than
+the 1,380,000 planned maximum, are authoritative for compute accounting.
 
 ## Historical local environment
 

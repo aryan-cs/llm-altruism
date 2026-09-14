@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import hashlib
 import json
 import os
@@ -485,6 +486,9 @@ def _composition_fixture(
                 "provider": "inference_hub",
                 "upstream_provider": route["upstream_provider"],
                 "model": route["model"],
+                "endpoint_profile": "inference_hub",
+                "verification_status": "unverified",
+                "route_source": "composition_test_registry",
             }
             for route in all_routes
         ],
@@ -836,6 +840,23 @@ def _convert_main_overlay_to_cascading(
     }
     child["base_seed"] = source["base_seed"]
     child["repair_policy"] = definitive.part2_cascading_repair.REPAIR_POLICY
+    registry = json.loads(
+        Path(source["input_artifacts"]["registry"]["path"]).read_text(
+            encoding="utf-8"
+        )
+    )
+    compatibility = json.loads(
+        Path(source["input_artifacts"]["compatibility"]["path"]).read_text(
+            encoding="utf-8"
+        )
+    )
+    hydrated_subjects, _judge = part2_panel.select_routes(
+        registry=registry,
+        compatibility=compatibility,
+        selected_ids=[row["target_id"] for row in source["subject_routes"]],
+        judge_target_id=source["judge_reservation"]["target_id"],
+    )
+    child["subject_routes"] = hydrated_subjects
     failed = next(
         row
         for row in json.loads(
@@ -1317,6 +1338,35 @@ def test_uncertainty_helpers_are_deterministic_and_use_independent_units() -> No
     assert bounded_high == 1.0
 
 
+def test_csv_writer_uses_deterministic_lf_and_matches_jsonl(
+    tmp_path: Path,
+) -> None:
+    rows = [
+        {"target_id": "route/a", "count": 3, "rate": 0.25, "note": None},
+        {"target_id": "route/b", "count": 0, "rate": 1.0, "note": "ok"},
+    ]
+    csv_path = tmp_path / "rows.csv"
+    jsonl_path = tmp_path / "rows.jsonl"
+
+    definitive._write_csv(csv_path, rows)
+    definitive._write_jsonl(jsonl_path, rows)
+
+    csv_bytes = csv_path.read_bytes()
+    assert csv_bytes.endswith(b"\n")
+    assert b"\r\n" not in csv_bytes
+    assert b"\r" not in csv_bytes
+    with csv_path.open(newline="", encoding="utf-8") as handle:
+        parsed_csv = list(csv.DictReader(handle))
+    parsed_jsonl = [
+        json.loads(line)
+        for line in jsonl_path.read_text(encoding="utf-8").splitlines()
+    ]
+    assert parsed_csv == [
+        {key: "" if value is None else str(value) for key, value in row.items()}
+        for row in parsed_jsonl
+    ]
+
+
 def test_full_production_shaped_analysis_and_invalid_denominators(
     production_bundle: Mapping[str, Path], tmp_path: Path,
 ) -> None:
@@ -1544,6 +1594,113 @@ def test_part2_composition_accepts_complete_cascading_main_child(
     }
 
 
+def test_part2_cascading_subject_route_lineage_is_narrow_and_fail_closed() -> None:
+    compact = [_composition_subject("openai/gpt-fixture", 0)]
+    hydrated = [
+        {
+            **compact[0],
+            "id": compact[0]["target_id"],
+            "provider": "inference_hub",
+            "target_model": compact[0]["model"],
+            "endpoint_profile": "inference_hub",
+            "verification_status": "unverified",
+            "route_source": "composition_test_registry",
+            "compatibility_max_tokens": 256,
+        }
+    ]
+    definitive._part2_overlay_subject_route_binding(
+        hydrated,
+        source_manifest_routes=compact,
+        hydrated_source_routes=hydrated,
+        cascading=True,
+        label="fixture",
+    )
+
+    for field, replacement in (
+        ("route", "tampered/route"),
+        ("selected_profile_request_sha256", "0" * 64),
+        ("verification_status", "tampered"),
+        ("compatibility_max_tokens", 257),
+    ):
+        tampered = [dict(hydrated[0])]
+        tampered[0][field] = replacement
+        with pytest.raises(
+            DefinitiveAnalysisError, match="cascading subject-route lineage"
+        ):
+            definitive._part2_overlay_subject_route_binding(
+                tampered,
+                source_manifest_routes=compact,
+                hydrated_source_routes=hydrated,
+                cascading=True,
+                label="fixture",
+            )
+
+    widened = [{**hydrated[0], "unexpected": "field"}]
+    with pytest.raises(
+        DefinitiveAnalysisError, match="cascading subject-route lineage"
+    ):
+        definitive._part2_overlay_subject_route_binding(
+            widened,
+            source_manifest_routes=compact,
+            hydrated_source_routes=hydrated,
+            cascading=True,
+            label="fixture",
+        )
+
+    with pytest.raises(DefinitiveAnalysisError, match="exact-source"):
+        definitive._part2_overlay_subject_route_binding(
+            hydrated,
+            source_manifest_routes=compact,
+            hydrated_source_routes=hydrated,
+            cascading=False,
+            label="fixture",
+        )
+
+
+def test_historical_implementation_binding_is_evidence_specific_and_exact() -> None:
+    current = {"/runner.py": "new", "/shared.py": "stable"}
+    frozen = {"/runner.py": "old", "/shared.py": "stable"}
+    arguments = {
+        "current_sources": current,
+        "source_evidence_sha256": "source-evidence",
+        "overlay_evidence_sha256": "overlay-evidence",
+        "frozen_source_evidence_sha256": "source-evidence",
+        "frozen_overlay_evidence_sha256": "overlay-evidence",
+        "frozen_overrides": {"/runner.py": "old"},
+        "compatible_current_overrides": {"/runner.py": "new"},
+    }
+
+    assert definitive._implementation_sources_match_current_or_frozen_execution(
+        current, **arguments
+    )
+    assert definitive._implementation_sources_match_current_or_frozen_execution(
+        frozen, **arguments
+    )
+
+    for changed in (
+        {**arguments, "source_evidence_sha256": "other-source"},
+        {**arguments, "overlay_evidence_sha256": "other-overlay"},
+        {**arguments, "frozen_overrides": {"/unknown.py": "old"}},
+        {
+            **arguments,
+            "compatible_current_overrides": {"/runner.py": "unknown"},
+        },
+        {
+            **arguments,
+            "current_sources": {"/runner.py": "future", "/shared.py": "stable"},
+        },
+    ):
+        assert not definitive._implementation_sources_match_current_or_frozen_execution(
+            frozen, **changed
+        )
+    assert not definitive._implementation_sources_match_current_or_frozen_execution(
+        {**frozen, "/shared.py": "tampered"}, **arguments
+    )
+    assert not definitive._implementation_sources_match_current_or_frozen_execution(
+        {**frozen, "/extra.py": "hidden"}, **arguments
+    )
+
+
 def test_part2_cascading_composition_holds_parent_lock(
     tmp_path: Path,
 ) -> None:
@@ -1648,6 +1805,40 @@ def test_part2_composition_rejects_reordered_main_target_ids(
     )
     with pytest.raises(DefinitiveAnalysisError, match="frozen ordered panel"):
         _part2_composition(pairs, [PART2_100DAY_DECLARED_EXCLUSION])
+
+
+def test_part2_composition_normalizes_shuffled_overlay_rows_to_frozen_order(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pairs = _composition_fixture(tmp_path / "composition-row-order")
+    _install_source_replay_test_double(monkeypatch, pairs)
+    overlay_path = pairs[0][1]
+    overlay = json.loads(overlay_path.read_text(encoding="utf-8"))
+    trajectory_path = Path(
+        overlay["sanitized_artifacts"]["effective_trajectory_metrics"]["path"]
+    )
+    trajectories = json.loads(trajectory_path.read_text(encoding="utf-8"))
+    trajectories["rows"].reverse()
+    _write_json(trajectory_path, _seal(trajectories))
+    overlay["sanitized_artifacts"]["effective_trajectory_metrics"] = {
+        "path": str(trajectory_path.resolve()),
+        "file_sha256": _sha_file(trajectory_path),
+        "evidence_sha256": trajectories["evidence_sha256"],
+    }
+    _write_json(overlay_path, _seal(overlay), private=True)
+
+    _models, figure_rows, _audit, effective_rows = _part2_composition(
+        pairs, [PART2_100DAY_DECLARED_EXCLUSION]
+    )
+    expected_sequence = [
+        (target_id, trajectory_index)
+        for target_id in PART2_100DAY_ORDERED_TARGET_IDS
+        for trajectory_index in range(12)
+    ]
+    for rows in (figure_rows, effective_rows):
+        assert [
+            (row["target_id"], row["trajectory_index"]) for row in rows
+        ] == expected_sequence
 
 
 def test_part2_composition_replays_repaired_metrics_instead_of_trusting_reseal(

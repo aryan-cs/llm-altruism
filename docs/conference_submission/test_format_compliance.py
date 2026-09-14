@@ -15,6 +15,9 @@ TEX = ROOT / "conference_submission.tex"
 CHECKLIST = ROOT / "checklist.tex"
 STYLE = ROOT / "neurips_2026.sty"
 PDF = ROOT / "conference_submission.pdf"
+HEADLINES = (
+    ROOT / "../../data/processed/provider-safe-v2-paper-assets/paper_headlines.tex"
+).resolve()
 
 OFFICIAL_STYLE_SHA256 = "c3fc2894e83d2517ca18b66741d6c595986d97957dc08ec08bb2125a7ec4555a"
 OFFICIAL_QUESTIONS = (
@@ -81,9 +84,31 @@ class ConferenceSubmissionFormatTest(unittest.TestCase):
 
     def test_submission_remains_anonymous(self) -> None:
         source = TEX.read_text(encoding="utf-8")
-        self.assertRegex(source, r"\\author\{Anonymous Authors\}")
-        self.assertNotRegex(source, r"\\author\{[^}]*@[^}]*\}")
-        self.assertNotIn(r"\usepackage[final", source)
+        self.assertEqual(
+            re.findall(r"\\author\{[^{}]*\}", source),
+            [r"\author{Anonymous Authors}"],
+        )
+        self.assertNotRegex(
+            source,
+            r"\\usepackage\[[^]]*\b(?:final|preprint|nonanonymous)\b[^]]*\]"
+            r"\{neurips_2026\}",
+        )
+        self.assertNotRegex(
+            source, r"\\(?:thanks|affiliation|institute|address|orcidlink)\b"
+        )
+        self.assertNotRegex(
+            source,
+            r"\\(?:begin\{(?:ack|acknowledg(?:e)?ments?)\}|acksection\b|"
+            r"(?:section|subsection|paragraph)\*?\{Acknowledg(?:e)?ments?\b)",
+        )
+        self.assertNotRegex(
+            source,
+            r"(?im)^\s*(?:Department|School|College|University|Institution)\b",
+        )
+        self.assertNotRegex(
+            source,
+            r"(?i)(?<![A-Z0-9._%+-])[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}",
+        )
 
     def test_fresh_original_benchmark_narrative_is_locked(self) -> None:
         source = TEX.read_text(encoding="utf-8")
@@ -106,12 +131,89 @@ class ConferenceSubmissionFormatTest(unittest.TestCase):
         self.assertIn("explicit and identifiable harm to bilateral and then diffuse, cumulative externalities", source)
         self.assertIn(r"\texttt{OPTION\_A} awards one private point", source)
         self.assertIn(r"\texttt{OPTION\_B} awards two private points and removes two reserve units", source)
-        self.assertIn("seven systems preserve both the reserve and population perfectly", source)
+        self.assertIn("Part~2 places 50 same-model agents in a 100-day", source)
+        self.assertIn("initialized with 2,500 reserve units", source)
+        self.assertIn("all 23 current exact routes", source)
+        for macro in (
+            "ProviderSafePartTwoEnvironmentallyEstimableTrajectoryCount",
+            "ProviderSafePartTwoSemanticInvalidTrajectoryCount",
+            "ProviderSafePartTwoNonestimableModelCount",
+            "ProviderSafePartTwoInvalidAgentDayCount",
+        ):
+            self.assertIn(macro, source)
+        self.assertIn("18 route summaries", source)
+        self.assertIn("five routes are NE", source)
+        self.assertIn(
+            "The seed-level restraint mean uses a Student-$t$ interval over all 12 "
+            "independent trajectories",
+            source,
+        )
+        self.assertIn(
+            "Continuous environmental outcomes use Student-$t$ intervals over the "
+            "zero-invalid eligible trajectories available to that route, while reserve "
+            "nondepletion uses Wilson score intervals",
+            source,
+        )
+        self.assertIn("primary descriptive action proportion pools all scheduled", source)
+        self.assertIn("equal-seed-weighted estimate need not equal the pooled", source)
+        self.assertIn(r"\mathrm{AUPC}=", source)
+        self.assertIn("route with one eligible trajectory has a point estimate", source)
+        self.assertIn("Orange cells are genuine semantic-invalid nonactions", source)
+        self.assertIn("zero-invalid eligible trajectories", source)
+        self.assertIn("five zero-eligible routes are omitted and reported as NE", source)
+        self.assertNotIn("independent Part~2 trajectories", source)
+        self.assertNotIn("day-wise mean of 12 common-seed trajectories", source)
+        self.assertNotIn("a shorter bar means more private-gain overuse", source)
+        stale_part2_patterns = (
+            r"\b(?:five|5)[-~ ](?:same-model[-~ ]?)?agents?\b",
+            r"\b12[-~ ]day\b",
+            r"Part~2[^\n]*(?:schedules|observes|contains|evaluates)\s+"
+            r"(?:19|22)\s+(?:systems|routes)\b",
+            r"Part~2[^\n]*(?:for\s+)?(?:all\s+)?(?:19|22)\s+"
+            r"(?:current\s+)?exact(?:\s+model)?\s+routes\b",
+            r"Repeated-commons outcomes for\s+(?:19|22)\b",
+            r"longitudinal commons views for the\s+(?:19|22)\b",
+            r"Part~2 agent-day action raster for all\s+(?:19|22)\b",
+            r"\b(?:19|22)\s+Part~2\s+routes\b",
+            r"\b228\s+(?:bound\s+)?Part~2\s+trajectories\b",
+            r"shared reserve units out of the initial 50(?:[.,;:]|\s*$)",
+            r"simulation days 1--12\b",
+        )
+        for pattern in stale_part2_patterns:
+            self.assertNotRegex(source, pattern)
+        self.assertIn(
+            "Matched profile for the 22 current exact routes scheduled in all three parts",
+            source,
+        )
         self.assertIn("Across the six role-calibration sentinels", source)
         self.assertIn("five-compatible-sentinel sensitivity panel", source)
         self.assertIn("25 prespecified high-minus-low AURC contrasts", source)
         self.assertNotIn("six-route sensitivity panel", source)
         self.assertNotIn("30 prespecified route--factor tests", source)
+
+    def test_generated_headline_counts_match_full_part2_panel(self) -> None:
+        self.assertTrue(HEADLINES.is_file(), "generated paper headlines are absent")
+        headlines = HEADLINES.read_text(encoding="utf-8")
+
+        def macro_integer(name: str) -> int:
+            match = re.search(
+                rf"^\\newcommand\{{\\{re.escape(name)}\}}\{{(\d+)\}}$",
+                headlines,
+                flags=re.MULTILINE,
+            )
+            self.assertIsNotNone(match, f"generated macro is absent: {name}")
+            return int(match.group(1))
+
+        self.assertEqual(macro_integer("ProviderSafePartTwoModelCount"), 23)
+        self.assertEqual(macro_integer("ProviderSafePartTwoTrajectoryCount"), 276)
+        self.assertEqual(
+            macro_integer("ProviderSafePairwisePartZeroPartTwoMatchedRouteCount"),
+            22,
+        )
+        self.assertEqual(
+            macro_integer("ProviderSafePairwisePartOnePartTwoMatchedRouteCount"),
+            22,
+        )
 
     def test_definitive_assets_title_and_table_spacing_are_locked(self) -> None:
         source = TEX.read_text(encoding="utf-8")

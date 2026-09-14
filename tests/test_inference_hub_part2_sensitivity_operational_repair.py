@@ -15,16 +15,23 @@ from analysis.analyze_provider_safe_v2_definitive import (
 )
 from experiments.misc import inference_hub_part2_sensitivity_v1 as runner
 from experiments.misc.inference_hub_part2_sensitivity_operational_repair import (
+    COMPATIBLE_CURRENT_COMPLETE_SUBSET_PART2_RUNNER_SHA256,
+    FROZEN_COMPLETE_SUBSET_EVIDENCE_SHA256,
+    FROZEN_COMPLETE_SUBSET_PART2_RUNNER_SHA256,
+    FROZEN_COMPLETE_SUBSET_SOURCE_EVIDENCE_SHA256,
     Part2SensitivityOperationalRepairError,
     TRAJECTORY_ARTIFACT_TYPE,
+    _COMPLETE_SUBSET_SOURCE_PATHS,
     _load_source,
     _source_key,
+    _subset_source_artifacts_match_current_or_frozen_execution,
     build_overlay_from_complete_subset,
     run_repair,
 )
 
 
 ROOT = Path(__file__).resolve().parents[1]
+IS_ANONYMOUS_SUPPLEMENT = (ROOT / "SUPPLEMENT_MANIFEST.json").is_file()
 SOURCE_RUN = (
     ROOT
     / "data/private/inference_hub/definitive-part2-sensitivity-deadline-fast-v9"
@@ -70,6 +77,75 @@ class _ValidClient:
                 }
             ],
         }
+
+
+def test_complete_subset_historical_source_binding_is_exact_and_evidence_specific(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    current = {
+        str(path.resolve()): runner._sha256_file(path.resolve())
+        for path in _COMPLETE_SUBSET_SOURCE_PATHS
+    }
+    panel_path = str(
+        Path(runner.__file__).with_name("inference_hub_part2_panel.py").resolve()
+    )
+    frozen = {
+        **current,
+        panel_path: FROZEN_COMPLETE_SUBSET_PART2_RUNNER_SHA256,
+    }
+    arguments = {
+        "source_evidence_sha256": (
+            FROZEN_COMPLETE_SUBSET_SOURCE_EVIDENCE_SHA256
+        ),
+        "subset_evidence_sha256": FROZEN_COMPLETE_SUBSET_EVIDENCE_SHA256,
+    }
+
+    assert _subset_source_artifacts_match_current_or_frozen_execution(
+        current, **arguments
+    )
+    assert _subset_source_artifacts_match_current_or_frozen_execution(
+        frozen, **arguments
+    ) is (not IS_ANONYMOUS_SUPPLEMENT)
+    assert not _subset_source_artifacts_match_current_or_frozen_execution(
+        frozen, **{**arguments, "source_evidence_sha256": "wrong"}
+    )
+    assert not _subset_source_artifacts_match_current_or_frozen_execution(
+        frozen, **{**arguments, "subset_evidence_sha256": "wrong"}
+    )
+    stable_path = next(path for path in current if path != panel_path)
+    assert not _subset_source_artifacts_match_current_or_frozen_execution(
+        {**frozen, stable_path: "0" * 64}, **arguments
+    )
+    assert not _subset_source_artifacts_match_current_or_frozen_execution(
+        {**frozen, "/unexpected/source.py": "0" * 64}, **arguments
+    )
+    assert not _subset_source_artifacts_match_current_or_frozen_execution(
+        {key: value for key, value in frozen.items() if key != stable_path},
+        **arguments,
+    )
+
+    real_sha256_file = runner._sha256_file
+
+    def unknown_current_runner(path: Path) -> str:
+        if path.resolve() == Path(panel_path):
+            return "f" * 64
+        return real_sha256_file(path)
+
+    if IS_ANONYMOUS_SUPPLEMENT:
+        # The anonymous archive deliberately rewrites deployment-specific
+        # identifiers, so its distributed runner bytes must not unlock the
+        # repository-only historical evidence exception.
+        assert current[panel_path] != (
+            COMPATIBLE_CURRENT_COMPLETE_SUBSET_PART2_RUNNER_SHA256
+        )
+    else:
+        assert current[panel_path] == (
+            COMPATIBLE_CURRENT_COMPLETE_SUBSET_PART2_RUNNER_SHA256
+        )
+    monkeypatch.setattr(runner, "_sha256_file", unknown_current_runner)
+    assert not _subset_source_artifacts_match_current_or_frozen_execution(
+        frozen, **arguments
+    )
 
 
 @pytest.mark.skipif(

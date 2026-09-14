@@ -173,6 +173,7 @@ def test_supplement_includes_exact_hosted_reproducibility_surface_only() -> None
         "docs/PART2_SENSITIVITY_V1.md",
         "docs/PROVIDER_SAFE_V2_DEFINITIVE_ANALYSIS.md",
         "docs/PROVIDER_SAFE_V2_PAPER_ASSETS.md",
+        "docs/REVIEW_RESPONSE_MATRIX.md",
         "docs/LOCAL_MODEL_CONTROLS.md",
         "experiments/misc/inference_hub_compatibility_provider_safe.py",
         "experiments/misc/inference_hub_exploratory_accelerated.py",
@@ -223,6 +224,18 @@ def test_supplement_includes_exact_hosted_reproducibility_surface_only() -> None
     assert "tests/test_build_provider_safe_v2_croissant_metadata.py" in names
     assert not any(name.startswith("data/analysis/final_results/") for name in names)
     assert "data/analysis/croissant_metadata.json" not in names
+
+
+def test_supplement_includes_definitive_analyzer_repair_dependencies() -> None:
+    names = {
+        path.as_posix() for path in build_supplement.collect_supplement_files()
+    }
+    assert {
+        "experiments/misc/inference_hub_part1_operational_repair.py",
+        "experiments/misc/inference_hub_part2_sensitivity_operational_repair.py",
+        "tests/test_inference_hub_part1_operational_repair.py",
+        "tests/test_inference_hub_part2_sensitivity_operational_repair.py",
+    } <= names
 
 
 def test_unreviewed_availability_retry_source_is_fail_closed(

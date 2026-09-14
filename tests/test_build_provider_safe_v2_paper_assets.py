@@ -1275,8 +1275,10 @@ def test_latex_tables_preserve_ids_define_directions_and_space_every_float(tmp_p
     assert "Part 0: R [95\\%]" in cross_phase
     assert "Part 1: W [95\\%]" in cross_phase
     assert "Part 2: R; A [95\\%]" in cross_phase
-    assert "environmentally estimable-trajectory normalized AURC" in cross_phase
-    assert "no environmentally estimable AURC trajectory" in cross_phase
+    assert "primary pooled restraint proportion" in cross_phase
+    assert "zero-invalid eligible trajectories" in cross_phase
+    assert "Bare NE means no eligible trajectory" in cross_phase
+    assert "[NE] after a point means n=1" in cross_phase
     assert "no composite or general safety ranking is computed" in cross_phase
     assert "-- (not in panel)" in cross_phase
     assert "\\begin{tabular}{llccc}" in cross_phase
@@ -1286,12 +1288,19 @@ def test_latex_tables_preserve_ids_define_directions_and_space_every_float(tmp_p
     assert "Refusal" in compact and "Cooperation" in compact and "Restraint" in compact
     assert "AURC" in compact and "Population" in compact
     assert "newer frozen route versions first" in compact
+    assert "equal-seed-weighted mean" in compact
+    assert "can differ from the primary pooled living-agent-day proportion" in compact
+    assert "zero-invalid eligible trajectories" in compact
     assert "complete 22-, 75-, and 19-route ledgers remain in the supplement" in compact
     assert "\\begin{tabular}{lccccc}" in compact
     assert "\\begin{tabular}{llcccc}" in part0
     assert "\\begin{tabular}{llc}" in part1
     part2 = (output / "part2_all_models_table.tex").read_text()
     assert "\\begin{tabular}{llccc}" in part2
+    assert "primary pooled all-scheduled restraint" in part2
+    assert "lower proportion can reflect overuse, invalids, or both" in part2
+    assert "Bare NE means n=0" in part2
+    assert "[NE] after a point means n=1" in part2
     assert "Mean AUPC" not in part2 and "Nondepletion [95" not in part2
     assert "\\begin{tabular}{llccc}" in role
     assert "\\begin{tabular}{lllcc}" in sensitivity

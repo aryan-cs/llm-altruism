@@ -282,7 +282,9 @@ def test_supplement_builder_excludes_all_raw_and_legacy_generated_artifacts(tmp_
         "analysis/tool.py": "print('ok')\n",
         "analysis/__pycache__/tool.pyc": "cache",
         "docs/release/README.md": "# release\n",
-        "docs/conference_submission/conference_submission.tex": "paper",
+        "docs/conference_submission/conference_submission.tex": (
+            "\\author{Fixture Author}\npaper\n"
+        ),
         "docs/conference_submission/conference_submission.pdf": "pdf",
         "docs/conference_submission/references.bib": "",
         "docs/conference_submission/neurips_2026.sty": "",

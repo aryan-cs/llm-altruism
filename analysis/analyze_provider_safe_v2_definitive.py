@@ -73,6 +73,36 @@ EXPECTED_TYPES = {
 PART1_OPERATIONAL_REPAIR_STATUS = (
     "complete_exact_source_bound_transport_null_overlay_applied"
 )
+PART1_FROZEN_REPAIR_SOURCE_EVIDENCE_SHA256 = (
+    "a9475219082761b3fe8690150f73c4da3b700d06d7fdd2bb525111c79a76d59f"
+)
+PART1_FROZEN_REPAIR_OVERLAY_EVIDENCE_SHA256 = (
+    "5e93a6de2dc73715db2c3b398456649200dc4fe2c2fcb50a91e7c535e321af1e"
+)
+PART1_FROZEN_REPAIR_RUNNER_SHA256 = (
+    "9c40013b5f83f343b3d82fee713edc39e4b834ed3d88ee02779ba20403af4b35"
+)
+PART1_COMPATIBLE_CURRENT_REPAIR_RUNNER_SHA256 = (
+    "c51655e4fbbfa2384998ed8529fb2800f954a7a973fce9d3b44cd4027122e4fd"
+)
+SENSITIVITY_FROZEN_REPAIR_SOURCE_EVIDENCE_SHA256 = (
+    "0bbe90e8d852758f80f5c61ab366e735fd92534d764bf271b5025efb5ba876ac"
+)
+SENSITIVITY_FROZEN_REPAIR_OVERLAY_EVIDENCE_SHA256 = (
+    "d4898dea9d24a22720373d69c8ac1051b313439a8bd193c449f6c1e2108cbd0a"
+)
+SENSITIVITY_FROZEN_PART2_RUNNER_SHA256 = (
+    "3cf76f3f0ebfd7d309f675b4cbc422f79e7858594baef4bf614651c3cb018e45"
+)
+SENSITIVITY_FROZEN_REPAIR_RUNNER_SHA256 = (
+    "1f66c95f86a21f3850959ed74866f48733e92867e656721d199baf56003c8b63"
+)
+SENSITIVITY_COMPATIBLE_CURRENT_PART2_RUNNER_SHA256 = (
+    "28c05c1c730390c61577b3874b74f5a3b2252f6bdc4badac8d9e393b70eaa138"
+)
+SENSITIVITY_COMPATIBLE_CURRENT_REPAIR_RUNNER_SHA256 = (
+    "b3b95e2010a6e8e3d0c1b54e7211daa5ea0f183bca5e7a1bab8bcd720ae224d6"
+)
 SENSITIVITY_OPERATIONAL_REPAIR_STATUS = (
     "complete_exact_source_bound_full_trajectory_operational_overlay_applied"
 )
@@ -723,6 +753,44 @@ def _part1_repair_metadata_matches_payload(
     return all(row.get(field) == metadata.get(field) for field in fields)
 
 
+def _implementation_sources_match_current_or_frozen_execution(
+    value: object,
+    *,
+    current_sources: Mapping[str, str],
+    source_evidence_sha256: object,
+    overlay_evidence_sha256: object,
+    frozen_source_evidence_sha256: str,
+    frozen_overlay_evidence_sha256: str,
+    frozen_overrides: Mapping[str, str],
+    compatible_current_overrides: Mapping[str, str],
+) -> bool:
+    """Accept current bytes or one exact evidence-specific historical map.
+
+    Completed evidence must retain the hashes of the implementation that
+    actually dispatched it. Some immutable overlays predate later, compatible
+    runner extensions. The exception is therefore bound to both immutable
+    evidence hashes and a complete expected map; it is not a general allowance
+    for stale source code.
+    """
+
+    if value == current_sources:
+        return True
+    if (
+        source_evidence_sha256 != frozen_source_evidence_sha256
+        or overlay_evidence_sha256 != frozen_overlay_evidence_sha256
+        or not set(frozen_overrides) <= set(current_sources)
+        or set(compatible_current_overrides) != set(frozen_overrides)
+        or any(
+            current_sources[path] != compatible_current_overrides[path]
+            for path in frozen_overrides
+        )
+    ):
+        return False
+    frozen_sources = dict(current_sources)
+    frozen_sources.update(frozen_overrides)
+    return value == frozen_sources
+
+
 def _validate_part1_operational_repair(
     *,
     source_run: Path,
@@ -776,7 +844,28 @@ def _validate_part1_operational_repair(
         str(path.resolve()): _sha256_file(path.resolve())
         for path in part1_operational_repair._SOURCE_PATHS
     }
-    if repair.get("repair_source_artifacts") != expected_sources:
+    if not _implementation_sources_match_current_or_frozen_execution(
+        repair.get("repair_source_artifacts"),
+        current_sources=expected_sources,
+        source_evidence_sha256=source_manifest.get("evidence_sha256"),
+        overlay_evidence_sha256=repair.get("evidence_sha256"),
+        frozen_source_evidence_sha256=(
+            PART1_FROZEN_REPAIR_SOURCE_EVIDENCE_SHA256
+        ),
+        frozen_overlay_evidence_sha256=(
+            PART1_FROZEN_REPAIR_OVERLAY_EVIDENCE_SHA256
+        ),
+        frozen_overrides={
+            str(Path(part1_operational_repair.__file__).resolve()): (
+                PART1_FROZEN_REPAIR_RUNNER_SHA256
+            )
+        },
+        compatible_current_overrides={
+            str(Path(part1_operational_repair.__file__).resolve()): (
+                PART1_COMPATIBLE_CURRENT_REPAIR_RUNNER_SHA256
+            )
+        },
+    ):
         raise DefinitiveAnalysisError(
             "Part 1 operational repair implementation-source binding failed."
         )
@@ -2081,7 +2170,7 @@ def _part2_manifest_contract(source: Mapping[str, Any]) -> None:
 
 def _part2_source_bindings(
     source: Mapping[str, Any], label: str
-) -> tuple[dict[str, Any], tuple[Path, ...]]:
+) -> tuple[dict[str, Any], tuple[Mapping[str, Any], ...], tuple[Path, ...]]:
     inputs = source.get("input_artifacts")
     if not isinstance(inputs, Mapping) or set(inputs) != {
         "panel",
@@ -2171,12 +2260,47 @@ def _part2_source_bindings(
         raise DefinitiveAnalysisError(
             f"{label} Part 2 implementation-source binding failed."
         )
-    return frozen_panel, (
+    return frozen_panel, tuple(selected_subjects), (
         panel_path,
         compatibility_path,
         registry_path,
         *(path.resolve() for path in part2_panel._SOURCE_PATHS),
     )
+
+
+def _part2_overlay_subject_route_binding(
+    overlay_routes: object,
+    *,
+    source_manifest_routes: object,
+    hydrated_source_routes: Sequence[Mapping[str, Any]],
+    cascading: bool,
+    label: str,
+) -> None:
+    """Bind direct overlays exactly and permit one known cascading expansion.
+
+    Original source manifests contain the compact request-critical route
+    projection. A cascading child additionally freezes registry and
+    compatibility metadata rehydrated from the source-bound inputs. Delegate
+    that expanded-schema check to the production recursive validator using the
+    independently selected source subjects; direct overlays remain strict.
+    """
+
+    if not cascading:
+        if overlay_routes != source_manifest_routes:
+            raise DefinitiveAnalysisError(
+                f"{label} exact-source overlay binding failed."
+            )
+        return
+    try:
+        part2_overlay_validator._validate_cascading_subject_route_lineage(
+            overlay_routes,
+            source_manifest_routes=source_manifest_routes,
+            hydrated_source_routes=hydrated_source_routes,
+        )
+    except part2_overlay_validator.Part2OperationalOverlayValidationError as error:
+        raise DefinitiveAnalysisError(
+            f"{label} cascading subject-route lineage failed."
+        ) from error
 
 
 def _part2_nonnegative_integer(
@@ -2494,7 +2618,7 @@ def _load_part2_source_overlay_pair(
     source_run = source_path.parent.parent
     overlay_run = overlay_path.parent.parent
     _part2_manifest_contract(source)
-    panel, bound_files = _part2_source_bindings(source, label)
+    panel, hydrated_subjects, bound_files = _part2_source_bindings(source, label)
     subjects = _subject_index(source)
     expected_pair_count = PART2_100DAY_PAIR_ROUTE_COUNTS[pair_index]
     if len(subjects) != expected_pair_count:
@@ -2605,7 +2729,6 @@ def _load_part2_source_overlay_pair(
         or overlay.get("part2_contract") != source.get("part2_contract")
         or overlay.get("common_environment_seeds")
         != source.get("common_environment_seeds")
-        or overlay.get("subject_routes") != source.get("subject_routes")
         or overlay.get("repair_policy")
         != (
             part2_cascading_repair.REPAIR_POLICY
@@ -2617,6 +2740,13 @@ def _load_part2_source_overlay_pair(
         or maximum_rounds < 1
     ):
         raise DefinitiveAnalysisError(f"{label} exact-source overlay binding failed.")
+    _part2_overlay_subject_route_binding(
+        overlay.get("subject_routes"),
+        source_manifest_routes=source.get("subject_routes"),
+        hydrated_source_routes=hydrated_subjects,
+        cascading=cascading,
+        label=label,
+    )
     if cascading:
         selected = overlay.get("selected_trajectory")
         if not isinstance(selected, Mapping):
@@ -3084,13 +3214,18 @@ def _part2_composition_locked(
         )
 
     subject_index = {str(subject["target_id"]): subject for subject in subjects}
-    _part2_trajectory_index(
+    trajectory_index = _part2_trajectory_index(
         rows,
         subject_index,
         loaded_pairs[0]["source_manifest"]["common_environment_seeds"],
         "Part 2 composed effective trajectories",
         effective=True,
     )
+    rows = [
+        dict(trajectory_index[(target_id, trajectory_ordinal)])
+        for target_id in target_ids
+        for trajectory_ordinal in range(PART2_100DAY_TRAJECTORIES_PER_ROUTE)
+    ]
     models, figure = _part2_estimates(subject_index, rows, effective=True)
     judge_rows = [pair["source_manifest"]["judge_reservation"] for pair in loaded_pairs]
     if any(row != judge_rows[0] for row in judge_rows[1:]):
@@ -3447,7 +3582,34 @@ def _validate_sensitivity_operational_repair(
     max_rounds = repair.get("max_full_trajectory_rounds")
     max_attempts = repair.get("max_physical_attempts_per_agent_day")
     if (
-        repair.get("repair_source_artifacts") != expected_sources
+        not _implementation_sources_match_current_or_frozen_execution(
+            repair.get("repair_source_artifacts"),
+            current_sources=expected_sources,
+            source_evidence_sha256=source_manifest.get("evidence_sha256"),
+            overlay_evidence_sha256=repair.get("evidence_sha256"),
+            frozen_source_evidence_sha256=(
+                SENSITIVITY_FROZEN_REPAIR_SOURCE_EVIDENCE_SHA256
+            ),
+            frozen_overlay_evidence_sha256=(
+                SENSITIVITY_FROZEN_REPAIR_OVERLAY_EVIDENCE_SHA256
+            ),
+            frozen_overrides={
+                str(Path(part2_panel.__file__).resolve()): (
+                    SENSITIVITY_FROZEN_PART2_RUNNER_SHA256
+                ),
+                str(Path(sensitivity_operational_repair.__file__).resolve()): (
+                    SENSITIVITY_FROZEN_REPAIR_RUNNER_SHA256
+                ),
+            },
+            compatible_current_overrides={
+                str(Path(part2_panel.__file__).resolve()): (
+                    SENSITIVITY_COMPATIBLE_CURRENT_PART2_RUNNER_SHA256
+                ),
+                str(Path(sensitivity_operational_repair.__file__).resolve()): (
+                    SENSITIVITY_COMPATIBLE_CURRENT_REPAIR_RUNNER_SHA256
+                ),
+            },
+        )
         or isinstance(max_rounds, bool)
         or not isinstance(max_rounds, int)
         or max_rounds < 1
@@ -3948,7 +4110,7 @@ def _write_jsonl(path: Path, rows: Sequence[Mapping[str, Any]]) -> None:
 def _write_csv(path: Path, rows: Sequence[Mapping[str, Any]]) -> None:
     fields = sorted({key for row in rows for key in row})
     with path.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=fields)
+        writer = csv.DictWriter(handle, fieldnames=fields, lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
 

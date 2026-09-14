@@ -109,6 +109,7 @@ def _synthetic_view_data() -> tuple[
         for trajectory_index in range(12):
             curve: dict[str, Any] = {
                 "trajectory_index": trajectory_index,
+                "invalid_count": 0,
                 "reserve": [
                     max(0, 2500 - 2 * (day + route_index + trajectory_index))
                     for day in range(100)
@@ -136,6 +137,11 @@ def _synthetic_view_data() -> tuple[
                         agent.append(action)
                     actions.append(agent)
                 curve["agent_actions"] = actions
+                curve["invalid_count"] = sum(
+                    action == "INVALID"
+                    for agent in actions
+                    for action in agent
+                )
             route_curves.append(curve)
         curves[target_id] = route_curves
     return rows, curves
@@ -377,6 +383,135 @@ def test_effective_lineage_selects_source_or_declared_repair_round(
         )
 
 
+def test_cascading_effective_lineage_selects_parent_and_child_journals(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    parent_manifest_path = tmp_path / "parent/private/manifest.json"
+    child_manifest_path = tmp_path / "child/private/manifest.json"
+    parent_ref = {"which": "parent"}
+    child_ref = {"which": "child"}
+    pair = SimpleNamespace(
+        source_manifest_path=tmp_path / "source/private/manifest.json",
+        overlay_manifest_path=child_manifest_path,
+        source_manifest={"journals": {}},
+        overlay_manifest={
+            "maximum_rounds": 8,
+            "parent_overlay_manifest": {
+                "path": str(parent_manifest_path),
+                "file_sha256": "1" * 64,
+                "evidence_sha256": "2" * 64,
+            },
+            "selected_trajectory": {
+                "target_id": "route/selected",
+                "trajectory_index": 1,
+            },
+            "journals": {"route/selected::1::3": child_ref},
+        },
+        parent_overlay_manifest_path=parent_manifest_path,
+        parent_overlay_manifest={
+            "maximum_rounds": 8,
+            "journals": {"route/inherited::2::4": parent_ref},
+        },
+    )
+    observed: list[tuple[dict[str, str], Path, str]] = []
+
+    def read(
+        reference: dict[str, str],
+        *,
+        expected_path: Path,
+        label: str,
+        tracker: object,
+    ) -> list[dict[str, Any]]:
+        del tracker
+        observed.append((reference, expected_path, label))
+        return [{"record": True}]
+
+    monkeypatch.setattr(original_views, "_read_bound_journal_reference", read)
+    original_views._selected_journal_records(
+        pair,
+        {
+            "target_id": "route/inherited",
+            "trajectory_index": 2,
+            "source_replaced_for_operational_failure": True,
+            "operational_repair_round": 4,
+        },
+        object(),
+    )
+    original_views._selected_journal_records(
+        pair,
+        {
+            "target_id": "route/selected",
+            "trajectory_index": 1,
+            "source_replaced_for_operational_failure": True,
+            "operational_repair_round": 3,
+        },
+        object(),
+    )
+
+    assert observed == [
+        (
+            parent_ref,
+            tmp_path
+            / "parent/private/trajectories/route_inherited/seed-002-round-04.jsonl",
+            "selected parent operational-repair trajectory journal",
+        ),
+        (
+            child_ref,
+            tmp_path
+            / "child/private/trajectories/route_selected/seed-001-round-03.jsonl",
+            "selected operational-repair trajectory journal",
+        ),
+    ]
+
+
+@pytest.mark.parametrize("tamper", ["parent_path", "selected_trajectory"])
+def test_cascading_effective_lineage_rejects_adversarial_binding(
+    tmp_path: Path, tamper: str
+) -> None:
+    parent_manifest_path = tmp_path / "parent/private/manifest.json"
+    overlay_manifest: dict[str, Any] = {
+        "maximum_rounds": 8,
+        "parent_overlay_manifest": {
+            "path": str(parent_manifest_path),
+            "file_sha256": "1" * 64,
+            "evidence_sha256": "2" * 64,
+        },
+        "selected_trajectory": {
+            "target_id": "route/selected",
+            "trajectory_index": 1,
+        },
+        "journals": {},
+    }
+    if tamper == "parent_path":
+        overlay_manifest["parent_overlay_manifest"]["path"] = str(
+            tmp_path / "other/private/manifest.json"
+        )
+        expected = "parent lineage is unavailable or changed"
+    else:
+        overlay_manifest["selected_trajectory"]["trajectory_index"] = True
+        expected = "selected lineage is malformed"
+    pair = SimpleNamespace(
+        source_manifest_path=tmp_path / "source/private/manifest.json",
+        overlay_manifest_path=tmp_path / "child/private/manifest.json",
+        source_manifest={"journals": {}},
+        overlay_manifest=overlay_manifest,
+        parent_overlay_manifest_path=parent_manifest_path,
+        parent_overlay_manifest={"maximum_rounds": 8, "journals": {}},
+    )
+
+    with pytest.raises(original_views.OriginalViewFigureError, match=expected):
+        original_views._selected_journal_records(
+            pair,
+            {
+                "target_id": "route/inherited",
+                "trajectory_index": 2,
+                "source_replaced_for_operational_failure": True,
+                "operational_repair_round": 4,
+            },
+            object(),
+        )
+
+
 def test_100_day_ticks_line_legend_and_provider_encodings_are_readable(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -427,6 +562,112 @@ def test_100_day_ticks_line_legend_and_provider_encodings_are_readable(
     }
     assert len(openai_encodings) == 7
     plt.close(fig)
+
+
+def test_line_curves_exclude_invalid_trajectories_and_mark_zero_eligible(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rows = [
+        {
+            "target_id": "openai/partially-valid",
+            "upstream_provider": "openai",
+            "model": "partially-valid",
+        },
+        {
+            "target_id": "deepseek-ai/no-valid-trajectories",
+            "upstream_provider": "deepseek-ai",
+            "model": "no-valid-trajectories",
+        },
+    ]
+    curves = {
+        "openai/partially-valid": [
+            {
+                "trajectory_index": trajectory_index,
+                "invalid_count": int(trajectory_index == 11),
+                "reserve": [999.0] * 4 if trajectory_index == 11 else [100.0] * 4,
+                "population": [1.0] * 4,
+            }
+            for trajectory_index in range(12)
+        ],
+        "deepseek-ai/no-valid-trajectories": [
+            {
+                "trajectory_index": trajectory_index,
+                "invalid_count": 1,
+                "reserve": [500.0 + trajectory_index] * 4,
+                "population": [1.0] * 4,
+            }
+            for trajectory_index in range(12)
+        ],
+    }
+    captured: list[Any] = []
+
+    def capture(
+        fig: Any, directory: Path, stem: str, title: str
+    ) -> list[Path]:
+        del title
+        captured.append(fig)
+        return [directory / f"{stem}.pdf", directory / f"{stem}.png"]
+
+    monkeypatch.setattr(original_views, "_atomic_save", capture)
+    original_views._line_chart(
+        rows,
+        curves,
+        metric="reserve",
+        days=4,
+        maximum=1000,
+        ylabel="Shared reserve units",
+        title="Shared reserve",
+        stem="part2_shared_reserve_over_time",
+        output_dir=tmp_path,
+    )
+
+    ax = captured[0].axes[0]
+    lines = {line.get_label(): line for line in ax.lines}
+    eligible_label = next(label for label in lines if "n=11 valid" in label)
+    zero_label = next(label for label in lines if "NE (0 valid trajectories)" in label)
+    np.testing.assert_allclose(lines[eligible_label].get_ydata(), [100.0] * 4)
+    assert len(lines[zero_label].get_xdata()) == 0
+    assert len(lines[zero_label].get_ydata()) == 0
+    assert any(
+        "semantic-invalid trajectories are excluded" in text.get_text()
+        for text in ax.texts
+    )
+    plt.close(captured[0])
+
+
+def test_line_curves_require_explicit_semantic_invalid_counts(
+    tmp_path: Path,
+) -> None:
+    row = {
+        "target_id": "openai/missing-validity",
+        "upstream_provider": "openai",
+        "model": "missing-validity",
+    }
+    curves = {
+        row["target_id"]: [
+            {
+                "trajectory_index": trajectory_index,
+                "reserve": [100.0] * 4,
+            }
+            for trajectory_index in range(12)
+        ]
+    }
+
+    with pytest.raises(
+        original_views.OriginalViewFigureError,
+        match="malformed semantic-invalid trajectory count",
+    ):
+        original_views._line_chart(
+            [row],
+            curves,
+            metric="reserve",
+            days=4,
+            maximum=100,
+            ylabel="Shared reserve units",
+            title="Shared reserve",
+            stem="part2_shared_reserve_over_time",
+            output_dir=tmp_path,
+        )
 
 
 def test_agent_day_matrix_is_exact_deterministic_and_retains_invalids() -> None:
@@ -577,12 +818,18 @@ def test_build_preserves_all_ten_original_view_filenames(
         lambda *_args: (part2_rows, curves, 100, 2500, 50),
     )
 
+    bar_value_fields: list[str] = []
+
     def two_outputs(*_args: Any, **kwargs: Any) -> list[Path]:
         stem = kwargs["stem"]
         directory = kwargs["output_dir"]
         return [directory / f"{stem}.pdf", directory / f"{stem}.png"]
 
-    monkeypatch.setattr(original_views, "_bar_chart", two_outputs)
+    def two_bar_outputs(*_args: Any, **kwargs: Any) -> list[Path]:
+        bar_value_fields.append(kwargs["value_field"])
+        return two_outputs(*_args, **kwargs)
+
+    monkeypatch.setattr(original_views, "_bar_chart", two_bar_outputs)
     monkeypatch.setattr(original_views, "_line_chart", two_outputs)
     monkeypatch.setattr(
         original_views,
@@ -618,6 +865,10 @@ def test_build_preserves_all_ten_original_view_filenames(
         "part2_population_over_time.png",
         "part2_agent_day_raster_current.pdf",
         "part2_agent_day_raster_current.png",
+    ]
+    assert bar_value_fields == [
+        "refusal_rate_all_scheduled",
+        "mean_trajectory_restraint_rate_all_scheduled",
     ]
 
 
@@ -747,6 +998,59 @@ def test_ten_file_publication_commits_exact_set_and_preserves_unrelated(
     assert unrelated.read_text(encoding="utf-8") == "keep"
 
 
+def test_replayed_curve_carries_semantic_invalid_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    contract = runner.Part2Contract(1, 1, 1, 10, 2, 2, 5, 0.2)
+    replayed = {
+        "operationally_eligible": True,
+        "final_reserve": 10,
+        "final_population": 1,
+        "aurc": 1.0,
+        "aupc": 1.0,
+        "restraint_rate": 0.0,
+        "invalid_count": 1,
+    }
+    effective = {
+        **replayed,
+        "operational_repair_round": None,
+        "source_replaced_for_operational_failure": False,
+    }
+    monkeypatch.setattr(
+        original_views,
+        "_validate_journal_identity",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        original_views,
+        "_offline_replay",
+        lambda **_kwargs: replayed,
+    )
+    monkeypatch.setattr(
+        original_views,
+        "_result_index",
+        lambda *_args, **_kwargs: ({(1, 0): {"action": "INVALID"}}, []),
+    )
+
+    curve = original_views._curve_from_replayed_records(
+        [{"record": True}],
+        subject={"target_id": "openai/semantic-invalid"},
+        trajectory_index=0,
+        environment_seed=123,
+        contract=contract,
+        execution_contract={},
+        effective_row=effective,
+    )
+
+    assert curve == {
+        "trajectory_index": 0,
+        "reserve": [10],
+        "population": [1],
+        "invalid_count": 1,
+        "agent_actions": [["INVALID"]],
+    }
+
+
 class _Client:
     def post(self, path: str, body: dict[str, Any]) -> dict[str, Any]:
         assert path == "/chat/completions"
@@ -872,6 +1176,7 @@ def test_real_50_agent_100_day_replay_never_dispatches_or_mutates(
 
     assert curve["reserve"] == [2500] * 100
     assert curve["population"] == [50] * 100
+    assert curve["invalid_count"] == 0
     assert len(curve["agent_actions"]) == 50
     assert all(actions == ["OPTION_A"] * 100 for actions in curve["agent_actions"])
     assert before == (
@@ -907,6 +1212,20 @@ def _production_ready() -> bool:
     reason="The private three-pair 23-route production snapshot is not COMPLETE/published.",
 )
 def test_completed_production_three_pair_curves_replay_end_to_end() -> None:
+    main_overlay = json.loads(
+        original_views.DEFAULT_PART2_SOURCE_OVERLAY_PAIRS[0][1].read_text(
+            encoding="utf-8"
+        )
+    )
+    assert (
+        main_overlay["artifact_type"]
+        == "inference_hub_part2_cascading_operational_trajectory_repair_v1"
+    )
+    assert (
+        Path(main_overlay["parent_overlay_manifest"]["path"]).parents[1].name
+        == "full-part2-n12-n50-d100-main21-v5-operational-repair-multikey-v3"
+    )
+
     aggregate_path = (
         ROOT
         / "data/processed/provider-safe-v2-definitive-analysis/figure_aggregates.json"
@@ -935,5 +1254,6 @@ def test_completed_production_three_pair_curves_replay_end_to_end() -> None:
 
     assert len(subjects) == 23
     assert sum(len(group) for group in curves.values()) == 276
+    assert len(curves["google/gemini-3.5-flash"]) == 12
     assert (days, capacity, society_size) == (100, 2500, 50)
     assert raster.shape == (1150, 100)

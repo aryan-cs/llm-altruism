@@ -1,14 +1,14 @@
 {
   "artifact_type": "provider_safe_v2_definitive_descriptive_analysis",
   "confirmatory_or_paper_promotion_permitted": false,
-  "evidence_sha256": "a62c982d3ef3a04aeaec5e96a1a1db15e2e534890a5436708467c6ba43ff96a1",
+  "evidence_sha256": "9dd83133a0129f62745fb91615922d1dab64f254713495ed94571af4af6571e8",
   "exploratory_only": true,
-  "generated_at_utc": "2026-08-04T04:02:16.259637Z",
+  "generated_at_utc": "2026-09-13T22:15:32.667501Z",
   "human_labels_generated": false,
   "input_evidence_status": {
     "part0": "fully_terminalized_with_operational_invalids",
     "part1": "complete_exact_source_bound_transport_null_overlay_applied",
-    "part2": "complete",
+    "part2": "complete_exact_source_bound_three_pair_full_trajectory_operational_overlays_composed",
     "role": "complete",
     "sensitivity": "complete_exact_source_bound_full_trajectory_operational_overlay_applied"
   },
@@ -25,8 +25,8 @@
     },
     "part2": {
       "basename": "manifest.json",
-      "evidence_sha256": "7849e23061ab0ce8db234112bb0f3ccb6067f4c28916e7ad0f451e43a39f481b",
-      "file_sha256": "bd9b6c44e5e27f63fc1aff2deec73afb4deb4fcc51923b625a3a95482133c89a"
+      "evidence_sha256": "a5c5f5f75fddee5d33105d28b81b8bc277dff072883b7ee2079e213a318b4d6e",
+      "file_sha256": "c7c47f58fbd42bf659a34549076ad23fb392a9e1ccd7e674a7375ee5320aec02"
     },
     "role": {
       "basename": "manifest.json",
@@ -61,7 +61,7 @@
       "judge_target_id": "judge.nvidia-evals-nemotron-3-30b-a3b",
       "phase": "part2",
       "route_disjoint": true,
-      "subject_count": 19,
+      "subject_count": 23,
       "target_disjoint": true,
       "upstream_identity_disjoint": true
     },
@@ -128,6 +128,138 @@
     "source_manifest_file_sha256": "7ba0efb2b77ba02db239a92d1460f0be2ac3edc97488bc701f6563905c703b49",
     "status": "complete_exact_source_bound_transport_null_overlay_applied"
   },
+  "part2_operational_repair_composition": {
+    "common_environment_seed_count": 12,
+    "common_environment_seeds_sha256": "7f79c387a44c87a50b1ace28d1f718d6a281f9e1f0c460117904cfc96c604a56",
+    "composition_schema_version": 1,
+    "declared_excluded_target_ids": [
+      "anthropic/claude-opus-4-5"
+    ],
+    "declared_exclusions": [
+      {
+        "reason": "no_complete_exact_route_corrected_original_scale_100d_evidence",
+        "substitution_permitted": false,
+        "target_id": "anthropic/claude-opus-4-5"
+      }
+    ],
+    "environmental_invalid_policy": "exclude_operationally_eligible_trajectories_with_any_semantic_invalid_from_environmental_estimates",
+    "ordered_source_overlay_pairs": [
+      {
+        "audit": {
+          "cascading_repairs": 1,
+          "inherited_parent_repairs": 37,
+          "pair_ordinal": 1,
+          "route_count": 21,
+          "source_operational_failure_trajectories": 38,
+          "source_trajectories_replayed": 252,
+          "successful_full_trajectory_repairs": 38,
+          "trajectory_count": 252,
+          "unresolved_operational_failure_trajectories": 0
+        },
+        "operational_repair_overlay": {
+          "basename": "manifest.json",
+          "evidence_sha256": "8b2034df599ec7a6e2abbdf5964127bb0987fd1f95372be7343e06baef715079",
+          "file_sha256": "73adfc9934d360cc9e43fe010c27e61358a82d5a9d9afd7e391bd7f52cd866a6",
+          "parent_operational_repair_overlay": {
+            "basename": "manifest.json",
+            "evidence_sha256": "dc5f7ee2b95a707f1e71b81233c163852d01ecf9cdefdd7375b34177e8dc81e2",
+            "file_sha256": "eae6b8d70edfc5ee8e73f647f446d995e5ed32c80790c7fdfea9a641d1120919"
+          },
+          "source_manifest_evidence_sha256": "a5c5f5f75fddee5d33105d28b81b8bc277dff072883b7ee2079e213a318b4d6e",
+          "source_manifest_file_sha256": "c7c47f58fbd42bf659a34549076ad23fb392a9e1ccd7e674a7375ee5320aec02"
+        },
+        "pair_ordinal": 1,
+        "source": {
+          "basename": "manifest.json",
+          "evidence_sha256": "a5c5f5f75fddee5d33105d28b81b8bc277dff072883b7ee2079e213a318b4d6e",
+          "file_sha256": "c7c47f58fbd42bf659a34549076ad23fb392a9e1ccd7e674a7375ee5320aec02"
+        }
+      },
+      {
+        "audit": {
+          "cascading_repairs": 0,
+          "inherited_parent_repairs": 0,
+          "pair_ordinal": 2,
+          "route_count": 1,
+          "source_operational_failure_trajectories": 10,
+          "source_trajectories_replayed": 12,
+          "successful_full_trajectory_repairs": 10,
+          "trajectory_count": 12,
+          "unresolved_operational_failure_trajectories": 0
+        },
+        "operational_repair_overlay": {
+          "basename": "manifest.json",
+          "evidence_sha256": "bb49aa1db22ccd40d5259dc5844777a624e66d37f8fca49cacd36ab3fb80c910",
+          "file_sha256": "a7c37ab41903a8bdffccd9595ebb590ac396cdfd149d05e47f0d8e0e63f4e3f1",
+          "source_manifest_evidence_sha256": "d75d38d2f13752b1398296c4c8100aa9902017124a39e0496761af6dbd187116",
+          "source_manifest_file_sha256": "dfe88f3f7f0ccb6849fe9821c23f26534ddccb32b0507561742dead47ae02099"
+        },
+        "pair_ordinal": 2,
+        "source": {
+          "basename": "manifest.json",
+          "evidence_sha256": "d75d38d2f13752b1398296c4c8100aa9902017124a39e0496761af6dbd187116",
+          "file_sha256": "dfe88f3f7f0ccb6849fe9821c23f26534ddccb32b0507561742dead47ae02099"
+        }
+      },
+      {
+        "audit": {
+          "cascading_repairs": 0,
+          "inherited_parent_repairs": 0,
+          "pair_ordinal": 3,
+          "route_count": 1,
+          "source_operational_failure_trajectories": 9,
+          "source_trajectories_replayed": 12,
+          "successful_full_trajectory_repairs": 9,
+          "trajectory_count": 12,
+          "unresolved_operational_failure_trajectories": 0
+        },
+        "operational_repair_overlay": {
+          "basename": "manifest.json",
+          "evidence_sha256": "da8bc789732cbba5f9723f0fbd971742b8f76fe2b053be09f61254d2cf9c6b46",
+          "file_sha256": "6b711cfceed40e407fe85839016fd974bc6cde947ce1fd1b08f72154f2031eae",
+          "source_manifest_evidence_sha256": "5ffe6d868357f58b3df639c94c3bd007fb189d34d1037a35741ec6f4d5841369",
+          "source_manifest_file_sha256": "ac07ee7ac137aeda202cb01564b7f09276abae98761b9984e2f32ee62ba567a5"
+        },
+        "pair_ordinal": 3,
+        "source": {
+          "basename": "manifest.json",
+          "evidence_sha256": "5ffe6d868357f58b3df639c94c3bd007fb189d34d1037a35741ec6f4d5841369",
+          "file_sha256": "ac07ee7ac137aeda202cb01564b7f09276abae98761b9984e2f32ee62ba567a5"
+        }
+      }
+    ],
+    "ordered_target_ids": [
+      "openai/gpt-3.5-turbo",
+      "openai/gpt-4o",
+      "openai/gpt-4.1",
+      "openai/gpt-5",
+      "openai/gpt-5.2",
+      "openai/gpt-5.4",
+      "openai/gpt-oss-20b",
+      "anthropic/claude-haiku-4-5",
+      "anthropic/claude-sonnet-4-5",
+      "anthropic/claude-sonnet-4-6",
+      "anthropic/claude-opus-4-6",
+      "google/gemini-2.5-flash",
+      "google/gemini-2.5-pro",
+      "google/gemini-3.1-pro-preview",
+      "google/gemini-3.5-flash",
+      "meta/llama-3.3-70b-instruct",
+      "qwen/qwen3.5-35b-a3b",
+      "qwen/qwen3.6-27b",
+      "nvidia/nemotron-3-super-v3",
+      "minimaxai/minimax-m2.7",
+      "zai-org/glm-5.1",
+      "nvidia/nemotron-3-ultra",
+      "deepseek-ai/deepseek-v4-flash"
+    ],
+    "panel_id": "sota_cross_axis_part2_corrected_original_scale_100d_v1",
+    "part2_contract_sha256": "f3b75d42c0c53f57dd45c94dc47dd4a27f3cdd07836cdb308c59ca9e40960b48",
+    "route_count": 23,
+    "route_key_uniqueness_validated": true,
+    "status": "complete_exact_source_bound_three_pair_full_trajectory_operational_overlays_composed",
+    "trajectory_count": 276
+  },
   "path_policy": "portable_basenames_only_no_host_absolute_paths_in_public_manifest",
   "privacy_policy": {
     "contains_only_identifiers_hash_bindings_and_derived_aggregates": true,
@@ -139,13 +271,13 @@
   "public_outputs": [
     {
       "basename": "figure_aggregates.json",
-      "file_sha256": "a4f2bb6d6b4167c9aadaa363cc7f3683f480d769e14afbe2460a825d6a2a76f9",
+      "file_sha256": "f2fb7c7fcdd71724b93293948f61437e9f031b75bb2a1542487e761d91aad882",
       "kind": "machine_readable_figure_aggregates_json",
-      "row_count": 1237
+      "row_count": 1285
     },
     {
       "basename": "part0_models.csv",
-      "file_sha256": "27e3821ca98fac57f353eae788532e27eb1feb69bdf7c67e77aa404d6a9be001",
+      "file_sha256": "367d7aa419f54d4d25ff105f8a4ae13bcd54163188ac56d89e5d2195ed68a06f",
       "kind": "machine_readable_table_csv",
       "row_count": 22
     },
@@ -157,7 +289,7 @@
     },
     {
       "basename": "part1_models.csv",
-      "file_sha256": "eb6205453e42ea3f8141a77472f4d3f54ec7d173ddfce2b739fca040b653663e",
+      "file_sha256": "aad7b5e6aed241b7045460401249043aad7f3586594f2520f2015350bc676cb7",
       "kind": "machine_readable_table_csv",
       "row_count": 75
     },
@@ -169,19 +301,19 @@
     },
     {
       "basename": "part2_models.csv",
-      "file_sha256": "b0e1cbfe29f4e33fced58150bfa21a50d47d5c0a43b530ff4bd9468636a7825b",
+      "file_sha256": "805f421e12589bd799b4acacaa3ae7be75c82a5f6ca6e3cb81361239836679c7",
       "kind": "machine_readable_table_csv",
-      "row_count": 19
+      "row_count": 23
     },
     {
       "basename": "part2_models.jsonl",
-      "file_sha256": "fca073238486fa7961c7c5a07170a20c7d13c169fcdd9db368fc5abbe5afba6e",
+      "file_sha256": "8850ded11c41a6eb07cf5e9c4987f09b92913d27d21046f5db0137129b1daf53",
       "kind": "machine_readable_table_jsonl",
-      "row_count": 19
+      "row_count": 23
     },
     {
       "basename": "role_calibration_model_frames.csv",
-      "file_sha256": "0d462e4f8e12f3d92f693f15ad4a87a5f585e3e8ee82fac7b8154f4e94249219",
+      "file_sha256": "2aa8a9f58c49f943f70c25e7e62be3203a540a9e4b225bd93998e3c0d6194411",
       "kind": "machine_readable_table_csv",
       "row_count": 18
     },
@@ -193,7 +325,7 @@
     },
     {
       "basename": "sensitivity_main_effects.csv",
-      "file_sha256": "67cf9409737e6c510320b30aecb3d3b3e78800c3f370b8dd684855538abbc3bb",
+      "file_sha256": "c18cb0a0bfd68ce2931d36b8cb9551c7bddc7dd6b107c1de98dad176984dff5d",
       "kind": "machine_readable_table_csv",
       "row_count": 25
     },
@@ -205,7 +337,7 @@
     },
     {
       "basename": "sensitivity_models.csv",
-      "file_sha256": "3d087603270ea92c6e0c30083f94956d70a5db43ae817ec046bbe3ba42647cf0",
+      "file_sha256": "b6be1f1898335d3c1b703c690d9f3d168ce4d6e5406d7f83ff97d6dc7c60de03",
       "kind": "machine_readable_table_csv",
       "row_count": 5
     },
@@ -219,7 +351,7 @@
   "row_counts": {
     "part0_models": 22,
     "part1_models": 75,
-    "part2_models": 19,
+    "part2_models": 23,
     "role_calibration_model_frames": 18,
     "sensitivity_main_effects": 25,
     "sensitivity_models": 5

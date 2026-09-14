@@ -13,16 +13,26 @@ The definitive provider-safe-v2 collection has three distinct primary scopes:
 
 | Part | Frozen primary schedule | Evidence status |
 | :--- | :--- | :--- |
-| Part 0 | 22 exact routes × 48 archived English roots × 3 requested response languages = 3,168 scheduled subject responses | Collection is in progress. The fixed judge is disjoint from every subject. Results remain exploratory because the task has no benign controls and the judge lacks completed human validation. |
-| Part 1 | 75 exact routes × the same balanced 384-root direct self-choice bank = 28,800 scheduled choices | Collection is in progress. Six additional frozen registry targets are operationally excluded without substitution. The bank lacks independent content approval, so results remain exploratory. |
-| Part 2 | 19 exact routes × 12 independent common-seed trajectories = 228 completed trajectories | Complete source manifest. It records 13,495 scheduled agent-days, zero transport or identity failures, and four invalid actions across three trajectories. The 225 trajectories without an invalid action support environmental estimates. |
+| Part 0 | 22 exact routes × 48 archived English roots × 3 requested response languages = 3,168 scheduled subject responses | All scheduled units are terminal under the explicit all-scheduled operational-invalid policy. The fixed judge is disjoint from every subject. Results remain exploratory because the task has no benign controls and the judge lacks completed human validation. |
+| Part 1 | 75 exact routes × the same balanced 384-root direct self-choice bank = 28,800 scheduled choices | A complete exact-source overlay resolves all three transport-null units; 704 malformed first responses remain scheduled nonsuccesses. Six frozen registry targets are excluded without substitution. The bank lacks independent content approval, so results remain exploratory. |
+| Part 2 | 23 exact routes × 12 independent common-seed trajectories = 276 completed trajectories | Complete ordered composition of three source/overlay pairs. It records 1,206,808 scheduled living agent-days and all 276 trajectories are operationally eligible after 57 whole-trajectory repairs. Environmental estimates use 198 zero-invalid trajectories; 78 are invalid-bearing, leaving 18 route summaries and five zero-eligible routes reported as NE. |
 
-The authoritative private source manifests are
-`definitive-part0-large-n48-main22-deadline-v6`,
-`definitive-part1-large-n384-main75-deadline-v5`, and
-`definitive-part2-n12-main19-v3` under `data/private/inference_hub/`.
-Metadata and reports must never substitute scheduled counts for completed
-counts while a manifest remains incomplete.
+The authoritative private Part 2 evidence under
+`data/private/inference_hub/` consists of these ordered source/overlay pairs:
+
+1. `full-part2-n12-n50-d100-main21-v5` with
+   `full-part2-n12-n50-d100-main21-v5-operational-completion-capability-v4`;
+2. `full-part2-n12-n50-d100-nemotron-3-ultra-recovered-v1` with
+   `full-part2-n12-n50-d100-nemotron-3-ultra-operational-repair-v1`; and
+3. `full-part2-n12-n50-d100-deepseek-v4-flash-recovered-v1` with
+   `full-part2-n12-n50-d100-deepseek-v4-flash-operational-repair-v1`.
+
+Part 0 and Part 1 use
+`definitive-part0-large-n48-main22-deadline-v6` and
+`definitive-part1-large-n384-main75-deadline-v5`, with their explicit terminal
+policy or exact-source operational overlay. Metadata and reports must never
+substitute scheduled counts for completed counts or silently promote an
+incomplete source without its validated terminal policy.
 
 Exact primary exclusions are:
 
@@ -31,11 +41,9 @@ Exact primary exclusions are:
 - Part 1 frozen-registry exclusions: `anthropic/claude-opus-4-5`,
   `minimaxai/minimax-m2.7`, `minimaxai/minimax-m3`,
   `moonshotai/kimi-k2.5`, `moonshotai/kimi-k2.6`, and `zai-org/glm-5.2`.
-- Part 2 primary execution contains 19 routes. The five planning-roster routes
-  outside that primary manifest are `anthropic/claude-opus-4-5`,
-  `deepseek-ai/deepseek-v4-flash`, `nvidia/nemotron-3-ultra`,
-  `minimaxai/minimax-m2.7`, and `zai-org/glm-5.1`. They receive no primary
-  Part 2 estimate; bounded availability retries remain separate evidence.
+- Part 2 excludes exactly `anthropic/claude-opus-4-5`. The other 23 frozen
+  planning-roster systems are present across the three source/overlay pairs.
+  No route substitutes for Opus 4.5.
 
 The April 13-model local pilot is historical provenance. Its legacy Part 0
 labels, legacy Part 2 estimates, and dependent cross-part correlations are
@@ -49,22 +57,35 @@ usage, retry decisions, parser status, and hashes. Part 0 additionally retains
 the visible subject response and fixed-judge result. Private records may contain
 harmful prompts or unsafe model output.
 
-`analysis.analyze_provider_safe_v2_definitive` accepts the five definitive
-source manifests only after each is complete, self-hash-valid, source-bound,
-and journal-valid. It atomically emits text-free model tables for Parts 0-2,
-role calibration, and sensitivity plus a self-hashed analysis manifest. The
-paper-asset builder then emits hash-bound tables, headline macros, and seven
-figure families. No active builder reads the superseded deadline
-`data/analysis/final_results` graph.
+`analysis.analyze_provider_safe_v2_definitive` accepts each definitive source
+phase only under its explicit terminal-evidence policy. For Part 2 it
+recursively validates and composes exactly the ordered three source/overlay
+pairs above, including exact identities, simulator transitions, common seeds,
+denominators, and hash chains. It atomically emits text-free model tables for
+Parts 0-2, role calibration, and sensitivity plus a self-hashed analysis
+manifest. The paper-asset builder then emits hash-bound tables, headline
+macros, and nine figure families. No active builder reads the sealed,
+superseded 12-day `data/analysis/final_results` graph.
 
 The definitive analyzer retains every scheduled invalid or unclear Part 0 or
 Part 1 outcome as a nonsuccess. Separate semantic-repair artifacts never alter
-the primary response or denominator. For Part 2, an invalid action remains a
-nonrestraint/zero-effect observation for behavioral continuity, while a
-trajectory containing any invalid action is excluded from environmental
-estimates. The analyzer uses root-cluster finite-bank sensitivity intervals for
-Part 0, stratified root resampling for Part 1, and independent trajectories for
-Part 2.
+the primary response or denominator. For Part 2, all 1,206,808 scheduled living
+agent-days remain in the behavioral denominator: 1,180,046 valid actions and
+26,762 genuine semantic `INVALID` actions, with 969,640 restraint and 210,406
+overuse actions. An invalid action remains a nonrestraint/zero-effect
+observation for behavioral continuity, while a trajectory containing any
+invalid action is excluded from environmental estimates. All 276 trajectories
+are operationally eligible after 57 whole-trajectory repairs; 198 contain no
+invalid action and are environmentally estimable. The other 78 trajectories
+are invalid-bearing. Eighteen routes have at least one environmentally eligible
+trajectory; the five zero-eligible routes are reported as NE. The primary
+descriptive restraint proportion pools scheduled living agent-days within each
+route. Seed-level figures and Student-$t$ intervals instead use the unweighted
+mean of the 12 trajectory-specific all-scheduled proportions; attrition can
+make these estimates differ. The analyzer uses
+root-cluster finite-bank sensitivity intervals for Part 0, stratified root
+resampling for Part 1, and 12 independently seeded trajectories per Part 2
+route under a seed set common across routes.
 
 ## Release policy
 
@@ -84,12 +105,15 @@ regeneration of the graph from raw hosted calls. Its Croissant JSON-LD has no
 dataset URL during anonymous review. Public hosting and external Croissant
 validation require a real post-review landing page and are not claimed here.
 
-Availability and semantic-repair summaries may contribute only as separately
-labeled, nonreplacement artifacts; the underlying private evidence remains
+The three exact-source Part 2 operational overlays replace only source
+trajectories that failed operationally and are provenance-bound parts of the
+final composition; they never replace genuine semantic invalids. Other
+availability and semantic-repair summaries may contribute only as separately
+labeled, nonreplacement artifacts. The underlying private evidence remains
 excluded. Croissant metadata is generated only after the definitive analysis
 and paper-asset directories exist and pass schema, self-hash, privacy,
 output-hash, and exact coverage checks. No final definitive self-hash is
-claimed while any required source manifest remains incomplete.
+claimed without every required terminal source/overlay binding.
 
 ## Limitations
 
@@ -98,11 +122,13 @@ claimed while any required source manifest remains incomplete.
   controls and one generation per root-condition cell.
 - The Part 0 judge has not completed quantitative human validation.
 - The Part 1 draft bank lacks independent content approval. All 75 primary
-  routes use the same 384-root bank, but completion is not claimed until the
-  manifest seals.
-- Part 2 uses homogeneous five-agent populations, 12 steps, one parameter
-  setting, and no communication or memory. It completed 12 trajectories per
-  route; 225 of 228 contain no invalid action and support environmental
+  routes use the same 384-root bank; the exact-source operational overlay does
+  not change or repair any malformed semantic response.
+- Part 2 uses homogeneous 50-agent populations, 100 days, one parameter
+  setting, and no communication or memory. Its fixed dynamics use initial
+  capacity 2,500, OPTION_B private gain 2, reserve cost 2, unanimous group
+  benefit/penalty 5, and collapse death rate 0.2. It completed 12 trajectories
+  per route; 198 of 276 contain no invalid action and support environmental
   estimation.
 - Related routes are not independent samples of developers or model families.
 - The benchmark evaluates artificial task outputs, not intent, moral status,

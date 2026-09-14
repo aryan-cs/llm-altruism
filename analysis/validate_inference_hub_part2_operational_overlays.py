@@ -253,6 +253,35 @@ OVERLAY_MANIFEST_REQUIRED_KEYS = frozenset(
 )
 OVERLAY_MANIFEST_OPTIONAL_KEYS = frozenset({"completed_at_utc", "credential_pool"})
 
+# Source manifests intentionally persist only the request-critical route
+# selection.  The cascading runner rehydrates those rows from the manifest-
+# bound registry and compatibility evidence before freezing them into its
+# child manifest.  Accept that one known schema expansion, but require every
+# compact source value and every present registry value to remain exact.
+SOURCE_SUBJECT_ROUTE_KEYS = frozenset(
+    {
+        "target_id",
+        "upstream_provider",
+        "model",
+        "route",
+        "candidate_index",
+        "supported_controls",
+        "selected_profile_id",
+        "selected_profile_request_sha256",
+    }
+)
+CASCADING_SUBJECT_ROUTE_REGISTRY_METADATA_KEYS = frozenset(
+    {
+        "id",
+        "provider",
+        "target_model",
+        "endpoint_profile",
+        "verification_status",
+        "route_source",
+        "compatibility_max_tokens",
+    }
+)
+
 SOURCE_TRAJECTORY_TOP_KEYS = frozenset(
     {
         "schema_version",
@@ -417,6 +446,8 @@ class _ValidatedPair:
     effective_models: tuple[Mapping[str, Any], ...]
     source_operational_failure_count: int
     repair_round_count: int
+    parent_overlay_manifest_path: Path | None = None
+    parent_overlay_manifest: Mapping[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -2614,6 +2645,70 @@ def _validate_cascading_execution_contract(value: object) -> Mapping[str, Any]:
     return value
 
 
+def _validate_cascading_subject_route_lineage(
+    value: object, *, source_manifest_routes: object,
+    hydrated_source_routes: Sequence[Mapping[str, Any]],
+) -> None:
+    """Validate the compact-source to registry-rehydrated child route lineage."""
+
+    if (
+        not isinstance(value, list)
+        or not isinstance(source_manifest_routes, list)
+        or len(value) != len(source_manifest_routes)
+        or len(value) != len(hydrated_source_routes)
+    ):
+        raise Part2OperationalOverlayValidationError(
+            "Cascading subject-route lineage shape changed."
+        )
+    allowed_keys = (
+        SOURCE_SUBJECT_ROUTE_KEYS | CASCADING_SUBJECT_ROUTE_REGISTRY_METADATA_KEYS
+    )
+    for overlay_row, source_row, hydrated_row in zip(
+        value, source_manifest_routes, hydrated_source_routes
+    ):
+        if (
+            not isinstance(overlay_row, Mapping)
+            or not isinstance(source_row, Mapping)
+            or not isinstance(hydrated_row, Mapping)
+            or set(source_row) != SOURCE_SUBJECT_ROUTE_KEYS
+            or set(hydrated_row) != allowed_keys
+            or set(overlay_row) != allowed_keys
+        ):
+            raise Part2OperationalOverlayValidationError(
+                "Cascading subject-route lineage schema changed."
+            )
+        source_projection = dict(source_row)
+        hydrated_projection = {
+            key: hydrated_row[key] for key in SOURCE_SUBJECT_ROUTE_KEYS
+        }
+        overlay_projection = {
+            key: overlay_row[key] for key in SOURCE_SUBJECT_ROUTE_KEYS
+        }
+        if (
+            _canonical_bytes(source_projection)
+            != _canonical_bytes(hydrated_projection)
+            or _canonical_bytes(source_projection)
+            != _canonical_bytes(overlay_projection)
+        ):
+            raise Part2OperationalOverlayValidationError(
+                "Cascading overlay changed a frozen route/control/hash binding."
+            )
+        overlay_metadata = {
+            key: overlay_row[key]
+            for key in CASCADING_SUBJECT_ROUTE_REGISTRY_METADATA_KEYS
+        }
+        hydrated_metadata = {
+            key: hydrated_row[key]
+            for key in CASCADING_SUBJECT_ROUTE_REGISTRY_METADATA_KEYS
+        }
+        if _canonical_bytes(overlay_metadata) != _canonical_bytes(
+            hydrated_metadata
+        ):
+            raise Part2OperationalOverlayValidationError(
+                "Cascading overlay changed bound registry route metadata."
+            )
+
+
 def _validate_cascading_overlay(
     manifest_path: Path, manifest: Mapping[str, Any], *,
     parent: _ValidatedPartialOverlay, tracker: _FileTracker,
@@ -2634,6 +2729,11 @@ def _validate_cascading_overlay(
     expected_key = (
         EXPECTED_CASCADING_TARGET_ID, EXPECTED_CASCADING_TRAJECTORY_INDEX,
     )
+    _validate_cascading_subject_route_lineage(
+        manifest.get("subject_routes"),
+        source_manifest_routes=source.manifest.get("subject_routes"),
+        hydrated_source_routes=source.subjects,
+    )
     if (
         Path(str(source_binding.get("path", ""))).resolve() != source.manifest_path
         or source_binding.get("file_sha256") != source.manifest_file_sha256
@@ -2648,7 +2748,6 @@ def _validate_cascading_overlay(
         or manifest.get("part2_contract") != source.manifest.get("part2_contract")
         or manifest.get("common_environment_seeds")
         != source.manifest.get("common_environment_seeds")
-        or manifest.get("subject_routes") != source.manifest.get("subject_routes")
         or cascading.REPAIR_POLICY != EXPECTED_CASCADING_REPAIR_POLICY
         or manifest.get("repair_policy") != EXPECTED_CASCADING_REPAIR_POLICY
         or manifest.get("maximum_rounds") != EXPECTED_CASCADING_MAXIMUM_ROUNDS
@@ -2864,6 +2963,8 @@ def _validate_cascading_overlay(
         effective_models=tuple(effective_models),
         source_operational_failure_count=len(parent.source_failures),
         repair_round_count=parent.repair_round_count + executed_rounds,
+        parent_overlay_manifest_path=parent.parent_manifest_path,
+        parent_overlay_manifest=parent.parent_manifest,
     )
 
 
@@ -3246,11 +3347,12 @@ def _discover_cascading_parent_path(overlay_path: Path) -> Path | None:
     return _private_manifest_path(Path(str(reference["path"])))
 
 
-def validate_operational_overlay_pairs(
+@contextmanager
+def validated_operational_overlay_pair_snapshot(
     pairs: Sequence[tuple[Path, Path]], *,
     source_verification_root: Path | None = None,
-) -> dict[str, Any]:
-    """Validate exactly three source/overlay pairs without modifying evidence."""
+) -> Iterator[tuple[tuple[_ValidatedPair, ...], dict[str, Any], _FileTracker]]:
+    """Yield one locked, recursively validated three-pair evidence snapshot."""
 
     if len(pairs) != 3:
         raise Part2OperationalOverlayValidationError("Exactly three source/overlay pairs are required.")
@@ -3322,8 +3424,8 @@ def validate_operational_overlay_pairs(
                         tracker=tracker, global_attempt_ids=global_attempt_ids,
                     ))
             result = _validate_union(validated)
+            yield tuple(validated), result, tracker
             tracker.verify()
-            return result
     except (
         Part2OperationalOverlayValidationError,
         offline.OfflinePart2FinalizationError,
@@ -3337,6 +3439,18 @@ def validate_operational_overlay_pairs(
         if isinstance(error, Part2OperationalOverlayValidationError):
             raise
         raise Part2OperationalOverlayValidationError(str(error)) from error
+
+
+def validate_operational_overlay_pairs(
+    pairs: Sequence[tuple[Path, Path]], *,
+    source_verification_root: Path | None = None,
+) -> dict[str, Any]:
+    """Validate exactly three source/overlay pairs without modifying evidence."""
+
+    with validated_operational_overlay_pair_snapshot(
+        pairs, source_verification_root=source_verification_root,
+    ) as (_validated, result, _tracker):
+        return dict(result)
 
 
 def _parser() -> argparse.ArgumentParser:

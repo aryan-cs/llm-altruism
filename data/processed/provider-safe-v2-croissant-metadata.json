@@ -73,37 +73,37 @@
   "dateCreated": "2026-04-30",
   "dateModified": "2026-08-03",
   "datePublished": "2026-08-03",
-  "description": "Release-safe aggregates for Safety Beyond Refusal. The three axes remain separate: harmful-request refusal, welfare-preserving one-shot choice, and repeated-commons restraint. Counts are computed from the hash-bound release: 22 Part 0 models over 3168 scheduled responses; 75 Part 1 models over 28800 scheduled choices; and 19 Part 2 models over 228 trajectories, of which 225 are environmentally estimable. No cross-axis composite score is released.",
+  "description": "Release-safe aggregates for Safety Beyond Refusal. The three axes remain separate: harmful-request refusal, welfare-preserving one-shot choice, and repeated-commons restraint. Counts are computed from the hash-bound release: 22 Part 0 models over 3168 scheduled responses; 75 Part 1 models over 28800 scheduled choices; and 23 Part 2 models over 276 trajectories, of which 198 are environmentally estimable. No cross-axis composite score is released.",
   "distribution": [
     {
       "@id": "analysis-analysis-manifest-json",
       "@type": "cr:FileObject",
-      "contentSize": "10259 B",
+      "contentSize": "16109 B",
       "contentUrl": "provider-safe-v2-definitive-analysis/analysis_manifest.json",
       "description": "Hash-bound definitive aggregate analysis artifact.",
       "encodingFormat": "application/json",
       "name": "analysis_manifest.json",
-      "sha256": "380e44f079227897569685b2ef20f8a866802f79a53bc6d2d85787649f19fb2d"
+      "sha256": "caf55beeb2857eeb6b01f1a529038fd58aa095f64b4a15db45697f27c50b7eba"
     },
     {
       "@id": "analysis-figure-aggregates-json",
       "@type": "cr:FileObject",
-      "contentSize": "558550 B",
+      "contentSize": "625365 B",
       "contentUrl": "provider-safe-v2-definitive-analysis/figure_aggregates.json",
       "description": "Hash-bound definitive aggregate analysis artifact.",
       "encodingFormat": "application/json",
       "name": "figure_aggregates.json",
-      "sha256": "a4f2bb6d6b4167c9aadaa363cc7f3683f480d769e14afbe2460a825d6a2a76f9"
+      "sha256": "f2fb7c7fcdd71724b93293948f61437e9f031b75bb2a1542487e761d91aad882"
     },
     {
       "@id": "analysis-part0-models-csv",
       "@type": "cr:FileObject",
-      "contentSize": "6504 B",
+      "contentSize": "6481 B",
       "contentUrl": "provider-safe-v2-definitive-analysis/part0_models.csv",
       "description": "Hash-bound definitive aggregate analysis artifact.",
       "encodingFormat": "text/csv",
       "name": "part0_models.csv",
-      "sha256": "27e3821ca98fac57f353eae788532e27eb1feb69bdf7c67e77aa404d6a9be001"
+      "sha256": "367d7aa419f54d4d25ff105f8a4ae13bcd54163188ac56d89e5d2195ed68a06f"
     },
     {
       "@id": "analysis-part0-models-jsonl",
@@ -118,12 +118,12 @@
     {
       "@id": "analysis-part1-models-csv",
       "@type": "cr:FileObject",
-      "contentSize": "19419 B",
+      "contentSize": "19343 B",
       "contentUrl": "provider-safe-v2-definitive-analysis/part1_models.csv",
       "description": "Hash-bound definitive aggregate analysis artifact.",
       "encodingFormat": "text/csv",
       "name": "part1_models.csv",
-      "sha256": "eb6205453e42ea3f8141a77472f4d3f54ec7d173ddfce2b739fca040b653663e"
+      "sha256": "aad7b5e6aed241b7045460401249043aad7f3586594f2520f2015350bc676cb7"
     },
     {
       "@id": "analysis-part1-models-jsonl",
@@ -138,32 +138,32 @@
     {
       "@id": "analysis-part2-models-csv",
       "@type": "cr:FileObject",
-      "contentSize": "8227 B",
+      "contentSize": "9686 B",
       "contentUrl": "provider-safe-v2-definitive-analysis/part2_models.csv",
       "description": "Hash-bound definitive aggregate analysis artifact.",
       "encodingFormat": "text/csv",
       "name": "part2_models.csv",
-      "sha256": "b0e1cbfe29f4e33fced58150bfa21a50d47d5c0a43b530ff4bd9468636a7825b"
+      "sha256": "805f421e12589bd799b4acacaa3ae7be75c82a5f6ca6e3cb81361239836679c7"
     },
     {
       "@id": "analysis-part2-models-jsonl",
       "@type": "cr:FileObject",
-      "contentSize": "30782 B",
+      "contentSize": "37505 B",
       "contentUrl": "provider-safe-v2-definitive-analysis/part2_models.jsonl",
       "description": "Hash-bound definitive aggregate analysis artifact.",
       "encodingFormat": "application/x-ndjson",
       "name": "part2_models.jsonl",
-      "sha256": "fca073238486fa7961c7c5a07170a20c7d13c169fcdd9db368fc5abbe5afba6e"
+      "sha256": "8850ded11c41a6eb07cf5e9c4987f09b92913d27d21046f5db0137129b1daf53"
     },
     {
       "@id": "analysis-role-calibration-model-frames-csv",
       "@type": "cr:FileObject",
-      "contentSize": "3123 B",
+      "contentSize": "3104 B",
       "contentUrl": "provider-safe-v2-definitive-analysis/role_calibration_model_frames.csv",
       "description": "Hash-bound definitive aggregate analysis artifact.",
       "encodingFormat": "text/csv",
       "name": "role_calibration_model_frames.csv",
-      "sha256": "0d462e4f8e12f3d92f693f15ad4a87a5f585e3e8ee82fac7b8154f4e94249219"
+      "sha256": "2aa8a9f58c49f943f70c25e7e62be3203a540a9e4b225bd93998e3c0d6194411"
     },
     {
       "@id": "analysis-role-calibration-model-frames-jsonl",
@@ -178,12 +178,12 @@
     {
       "@id": "analysis-sensitivity-main-effects-csv",
       "@type": "cr:FileObject",
-      "contentSize": "7836 B",
+      "contentSize": "7810 B",
       "contentUrl": "provider-safe-v2-definitive-analysis/sensitivity_main_effects.csv",
       "description": "Hash-bound definitive aggregate analysis artifact.",
       "encodingFormat": "text/csv",
       "name": "sensitivity_main_effects.csv",
-      "sha256": "67cf9409737e6c510320b30aecb3d3b3e78800c3f370b8dd684855538abbc3bb"
+      "sha256": "c18cb0a0bfd68ce2931d36b8cb9551c7bddc7dd6b107c1de98dad176984dff5d"
     },
     {
       "@id": "analysis-sensitivity-main-effects-jsonl",
@@ -198,12 +198,12 @@
     {
       "@id": "analysis-sensitivity-models-csv",
       "@type": "cr:FileObject",
-      "contentSize": "1544 B",
+      "contentSize": "1538 B",
       "contentUrl": "provider-safe-v2-definitive-analysis/sensitivity_models.csv",
       "description": "Hash-bound definitive aggregate analysis artifact.",
       "encodingFormat": "text/csv",
       "name": "sensitivity_models.csv",
-      "sha256": "3d087603270ea92c6e0c30083f94956d70a5db43ae817ec046bbe3ba42647cf0"
+      "sha256": "b6be1f1898335d3c1b703c690d9f3d168ce4d6e5406d7f83ff97d6dc7c60de03"
     },
     {
       "@id": "analysis-sensitivity-models-jsonl",
@@ -218,102 +218,102 @@
     {
       "@id": "asset-all-models-cross-phase-outcome-profile-block1-png",
       "@type": "cr:FileObject",
-      "contentSize": "423759 B",
+      "contentSize": "423758 B",
       "contentUrl": "provider-safe-v2-paper-assets/all_models_cross_phase_outcome_profile_block1.png",
       "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
       "encodingFormat": "image/png",
       "name": "all_models_cross_phase_outcome_profile_block1.png",
-      "sha256": "5d9bf1813a75e2bc4e9e07b59e75d7da528f5ac0014c7e7a01a0f9bf1b6cdadd"
+      "sha256": "3099397a18a394860e9869eabf7daa68d021b4428ec990c88b60e719f77ea36c"
     },
     {
       "@id": "asset-all-models-cross-phase-outcome-profile-block2-png",
       "@type": "cr:FileObject",
-      "contentSize": "428661 B",
+      "contentSize": "428648 B",
       "contentUrl": "provider-safe-v2-paper-assets/all_models_cross_phase_outcome_profile_block2.png",
       "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
       "encodingFormat": "image/png",
       "name": "all_models_cross_phase_outcome_profile_block2.png",
-      "sha256": "a657558b2822a9a18c93b1bc48edebc071ac8172635b0ac602c80505172f4523"
+      "sha256": "b53d77f8ce3e70ccc36938efc3e39ca55b90bd2d5f5bad9f92937fc074503718"
     },
     {
       "@id": "asset-all-models-cross-phase-outcome-profile-block3-png",
       "@type": "cr:FileObject",
-      "contentSize": "510554 B",
+      "contentSize": "510531 B",
       "contentUrl": "provider-safe-v2-paper-assets/all_models_cross_phase_outcome_profile_block3.png",
       "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
       "encodingFormat": "image/png",
       "name": "all_models_cross_phase_outcome_profile_block3.png",
-      "sha256": "9163961b7a1de2d162dfa346ced0cf0d9e48e64bd820df8395292314317f07d6"
+      "sha256": "6d0691982bdfd976e24be2e01df728f8eee5744cf9c754fe3f37e6636df4e159"
     },
     {
       "@id": "asset-all-models-cross-phase-outcome-profile-block4-png",
       "@type": "cr:FileObject",
-      "contentSize": "496981 B",
+      "contentSize": "514846 B",
       "contentUrl": "provider-safe-v2-paper-assets/all_models_cross_phase_outcome_profile_block4.png",
       "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
       "encodingFormat": "image/png",
       "name": "all_models_cross_phase_outcome_profile_block4.png",
-      "sha256": "477d7ea755f74a5743c3fe155a3fa81fc4f2081ecdf0d5e8cb809eeb89f37e3b"
+      "sha256": "476d0e3fed44101910faf016222ee49dde21a3ec914a0d0f858560bf321d843b"
     },
     {
       "@id": "asset-all-models-cross-phase-table-md",
       "@type": "cr:FileObject",
-      "contentSize": "9396 B",
+      "contentSize": "9706 B",
       "contentUrl": "provider-safe-v2-paper-assets/all_models_cross_phase_table.md",
       "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
       "encodingFormat": "text/markdown",
       "name": "all_models_cross_phase_table.md",
-      "sha256": "757b5bf26c688581f0bd11337e2f98e26faa3a7d589890a122514bb4d5007540"
+      "sha256": "9d768c4a1bba6845027945e6399bca88db4d452c70f30ac223edbf36edffd5fc"
     },
     {
       "@id": "asset-all-models-cross-phase-table-tex",
       "@type": "cr:FileObject",
-      "contentSize": "14504 B",
+      "contentSize": "15459 B",
       "contentUrl": "provider-safe-v2-paper-assets/all_models_cross_phase_table.tex",
       "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
       "encodingFormat": "application/x-tex",
       "name": "all_models_cross_phase_table.tex",
-      "sha256": "52702faff18883e71c0967c2ddf45e2c88091f9d73c8ca66b397f05fe8ff1530"
+      "sha256": "67638fd1536f9a02b04f182272e4a3ba4eaceccf56a2a640d809c61990ebb900"
     },
     {
       "@id": "asset-compact-matched-core-table-tex",
       "@type": "cr:FileObject",
-      "contentSize": "2678 B",
+      "contentSize": "3098 B",
       "contentUrl": "provider-safe-v2-paper-assets/compact_matched_core_table.tex",
       "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
       "encodingFormat": "application/x-tex",
       "name": "compact_matched_core_table.tex",
-      "sha256": "d0498f2e20c3da76a60f12a34dc37c335f232ff7b114d65519b0e4591b41f93c"
+      "sha256": "875860ec3b5e2861a9c21b9b3b47ba5d668bc81f4d56d017c59b2bcd15a0ccda"
     },
     {
       "@id": "asset-matched-current-route-profile-png",
       "@type": "cr:FileObject",
-      "contentSize": "314074 B",
+      "contentSize": "346078 B",
       "contentUrl": "provider-safe-v2-paper-assets/matched_current_route_profile.png",
       "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
       "encodingFormat": "image/png",
       "name": "matched_current_route_profile.png",
-      "sha256": "c497d49172f59c4bfb34f045e522d18ca905e309993ac86add0aa9e6f05de69e"
+      "sha256": "7e3dc3b602d42726873cb2378c176ea9274469203e732ea38772aea52c400426"
     },
     {
       "@id": "asset-paper-assets-manifest-json",
       "@type": "cr:FileObject",
-      "contentSize": "9557 B",
+      "contentSize": "9730 B",
       "contentUrl": "provider-safe-v2-paper-assets/paper_assets_manifest.json",
       "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
       "encodingFormat": "application/json",
       "name": "paper_assets_manifest.json",
-      "sha256": "5e1da934fca777a1df0c68298d8897b05cbe4cefb01340fcd43cd6d51ff67117"
+      "sha256": "4e9456daf109df142b9353dc6588f6ef4d7996beaab60289fe3cc436448ac968"
     },
     {
       "@id": "asset-paper-headlines-tex",
       "@type": "cr:FileObject",
-      "contentSize": "6590 B",
+      "contentSize": "6727 B",
       "contentUrl": "provider-safe-v2-paper-assets/paper_headlines.tex",
       "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
       "encodingFormat": "application/x-tex",
       "name": "paper_headlines.tex",
-      "sha256": "8a61ffa50655885b039b26ec03c97b69b9dfd5c58c8abce1aa06761a103178ac"
+      "sha256": "2640e6eb18b08ef7635f26e91e91ab0291fdf6338d13e401019b482f94912962"
     },
     {
       "@id": "asset-part0-model-language-png",
@@ -418,22 +418,22 @@
     {
       "@id": "asset-part2-all-models-png",
       "@type": "cr:FileObject",
-      "contentSize": "616227 B",
+      "contentSize": "687916 B",
       "contentUrl": "provider-safe-v2-paper-assets/part2_all_models.png",
       "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
       "encodingFormat": "image/png",
       "name": "part2_all_models.png",
-      "sha256": "cbadb66a3558268395f0b5c2b3818ea756a59d55a96a0bf8d4022585eab6076b"
+      "sha256": "a02a9bb10c18b5c2d1fa3edc98ab687ba03f1bbf82169efde06cbd61a04d9dea"
     },
     {
       "@id": "asset-part2-all-models-table-tex",
       "@type": "cr:FileObject",
-      "contentSize": "3203 B",
+      "contentSize": "3497 B",
       "contentUrl": "provider-safe-v2-paper-assets/part2_all_models_table.tex",
       "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
       "encodingFormat": "application/x-tex",
       "name": "part2_all_models_table.tex",
-      "sha256": "63ba850a996abb0260fbd8f329d8622b8c11bd594c02a7dfc147e73bce5f0116"
+      "sha256": "b7add50d94f3209adad39e5097936d0ec1803a478a1cf9c8f4005e5d9648d134"
     },
     {
       "@id": "asset-part2-sensitivity-effects-png",
@@ -458,12 +458,12 @@
     {
       "@id": "asset-refusal-cooperation-overview-png",
       "@type": "cr:FileObject",
-      "contentSize": "480154 B",
+      "contentSize": "480886 B",
       "contentUrl": "provider-safe-v2-paper-assets/refusal_cooperation_overview.png",
       "description": "Hash-bound paper-facing table or raster figure derived from the definitive aggregates.",
       "encodingFormat": "image/png",
       "name": "refusal_cooperation_overview.png",
-      "sha256": "c6375e8f07478667d3f267f07e2001b3c3fb318b5e30097cad47b75e97559d89"
+      "sha256": "cdc9f46b82dad0aecf7396fb55502c266cba5d7ba80347ac21511bf2cf401777"
     }
   ],
   "isAccessibleForFree": true,
@@ -487,7 +487,7 @@
     "name": "Anonymous Authors"
   },
   "rai:dataAnnotationProtocol": "Part 0 uses one fixed judge disjoint from every evaluated subject. Parts 1 and 2 use deterministic structured-action parsing. Primary denominators retain first-attempt invalids; semantic repairs are isolated supplements.",
-  "rai:dataCollection": "The definitive panels contain 22 Part 0, 75 Part 1, and 19 Part 2 model routes. Part 2 contains 228 scheduled trajectories, 225 environmentally estimable trajectories, 3 semantic-invalid trajectories, and 4 first-attempt invalid actions. The separate role-calibration and deadline sensitivity releases contain 18 model-frame rows, 5 sentinel models, and 25 prespecified effects.",
+  "rai:dataCollection": "The definitive panels contain 22 Part 0, 75 Part 1, and 23 Part 2 model routes. Part 2 contains 276 scheduled trajectories, 198 environmentally estimable trajectories, 78 semantic-invalid trajectories, and 26762 first-attempt invalid actions. The separate role-calibration and deadline sensitivity releases contain 18 model-frame rows, 5 sentinel models, and 25 prespecified effects.",
   "rai:dataCollectionType": [
     "Experiments",
     "Software Collection"
@@ -2621,17 +2621,17 @@
     "part0_scheduled_response_count": 3168,
     "part1_model_count": 75,
     "part1_scheduled_choice_count": 28800,
-    "part2_environmentally_estimable_trajectory_count": 225,
-    "part2_first_attempt_invalid_action_count": 4,
-    "part2_model_count": 19,
-    "part2_semantic_invalid_trajectory_count": 3,
-    "part2_trajectory_count": 228,
+    "part2_environmentally_estimable_trajectory_count": 198,
+    "part2_first_attempt_invalid_action_count": 26762,
+    "part2_model_count": 23,
+    "part2_semantic_invalid_trajectory_count": 78,
+    "part2_trajectory_count": 276,
     "role_calibration_model_frame_count": 18,
     "sensitivity_main_effect_count": 25,
     "sensitivity_model_count": 5
   },
   "sdLicense": "https://opensource.org/license/mit",
-  "sourceAnalysisEvidenceSha256": "a62c982d3ef3a04aeaec5e96a1a1db15e2e534890a5436708467c6ba43ff96a1",
-  "sourcePaperAssetsEvidenceSha256": "0c503be811ecf39b5a48ef164994b23b7b932c00f54431849a964548bf97fcbe",
+  "sourceAnalysisEvidenceSha256": "9dd83133a0129f62745fb91615922d1dab64f254713495ed94571af4af6571e8",
+  "sourcePaperAssetsEvidenceSha256": "c62f4be84238478138373e355187481c2c015fe2711d16c7cc4c458eda080165",
   "version": "1.0.0"
 }

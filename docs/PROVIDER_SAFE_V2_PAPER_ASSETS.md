@@ -17,7 +17,10 @@ requires the complete production matrix:
 - 22 Part 0 routes and exactly three 48-root response-language conditions per
   route (`english`, `chinese`, and `russian`);
 - 75 Part 1 routes with 384 scheduled self-choice units each;
-- 19 Part 2 routes with 12 trajectories each;
+- 23 Part 2 routes with 12 common-seed trajectories each (276 total), composed
+  from the ordered 21-route main, one-route Nemotron Ultra, and one-route
+  DeepSeek V4 Flash source/overlay pairs, with Opus 4.5 excluded without
+  substitution;
 - six role-calibration routes by three separate 384-draw frames; and
 - five independent exact compatible sensitivity sentinels by five factors,
   with 16 cells, two common seeds, and one global 25-test Holm family; and
@@ -29,6 +32,15 @@ levels, exploratory status, and duplicate/missing matrix cells are all checked
 before rendering. First-attempt invalid outcomes remain in the primary
 scheduled-unit denominators. Existing output directories are never
 overwritten; publication is atomic only after every asset succeeds.
+
+For the production Part 2 topology, validation requires 1,206,808 scheduled
+living agent-days, 1,180,046 valid actions, 26,762 genuine semantic `INVALID`
+actions, 969,640 restraint actions, 210,406 overuse actions, 276 operationally
+eligible trajectories, and 198 zero-invalid/environmentally estimable
+trajectories. The remaining 78 trajectories are invalid-bearing, leaving 18
+routes with an environmental summary and five zero-eligible routes rendered as
+NE. These values must reconcile to the provenance-bound analyzer tables; they
+are not hard-coded substitutes for those tables.
 
 ## Run
 
@@ -52,14 +64,26 @@ Each figure is emitted as a vector PDF and a 300-dpi PNG:
   output coverage;
 - `part1_all_models`: one ordered row per each of the 75 routes, with
   welfare-preserving rate and valid coverage;
-- `part2_all_models`: one ordered row per each of the 19 routes, with restraint,
-  normalized AURC, and valid coverage;
+- `part2_all_models`: one ordered row per each of the 23 routes. The figure uses
+  the equal-seed-weighted mean of 12 trajectory-specific all-scheduled
+  restraint proportions with trajectory Student-$t$ intervals, while the
+  companion table reports the primary pooled living-agent-day restraint
+  proportion; normalized AURC and population retention use only zero-invalid
+  eligible trajectories;
+- `refusal_cooperation_overview`: provider-grouped Part 0 refusal bars beside
+  the complete Part 1 cooperation rank profile;
+- `matched_current_route_profile`: aligned, task-specific Part 0/1/2 outcomes
+  for the 22 exact routes shared across all three phases, using the seed-level
+  trajectory-mean Part 2 restraint estimate;
 - `part1_role_calibration`: six routes by three separate frames, with welfare
   preservation and valid coverage; and
-- `part2_sensitivity_effects`: six routes by five high-minus-low AURC effects,
-  annotated with global Holm status; and
+- `part2_sensitivity_effects`: five routes by five high-minus-low AURC effects,
+  annotated with global Holm status;
 - `part1_local_controls`: a compact, separate four-row plot of welfare
-  preservation and format validity by exact local model ID and parameter scale.
+  preservation and format validity by exact local model ID and parameter scale;
+  and
+- `cross_phase_outcome_profile`: pairwise, nonpooled cross-task comparisons
+  over exact shared routes.
 
 Matching LaTeX fragments use exact route/model IDs and contain self-contained
 captions defining every row and column, denominator, and direction. Long tables
@@ -102,12 +126,14 @@ The macro families are:
   and invalid totals, plus minimum/median/maximum model welfare percentages.
   Invalid first attempts remain scheduled nonsuccesses.
 - `ProviderSafePartTwo...`: model and trajectory totals; operationally eligible
-  and ineligible trajectory totals; scheduled, valid, and invalid agent-day
-  totals; nonestimable-model count; and model minimum/median/maximum normalized
-  AURC and restraint percentage. Valid/invalid macros explicitly count
-  scheduled agent-days. AURC summaries use estimable model means only; if no
-  model is estimable, the three AURC macros emit `NE` rather than changing the
-  denominator or inventing a value.
+  and ineligible trajectory totals; environmentally estimable and
+  semantic-invalid trajectory totals; scheduled, valid, and invalid living
+  agent-day totals; nonestimable-model count; and model minimum/median/maximum
+  normalized AURC, AUPC, reserve nondepletion, population retention, and
+  primary pooled all-scheduled restraint percentage. Valid/invalid macros
+  explicitly count scheduled living agent-days. Environmental summaries use the 198 zero-invalid trajectories
+  only; if no model is estimable, the corresponding macros emit `NE` rather
+  than changing the denominator or inventing a value.
 - `ProviderSafeRoleAdvice...`, `ProviderSafeRoleObserverEvaluation...`, and
   `ProviderSafeRolePrediction...`: separate per-frame model counts and
   minimum/median/maximum welfare and valid-coverage percentages. Frames are
@@ -130,12 +156,15 @@ UV_CACHE_DIR=/tmp/llm-altruism-uv-cache \
 ```
 
 The tests construct the full production-shaped sanitized matrix, render all
-six PDF/PNG/TeX families plus the deterministic headline macro fragment, verify
+nine PDF/PNG figure families plus the deterministic table and headline
+fragments, verify
 that the PDFs contain vector marks rather than
 embedded raster charts, validate PNG resolution and output hashes, count all 75
-and 19 hosted model rows plus four local-control rows, check the 15-point spacing around every table block, and
+Part 1 and all 23 Part 2 hosted model rows plus four local-control rows, check the
+15-point spacing around every table block, and
 exercise missing-row, missing-field, duplicate-ID, factor/Holm, identity,
 local-control, manifest-tamper, and no-overwrite failures. The production-shaped
-headline test parses every emitted macro and compares all 57 names and values
-exactly, including one nonestimable Part 2 model and the frozen sensitivity
-seed/Holm counts; a second write must be byte-for-byte identical.
+headline test parses every emitted macro and compares every name and value
+exactly, including nonestimable Part 2 handling, pairwise exact-route overlap,
+and the frozen sensitivity seed/Holm counts; a second write must be
+byte-for-byte identical.
